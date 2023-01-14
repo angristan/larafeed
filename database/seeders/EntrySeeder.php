@@ -2,10 +2,10 @@
 
 namespace Database\Seeders;
 
-use App\Models\Feed;
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
-class FeedSeeder extends Seeder
+class EntrySeeder extends Seeder
 {
     /**
      * Run the database seeds.
@@ -14,6 +14,6 @@ class FeedSeeder extends Seeder
      */
     public function run()
     {
-        Feed::factory(1)->hasEntries(5)->create();
+        //
     }
 }

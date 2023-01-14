@@ -46,11 +46,14 @@ class FeedController extends Controller
      * Display the specified resource.
      *
      * @param  \App\Models\Feed  $feed
-     * @return \Illuminate\Http\Response
+     * @return \Inertia\Response
      */
     public function show(Feed $feed)
     {
-        //
+        return Inertia::render('Feed/Entries', [
+            'feed' => $feed,
+            'entries' => $feed->entries,
+        ]);
     }
 
     /**

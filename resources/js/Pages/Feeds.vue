@@ -1,6 +1,6 @@
 <script setup>
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
-import { Head } from "@inertiajs/inertia-vue3";
+import { Head, Link } from "@inertiajs/inertia-vue3";
 defineProps(["feeds"]);
 </script>
 
@@ -32,16 +32,23 @@ defineProps(["feeds"]);
                             >
                                 <div class="flex items center justify-between">
                                     <div class="flex items center">
-                                        <div class="ml-4">
-                                            <div
-                                                class="text-sm font-medium text-gray-900"
-                                            >
-                                                {{ feed.name }}
+                                        <Link
+                                            :href="route('feeds.show', feed.id)"
+                                            class="flex-shrink-0 group block"
+                                        >
+                                            <div class="ml-4">
+                                                <div
+                                                    class="text-sm font-medium text-gray-900"
+                                                >
+                                                    {{ feed.name }}
+                                                </div>
+                                                <div
+                                                    class="text-sm text-gray-500"
+                                                >
+                                                    {{ feed.url }}
+                                                </div>
                                             </div>
-                                            <div class="text-sm text-gray-500">
-                                                {{ feed.url }}
-                                            </div>
-                                        </div>
+                                        </Link>
                                     </div>
                                 </div>
                             </li>
