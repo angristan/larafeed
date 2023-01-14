@@ -1,3 +1,4 @@
+import "element-plus/dist/index.css";
 import "../css/app.css";
 import "./bootstrap";
 
