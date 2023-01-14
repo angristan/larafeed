@@ -14,7 +14,8 @@
         "laravel/telescope": "^4.11",
         "laravel/tinker": "^2.7",
         "spatie/laravel-login-link": "^1.1",
-        "tightenco/ziggy": "^1.0"
+        "tightenco/ziggy": "^1.0",
+        "willvincent/feeds": "^2.4"
     },
     "require-dev": {
         "barryvdh/laravel-debugbar": "^3.7",

@@ -33,7 +33,9 @@ defineProps(["feeds"]);
                                 <div class="flex items center justify-between">
                                     <div class="flex items center">
                                         <Link
-                                            :href="route('feeds.show', feed.id)"
+                                            :href="
+                                                route('feed.entries', feed.id)
+                                            "
                                             class="flex-shrink-0 group block"
                                         >
                                             <div class="ml-4">

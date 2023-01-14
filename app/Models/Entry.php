@@ -9,6 +9,19 @@ class Entry extends Model
 {
     use HasFactory;
 
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<string>
+     */
+    protected $fillable = [
+        'title',
+        'url',
+    ];
+
+    /**
+     * Get the feed that owns the entry.
+     */
     public function feed()
     {
         return $this->belongsTo(Feed::class);
