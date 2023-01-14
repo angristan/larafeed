@@ -6,7 +6,6 @@ use App\Exceptions\FeedCrawlFailedException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use SimplePie\Item;
-use willvincent\Feeds\Facades\FeedsFacade;
 
 /**
  * App\Models\Feed
@@ -55,7 +54,7 @@ class Feed extends Model
 
     public function refreshEntries()
     {
-        $crawledFeed = FeedsFacade::make([$this->lol]);
+        $crawledFeed = \Feeds::make([$this->feed_url]);
         if ($crawledFeed->error()) {
             $error = '';
             if (is_array($crawledFeed->error())) {

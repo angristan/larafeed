@@ -1,0 +1,23 @@
+name: Lint
+
+on: [push]
+
+jobs:
+  # phpstan:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - uses: php-actions/composer@v6
+  #     - uses: php-actions/phpstan@v3
+  #       with:
+  #         path: app/
+  #         memory_limit: 256M
+
+  phplint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: "laravel-pint"
+        uses: aglipanci/laravel-pint-action@2.0.0
+        with:
+          preset: laravel
