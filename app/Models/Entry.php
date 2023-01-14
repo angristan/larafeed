@@ -17,6 +17,11 @@ class Entry extends Model
     protected $fillable = [
         'title',
         'url',
+        'author',
+        'content',
+        'published_at',
+        'status',
+        'starred',
     ];
 
     /**

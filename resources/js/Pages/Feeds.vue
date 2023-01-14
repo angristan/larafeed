@@ -1,6 +1,8 @@
 <script setup>
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link } from "@inertiajs/vue3";
+import dayjs from "dayjs";
+
 defineProps(["feeds"]);
 </script>
 
@@ -38,16 +40,34 @@ defineProps(["feeds"]);
                                             "
                                             class="flex-shrink-0 group block"
                                         >
-                                            <div class="ml-4">
-                                                <div
-                                                    class="text-sm font-medium text-gray-900"
-                                                >
-                                                    {{ feed.name }}
-                                                </div>
-                                                <div
-                                                    class="text-sm text-gray-500"
-                                                >
-                                                    {{ feed.url }}
+                                            <div class="flex">
+                                                <img
+                                                    class="h-10 w-10 rounded-full"
+                                                    :src="feed.favicon_url"
+                                                    alt="Favicon of {{ feed.name }}"
+                                                />
+                                                <div class="ml-4">
+                                                    <div
+                                                        class="text-sm font-medium text-gray-900"
+                                                    >
+                                                        {{ feed.name }}
+                                                    </div>
+                                                    <div
+                                                        class="text-sm text-gray-500"
+                                                    >
+                                                        {{ feed.site_url }}
+                                                    </div>
+                                                    <div
+                                                        class="text-sm text-gray-500"
+                                                    >
+                                                        {{
+                                                            dayjs(
+                                                                feed.last_crawled_at
+                                                            ).format(
+                                                                "MMMM D, YYYY"
+                                                            )
+                                                        }}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </Link>

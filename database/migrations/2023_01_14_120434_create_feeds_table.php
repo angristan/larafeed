@@ -17,7 +17,10 @@ return new class extends Migration
             $table->id();
             $table->timestamps();
             $table->string('name');
-            $table->string('url');
+            $table->string('feed_url');
+            $table->string('site_url');
+            $table->string('favicon_url')->nullable();
+            $table->timestamp('last_crawled_at')->default(now());
         });
     }
 
