@@ -33,6 +33,7 @@ Route::get('/dashboard', function () {
 // Route::resource('feed', FeedController::class)->middleware('auth')->only(['index', 'store', 'destroy']);
 
 Route::get('/feeds', [FeedController::class, 'index'])->name('feeds.index');
+Route::get('/feed/{feed}/entries', [FeedController::class, 'show'])->name('feeds.show');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
