@@ -4,12 +4,31 @@ import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
 import { Head, useForm } from "@inertiajs/vue3";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { ElNotification } from "element-plus";
 
 dayjs.extend(relativeTime);
 
 const refreshEntriesForm = useForm({});
 
 defineProps(["feed", "entries"]);
+
+const showRefreshSuccessNotification = () => {
+    ElNotification({
+        title: "Feed refreshed",
+        message: "The feed entries have been fetched successfully.",
+        type: "success",
+        position: "bottom-right",
+    });
+};
+
+const showRefreshFailureNotification = () => {
+    ElNotification({
+        title: "Error",
+        message: "There was an error refreshing the feed.",
+        type: "error",
+        position: "bottom-right",
+    });
+};
 </script>
 
 <template>
@@ -45,7 +64,15 @@ defineProps(["feed", "entries"]);
                     <form
                         @submit.prevent="
                             refreshEntriesForm.post(
-                                route('feed.refresh', feed.id)
+                                route('feed.refresh', feed.id),
+                                {
+                                    onSuccess: () => {
+                                        showRefreshSuccessNotification();
+                                    },
+                                    onError: () => {
+                                        showRefreshFailureNotification();
+                                    },
+                                }
                             )
                         "
                     >
