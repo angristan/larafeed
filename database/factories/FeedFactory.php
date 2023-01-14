@@ -18,7 +18,9 @@ class FeedFactory extends Factory
     {
         return [
             'name' => 'The Cloudflare Blog',
-            'url' => 'https://blog.cloudflare.com/rss/',
+            'feed_url' => 'https://blog.cloudflare.com/rss/',
+            'site_url' => 'https://blog.cloudflare.com/',
+            'favicon_url' => 'https://blog.cloudflare.com/favicon.png',
         ];
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\FeedCrawlFailedException;
 use App\Http\Requests\StoreFeedRequest;
 use App\Http\Requests\UpdateFeedRequest;
 use App\Models\Feed;
@@ -52,7 +53,7 @@ class FeedController extends Controller
     {
         return Inertia::render('Feed/Entries', [
             'feed' => $feed,
-            'entries' => $feed->entries()->orderBy('created_at', 'desc')->get(),
+            'entries' => $feed->entries()->orderBy('published_at', 'desc')->get(),
         ]);
     }
 
@@ -60,11 +61,21 @@ class FeedController extends Controller
      * Crawl the feed and get new entries.
      *
      * @param  \App\Models\Feed  $feed
-     * @return \Illuminate\Http\Response
+     * @return \Illuminate\Http\RedirectResponse
      */
     public function refresh(Feed $feed)
     {
-        $feed->refreshEntries();
+        try {
+            $feed->refreshEntries();
+        } catch (FeedCrawlFailedException $e) {
+            return redirect()->back()->withErrors([
+                'refresh' => $e->getMessage(),
+            ]);
+            // Alternative:
+            // throw ValidationException::withMessages([
+            //     'refresh' => 'ups, there was an error',
+            // ]);
+        }
 
         return redirect()->route('feed.entries', $feed);
     }

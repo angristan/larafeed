@@ -1,6 +1,13 @@
 <script setup>
+import InputError from "@/Components/InputError.vue";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, useForm } from "@inertiajs/vue3";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+
+dayjs.extend(relativeTime);
+
+const refreshEntriesForm = useForm({});
 
 defineProps(["feed", "entries"]);
 </script>
@@ -11,18 +18,46 @@ defineProps(["feed", "entries"]);
     <AuthenticatedLayout>
         <template #header>
             <div class="flex items-center justify-between">
-                <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-                    Entries for "{{ feed.name }}"
-                </h2>
-                <Link
-                    method="post"
-                    :href="route('feed.refresh', feed.id)"
-                    preserveScroll
-                    as="button"
-                    class="btn"
-                >
-                    Refresh entries
-                </Link>
+                <div>
+                    <div class="flex items-center space-x-3">
+                        <img
+                            class="h-10 w-10 rounded-full"
+                            :src="feed.favicon_url"
+                            alt="Favicon of {{ feed.name }}"
+                        />
+                        <h2
+                            class="font-semibold text-xl text-gray-800 leading-tight"
+                        >
+                            Entries for "{{ feed.name }}"
+                        </h2>
+                    </div>
+                    <div class="flex space-x-2">
+                        <div class="text-sm text-gray-500">
+                            URL: {{ feed.site_url }}
+                        </div>
+                        <div class="text-sm text-gray-500">
+                            Last refreshed:
+                            {{ dayjs(feed.last_crawled_at).fromNow() }}
+                        </div>
+                    </div>
+                </div>
+                <div class="flex flex-col text-right">
+                    <form
+                        @submit.prevent="
+                            refreshEntriesForm.post(
+                                route('feed.refresh', feed.id)
+                            )
+                        "
+                    >
+                        <button class="btn" type="submit">
+                            Refresh entries
+                        </button>
+                        <InputError
+                            class="mt-2"
+                            :message="refreshEntriesForm.errors.refresh"
+                        />
+                    </form>
+                </div>
             </div>
         </template>
 

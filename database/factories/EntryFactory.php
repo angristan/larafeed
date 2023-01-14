@@ -19,6 +19,11 @@ class EntryFactory extends Factory
         return [
             'title' => $this->faker->sentence,
             'url' => $this->faker->url,
+            'author' => $this->faker->name,
+            'content' => $this->faker->paragraph,
+            'published_at' => $this->faker->dateTime,
+            'status' => $this->faker->randomElement(\App\Enums\EntryStatus::getValues()),
+            'starred' => $this->faker->boolean,
         ];
     }
 }
