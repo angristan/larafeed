@@ -52,8 +52,21 @@ class FeedController extends Controller
     {
         return Inertia::render('Feed/Entries', [
             'feed' => $feed,
-            'entries' => $feed->entries,
+            'entries' => $feed->entries()->orderBy('created_at', 'desc')->get(),
         ]);
+    }
+
+    /**
+     * Crawl the feed and get new entries.
+     *
+     * @param  \App\Models\Feed  $feed
+     * @return \Illuminate\Http\Response
+     */
+    public function refresh(Feed $feed)
+    {
+        $feed->refreshEntries();
+
+        return redirect()->route('feed.entries', $feed);
     }
 
     /**

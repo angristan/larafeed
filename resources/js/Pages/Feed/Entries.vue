@@ -1,6 +1,7 @@
 <script setup>
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
-import { Head } from "@inertiajs/inertia-vue3";
+import { Head, Link } from "@inertiajs/inertia-vue3";
+
 defineProps(["feed", "entries"]);
 </script>
 
@@ -9,9 +10,20 @@ defineProps(["feed", "entries"]);
 
     <AuthenticatedLayout>
         <template #header>
-            <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-                Entries for "{{ feed.name }}"
-            </h2>
+            <div class="flex items-center justify-between">
+                <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+                    Entries for "{{ feed.name }}"
+                </h2>
+                <Link
+                    method="post"
+                    :href="route('feed.refresh', feed.id)"
+                    preserveScroll
+                    as="button"
+                    class="btn"
+                >
+                    Refresh entries
+                </Link>
+            </div>
         </template>
 
         <div class="py-12">

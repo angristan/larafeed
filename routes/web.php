@@ -33,7 +33,8 @@ Route::get('/dashboard', function () {
 // Route::resource('feed', FeedController::class)->middleware('auth')->only(['index', 'store', 'destroy']);
 
 Route::get('/feeds', [FeedController::class, 'index'])->name('feeds.index');
-Route::get('/feed/{feed}/entries', [FeedController::class, 'show'])->name('feeds.show');
+Route::get('/feed/{feed}/entries', [FeedController::class, 'show'])->name('feed.entries');
+Route::post('/feed/{feed}/refresh', [FeedController::class, 'refresh'])->name('feed.refresh');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
