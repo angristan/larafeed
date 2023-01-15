@@ -34,6 +34,7 @@ Route::get('/dashboard', function () {
 
 Route::get('/feeds', [FeedController::class, 'index'])->name('feeds.index');
 Route::get('/feed/{feed}/entries', [FeedController::class, 'show'])->name('feed.entries');
+Route::get('/feed/{feed}/entry/{entry}', [FeedController::class, 'showEntry'])->name('feed.entry');
 Route::post('/feed/{feed}/refresh', [FeedController::class, 'refresh'])->name('feed.refresh');
 
 Route::middleware('auth')->group(function () {

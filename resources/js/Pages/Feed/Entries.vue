@@ -1,7 +1,7 @@
 <script setup>
 import InputError from "@/Components/InputError.vue";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
-import { Head, useForm } from "@inertiajs/vue3";
+import { Head, Link, useForm } from "@inertiajs/vue3";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import utc from "dayjs/plugin/utc";
@@ -106,20 +106,34 @@ const showRefreshFailureNotification = () => {
                                 :key="entry.id"
                                 class="py-4"
                             >
-                                <div class="flex items center justify-between">
-                                    <div class="flex items center">
-                                        <div class="ml-4">
-                                            <div
-                                                class="text-sm font-medium text-gray-900"
-                                            >
-                                                {{ entry.title }}
-                                            </div>
-                                            <div class="text-sm text-gray-500">
-                                                {{ entry.url }}
+                                <Link
+                                    :href="
+                                        route('feed.entry', {
+                                            feed: feed.id,
+                                            entry: entry.id,
+                                        })
+                                    "
+                                    class="flex-shrink-0 group block"
+                                >
+                                    <div
+                                        class="flex items center justify-between"
+                                    >
+                                        <div class="flex items center">
+                                            <div class="ml-4">
+                                                <div
+                                                    class="text-sm font-medium text-gray-900"
+                                                >
+                                                    {{ entry.title }}
+                                                </div>
+                                                <div
+                                                    class="text-sm text-gray-500"
+                                                >
+                                                    {{ entry.url }}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
+                                </Link>
                             </li>
                         </ul>
                     </div>

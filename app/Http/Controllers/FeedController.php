@@ -81,6 +81,23 @@ class FeedController extends Controller
     }
 
     /**
+     * Display the specified entry.
+     *
+     * @param  \App\Models\Feed  $feed
+     * @param  int  $entryId
+     * @return \Inertia\Response
+     */
+    public function showEntry(Feed $feed, $entryId)
+    {
+        $entry = $feed->entries()->findOrFail($entryId);
+
+        return Inertia::render('Feed/Entry', [
+            'feed' => $feed,
+            'entry' => $entry,
+        ]);
+    }
+
+    /**
      * Show the form for editing the specified resource.
      *
      * @param  \App\Models\Feed  $feed
