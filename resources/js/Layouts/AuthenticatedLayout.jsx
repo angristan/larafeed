@@ -28,6 +28,12 @@ export default function Authenticated({ auth, header, children }) {
                                 >
                                     Dashboard
                                 </NavLink>
+                                <NavLink
+                                    href={route("feeds.index")}
+                                    active={route().current("feeds.index")}
+                                >
+                                    Feeds
+                                </NavLink>
                             </div>
                         </div>
 

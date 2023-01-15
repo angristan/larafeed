@@ -2,8 +2,15 @@
     "compilerOptions": {
         "baseUrl": ".",
         "paths": {
-            "@/*": ["resources/js/*"]
-        }
+            "@/*": [
+                "resources/js/*"
+            ]
+        },
+        "checkJs": true,
+        "jsx": "react-jsx"
     },
-    "exclude": ["node_modules", "public"]
+    "exclude": [
+        "node_modules",
+        "public"
+    ]
 }
