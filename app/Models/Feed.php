@@ -54,6 +54,7 @@ class Feed extends Model
 
     public function refreshEntries()
     {
+        // TODO fetch limit
         $crawledFeed = \Feeds::make(feedUrl: [$this->feed_url]);
         $this->last_crawled_at = now();
         $this->save();
