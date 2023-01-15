@@ -51,6 +51,11 @@ defineProps(["feeds"]);
                                                         class="text-sm font-medium text-gray-900"
                                                     >
                                                         {{ feed.name }}
+                                                        {{
+                                                            "(" +
+                                                            feed.entries_count +
+                                                            ")"
+                                                        }}
                                                     </div>
                                                     <div
                                                         class="text-sm text-gray-500"

@@ -12,7 +12,16 @@ dayjs.extend(utc);
 
 const refreshEntriesForm = useForm({});
 
-defineProps(["feed", "entries"]);
+defineProps({
+    feed: {
+        type: Object,
+        required: true,
+    },
+    entries: {
+        type: Array,
+        required: true,
+    },
+});
 
 const showRefreshSuccessNotification = () => {
     ElNotification({
@@ -49,7 +58,7 @@ const showRefreshFailureNotification = () => {
                         <h2
                             class="font-semibold text-xl text-gray-800 leading-tight"
                         >
-                            Entries for "{{ feed.name }}"
+                            {{ feed.name }} ({{ feed.entries_count }})
                         </h2>
                     </div>
                     <div class="flex space-x-2">
