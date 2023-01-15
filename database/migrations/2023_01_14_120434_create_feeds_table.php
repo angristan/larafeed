@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('feed_url');
             $table->string('site_url');
             $table->string('favicon_url')->nullable();
-            $table->timestamp('last_crawled_at')->default(now());
+            $table->timestamp('last_crawled_at')->useCurrent();
         });
     }
 
