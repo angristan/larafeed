@@ -54,7 +54,7 @@ class Feed extends Model
 
     public function refreshEntries()
     {
-        $crawledFeed = \Feeds::make([$this->feed_url]);
+        $crawledFeed = \Feeds::make(feedUrl: [$this->feed_url]);
         $this->last_crawled_at = now();
         $this->save();
         if ($crawledFeed->error()) {

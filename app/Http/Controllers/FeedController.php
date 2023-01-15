@@ -6,6 +6,7 @@ use App\Exceptions\FeedCrawlFailedException;
 use App\Http\Requests\StoreFeedRequest;
 use App\Http\Requests\UpdateFeedRequest;
 use App\Models\Feed;
+use AshAllenDesign\FaviconFetcher\Facades\Favicon;
 use Inertia\Inertia;
 
 class FeedController extends Controller
@@ -36,22 +37,65 @@ class FeedController extends Controller
     /**
      * Show the form for creating a new resource.
      *
-     * @return \Illuminate\Http\Response
+     * @return \Inertia\Response
      */
     public function create()
     {
-        //
+        return Inertia::render('Feed/New');
     }
 
     /**
      * Store a newly created resource in storage.
      *
      * @param  \App\Http\Requests\StoreFeedRequest  $request
-     * @return \Illuminate\Http\Response
+     * @return \Illuminate\Http\RedirectResponse
      */
     public function store(StoreFeedRequest $request)
     {
-        //
+        $feed_url = '';
+        $feed_url = $request->validated()['feed_url'];
+
+        $crawledFeed = \Feeds::make(feedUrl: $feed_url);
+        if ($crawledFeed->error()) {
+            $error = '';
+            if (is_array($crawledFeed->error())) {
+                $error = implode(', ', $crawledFeed->error());
+            } else {
+                $error = $crawledFeed->error();
+            }
+            // "cURL error 3: " -> "cURL error 3"
+            // idk why it adds a colon at the end
+            $error = rtrim($error, ': ');
+
+            return redirect()->back()->withErrors([
+                'feed_url' => $error,
+            ]);
+        }
+
+        // TODO fix + cache/store + refresh
+        $favicon_url = Favicon::withFallback('favicon-kit')->fetch($crawledFeed->get_link())?->getFaviconUrl();
+
+        $feed = Feed::create([
+            'name' => $crawledFeed->get_title(),
+            'feed_url' => $feed_url,
+            'site_url' => $crawledFeed->get_link(),
+            'favicon_url' => $favicon_url,
+        ]);
+
+        // TODO single insert
+        $entries = $crawledFeed->get_items();
+        foreach ($entries as $entry) {
+            $feed->entries()->create([
+                'title' => $entry->get_title(),
+                'url' => $entry->get_permalink(),
+                'content' => $entry->get_content(),
+                'published_at' => $entry->get_date('Y-m-d H:i:s'),
+            ]);
+        }
+
+        return redirect()->route('feed.entries', $feed)
+        // TODO success message
+        ->with('success', 'Feed added successfully.');
     }
 
     /**

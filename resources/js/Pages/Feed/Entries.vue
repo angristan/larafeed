@@ -51,7 +51,7 @@ const showRefreshFailureNotification = () => {
                 <div>
                     <div class="flex items-center space-x-3">
                         <img
-                            class="h-10 w-10 rounded-full"
+                            class="h-8 w-8 mb-1"
                             :src="feed.favicon_url"
                             alt="Favicon of {{ feed.name }}"
                         />

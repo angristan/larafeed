@@ -2,6 +2,7 @@
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
 import { Head, Link } from "@inertiajs/vue3";
 import dayjs from "dayjs";
+import { FileRssIcon } from "vue-tabler-icons";
 
 defineProps(["feeds"]);
 </script>
@@ -11,9 +12,19 @@ defineProps(["feeds"]);
 
     <AuthenticatedLayout>
         <template #header>
-            <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-                Feeds
-            </h2>
+            <div class="flex items-center justify-between">
+                <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+                    Feeds
+                </h2>
+                <div class="flex flex-col text-right">
+                    <Link :href="route('feed.create')">
+                        <button class="btn" type="submit">
+                            <FileRssIcon class="mr-2" />
+                            New feed
+                        </button>
+                    </Link>
+                </div>
+            </div>
         </template>
 
         <div class="py-12">

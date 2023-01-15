@@ -13,7 +13,7 @@ class StoreFeedRequest extends FormRequest
      */
     public function authorize()
     {
-        return false;
+        return true;
     }
 
     /**
@@ -24,7 +24,21 @@ class StoreFeedRequest extends FormRequest
     public function rules()
     {
         return [
-            //
+            'feed_url' => ['required', 'max:255', 'url'],
+        ];
+    }
+
+    /**
+     * Get the error messages for the defined validation rules.
+     *
+     * @return array<string, string>
+     */
+    public function messages()
+    {
+        return [
+            'feed_url.required' => 'Please enter a feed URL',
+            'feed_url.url' => 'Please enter a valid URL',
+            'feed_url.max' => 'Please enter a URL that is less than 255 characters',
         ];
     }
 }

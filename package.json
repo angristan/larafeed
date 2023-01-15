@@ -21,6 +21,7 @@
         "unplugin-auto-import": "^0.12.1",
         "unplugin-vue-components": "^0.22.12",
         "vite": "^4.0.0",
-        "vue": "^3.2.41"
+        "vue": "^3.2.41",
+        "vue-tabler-icons": "^2.17.0"
     }
 }
