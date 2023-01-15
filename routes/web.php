@@ -32,15 +32,16 @@ Route::get('/dashboard', function () {
 
 // Route::resource('feed', FeedController::class)->middleware('auth')->only(['index', 'store', 'destroy']);
 
-Route::get('/feeds', [FeedController::class, 'index'])->name('feeds.index');
-Route::get('/feed/{feed}/entries', [FeedController::class, 'show'])->name('feed.entries');
-Route::get('/feed/{feed}/entry/{entry}', [FeedController::class, 'showEntry'])->name('feed.entry');
-Route::post('/feed/{feed}/refresh', [FeedController::class, 'refresh'])->name('feed.refresh');
-
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // TODO: scoped route bindings
+    Route::get('/feeds', [FeedController::class, 'index'])->name('feeds.index');
+    Route::get('/feed/{feed}/entries', [FeedController::class, 'show'])->name('feed.entries')->whereNumber('feed');
+    Route::get('/feed/{feed}/entry/{entry}', [FeedController::class, 'showEntry'])->name('feed.entry')->whereNumber('feed')->whereNumber('entry');
+    Route::post('/feed/{feed}/refresh', [FeedController::class, 'refresh'])->name('feed.refresh')->whereNumber('feed');
 });
 
 require __DIR__.'/auth.php';
