@@ -4,8 +4,79 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "326491e16ff8db7af83f97d15fc2f430",
+    "content-hash": "9973e3d951ea336a5c6c19b43e89b2ee",
     "packages": [
+        {
+            "name": "ashallendesign/favicon-fetcher",
+            "version": "v1.3.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/ash-jc-allen/favicon-fetcher.git",
+                "reference": "48eb6117bf5f15834dacced7e51ee6bf17ad32b1"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/ash-jc-allen/favicon-fetcher/zipball/48eb6117bf5f15834dacced7e51ee6bf17ad32b1",
+                "reference": "48eb6117bf5f15834dacced7e51ee6bf17ad32b1",
+                "shasum": ""
+            },
+            "require": {
+                "guzzlehttp/guzzle": "^7.4",
+                "illuminate/cache": "^8.0|^9.0|^10.0",
+                "illuminate/filesystem": "^8.0|^9.0|^10.0",
+                "illuminate/http": "^8.0|^9.0|^10.0",
+                "nesbot/carbon": "~2.0",
+                "php": "^8.0"
+            },
+            "require-dev": {
+                "mockery/mockery": "^1.0",
+                "nunomaduro/larastan": "^1.0.0|^2.0",
+                "orchestra/testbench": "^6.0|^7.0|^8.0",
+                "phpunit/phpunit": "^8.2 || ^9.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "AshAllenDesign\\FaviconFetcher\\FaviconFetcherProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "AshAllenDesign\\FaviconFetcher\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Ash Allen",
+                    "email": "mail@ashallendesign.co.uk"
+                }
+            ],
+            "description": "A Laravel package for fetching website's favicons.",
+            "homepage": "https://github.com/ash-jc-allen/favicon-fetcher",
+            "keywords": [
+                "ashallendesign",
+                "favicon",
+                "favicon-fetcher",
+                "icon"
+            ],
+            "support": {
+                "issues": "https://github.com/ash-jc-allen/favicon-fetcher/issues",
+                "source": "https://github.com/ash-jc-allen/favicon-fetcher/tree/v1.3.0"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/ash-jc-allen",
+                    "type": "github"
+                }
+            ],
+            "time": "2023-01-12T00:45:33+00:00"
+        },
         {
             "name": "bensampo/laravel-enum",
             "version": "v6.2.1",

@@ -30,8 +30,6 @@ Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
-// Route::resource('feed', FeedController::class)->middleware('auth')->only(['index', 'store', 'destroy']);
-
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -42,6 +40,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/feed/{feed}/entries', [FeedController::class, 'show'])->name('feed.entries')->whereNumber('feed');
     Route::get('/feed/{feed}/entry/{entry}', [FeedController::class, 'showEntry'])->name('feed.entry')->whereNumber('feed')->whereNumber('entry');
     Route::post('/feed/{feed}/refresh', [FeedController::class, 'refresh'])->name('feed.refresh')->whereNumber('feed');
+    Route::get('/feed/new', [FeedController::class, 'create'])->name('feed.create');
+    Route::post('/feed', [FeedController::class, 'store'])->name('feed.store');
 });
 
 require __DIR__.'/auth.php';
