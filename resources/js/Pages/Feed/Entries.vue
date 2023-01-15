@@ -4,9 +4,11 @@ import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
 import { Head, useForm } from "@inertiajs/vue3";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import utc from "dayjs/plugin/utc";
 import { ElNotification } from "element-plus";
 
 dayjs.extend(relativeTime);
+dayjs.extend(utc);
 
 const refreshEntriesForm = useForm({});
 
@@ -56,7 +58,7 @@ const showRefreshFailureNotification = () => {
                         </div>
                         <div class="text-sm text-gray-500">
                             Last refreshed:
-                            {{ dayjs(feed.last_crawled_at).fromNow() }}
+                            {{ dayjs.utc(feed.last_crawled_at).fromNow() }}
                         </div>
                     </div>
                 </div>
