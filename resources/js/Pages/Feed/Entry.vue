@@ -1,4 +1,5 @@
 <script setup>
+import TextParagraphSkeleton from "@/Components/Skeleton/TextParagraphSkeleton.vue";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
 import { Head } from "@inertiajs/vue3";
 import dayjs from "dayjs";
@@ -75,7 +76,7 @@ async function getSummary(entryId) {
             <div class="max-w-3xl mx-auto sm:px-6 lg:px-8">
                 <div
                     class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-3"
-                    v-if="summary"
+                    v-if="summary || loading"
                 >
                     <div class="p-6 bg-white border-b border-gray-200">
                         <div class="flex items-center justify-between">
@@ -87,6 +88,7 @@ async function getSummary(entryId) {
                             <button
                                 className="btn btn-square btn-outline"
                                 @click="summary = ''"
+                                v-if="summary"
                             >
                                 <svg
                                     xmlns="http://www.w3.org/2000/svg"
@@ -104,7 +106,10 @@ async function getSummary(entryId) {
                                 </svg>
                             </button>
                         </div>
-                        <div v-html="summary" />
+                        <div v-if="summary && !loading" v-html="summary" />
+                        <div v-else>
+                            <TextParagraphSkeleton />
+                        </div>
                     </div>
                 </div>
                 <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
