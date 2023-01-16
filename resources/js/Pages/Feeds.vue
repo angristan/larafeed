@@ -5,6 +5,8 @@ import dayjs from "dayjs";
 import { FileRssIcon } from "vue-tabler-icons";
 
 defineProps(["feeds"]);
+
+// TODO: https://inertiajs.com/pages#persistent-layouts
 </script>
 
 <template>
