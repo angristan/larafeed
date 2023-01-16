@@ -20,7 +20,8 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-Route::get('/entry/{entry}/gpt-summary', function (Entry $entry) {
+// https://laravel.com/docs/9.x/sanctum#sanctum-middleware
+Route::middleware('auth:sanctum')->get('/entry/{entry}/gpt-summary', function (Entry $entry) {
     // https://laravel.com/docs/9.x/cache
     $summary = Cache::remember("entry-{$entry->id}-gpt-summary", 60 * 60 * 24, function () use ($entry) {
         $result = OpenAI::completions()->create([
