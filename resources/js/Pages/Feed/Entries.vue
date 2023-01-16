@@ -109,11 +109,13 @@ const showRefreshFailureNotification = () => {
                         <p class="text-gray-500">No entries found.</p>
                     </div>
                     <div v-else class="p-6 bg-white border-b border-gray-200">
-                        <ul class="divide-y divide-gray-200">
+                        <ol
+                            class="relative border-l border-gray-200 dark:border-gray-700"
+                        >
                             <li
                                 v-for="entry in entries"
                                 :key="entry.id"
-                                class="py-4"
+                                class="mb-10 ml-4"
                             >
                                 <Link
                                     :href="
@@ -125,26 +127,29 @@ const showRefreshFailureNotification = () => {
                                     class="flex-shrink-0 group block"
                                 >
                                     <div
-                                        class="flex items center justify-between"
+                                        class="absolute w-3 h-3 bg-gray-200 rounded-full mt-1.5 -left-1.5 border border-white dark:border-gray-900 dark:bg-gray-700"
+                                    ></div>
+                                    <time
+                                        class="mb-1 text-sm font-normal leading-none text-gray-400 dark:text-gray-500"
+                                        >{{
+                                            dayjs
+                                                .utc(entry.published_at)
+                                                .fromNow()
+                                        }}</time
                                     >
-                                        <div class="flex items center">
-                                            <div class="ml-4">
-                                                <div
-                                                    class="text-sm font-medium text-gray-900"
-                                                >
-                                                    {{ entry.title }}
-                                                </div>
-                                                <div
-                                                    class="text-sm text-gray-500"
-                                                >
-                                                    {{ entry.url }}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <h3
+                                        class="text-lg font-semibold text-gray-900 dark:text-white"
+                                    >
+                                        {{ entry.title }}
+                                    </h3>
+                                    <p
+                                        class="mb-4 text-base font-normal text-gray-500 dark:text-gray-400"
+                                    >
+                                        {{ entry.url }}
+                                    </p>
                                 </Link>
                             </li>
-                        </ul>
+                        </ol>
                     </div>
                 </div>
             </div>
