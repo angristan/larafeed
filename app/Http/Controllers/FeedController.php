@@ -18,6 +18,7 @@ class FeedController extends Controller
      */
     public function index()
     {
+        // TODO https://laravel.com/docs/9.x/eloquent-resources
         return Inertia::render('Feeds', [
             'feeds' => Feed::all()->map(function (Feed $feed) {
                 return collect($feed->only([
@@ -96,6 +97,7 @@ class FeedController extends Controller
 
         return redirect()->route('feed.entries', $feed)
         // TODO success message
+        // https://inertiajs.com/shared-data#flash-messages
         ->with('success', 'Feed added successfully.');
     }
 
