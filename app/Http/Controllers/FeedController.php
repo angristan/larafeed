@@ -74,13 +74,16 @@ class FeedController extends Controller
             ]);
         }
 
+        // Handle feeds without site link such as https://aggregate.stitcher.io/rss
+        $site_url = $crawledFeed->get_link() ?? $feed_url;
+
         // TODO fix + cache/store + refresh
-        $favicon_url = Favicon::withFallback('favicon-kit')->fetch($crawledFeed->get_link())?->getFaviconUrl();
+        $favicon_url = Favicon::withFallback('favicon-kit')->fetch($site_url)?->getFaviconUrl();
 
         $feed = Feed::create([
             'name' => $crawledFeed->get_title(),
             'feed_url' => $feed_url,
-            'site_url' => $crawledFeed->get_link(),
+            'site_url' => $site_url,
             'favicon_url' => $favicon_url,
         ]);
 
