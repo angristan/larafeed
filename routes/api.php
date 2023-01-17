@@ -21,6 +21,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 // https://laravel.com/docs/9.x/sanctum#sanctum-middleware
+// TODO: https://laravel.com/docs/8.x/controllers#single-action-controllers
 Route::middleware('auth:sanctum')->get('/entry/{entry}/gpt-summary', function (Entry $entry) {
     // https://laravel.com/docs/9.x/cache
     $summary = Cache::remember("entry-{$entry->id}-gpt-summary", 60 * 60 * 24, function () use ($entry) {

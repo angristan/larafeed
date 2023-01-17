@@ -12,6 +12,7 @@ use BenSampo\Enum\Enum;
  */
 final class EntryStatus extends Enum
 {
+    // TODO: https://stitcher.io/blog/php-enum-style-guide
     const Unread = 'unread';
 
     const Read = 'read';
