@@ -11,7 +11,7 @@ class StoreFeedRequest extends FormRequest
      *
      * @return bool
      */
-    public function authorize()
+    public function authorize(): bool
     {
         return true;
     }
@@ -21,7 +21,7 @@ class StoreFeedRequest extends FormRequest
      *
      * @return array<string, mixed>
      */
-    public function rules()
+    public function rules(): array
     {
         return [
             'feed_url' => ['required', 'max:255', 'url'],
@@ -33,7 +33,7 @@ class StoreFeedRequest extends FormRequest
      *
      * @return array<string, string>
      */
-    public function messages()
+    public function messages(): array
     {
         return [
             'feed_url.required' => 'Please enter a feed URL',
