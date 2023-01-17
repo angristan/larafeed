@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "021182c50c83796ef2b55275d815c9df",
+    "content-hash": "e209a45d722942acec918e44387bdba0",
     "packages": [
         {
             "name": "ashallendesign/favicon-fetcher",
@@ -163,6 +163,60 @@
                 }
             ],
             "time": "2023-01-12T11:25:12+00:00"
+        },
+        {
+            "name": "brendt/php-sparkline",
+            "version": "1.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/brendt/php-sparkline.git",
+                "reference": "f36e43e8eca75ab6f5ea2ac57741620fcc63a5b3"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/brendt/php-sparkline/zipball/f36e43e8eca75ab6f5ea2ac57741620fcc63a5b3",
+                "reference": "f36e43e8eca75ab6f5ea2ac57741620fcc63a5b3",
+                "shasum": ""
+            },
+            "require": {
+                "illuminate/collections": "^9.43",
+                "php": "^8.1",
+                "ramsey/uuid": "^4.6",
+                "spatie/period": "^2.3"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.13",
+                "larapack/dd": "^1.1",
+                "phpunit/phpunit": "^9.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Brendt\\SparkLine\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Brent Roose",
+                    "email": "brendt@stitcher.io",
+                    "role": "Developer"
+                }
+            ],
+            "description": "Generate sparkline SVGs in PHP",
+            "homepage": "https://github.com/brendt/php-sparkline",
+            "keywords": [
+                "brendt",
+                "php-sparkline"
+            ],
+            "support": {
+                "issues": "https://github.com/brendt/php-sparkline/issues",
+                "source": "https://github.com/brendt/php-sparkline/tree/1.0.0"
+            },
+            "time": "2022-12-08T10:00:38+00:00"
         },
         {
             "name": "brick/math",
@@ -4101,6 +4155,59 @@
                 }
             ],
             "time": "2023-01-10T14:09:55+00:00"
+        },
+        {
+            "name": "spatie/period",
+            "version": "2.3.5",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/spatie/period.git",
+                "reference": "83fca442d96bcf245109fd0e8fba0f1efeb380d4"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/spatie/period/zipball/83fca442d96bcf245109fd0e8fba0f1efeb380d4",
+                "reference": "83fca442d96bcf245109fd0e8fba0f1efeb380d4",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.0"
+            },
+            "require-dev": {
+                "larapack/dd": "^1.1",
+                "nesbot/carbon": "^2.54",
+                "phpunit/phpunit": "^9.5",
+                "spatie/ray": "^1.31"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Spatie\\Period\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Brent Roose",
+                    "email": "brent@spatie.be",
+                    "homepage": "https://spatie.be",
+                    "role": "Developer"
+                }
+            ],
+            "description": "Complex period comparisons",
+            "homepage": "https://github.com/spatie/period",
+            "keywords": [
+                "period",
+                "spatie"
+            ],
+            "support": {
+                "issues": "https://github.com/spatie/period/issues",
+                "source": "https://github.com/spatie/period/tree/2.3.5"
+            },
+            "time": "2022-10-03T07:32:05+00:00"
         },
         {
             "name": "symfony/console",
