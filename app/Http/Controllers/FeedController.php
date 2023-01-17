@@ -16,7 +16,7 @@ class FeedController extends Controller
      *
      * @return \Inertia\Response
      */
-    public function index()
+    public function index(): \Inertia\Response
     {
         // TODO https://laravel.com/docs/9.x/eloquent-resources
         return Inertia::render('Feeds', [
@@ -40,7 +40,7 @@ class FeedController extends Controller
      *
      * @return \Inertia\Response
      */
-    public function create()
+    public function create(): \Inertia\Response
     {
         return Inertia::render('Feed/New');
     }
@@ -51,7 +51,7 @@ class FeedController extends Controller
      * @param  \App\Http\Requests\StoreFeedRequest  $request
      * @return \Illuminate\Http\RedirectResponse
      */
-    public function store(StoreFeedRequest $request)
+    public function store(StoreFeedRequest $request): \Illuminate\Http\RedirectResponse
     {
         $feed_url = '';
         $feed_url = $request->validated()['feed_url'];
@@ -107,7 +107,7 @@ class FeedController extends Controller
      * @param  \App\Models\Feed  $feed
      * @return \Inertia\Response
      */
-    public function show(Feed $feed)
+    public function show(Feed $feed): \Inertia\Response
     {
         // TODO: https://www.eoghanobrien.com/posts/define-a-custom-collection-for-your-eloquent-model
         return Inertia::render('Feed/Entries', [
@@ -131,7 +131,7 @@ class FeedController extends Controller
      * @param  \App\Models\Feed  $feed
      * @return \Illuminate\Http\RedirectResponse
      */
-    public function refresh(Feed $feed)
+    public function refresh(Feed $feed): \Illuminate\Http\RedirectResponse
     {
         try {
             $feed->refreshEntries();
@@ -155,7 +155,7 @@ class FeedController extends Controller
      * @param  int  $entryId
      * @return \Inertia\Response
      */
-    public function showEntry(Feed $feed, $entryId)
+    public function showEntry(Feed $feed, int $entryId): \Inertia\Response
     {
         $entry = $feed->entries()->findOrFail($entryId);
 
@@ -165,37 +165,37 @@ class FeedController extends Controller
         ]);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param  \App\Models\Feed  $feed
-     * @return \Illuminate\Http\Response
-     */
-    public function edit(Feed $feed)
-    {
-        //
-    }
+    // /**
+    //  * Show the form for editing the specified resource.
+    //  *
+    //  * @param  \App\Models\Feed  $feed
+    //  * @return \Illuminate\Http\Response
+    //  */
+    // public function edit(Feed $feed): \Illuminate\Http\Response
+    // {
+    //     //
+    // }
 
-    /**
-     * Update the specified resource in storage.
-     *
-     * @param  \App\Http\Requests\UpdateFeedRequest  $request
-     * @param  \App\Models\Feed  $feed
-     * @return \Illuminate\Http\Response
-     */
-    public function update(UpdateFeedRequest $request, Feed $feed)
-    {
-        //
-    }
+    // /**
+    //  * Update the specified resource in storage.
+    //  *
+    //  * @param  \App\Http\Requests\UpdateFeedRequest  $request
+    //  * @param  \App\Models\Feed  $feed
+    //  * @return \Illuminate\Http\Response
+    //  */
+    // public function update(UpdateFeedRequest $request, Feed $feed): \Illuminate\Http\Response
+    // {
+    //     //
+    // }
 
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param  \App\Models\Feed  $feed
-     * @return \Illuminate\Http\Response
-     */
-    public function destroy(Feed $feed)
-    {
-        //
-    }
+    // /**
+    //  * Remove the specified resource from storage.
+    //  *
+    //  * @param  \App\Models\Feed  $feed
+    //  * @return \Illuminate\Http\Response
+    //  */
+    // public function destroy(Feed $feed): \Illuminate\Http\Response
+    // {
+    //     //
+    // }
 }
