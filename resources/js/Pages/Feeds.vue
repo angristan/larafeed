@@ -90,6 +90,7 @@ defineProps(["feeds"]);
                                             </div>
                                         </Link>
                                     </div>
+                                    <div v-html="feed.sparkline"></div>
                                 </div>
                             </li>
                         </ul>
