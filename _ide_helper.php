@@ -4,7 +4,7 @@
 
 /**
  * A helper file for Laravel, to provide autocomplete information to your IDE
- * Generated for Laravel 9.47.0.
+ * Generated for Laravel 9.48.0.
  *
  * This file should not be included in your code, only analyzed by your IDE!
  *
@@ -4581,7 +4581,7 @@
                     /**
          * Queue a cookie to send with the next response.
          *
-         * @param array $parameters
+         * @param mixed $parameters
          * @return void 
          * @static 
          */ 
@@ -4621,8 +4621,8 @@
          * Set the default path and domain for the jar.
          *
          * @param string $path
-         * @param string $domain
-         * @param bool $secure
+         * @param string|null $domain
+         * @param bool|null $secure
          * @param string|null $sameSite
          * @return \Illuminate\Cookie\CookieJar 
          * @static 
@@ -7444,8 +7444,8 @@
          * Deny with a HTTP status code.
          *
          * @param int $status
-         * @param \Illuminate\Auth\Access\?string $message
-         * @param \Illuminate\Auth\Access\?int $code
+         * @param string|null $message
+         * @param int|null $code
          * @return \Illuminate\Auth\Access\Response 
          * @static 
          */ 
@@ -7457,8 +7457,8 @@
                     /**
          * Deny with a 404 HTTP status code.
          *
-         * @param \Illuminate\Auth\Access\?string $message
-         * @param \Illuminate\Auth\Access\?int $code
+         * @param string|null $message
+         * @param int|null $code
          * @return \Illuminate\Auth\Access\Response 
          * @static 
          */ 
@@ -12677,7 +12677,7 @@
                     /**
          * Create a new streamed response instance.
          *
-         * @param \Closure $callback
+         * @param callable $callback
          * @param int $status
          * @param array $headers
          * @return \Symfony\Component\HttpFoundation\StreamedResponse 
@@ -12691,7 +12691,7 @@
                     /**
          * Create a new streamed response instance as a file download.
          *
-         * @param \Closure $callback
+         * @param callable $callback
          * @param string|null $name
          * @param array $headers
          * @param string|null $disposition
@@ -14185,6 +14185,18 @@
                         return $instance->disableForeignKeyConstraints();
         }
                     /**
+         * Disable foreign key constraints during the execution of a callback.
+         *
+         * @param \Closure $callback
+         * @return mixed 
+         * @static 
+         */ 
+        public static function withoutForeignKeyConstraints($callback)
+        {            //Method inherited from \Illuminate\Database\Schema\Builder         
+                        /** @var \Illuminate\Database\Schema\PostgresBuilder $instance */
+                        return $instance->withoutForeignKeyConstraints($callback);
+        }
+                    /**
          * Get the database connection instance.
          *
          * @return \Illuminate\Database\Connection 
@@ -14753,7 +14765,7 @@
                     /**
          * Set the session ID.
          *
-         * @param string $id
+         * @param string|null $id
          * @return void 
          * @static 
          */ 
@@ -14765,7 +14777,7 @@
                     /**
          * Determine if this is a valid session ID.
          *
-         * @param string $id
+         * @param string|null $id
          * @return bool 
          * @static 
          */ 
@@ -14857,13 +14869,13 @@
          * Set the underlying session handler implementation.
          *
          * @param \SessionHandlerInterface $handler
-         * @return void 
+         * @return \SessionHandlerInterface 
          * @static 
          */ 
         public static function setHandler($handler)
         {
                         /** @var \Illuminate\Session\Store $instance */
-                        $instance->setHandler($handler);
+                        return $instance->setHandler($handler);
         }
                     /**
          * Determine if the session handler needs a request.
@@ -17457,7 +17469,7 @@
                     /**
          * Generate or set a Content Security Policy nonce to apply to all generated tags.
          *
-         * @param \Illuminate\Foundation\?string $nonce
+         * @param string|null $nonce
          * @return string 
          * @static 
          */ 
@@ -22286,6 +22298,36 @@ namespace  {
             {
                                 /** @var \Illuminate\Database\Query\Builder $instance */
                                 return $instance->updateOrInsert($attributes, $values);
+            }
+             
+                /**
+             * Increment the given column's values by the given amounts.
+             *
+             * @param \Illuminate\Database\Query\array<string,  float|int|numeric-string>  $columns
+             * @param \Illuminate\Database\Query\array<string,  mixed>  $extra
+             * @return int 
+             * @throws \InvalidArgumentException
+             * @static 
+             */ 
+            public static function incrementEach($columns, $extra = [])
+            {
+                                /** @var \Illuminate\Database\Query\Builder $instance */
+                                return $instance->incrementEach($columns, $extra);
+            }
+             
+                /**
+             * Decrement the given column's values by the given amounts.
+             *
+             * @param \Illuminate\Database\Query\array<string,  float|int|numeric-string>  $columns
+             * @param \Illuminate\Database\Query\array<string,  mixed>  $extra
+             * @return int 
+             * @throws \InvalidArgumentException
+             * @static 
+             */ 
+            public static function decrementEach($columns, $extra = [])
+            {
+                                /** @var \Illuminate\Database\Query\Builder $instance */
+                                return $instance->decrementEach($columns, $extra);
             }
              
                 /**
