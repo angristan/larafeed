@@ -19,6 +19,7 @@
         "laravel/sanctum": "^2.8",
         "laravel/telescope": "^4.11",
         "laravel/tinker": "^2.7",
+        "lorisleiva/laravel-actions": "^2.4",
         "openai-php/laravel": "^0.3.0",
         "spatie/laravel-login-link": "^1.1",
         "tightenco/ziggy": "^1.0",
