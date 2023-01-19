@@ -4,12 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\FeedCrawlFailedException;
 use App\Http\Requests\StoreFeedRequest;
-use App\Http\Requests\UpdateFeedRequest;
 use App\Models\Entry;
 use App\Models\Feed;
 use AshAllenDesign\FaviconFetcher\Facades\Favicon;
 use Brendt\SparkLine\SparkLine;
 use Brendt\SparkLine\SparkLineDay;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -21,42 +21,55 @@ class FeedController extends Controller
      *
      * @return \Inertia\Response
      */
-    public function index(): \Inertia\Response
+    public function index(Request $request): \Inertia\Response
     {
+        $search_input = $request->query('search');
+
+        $feeds_data = Feed::query()
+            // TODO: ILIKE is bad
+            ->when($search_input, fn ($query, $search_input) => $query->where('name', 'ILIKE', "%{$search_input}%"))
+            ->orderByDesc('last_crawled_at')
+            ->get();
+
+        $feeds = $feeds_data->map(function (Feed $feed) {
+            $days = DB::query()
+            ->from((new Entry())->getTable())
+            ->selectRaw('published_at::date as published_at_day, COUNT(*) as publishes')
+            ->where('feed_id', $feed->id)
+            ->groupBy('published_at_day')
+            ->orderByDesc('published_at_day')
+            ->limit(20)
+            ->get()
+            ->map(fn (object $row) => new SparkLineDay(
+                count: $row->publishes,
+                day: Carbon::make($row->published_at_day),
+            ));
+
+            $sparkLine = SparkLine::new($days)
+                ->withStrokeWidth(2)
+                ->withDimensions(200, 50)
+                ->withMaxItemAmount(100);
+            // ->withMaxValue(10);
+
+            return collect($feed->only([
+                'id',
+                'name',
+                'feed_url',
+                'site_url',
+                'favicon_url',
+                'last_crawled_at',
+            ]))->merge([
+                'entries_count' => $feed->entries()->count(),
+                'sparkline' => $sparkLine->make(),
+            ]);
+        });
+
         // TODO https://laravel.com/docs/9.x/eloquent-resources
         return Inertia::render('Feeds', [
-            'feeds' => Feed::all()->map(function (Feed $feed) {
-                $days = DB::query()
-                ->from((new Entry())->getTable())
-                ->selectRaw('published_at::date as published_at_day, COUNT(*) as publishes')
-                ->where('feed_id', $feed->id)
-                ->groupBy('published_at_day')
-                ->orderByDesc('published_at_day')
-                ->limit(20)
-                ->get()
-                ->map(fn (object $row) => new SparkLineDay(
-                    count: $row->publishes,
-                    day: Carbon::make($row->published_at_day),
-                ));
-
-                $sparkLine = SparkLine::new($days)
-                    ->withStrokeWidth(2)
-                    ->withDimensions(200, 50)
-                    ->withMaxItemAmount(100);
-                // ->withMaxValue(10);
-
-                return collect($feed->only([
-                    'id',
-                    'name',
-                    'feed_url',
-                    'site_url',
-                    'favicon_url',
-                    'last_crawled_at',
-                ]))->merge([
-                    'entries_count' => $feed->entries()->count(),
-                    'sparkline' => $sparkLine->make(),
-                ]);
-            }),
+            'filters' => [
+                'search' => $search_input,
+            ],
+            'feeds' => $feeds,
         ]);
     }
 
