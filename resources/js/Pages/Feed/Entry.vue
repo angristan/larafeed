@@ -1,7 +1,7 @@
 <script setup>
 import TextParagraphSkeleton from "@/Components/Skeleton/TextParagraphSkeleton.vue";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
-import { Head } from "@inertiajs/vue3";
+import { Head, router } from "@inertiajs/vue3";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import utc from "dayjs/plugin/utc";
@@ -11,21 +11,53 @@ import { BrainIcon } from "vue-tabler-icons";
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
 
-defineProps(["feed", "entry"]);
+defineProps(["feed", "entry", "summary"]);
 
-const summary = ref("");
 const loading = ref(false);
+const showSummary = ref(false);
 
-async function getSummary(entryId) {
-    loading.value = true;
-    const res = await fetch(
-        `http://localhost/api/entry/${entryId}/gpt-summary`
-    );
-    const data = await res.json();
-    console.log(data.summary);
-    summary.value = data.summary;
-    loading.value = false;
+function getSummary() {
+    // Intertial partial reload with lazy data evaluation
+    // https://inertiajs.com/partial-reloads
+    router.reload({ only: ["summary"] });
 }
+
+// https://inertiajs.com/events
+router.on("start", (event) => {
+    // Summary: show loader
+    if (event.detail.visit.only.includes("summary")) {
+        loading.value = true;
+    }
+});
+
+router.on("finish", (event) => {
+    // Summary: hide loader and show summary
+    if (event.detail.visit.only.includes("summary")) {
+        loading.value = false;
+        showSummary.value = true;
+    }
+});
+
+function hideSummary() {
+    showSummary.value = false;
+}
+
+/**
+ * Alternative: fetch summary from API call and use a ref to hold the data
+ */
+
+// const summary = ref("");
+
+// async function getSummary(entryId) {
+//     loading.value = true;
+//     const res = await fetch(
+//         `http://localhost/api/entry/${entryId}/gpt-summary`
+//     );
+//     const data = await res.json();
+//     console.log(data.summary);
+//     summary.value = data.summary;
+//     loading.value = false;
+// }
 </script>
 
 <template>
@@ -76,7 +108,7 @@ async function getSummary(entryId) {
             <div class="max-w-3xl mx-auto sm:px-6 lg:px-8">
                 <div
                     class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-3"
-                    v-if="summary || loading"
+                    v-if="showSummary || loading"
                 >
                     <div class="p-6 bg-white border-b border-gray-200">
                         <div class="flex items-center justify-between">
@@ -87,7 +119,7 @@ async function getSummary(entryId) {
                             </h3>
                             <button
                                 className="btn btn-square btn-outline"
-                                @click="summary = ''"
+                                @click="hideSummary"
                                 v-if="summary"
                             >
                                 <svg

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Entry\SummarizeEntryWithGPTChat;
 use App\Exceptions\FeedCrawlFailedException;
 use App\Http\Requests\StoreFeedRequest;
 use App\Models\Entry;
@@ -203,6 +204,8 @@ class FeedController extends Controller
         return Inertia::render('Feed/Entry', [
             'feed' => $feed,
             'entry' => $entry,
+            // https://inertiajs.com/partial-reloads#lazy-data-evaluation
+            'summary' => Inertia::lazy(fn () => SummarizeEntryWithGPTChat::run($entry)),
         ]);
     }
 
