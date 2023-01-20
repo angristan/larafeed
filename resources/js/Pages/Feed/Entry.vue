@@ -11,7 +11,20 @@ import { BrainIcon } from "vue-tabler-icons";
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
 
-defineProps(["feed", "entry", "summary"]);
+defineProps({
+    feed: {
+        type: Object,
+        required: true,
+    },
+    entry: {
+        type: Object,
+        required: true,
+    },
+    summary: {
+        type: String,
+        required: false,
+    },
+});
 
 const loading = ref(false);
 const showSummary = ref(false);

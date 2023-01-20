@@ -6,7 +6,16 @@ import dayjs from "dayjs";
 import { defineProps, ref } from "vue";
 import { FileRssIcon } from "vue-tabler-icons";
 
-const props = defineProps(["feeds", "filters"]);
+const props = defineProps({
+    feeds: {
+        type: Object,
+        required: true,
+    },
+    filters: {
+        type: Object,
+        required: true,
+    },
+});
 
 const term = ref(props.filters.search);
 
