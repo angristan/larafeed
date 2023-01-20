@@ -26,11 +26,7 @@ class FeedController extends Controller
     {
         $search_input = $request->query('search');
 
-        $feeds_data = Feed::query()
-            // TODO: ILIKE is bad
-            ->when($search_input, fn ($query, $search_input) => $query->where('name', 'ILIKE', "%{$search_input}%"))
-            ->orderByDesc('last_crawled_at')
-            ->get();
+        $feeds_data = Feed::search($search_input)->get();
 
         $feeds = $feeds_data->map(function (Feed $feed) {
             $days = DB::query()
