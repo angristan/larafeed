@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Entry\SummarizeEntryWithGPTChat;
+use App\Actions\RefreshFeedEntries;
 use App\Exceptions\FeedCrawlFailedException;
 use App\Http\Requests\StoreFeedRequest;
 use App\Models\Entry;
@@ -172,7 +173,7 @@ class FeedController extends Controller
     public function refresh(Feed $feed): \Illuminate\Http\RedirectResponse
     {
         try {
-            $feed->refreshEntries();
+            RefreshFeedEntries::run($feed);
         } catch (FeedCrawlFailedException $e) {
             return redirect()->back()->withErrors([
                 'refresh' => $e->getMessage(),
