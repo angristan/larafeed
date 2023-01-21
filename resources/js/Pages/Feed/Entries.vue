@@ -6,6 +6,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import utc from "dayjs/plugin/utc";
 import { ElNotification } from "element-plus";
+import { RefreshIcon } from "vue-tabler-icons";
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
@@ -88,6 +89,7 @@ const showRefreshFailureNotification = () => {
                         "
                     >
                         <button class="btn" type="submit">
+                            <RefreshIcon class="mr-2" />
                             Refresh entries
                         </button>
                         <InputError
