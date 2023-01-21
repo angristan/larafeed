@@ -2,6 +2,7 @@
 
 namespace App\Console;
 
+use App\Actions\RefreshFeeds;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -20,6 +21,11 @@ class Kernel extends ConsoleKernel
          * https://laravel.com/docs/9.x/horizon#metrics
          */
         $schedule->command('horizon:snapshot')->everyFiveMinutes();
+
+        /**
+         * Refresh all feeds
+         */
+        $schedule->job(RefreshFeeds::makeJob())->hourly();
     }
 
     /**
