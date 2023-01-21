@@ -15,7 +15,11 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')->hourly();
+        /**
+         * Refresh Horizon metrics
+         * https://laravel.com/docs/9.x/horizon#metrics
+         */
+        $schedule->command('horizon:snapshot')->everyFiveMinutes();
     }
 
     /**

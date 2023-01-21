@@ -17,6 +17,7 @@
         "http-interop/http-factory-guzzle": "^1.2",
         "inertiajs/inertia-laravel": "^0.6.3",
         "laravel/framework": "^9.19",
+        "laravel/horizon": "^5.13",
         "laravel/sanctum": "^2.8",
         "laravel/scout": "^9.8",
         "laravel/telescope": "^4.11",
@@ -60,6 +61,7 @@
         ],
         "post-update-cmd": [
             "@php artisan vendor:publish --tag=laravel-assets --ansi --force",
+            "@php artisan horizon:publish --ansi",
             "@ide-helper"
         ],
         "ide-helper": [
