@@ -18,6 +18,7 @@ class SummarizeEntryWithGPTChat
     {
         /*
             Workaround for GPTChat error "this model's maximum context length is 4097 tokens"
+            GPT tokens explanation and demo: https://beta.openai.com/tokenizer
         */
         $config = new Gpt3TokenizerConfig();
         $tokenizer = new Gpt3Tokenizer($config);
@@ -28,6 +29,7 @@ class SummarizeEntryWithGPTChat
         // Convert tokens back to text using the vocab files
         // (https://github.com/Gioni06/GPT3Tokenizer/tree/6638c4b0355f38819338171cc629fede9a0c6256/src/pretrained_vocab_files)
         $truncated_content = $tokenizer->decode($truncated_tokens);
+
         // Here is our prompt... Valid, but truncated.
         $prompt = "Summarize this text: {$truncated_content}";
 
