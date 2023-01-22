@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "9ae715e47301432f4b7bbf8fdb30aa84",
+    "content-hash": "9d89ed176e82bf27354a22380aacc758",
     "packages": [
         {
             "name": "ashallendesign/favicon-fetcher",
@@ -1263,6 +1263,59 @@
                 }
             ],
             "time": "2022-02-20T15:07:15+00:00"
+        },
+        {
+            "name": "gioni06/gpt3-tokenizer",
+            "version": "v1.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Gioni06/GPT3Tokenizer.git",
+                "reference": "2070dc49c02eef9a856486502c00db067116f39d"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Gioni06/GPT3Tokenizer/zipball/2070dc49c02eef9a856486502c00db067116f39d",
+                "reference": "2070dc49c02eef9a856486502c00db067116f39d",
+                "shasum": ""
+            },
+            "require": {
+                "ext-mbstring": "*",
+                "php": "^8.0.2"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^9.5.8"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Gioni06\\Gpt3Tokenizer\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "Apache-2.0"
+            ],
+            "authors": [
+                {
+                    "name": "Jonas Duri",
+                    "email": "jonas.duri@gmail.com"
+                }
+            ],
+            "description": "PHP package for Byte Pair Encoding (BPE) used by GPT-3.",
+            "homepage": "https://github.com/Gioni06/GPT3Tokenizer",
+            "keywords": [
+                "GPT-3",
+                "decode",
+                "encode",
+                "gpt-2",
+                "openai",
+                "tokenizer"
+            ],
+            "support": {
+                "issues": "https://github.com/Gioni06/GPT3Tokenizer/issues",
+                "source": "https://github.com/Gioni06/GPT3Tokenizer"
+            },
+            "time": "2023-01-19T16:40:53+00:00"
         },
         {
             "name": "graham-campbell/result-type",
