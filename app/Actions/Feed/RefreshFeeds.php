@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Actions;
+namespace App\Actions\Feed;
 
 use App\Models\Feed;
 use Lorisleiva\Actions\Concerns\AsAction;

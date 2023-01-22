@@ -1,5 +1,7 @@
 <?php
 
+use App\Actions\Entry\ShowEntryPage;
+use App\Actions\Feed\ShowNewFeedPage;
 use App\Http\Controllers\FeedController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
@@ -38,9 +40,9 @@ Route::middleware('auth')->group(function () {
     // TODO: scoped route bindings
     Route::get('/feeds', [FeedController::class, 'index'])->name('feeds.index');
     Route::get('/feed/{feed}/entries', [FeedController::class, 'show'])->name('feed.entries')->whereNumber('feed');
-    Route::get('/feed/{feed}/entry/{entry}', [FeedController::class, 'showEntry'])->name('feed.entry')->whereNumber('feed')->whereNumber('entry');
+    Route::get('/feed/{feed}/entry/{entry}', ShowEntryPage::class)->name('feed.entry')->whereNumber('feed')->whereNumber('entry');
     Route::post('/feed/{feed}/refresh', [FeedController::class, 'refresh'])->name('feed.refresh')->whereNumber('feed');
-    Route::get('/feed/new', [FeedController::class, 'create'])->name('feed.create');
+    Route::get('/feed/new', ShowNewFeedPage::class)->name('feed.create');
     Route::post('/feed', [FeedController::class, 'store'])->name('feed.store');
 });
 

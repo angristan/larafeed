@@ -2,7 +2,7 @@
 
 namespace App\Console;
 
-use App\Actions\RefreshFeeds;
+use App\Actions\Feed\RefreshFeeds;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 

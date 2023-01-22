@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Actions;
+namespace App\Actions\Feed;
 
 use App\Exceptions\FeedCrawlFailedException;
 use App\Models\Feed;

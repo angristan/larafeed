@@ -2,8 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Actions\Entry\SummarizeEntryWithGPTChat;
-use App\Actions\RefreshFeedEntries;
+use App\Actions\Feed\RefreshFeedEntries;
 use App\Exceptions\FeedCrawlFailedException;
 use App\Http\Requests\StoreFeedRequest;
 use App\Models\Entry;
@@ -69,16 +68,6 @@ class FeedController extends Controller
             ],
             'feeds' => $feeds,
         ]);
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     *
-     * @return \Inertia\Response
-     */
-    public function create(): \Inertia\Response
-    {
-        return Inertia::render('Feed/New');
     }
 
     /**
@@ -186,57 +175,4 @@ class FeedController extends Controller
 
         return redirect()->route('feed.entries', $feed);
     }
-
-    /**
-     * Display the specified entry.
-     *
-     * @param  \App\Models\Feed  $feed
-     * @param  int  $entryId
-     * @return \Inertia\Response
-     */
-    public function showEntry(Feed $feed, int $entryId): \Inertia\Response
-    {
-        $entry = $feed->entries()->findOrFail($entryId);
-
-        return Inertia::render('Feed/Entry', [
-            'feed' => $feed,
-            'entry' => $entry,
-            // https://inertiajs.com/partial-reloads#lazy-data-evaluation
-            'summary' => Inertia::lazy(fn () => SummarizeEntryWithGPTChat::run($entry)),
-        ]);
-    }
-
-    // /**
-    //  * Show the form for editing the specified resource.
-    //  *
-    //  * @param  \App\Models\Feed  $feed
-    //  * @return \Illuminate\Http\Response
-    //  */
-    // public function edit(Feed $feed): \Illuminate\Http\Response
-    // {
-    //     //
-    // }
-
-    // /**
-    //  * Update the specified resource in storage.
-    //  *
-    //  * @param  \App\Http\Requests\UpdateFeedRequest  $request
-    //  * @param  \App\Models\Feed  $feed
-    //  * @return \Illuminate\Http\Response
-    //  */
-    // public function update(UpdateFeedRequest $request, Feed $feed): \Illuminate\Http\Response
-    // {
-    //     //
-    // }
-
-    // /**
-    //  * Remove the specified resource from storage.
-    //  *
-    //  * @param  \App\Models\Feed  $feed
-    //  * @return \Illuminate\Http\Response
-    //  */
-    // public function destroy(Feed $feed): \Illuminate\Http\Response
-    // {
-    //     //
-    // }
 }
