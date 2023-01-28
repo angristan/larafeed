@@ -16,6 +16,9 @@ class SummarizeEntryWithGPTChat
 
     public function handle(Entry $entry): string
     {
+        $MAX_MODEL_TOKENS = 4097;
+        $COMPLETION_SIZE = 256;
+        $PROMPT_SIZE = $MAX_MODEL_TOKENS - $COMPLETION_SIZE;
         /*
             Workaround for GPTChat error "this model's maximum context length is 4097 tokens"
             GPT tokens explanation and demo: https://beta.openai.com/tokenizer
@@ -24,8 +27,8 @@ class SummarizeEntryWithGPTChat
         $tokenizer = new Gpt3Tokenizer($config);
         // Convert text to tokens
         $tokens = $tokenizer->encode($entry->content);
-        // Keep only the first 4097 tokens
-        $truncated_tokens = array_slice($tokens, 0, 4097);
+        // Keep only the first 4097 minus completion size tokens
+        $truncated_tokens = array_slice($tokens, 0, $PROMPT_SIZE);
         // Convert tokens back to text using the vocab files
         // (https://github.com/Gioni06/GPT3Tokenizer/tree/6638c4b0355f38819338171cc629fede9a0c6256/src/pretrained_vocab_files)
         $truncated_content = $tokenizer->decode($truncated_tokens);
