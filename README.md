@@ -10,7 +10,7 @@ Larafeed is a simple feed reader.
 
 - RSS and Atom feed support
 - Background feed updates
-- Full-text search
+- Full-text search through a reactive search bar
 - AI-generated summary of entries
 - Favicon display
 - GitHub-like sparkline graphs representing feed acitivity
