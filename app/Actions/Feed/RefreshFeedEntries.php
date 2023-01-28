@@ -47,4 +47,21 @@ class RefreshFeedEntries
             ]);
         });
     }
+
+    public function asController(Feed $feed)
+    {
+        try {
+            $this->handle($feed);
+        } catch (FeedCrawlFailedException $e) {
+            return redirect()->back()->withErrors([
+                'refresh' => $e->getMessage(),
+            ]);
+            // Alternative:
+            // throw ValidationException::withMessages([
+            //     'refresh' => 'ups, there was an error',
+            // ]);
+        }
+
+        return redirect()->route('feed.entries', $feed);
+    }
 }

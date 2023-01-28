@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Entry\ShowEntryPage;
+use App\Actions\Feed\RefreshFeedEntries;
 use App\Actions\Feed\ShowNewFeedPage;
 use App\Http\Controllers\FeedController;
 use App\Http\Controllers\ProfileController;
@@ -41,7 +42,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/feeds', [FeedController::class, 'index'])->name('feeds.index');
     Route::get('/feed/{feed}/entries', [FeedController::class, 'show'])->name('feed.entries')->whereNumber('feed');
     Route::get('/feed/{feed}/entry/{entry}', ShowEntryPage::class)->name('feed.entry')->whereNumber('feed')->whereNumber('entry');
-    Route::post('/feed/{feed}/refresh', [FeedController::class, 'refresh'])->name('feed.refresh')->whereNumber('feed');
+    Route::post('/feed/{feed}/refresh', RefreshFeedEntries::class)->name('feed.refresh')->whereNumber('feed');
     Route::get('/feed/new', ShowNewFeedPage::class)->name('feed.create');
     Route::post('/feed', [FeedController::class, 'store'])->name('feed.store');
 });
