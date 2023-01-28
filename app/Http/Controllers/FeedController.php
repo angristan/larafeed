@@ -126,28 +126,4 @@ class FeedController extends Controller
         // https://inertiajs.com/shared-data#flash-messages
         ->with('success', 'Feed added successfully.');
     }
-
-    /**
-     * Display the specified resource.
-     *
-     * @param  \App\Models\Feed  $feed
-     * @return \Inertia\Response
-     */
-    public function show(Feed $feed): \Inertia\Response
-    {
-        // TODO: https://www.eoghanobrien.com/posts/define-a-custom-collection-for-your-eloquent-model
-        return Inertia::render('Feed/Entries', [
-            'feed' => collect($feed->only([
-                'id',
-                'name',
-                'feed_url',
-                'site_url',
-                'favicon_url',
-                'last_crawled_at',
-            ]))->merge([
-                'entries_count' => $feed->entries()->count(),
-            ]),
-            'entries' => $feed->entries()->orderBy('published_at', 'desc')->get(),
-        ]);
-    }
 }
