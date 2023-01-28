@@ -3,7 +3,7 @@ import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
 import { Head, Link, router } from "@inertiajs/vue3";
 import { watchDebounced } from "@vueuse/core";
 import dayjs from "dayjs";
-import { defineProps, ref } from "vue";
+import { ref } from "vue";
 import { FileRssIcon } from "vue-tabler-icons";
 
 const props = defineProps({
