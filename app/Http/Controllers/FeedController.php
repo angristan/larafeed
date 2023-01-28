@@ -45,7 +45,7 @@ class FeedController extends Controller
             $sparkLine = SparkLine::new($days)
                 ->withStrokeWidth(2)
                 ->withDimensions(200, 50)
-                ->withMaxItemAmount(100);
+                ->withMaxItemAmount(30);
             // ->withMaxValue(10);
 
             return collect($feed->only([
