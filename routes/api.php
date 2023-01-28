@@ -1,6 +1,6 @@
 <?php
 
-use App\Actions\Entry\SummarizeEntryWithGPTChat;
+use App\Actions\Entry\SummarizeEntryWithChatGPT;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -21,5 +21,5 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 // TODO read about https://laravel.com/docs/9.x/sanctum#sanctum-middleware
 Route::middleware(['auth:sanctum'])->group(function () {
-    Route::get('/entry/{entry}/gpt-summary', SummarizeEntryWithGPTChat::class)->name('entry.gpt-summary');
+    Route::get('/entry/{entry}/gpt-summary', SummarizeEntryWithChatGPT::class)->name('entry.gpt-summary');
 });

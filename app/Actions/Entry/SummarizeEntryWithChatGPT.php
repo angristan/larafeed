@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Cache;
 use Lorisleiva\Actions\Concerns\AsAction;
 use OpenAI\Laravel\Facades\OpenAI;
 
-class SummarizeEntryWithGPTChat
+class SummarizeEntryWithChatGPT
 {
     use AsAction;
 
@@ -20,7 +20,7 @@ class SummarizeEntryWithGPTChat
         $COMPLETION_SIZE = 256;
         $PROMPT_SIZE = $MAX_MODEL_TOKENS - $COMPLETION_SIZE;
         /*
-            Workaround for GPTChat error "this model's maximum context length is 4097 tokens"
+            Workaround for ChatGPT error "this model's maximum context length is 4097 tokens"
             GPT tokens explanation and demo: https://beta.openai.com/tokenizer
         */
         $config = new Gpt3TokenizerConfig();
