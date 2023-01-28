@@ -11,19 +11,46 @@ Larafeed is a simple feed reader.
 - RSS and Atom feed support
 - Background feed updates
 - Full-text search
-- Summary of entries powered by ChatGPT
+- AI-generated summary of entries
+- Favicon display
+- GitHub-like sparkline graphs representing feed acitivity
 
 ## Technical overview
 
 - Backend build with Laravel 9
   - Architectured around [Actions](https://laravelactions.com/)
 - Vue.js 3 for the frontend
-- Inertia.js that does the magic glue between Laravel and Vue.js
+- [Inertia.js](https://inertiajs.com/) that does the magic glue between Laravel and Vue.js
 - Feed parsing is powered by [SimplePie](https://github.com/simplepie/simplepie)
+  - Through [willvincent/feeds](https://github.com/willvincent/feeds)
 - Full text search with Laravel Scout, powered by [Meilisearch](https://github.com/meilisearch/meilisearch)
+- Summary generation is powered by [ChatGPT](https://openai.com/blog/chatgpt/)
+  - Through [openai-php/laravel](https://github.com/openai-php/laravel)
+  - The prompt is truncated using the GPT3 tokenizer, implemeted in PHP in [Gioni06/GPT3Tokenizer](https://github.com/Gioni06/GPT3Tokenizer)
 - Supports multiple database engines (thanks to Laravel)
 - Background jobs are powered by the Laravel scheduler, Laravel queues and Laravel Horizon
   - The queue system is powered by Redis
+- Favicon fetching is powered by [ash-jc-allen/favicon-fetcher](https://github.com/ash-jc-allen/favicon-fetcher)
+- Sparkline graphs are powered by [brendt/php-sparkline](https://github.com/brendt/php-sparkline)
+- The frontend uses [Tailwind CSS](https://tailwindcss.com/) with some plugins
+  - [Tailwind CSS Typography](https://tailwindcss.com/docs/typography-plugin) to render entry content
+  - [daisyUI](https://daisyui.com/) to write less classes
+  - [Flowbite](https://flowbite.com/), for some components
+- [Element Plus](https://element-plus.org/en-US/) is available as a component library, it's only used for toasts right now lol
+
+## Screenshots
+
+### Feed list
+
+![](.github/readme/feeds.png)
+
+### Feed
+
+![](.github/readme/feed.png)
+
+### Entry
+
+![](.github/readme/entry.png)
 
 ## Run locally
 
@@ -36,6 +63,8 @@ cp .env.example .env # and adjust the values
 ./vendor/bin/sail npm install
 ./vendor/bin/sail npm run dev
 ```
+
+A [quick login link](https://github.com/spatie/laravel-login-link) is available on the login form, which will create a user and log you in.
 
 ## License
 
