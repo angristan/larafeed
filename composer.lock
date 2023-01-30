@@ -1266,16 +1266,16 @@
         },
         {
             "name": "gioni06/gpt3-tokenizer",
-            "version": "v1.1.0",
+            "version": "v1.1.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Gioni06/GPT3Tokenizer.git",
-                "reference": "2070dc49c02eef9a856486502c00db067116f39d"
+                "reference": "2c482823b104541017a2f799b5b899f5fdc546c3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Gioni06/GPT3Tokenizer/zipball/2070dc49c02eef9a856486502c00db067116f39d",
-                "reference": "2070dc49c02eef9a856486502c00db067116f39d",
+                "url": "https://api.github.com/repos/Gioni06/GPT3Tokenizer/zipball/2c482823b104541017a2f799b5b899f5fdc546c3",
+                "reference": "2c482823b104541017a2f799b5b899f5fdc546c3",
                 "shasum": ""
             },
             "require": {
@@ -1315,7 +1315,7 @@
                 "issues": "https://github.com/Gioni06/GPT3Tokenizer/issues",
                 "source": "https://github.com/Gioni06/GPT3Tokenizer"
             },
-            "time": "2023-01-19T16:40:53+00:00"
+            "time": "2023-01-28T11:35:32+00:00"
         },
         {
             "name": "graham-campbell/result-type",
