@@ -14,7 +14,7 @@
         "brendt/php-sparkline": "^1.0",
         "doctrine/dbal": "^3.5",
         "gioni06/gpt3-tokenizer": "^1.1",
-        "guzzlehttp/guzzle": "^7.2",
+        "guzzlehttp/guzzle": "^7.9",
         "http-interop/http-factory-guzzle": "^1.2",
         "inertiajs/inertia-laravel": "^0.6.3",
         "laravel/framework": "^9.19",
@@ -25,7 +25,7 @@
         "laravel/tinker": "^2.7",
         "lorisleiva/laravel-actions": "^2.4",
         "meilisearch/meilisearch-php": "^0.27.0",
-        "openai-php/laravel": "^0.3.0",
+        "openai-php/laravel": "^0.10.0",
         "spatie/laravel-login-link": "^1.1",
         "tightenco/ziggy": "^1.0",
         "willvincent/feeds": "^2.4"
@@ -97,7 +97,8 @@
         "preferred-install": "dist",
         "sort-packages": true,
         "allow-plugins": {
-            "pestphp/pest-plugin": true
+            "pestphp/pest-plugin": true,
+            "php-http/discovery": true
         }
     },
     "minimum-stability": "dev",

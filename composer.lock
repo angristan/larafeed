@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "225e15053b88c9a1f440de9e4f4fc143",
+    "content-hash": "61c4895fc811fc2e8d54dc5e129ef45d",
     "packages": [
         {
             "name": "ashallendesign/favicon-fetcher",
@@ -1381,22 +1381,22 @@
         },
         {
             "name": "guzzlehttp/guzzle",
-            "version": "7.5.0",
+            "version": "7.9.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/guzzle/guzzle.git",
-                "reference": "b50a2a1251152e43f6a37f0fa053e730a67d25ba"
+                "reference": "d281ed313b989f213357e3be1a179f02196ac99b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/guzzle/guzzle/zipball/b50a2a1251152e43f6a37f0fa053e730a67d25ba",
-                "reference": "b50a2a1251152e43f6a37f0fa053e730a67d25ba",
+                "url": "https://api.github.com/repos/guzzle/guzzle/zipball/d281ed313b989f213357e3be1a179f02196ac99b",
+                "reference": "d281ed313b989f213357e3be1a179f02196ac99b",
                 "shasum": ""
             },
             "require": {
                 "ext-json": "*",
-                "guzzlehttp/promises": "^1.5",
-                "guzzlehttp/psr7": "^1.9 || ^2.4",
+                "guzzlehttp/promises": "^1.5.3 || ^2.0.3",
+                "guzzlehttp/psr7": "^2.7.0",
                 "php": "^7.2.5 || ^8.0",
                 "psr/http-client": "^1.0",
                 "symfony/deprecation-contracts": "^2.2 || ^3.0"
@@ -1405,10 +1405,11 @@
                 "psr/http-client-implementation": "1.0"
             },
             "require-dev": {
-                "bamarni/composer-bin-plugin": "^1.8.1",
+                "bamarni/composer-bin-plugin": "^1.8.2",
                 "ext-curl": "*",
-                "php-http/client-integration-tests": "^3.0",
-                "phpunit/phpunit": "^8.5.29 || ^9.5.23",
+                "guzzle/client-integration-tests": "3.0.2",
+                "php-http/message-factory": "^1.1",
+                "phpunit/phpunit": "^8.5.39 || ^9.6.20",
                 "psr/log": "^1.1 || ^2.0 || ^3.0"
             },
             "suggest": {
@@ -1421,9 +1422,6 @@
                 "bamarni-bin": {
                     "bin-links": true,
                     "forward-command": false
-                },
-                "branch-alias": {
-                    "dev-master": "7.5-dev"
                 }
             },
             "autoload": {
@@ -1489,7 +1487,7 @@
             ],
             "support": {
                 "issues": "https://github.com/guzzle/guzzle/issues",
-                "source": "https://github.com/guzzle/guzzle/tree/7.5.0"
+                "source": "https://github.com/guzzle/guzzle/tree/7.9.2"
             },
             "funding": [
                 {
@@ -1505,38 +1503,37 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2022-08-28T15:39:27+00:00"
+            "time": "2024-07-24T11:22:20+00:00"
         },
         {
             "name": "guzzlehttp/promises",
-            "version": "1.5.2",
+            "version": "2.0.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/guzzle/promises.git",
-                "reference": "b94b2807d85443f9719887892882d0329d1e2598"
+                "reference": "f9c436286ab2892c7db7be8c8da4ef61ccf7b455"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/guzzle/promises/zipball/b94b2807d85443f9719887892882d0329d1e2598",
-                "reference": "b94b2807d85443f9719887892882d0329d1e2598",
+                "url": "https://api.github.com/repos/guzzle/promises/zipball/f9c436286ab2892c7db7be8c8da4ef61ccf7b455",
+                "reference": "f9c436286ab2892c7db7be8c8da4ef61ccf7b455",
                 "shasum": ""
             },
             "require": {
-                "php": ">=5.5"
+                "php": "^7.2.5 || ^8.0"
             },
             "require-dev": {
-                "symfony/phpunit-bridge": "^4.4 || ^5.1"
+                "bamarni/composer-bin-plugin": "^1.8.2",
+                "phpunit/phpunit": "^8.5.39 || ^9.6.20"
             },
             "type": "library",
             "extra": {
-                "branch-alias": {
-                    "dev-master": "1.5-dev"
+                "bamarni-bin": {
+                    "bin-links": true,
+                    "forward-command": false
                 }
             },
             "autoload": {
-                "files": [
-                    "src/functions_include.php"
-                ],
                 "psr-4": {
                     "GuzzleHttp\\Promise\\": "src/"
                 }
@@ -1573,7 +1570,7 @@
             ],
             "support": {
                 "issues": "https://github.com/guzzle/promises/issues",
-                "source": "https://github.com/guzzle/promises/tree/1.5.2"
+                "source": "https://github.com/guzzle/promises/tree/2.0.4"
             },
             "funding": [
                 {
@@ -1589,26 +1586,26 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2022-08-28T14:55:35+00:00"
+            "time": "2024-10-17T10:06:22+00:00"
         },
         {
             "name": "guzzlehttp/psr7",
-            "version": "2.4.3",
+            "version": "2.7.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/guzzle/psr7.git",
-                "reference": "67c26b443f348a51926030c83481b85718457d3d"
+                "reference": "a70f5c95fb43bc83f07c9c948baa0dc1829bf201"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/guzzle/psr7/zipball/67c26b443f348a51926030c83481b85718457d3d",
-                "reference": "67c26b443f348a51926030c83481b85718457d3d",
+                "url": "https://api.github.com/repos/guzzle/psr7/zipball/a70f5c95fb43bc83f07c9c948baa0dc1829bf201",
+                "reference": "a70f5c95fb43bc83f07c9c948baa0dc1829bf201",
                 "shasum": ""
             },
             "require": {
                 "php": "^7.2.5 || ^8.0",
                 "psr/http-factory": "^1.0",
-                "psr/http-message": "^1.0",
+                "psr/http-message": "^1.1 || ^2.0",
                 "ralouphie/getallheaders": "^3.0"
             },
             "provide": {
@@ -1616,9 +1613,9 @@
                 "psr/http-message-implementation": "1.0"
             },
             "require-dev": {
-                "bamarni/composer-bin-plugin": "^1.8.1",
-                "http-interop/http-factory-tests": "^0.9",
-                "phpunit/phpunit": "^8.5.29 || ^9.5.23"
+                "bamarni/composer-bin-plugin": "^1.8.2",
+                "http-interop/http-factory-tests": "0.9.0",
+                "phpunit/phpunit": "^8.5.39 || ^9.6.20"
             },
             "suggest": {
                 "laminas/laminas-httphandlerrunner": "Emit PSR-7 responses"
@@ -1628,9 +1625,6 @@
                 "bamarni-bin": {
                     "bin-links": true,
                     "forward-command": false
-                },
-                "branch-alias": {
-                    "dev-master": "2.4-dev"
                 }
             },
             "autoload": {
@@ -1692,7 +1686,7 @@
             ],
             "support": {
                 "issues": "https://github.com/guzzle/psr7/issues",
-                "source": "https://github.com/guzzle/psr7/tree/2.4.3"
+                "source": "https://github.com/guzzle/psr7/tree/2.7.0"
             },
             "funding": [
                 {
@@ -1708,7 +1702,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2022-10-26T14:07:24+00:00"
+            "time": "2024-07-18T11:15:46+00:00"
         },
         {
             "name": "http-interop/http-factory-guzzle",
@@ -3550,31 +3544,38 @@
         },
         {
             "name": "openai-php/client",
-            "version": "v0.3.0",
+            "version": "v0.10.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/openai-php/client.git",
-                "reference": "e94f5a6a2c997ea97d348c862a1cc59211eee980"
+                "reference": "4a565d145e0fb3ea1baba8fffe39d86c56b6dc2c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/openai-php/client/zipball/e94f5a6a2c997ea97d348c862a1cc59211eee980",
-                "reference": "e94f5a6a2c997ea97d348c862a1cc59211eee980",
+                "url": "https://api.github.com/repos/openai-php/client/zipball/4a565d145e0fb3ea1baba8fffe39d86c56b6dc2c",
+                "reference": "4a565d145e0fb3ea1baba8fffe39d86c56b6dc2c",
                 "shasum": ""
             },
             "require": {
-                "guzzlehttp/guzzle": "^7.5.0",
-                "php": "^8.1.0"
+                "php": "^8.1.0",
+                "php-http/discovery": "^1.20.0",
+                "php-http/multipart-stream-builder": "^1.4.2",
+                "psr/http-client": "^1.0.3",
+                "psr/http-client-implementation": "^1.0.1",
+                "psr/http-factory-implementation": "*",
+                "psr/http-message": "^1.1.0|^2.0.0"
             },
             "require-dev": {
-                "laravel/pint": "^1.3.0",
-                "nunomaduro/collision": "^7.0.0",
-                "pestphp/pest": "^2.0.0",
-                "pestphp/pest-plugin-arch": "^2.0.0",
-                "pestphp/pest-plugin-mock": "^2.0.0",
-                "phpstan/phpstan": "^1.9.6",
-                "rector/rector": "^0.14.8",
-                "symfony/var-dumper": "^6.2.3"
+                "guzzlehttp/guzzle": "^7.9.2",
+                "guzzlehttp/psr7": "^2.7.0",
+                "laravel/pint": "^1.18.1",
+                "mockery/mockery": "^1.6.12",
+                "nunomaduro/collision": "^7.11.0|^8.5.0",
+                "pestphp/pest": "^2.36.0|^3.5.0",
+                "pestphp/pest-plugin-arch": "^2.7|^3.0",
+                "pestphp/pest-plugin-type-coverage": "^2.8.7|^3.1.0",
+                "phpstan/phpstan": "^1.12.7",
+                "symfony/var-dumper": "^6.4.11|^7.1.5"
             },
             "type": "library",
             "autoload": {
@@ -3593,6 +3594,9 @@
                 {
                     "name": "Nuno Maduro",
                     "email": "enunomaduro@gmail.com"
+                },
+                {
+                    "name": "Sandro Gehri"
                 }
             ],
             "description": "OpenAI PHP is a supercharged PHP API client that allows you to interact with the Open AI API",
@@ -3611,7 +3615,7 @@
             ],
             "support": {
                 "issues": "https://github.com/openai-php/client/issues",
-                "source": "https://github.com/openai-php/client/tree/v0.3.0"
+                "source": "https://github.com/openai-php/client/tree/v0.10.3"
             },
             "funding": [
                 {
@@ -3619,42 +3623,42 @@
                     "type": "custom"
                 },
                 {
-                    "url": "https://github.com/nunomaduro",
+                    "url": "https://github.com/gehrisandro",
                     "type": "github"
                 },
                 {
-                    "url": "https://www.patreon.com/nunomaduro",
-                    "type": "patreon"
+                    "url": "https://github.com/nunomaduro",
+                    "type": "github"
                 }
             ],
-            "time": "2023-01-03T19:29:48+00:00"
+            "time": "2024-11-12T20:51:16+00:00"
         },
         {
             "name": "openai-php/laravel",
-            "version": "v0.3.0",
+            "version": "v0.10.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/openai-php/laravel.git",
-                "reference": "6da70d53076280fb42f38d626961cea1e7d2a9f7"
+                "reference": "24815ef1bda71cc0715f7aefe4506e77329e560f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/openai-php/laravel/zipball/6da70d53076280fb42f38d626961cea1e7d2a9f7",
-                "reference": "6da70d53076280fb42f38d626961cea1e7d2a9f7",
+                "url": "https://api.github.com/repos/openai-php/laravel/zipball/24815ef1bda71cc0715f7aefe4506e77329e560f",
+                "reference": "24815ef1bda71cc0715f7aefe4506e77329e560f",
                 "shasum": ""
             },
             "require": {
-                "laravel/framework": "^9.46.0",
-                "openai-php/client": "^0.3.0",
+                "guzzlehttp/guzzle": "^7.9.2",
+                "laravel/framework": "^9.46.0|^10.34.2|^11.23.5",
+                "openai-php/client": "^0.10.2",
                 "php": "^8.1.0"
             },
             "require-dev": {
-                "laravel/pint": "^1.3",
-                "pestphp/pest": "^2.0.0",
-                "pestphp/pest-plugin-arch": "^2.0.0",
-                "pestphp/pest-plugin-mock": "^2.0.0",
-                "phpstan/phpstan": "^1.9.6",
-                "symfony/var-dumper": "^6.2.3"
+                "laravel/pint": "^1.17.3",
+                "pestphp/pest": "^2.35.1|^3.0.0",
+                "pestphp/pest-plugin-arch": "^2.7.0|^3.0.0",
+                "phpstan/phpstan": "^1.12.4",
+                "symfony/var-dumper": "^6.4.0|^7.1.4"
             },
             "type": "library",
             "extra": {
@@ -3696,12 +3700,16 @@
             ],
             "support": {
                 "issues": "https://github.com/openai-php/laravel/issues",
-                "source": "https://github.com/openai-php/laravel/tree/v0.3.0"
+                "source": "https://github.com/openai-php/laravel/tree/v0.10.2"
             },
             "funding": [
                 {
                     "url": "https://www.paypal.com/paypalme/enunomaduro",
                     "type": "custom"
+                },
+                {
+                    "url": "https://github.com/gehrisandro",
+                    "type": "github"
                 },
                 {
                     "url": "https://github.com/nunomaduro",
@@ -3712,7 +3720,7 @@
                     "type": "patreon"
                 }
             ],
-            "time": "2023-01-03T19:37:15+00:00"
+            "time": "2024-10-17T20:34:07+00:00"
         },
         {
             "name": "php-http/client-common",
@@ -3791,43 +3799,54 @@
         },
         {
             "name": "php-http/discovery",
-            "version": "1.14.3",
+            "version": "1.20.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/php-http/discovery.git",
-                "reference": "31d8ee46d0215108df16a8527c7438e96a4d7735"
+                "reference": "82fe4c73ef3363caed49ff8dd1539ba06044910d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/php-http/discovery/zipball/31d8ee46d0215108df16a8527c7438e96a4d7735",
-                "reference": "31d8ee46d0215108df16a8527c7438e96a4d7735",
+                "url": "https://api.github.com/repos/php-http/discovery/zipball/82fe4c73ef3363caed49ff8dd1539ba06044910d",
+                "reference": "82fe4c73ef3363caed49ff8dd1539ba06044910d",
                 "shasum": ""
             },
             "require": {
+                "composer-plugin-api": "^1.0|^2.0",
                 "php": "^7.1 || ^8.0"
             },
             "conflict": {
-                "nyholm/psr7": "<1.0"
+                "nyholm/psr7": "<1.0",
+                "zendframework/zend-diactoros": "*"
+            },
+            "provide": {
+                "php-http/async-client-implementation": "*",
+                "php-http/client-implementation": "*",
+                "psr/http-client-implementation": "*",
+                "psr/http-factory-implementation": "*",
+                "psr/http-message-implementation": "*"
             },
             "require-dev": {
+                "composer/composer": "^1.0.2|^2.0",
                 "graham-campbell/phpspec-skip-example-extension": "^5.0",
                 "php-http/httplug": "^1.0 || ^2.0",
                 "php-http/message-factory": "^1.0",
-                "phpspec/phpspec": "^5.1 || ^6.1"
+                "phpspec/phpspec": "^5.1 || ^6.1 || ^7.3",
+                "sebastian/comparator": "^3.0.5 || ^4.0.8",
+                "symfony/phpunit-bridge": "^6.4.4 || ^7.0.1"
             },
-            "suggest": {
-                "php-http/message": "Allow to use Guzzle, Diactoros or Slim Framework factories"
-            },
-            "type": "library",
+            "type": "composer-plugin",
             "extra": {
-                "branch-alias": {
-                    "dev-master": "1.9-dev"
-                }
+                "class": "Http\\Discovery\\Composer\\Plugin",
+                "plugin-optional": true
             },
             "autoload": {
                 "psr-4": {
                     "Http\\Discovery\\": "src/"
-                }
+                },
+                "exclude-from-classmap": [
+                    "src/Composer/Plugin.php"
+                ]
             },
             "notification-url": "https://packagist.org/downloads/",
             "license": [
@@ -3839,7 +3858,7 @@
                     "email": "mark.sagikazar@gmail.com"
                 }
             ],
-            "description": "Finds installed HTTPlug implementations and PSR-7 message factories",
+            "description": "Finds and installs PSR-7, PSR-17, PSR-18 and HTTPlug implementations",
             "homepage": "http://php-http.org",
             "keywords": [
                 "adapter",
@@ -3848,13 +3867,14 @@
                 "factory",
                 "http",
                 "message",
+                "psr17",
                 "psr7"
             ],
             "support": {
                 "issues": "https://github.com/php-http/discovery/issues",
-                "source": "https://github.com/php-http/discovery/tree/1.14.3"
+                "source": "https://github.com/php-http/discovery/tree/1.20.0"
             },
-            "time": "2022-07-11T14:04:40+00:00"
+            "time": "2024-10-02T11:20:13+00:00"
         },
         {
             "name": "php-http/httplug",
@@ -4045,6 +4065,62 @@
                 "source": "https://github.com/php-http/message-factory/tree/master"
             },
             "time": "2015-12-19T14:08:53+00:00"
+        },
+        {
+            "name": "php-http/multipart-stream-builder",
+            "version": "1.4.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/php-http/multipart-stream-builder.git",
+                "reference": "10086e6de6f53489cca5ecc45b6f468604d3460e"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/php-http/multipart-stream-builder/zipball/10086e6de6f53489cca5ecc45b6f468604d3460e",
+                "reference": "10086e6de6f53489cca5ecc45b6f468604d3460e",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^7.1 || ^8.0",
+                "php-http/discovery": "^1.15",
+                "psr/http-factory-implementation": "^1.0"
+            },
+            "require-dev": {
+                "nyholm/psr7": "^1.0",
+                "php-http/message": "^1.5",
+                "php-http/message-factory": "^1.0.2",
+                "phpunit/phpunit": "^7.5.15 || ^8.5 || ^9.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Http\\Message\\MultipartStream\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Tobias Nyholm",
+                    "email": "tobias.nyholm@gmail.com"
+                }
+            ],
+            "description": "A builder class that help you create a multipart stream",
+            "homepage": "http://php-http.org",
+            "keywords": [
+                "factory",
+                "http",
+                "message",
+                "multipart stream",
+                "stream"
+            ],
+            "support": {
+                "issues": "https://github.com/php-http/multipart-stream-builder/issues",
+                "source": "https://github.com/php-http/multipart-stream-builder/tree/1.4.2"
+            },
+            "time": "2024-09-04T13:22:54+00:00"
         },
         {
             "name": "php-http/promise",
@@ -4332,21 +4408,21 @@
         },
         {
             "name": "psr/http-client",
-            "version": "1.0.1",
+            "version": "1.0.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/php-fig/http-client.git",
-                "reference": "2dfb5f6c5eff0e91e20e913f8c5452ed95b86621"
+                "reference": "bb5906edc1c324c9a05aa0873d40117941e5fa90"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/php-fig/http-client/zipball/2dfb5f6c5eff0e91e20e913f8c5452ed95b86621",
-                "reference": "2dfb5f6c5eff0e91e20e913f8c5452ed95b86621",
+                "url": "https://api.github.com/repos/php-fig/http-client/zipball/bb5906edc1c324c9a05aa0873d40117941e5fa90",
+                "reference": "bb5906edc1c324c9a05aa0873d40117941e5fa90",
                 "shasum": ""
             },
             "require": {
                 "php": "^7.0 || ^8.0",
-                "psr/http-message": "^1.0"
+                "psr/http-message": "^1.0 || ^2.0"
             },
             "type": "library",
             "extra": {
@@ -4366,7 +4442,7 @@
             "authors": [
                 {
                     "name": "PHP-FIG",
-                    "homepage": "http://www.php-fig.org/"
+                    "homepage": "https://www.php-fig.org/"
                 }
             ],
             "description": "Common interface for HTTP clients",
@@ -4378,9 +4454,9 @@
                 "psr-18"
             ],
             "support": {
-                "source": "https://github.com/php-fig/http-client/tree/master"
+                "source": "https://github.com/php-fig/http-client"
             },
-            "time": "2020-06-29T06:28:15+00:00"
+            "time": "2023-09-23T14:17:50+00:00"
         },
         {
             "name": "psr/http-factory",
@@ -4439,25 +4515,25 @@
         },
         {
             "name": "psr/http-message",
-            "version": "1.0.1",
+            "version": "1.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/php-fig/http-message.git",
-                "reference": "f6561bf28d520154e4b0ec72be95418abe6d9363"
+                "reference": "cb6ce4845ce34a8ad9e68117c10ee90a29919eba"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/php-fig/http-message/zipball/f6561bf28d520154e4b0ec72be95418abe6d9363",
-                "reference": "f6561bf28d520154e4b0ec72be95418abe6d9363",
+                "url": "https://api.github.com/repos/php-fig/http-message/zipball/cb6ce4845ce34a8ad9e68117c10ee90a29919eba",
+                "reference": "cb6ce4845ce34a8ad9e68117c10ee90a29919eba",
                 "shasum": ""
             },
             "require": {
-                "php": ">=5.3.0"
+                "php": "^7.2 || ^8.0"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-master": "1.0.x-dev"
+                    "dev-master": "1.1.x-dev"
                 }
             },
             "autoload": {
@@ -4486,9 +4562,9 @@
                 "response"
             ],
             "support": {
-                "source": "https://github.com/php-fig/http-message/tree/master"
+                "source": "https://github.com/php-fig/http-message/tree/1.1"
             },
-            "time": "2016-08-06T14:39:51+00:00"
+            "time": "2023-04-04T09:50:52+00:00"
         },
         {
             "name": "psr/log",
@@ -10773,12 +10849,12 @@
     ],
     "aliases": [],
     "minimum-stability": "dev",
-    "stability-flags": [],
+    "stability-flags": {},
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
         "php": "^8.0.2"
     },
-    "platform-dev": [],
-    "plugin-api-version": "2.3.0"
+    "platform-dev": {},
+    "plugin-api-version": "2.6.0"
 }
