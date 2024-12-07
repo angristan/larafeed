@@ -45,11 +45,20 @@ services:
         networks:
             - sail
         healthcheck:
-            test: ["CMD", "pg_isready", "-q", "-d", "${DB_DATABASE}", "-U", "${DB_USERNAME}"]
+            test:
+                [
+                    'CMD',
+                    'pg_isready',
+                    '-q',
+                    '-d',
+                    '${DB_DATABASE}',
+                    '-U',
+                    '${DB_USERNAME}',
+                ]
             retries: 3
             timeout: 5s
     redis:
-        image: 'redis:alpine'
+        image: 'redis:7-alpine'
         ports:
             - '${FORWARD_REDIS_PORT:-6379}:6379'
         volumes:
@@ -57,17 +66,17 @@ services:
         networks:
             - sail
         healthcheck:
-            test: ["CMD", "redis-cli", "ping"]
+            test: ['CMD', 'redis-cli', 'ping']
             retries: 3
             timeout: 5s
     memcached:
-        image: 'memcached:alpine'
+        image: 'memcached:1.6-alpine'
         ports:
             - '${FORWARD_MEMCACHED_PORT:-11211}:11211'
         networks:
             - sail
     meilisearch:
-        image: 'getmeili/meilisearch:latest'
+        image: 'getmeili/meilisearch:v1.11'
         ports:
             - '${FORWARD_MEILISEARCH_PORT:-7700}:7700'
         volumes:
@@ -75,7 +84,14 @@ services:
         networks:
             - sail
         healthcheck:
-            test: ["CMD", "wget", "--no-verbose", "--spider",  "http://localhost:7700/health"]
+            test:
+                [
+                    'CMD',
+                    'wget',
+                    '--no-verbose',
+                    '--spider',
+                    'http://localhost:7700/health',
+                ]
             retries: 3
             timeout: 5s
     minio:
@@ -92,11 +108,13 @@ services:
             - sail
         command: minio server /data/minio --console-address ":8900"
         healthcheck:
-            test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+            test:
+                ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
             retries: 3
             timeout: 5s
     selenium:
-        image: 'selenium/standalone-chrome'
+        image: 'selenium/standalone-chrome:131.0'
+        platform: linux/x86_64
         extra_hosts:
             - 'host.docker.internal:host-gateway'
         volumes:
@@ -104,7 +122,7 @@ services:
         networks:
             - sail
     mailhog:
-        image: 'mailhog/mailhog:latest'
+        image: 'mailhog/mailhog:v1.0.1'
         ports:
             - '${FORWARD_MAILHOG_PORT:-1025}:1025'
             - '${FORWARD_MAILHOG_DASHBOARD_PORT:-8025}:8025'
