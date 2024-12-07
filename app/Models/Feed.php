@@ -17,10 +17,10 @@ use Laravel\Scout\Searchable;
  * @property string $site_url
  * @property string|null $favicon_url
  * @property string $last_crawled_at
- * @property-read \Illuminate\Database\Eloquent\Collection|\App\Models\Entry[] $entries
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Entry> $entries
  * @property-read int|null $entries_count
  *
- * @method static \Database\Factories\FeedFactory factory(...$parameters)
+ * @method static \Database\Factories\FeedFactory factory($count = null, $state = [])
  * @method static \Illuminate\Database\Eloquent\Builder|Feed newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|Feed newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|Feed query()

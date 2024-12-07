@@ -21,7 +21,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property int $feed_id
  * @property-read \App\Models\Feed $feed
  *
- * @method static \Database\Factories\EntryFactory factory(...$parameters)
+ * @method static \Database\Factories\EntryFactory factory($count = null, $state = [])
  * @method static \Illuminate\Database\Eloquent\Builder|Entry newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|Entry newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|Entry query()

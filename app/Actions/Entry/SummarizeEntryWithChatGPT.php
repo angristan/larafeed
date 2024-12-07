@@ -23,7 +23,7 @@ class SummarizeEntryWithChatGPT
             Workaround for ChatGPT error "this model's maximum context length is 4097 tokens"
             GPT tokens explanation and demo: https://beta.openai.com/tokenizer
         */
-        $config = new Gpt3TokenizerConfig();
+        $config = new Gpt3TokenizerConfig;
         $tokenizer = new Gpt3Tokenizer($config);
         // Convert text to tokens
         $tokens = $tokenizer->encode($entry->content);

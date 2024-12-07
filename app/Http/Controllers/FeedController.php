@@ -17,8 +17,6 @@ class FeedController extends Controller
 {
     /**
      * Display a listing of the resource.
-     *
-     * @return \Inertia\Response
      */
     public function index(Request $request): \Inertia\Response
     {
@@ -28,17 +26,17 @@ class FeedController extends Controller
 
         $feeds = $feeds_data->map(function (Feed $feed) {
             $days = DB::query()
-            ->from((new Entry())->getTable())
-            ->selectRaw('published_at::date as published_at_day, COUNT(*) as publishes')
-            ->where('feed_id', $feed->id)
-            ->groupBy('published_at_day')
-            ->orderByDesc('published_at_day')
-            ->limit(20)
-            ->get()
-            ->map(fn (object $row) => new SparkLineDay(
-                count: $row->publishes,
-                day: Carbon::make($row->published_at_day),
-            ));
+                ->from((new Entry)->getTable())
+                ->selectRaw('published_at::date as published_at_day, COUNT(*) as publishes')
+                ->where('feed_id', $feed->id)
+                ->groupBy('published_at_day')
+                ->orderByDesc('published_at_day')
+                ->limit(20)
+                ->get()
+                ->map(fn (object $row) => new SparkLineDay(
+                    count: $row->publishes,
+                    day: Carbon::make($row->published_at_day),
+                ));
 
             $sparkLine = SparkLine::new($days)
                 ->withStrokeWidth(2)
@@ -70,9 +68,6 @@ class FeedController extends Controller
 
     /**
      * Store a newly created resource in storage.
-     *
-     * @param  \App\Http\Requests\StoreFeedRequest  $request
-     * @return \Illuminate\Http\RedirectResponse
      */
     public function store(StoreFeedRequest $request): \Illuminate\Http\RedirectResponse
     {
@@ -124,6 +119,6 @@ class FeedController extends Controller
         return redirect()->route('feed.entries', $feed)
         // TODO success message
         // https://inertiajs.com/shared-data#flash-messages
-        ->with('success', 'Feed added successfully.');
+            ->with('success', 'Feed added successfully.');
     }
 }
