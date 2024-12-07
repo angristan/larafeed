@@ -13,6 +13,7 @@ trim_trailing_whitespace = false
 
 [*.{yml,yaml}]
 indent_size = 2
+quote_type = single
 
 [docker-compose.yml]
 indent_size = 4
