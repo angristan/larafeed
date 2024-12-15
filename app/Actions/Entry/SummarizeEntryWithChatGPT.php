@@ -51,7 +51,7 @@ class SummarizeEntryWithChatGPT
             return $result->choices[0]->text;
         });
 
-        return $summary;
+        return $summary->text;
     }
 
     public function asController(Entry $entry): JsonResponse

@@ -1,26 +1,28 @@
-<script setup>
-import InputError from "@/Components/InputError.vue";
-import InputLabel from "@/Components/InputLabel.vue";
-import PrimaryButton from "@/Components/PrimaryButton.vue";
-import TextInput from "@/Components/TextInput.vue";
-import GuestLayout from "@/Layouts/GuestLayout.vue";
-import { Head, useForm } from "@inertiajs/vue3";
+<script setup lang="ts">
+import InputError from '@/Components/InputError.vue';
+import InputLabel from '@/Components/InputLabel.vue';
+import PrimaryButton from '@/Components/PrimaryButton.vue';
+import TextInput from '@/Components/TextInput.vue';
+import GuestLayout from '@/Layouts/GuestLayout.vue';
+import { Head, useForm } from '@inertiajs/vue3';
 
-const props = defineProps({
-    email: String,
-    token: String,
-});
+const props = defineProps<{
+    email: string;
+    token: string;
+}>();
 
 const form = useForm({
     token: props.token,
     email: props.email,
-    password: "",
-    password_confirmation: "",
+    password: '',
+    password_confirmation: '',
 });
 
 const submit = () => {
-    form.post(route("password.store"), {
-        onFinish: () => form.reset("password", "password_confirmation"),
+    form.post(route('password.store'), {
+        onFinish: () => {
+            form.reset('password', 'password_confirmation');
+        },
     });
 };
 </script>
@@ -82,7 +84,7 @@ const submit = () => {
                 />
             </div>
 
-            <div class="flex items-center justify-end mt-4">
+            <div class="mt-4 flex items-center justify-end">
                 <PrimaryButton
                     :class="{ 'opacity-25': form.processing }"
                     :disabled="form.processing"

@@ -1,11 +1,7 @@
 {
-    "tabWidth": 4,
-    "overrides": [
-        {
-            "files": "*.md",
-            "options": {
-                "tabWidth": 2
-            }
-        }
+    "singleQuote": true,
+    "plugins": [
+        "prettier-plugin-organize-imports",
+        "prettier-plugin-tailwindcss"
     ]
 }

@@ -41,7 +41,7 @@ class RefreshFeedEntries
                 'url' => $item->get_permalink(),
                 'author' => $item->get_author()?->get_name(),
                 'content' => $item->get_content(),
-                'published_at' => $item->get_date(),
+                'published_at' => $item->get_date('Y-m-d H:i:s'),
                 'status' => \App\Enums\EntryStatus::Unread,
                 'starred' => false,
             ]);
