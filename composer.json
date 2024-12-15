@@ -14,7 +14,7 @@
         "bensampo/laravel-enum": "^6.2",
         "brendt/php-sparkline": "^1.0",
         "gioni06/gpt3-tokenizer": "^1.1",
-        "inertiajs/inertia-laravel": "^1.0",
+        "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^11.31",
         "laravel/horizon": "^5.30",
         "laravel/sanctum": "^4.0",
