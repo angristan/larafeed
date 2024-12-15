@@ -27,7 +27,7 @@ class FeedController extends Controller
         $feeds = $feeds_data->map(function (Feed $feed) {
             $days = DB::query()
                 ->from((new Entry)->getTable())
-                ->selectRaw('published_at::date as published_at_day, COUNT(*) as publishes')
+                ->selectRaw('DATE(published_at) as published_at_day, COUNT(*) as publishes')
                 ->where('feed_id', $feed->id)
                 ->groupBy('published_at_day')
                 ->orderByDesc('published_at_day')

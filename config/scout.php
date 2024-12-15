@@ -2,6 +2,7 @@
 
 use App\Models\Feed;
 
+
 return [
 
     /*
@@ -13,7 +14,8 @@ return [
     | using Laravel Scout. This connection is used when syncing all models
     | to the search service. You should adjust this based on your needs.
     |
-    | Supported: "algolia", "meilisearch", "database", "collection", "null"
+    | Supported: "algolia", "meilisearch", "typesense",
+    |            "database", "collection", "null"
     |
     */
 
@@ -120,24 +122,84 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | MeiliSearch Configuration
+    | Meilisearch Configuration
     |--------------------------------------------------------------------------
     |
-    | Here you may configure your MeiliSearch settings. MeiliSearch is an open
+    | Here you may configure your Meilisearch settings. Meilisearch is an open
     | source search engine with minimal configuration. Below, you can state
-    | the host and key information for your own MeiliSearch installation.
+    | the host and key information for your own Meilisearch installation.
     |
-    | See: https://docs.meilisearch.com/guides/advanced_guides/configuration.html
+    | See: https://www.meilisearch.com/docs/learn/configuration/instance_options#all-instance-options
     |
     */
 
     'meilisearch' => [
         'host' => env('MEILISEARCH_HOST', 'http://localhost:7700'),
-        'key' => env('MEILISEARCH_KEY', null),
+        'key' => env('MEILISEARCH_KEY'),
         'index-settings' => [
             Feed::class => [
                 'filterableAttributes' => ['id', 'name', 'feed_url', 'site_url'],
             ],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Typesense Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Here you may configure your Typesense settings. Typesense is an open
+    | source search engine using minimal configuration. Below, you will
+    | state the host, key, and schema configuration for the instance.
+    |
+    */
+
+    'typesense' => [
+        'client-settings' => [
+            'api_key' => env('TYPESENSE_API_KEY', 'xyz'),
+            'nodes' => [
+                [
+                    'host' => env('TYPESENSE_HOST', 'localhost'),
+                    'port' => env('TYPESENSE_PORT', '8108'),
+                    'path' => env('TYPESENSE_PATH', ''),
+                    'protocol' => env('TYPESENSE_PROTOCOL', 'http'),
+                ],
+            ],
+            'nearest_node' => [
+                'host' => env('TYPESENSE_HOST', 'localhost'),
+                'port' => env('TYPESENSE_PORT', '8108'),
+                'path' => env('TYPESENSE_PATH', ''),
+                'protocol' => env('TYPESENSE_PROTOCOL', 'http'),
+            ],
+            'connection_timeout_seconds' => env('TYPESENSE_CONNECTION_TIMEOUT_SECONDS', 2),
+            'healthcheck_interval_seconds' => env('TYPESENSE_HEALTHCHECK_INTERVAL_SECONDS', 30),
+            'num_retries' => env('TYPESENSE_NUM_RETRIES', 3),
+            'retry_interval_seconds' => env('TYPESENSE_RETRY_INTERVAL_SECONDS', 1),
+        ],
+        // 'max_total_results' => env('TYPESENSE_MAX_TOTAL_RESULTS', 1000),
+        'model-settings' => [
+            // User::class => [
+            //     'collection-schema' => [
+            //         'fields' => [
+            //             [
+            //                 'name' => 'id',
+            //                 'type' => 'string',
+            //             ],
+            //             [
+            //                 'name' => 'name',
+            //                 'type' => 'string',
+            //             ],
+            //             [
+            //                 'name' => 'created_at',
+            //                 'type' => 'int64',
+            //             ],
+            //         ],
+            //         'default_sorting_field' => 'created_at',
+            //     ],
+            //     'search-parameters' => [
+            //         'query_by' => 'name'
+            //     ],
+            // ],
         ],
     ],
 
