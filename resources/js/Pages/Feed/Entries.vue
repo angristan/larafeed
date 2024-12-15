@@ -120,6 +120,7 @@ const showRefreshFailureNotification = () => {
                                 class="mb-10 ml-4"
                             >
                                 <Link
+                                    prefetch
                                     :href="
                                         route('feed.entry', {
                                             feed: feed.id,

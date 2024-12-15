@@ -88,7 +88,7 @@ watchDebounced(
                     </div>
                 </form>
                 <div class="flex flex-col text-right">
-                    <Link :href="route('feed.create')">
+                    <Link prefetch :href="route('feed.create')">
                         <button class="btn" type="submit">
                             <FileRssIcon class="mr-2" />
                             New feed
@@ -117,6 +117,7 @@ watchDebounced(
                                 <div class="items center flex justify-between">
                                     <div class="items center flex">
                                         <Link
+                                            prefetch
                                             :href="
                                                 route('feed.entries', feed.id)
                                             "
