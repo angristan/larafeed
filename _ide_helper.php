@@ -23441,6 +23441,7 @@ namespace  {
             class View extends \Illuminate\Support\Facades\View {}
             class Vite extends \Illuminate\Support\Facades\Vite {}
             class Debugbar extends \Barryvdh\Debugbar\Facades\Debugbar {}
+            class Horizon extends \Laravel\Horizon\Horizon {}
             class Action extends \Lorisleiva\Actions\Facades\Actions {}
             class Lody extends \Lorisleiva\Lody\Lody {}
             class Feeds extends \willvincent\Feeds\Facades\FeedsFacade {}
