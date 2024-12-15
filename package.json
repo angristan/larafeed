@@ -31,7 +31,7 @@
         "prettier-plugin-tailwindcss": "^0.6.5",
         "tailwindcss": "^3.2.1",
         "typescript": "^5.5.3",
-        "unplugin-auto-import": "^0.12.1",
+        "unplugin-auto-import": "^0.19.0",
         "unplugin-vue-components": "^0.22.12",
         "vite": "^6.0",
         "vue": "^3.4.0",
