@@ -1,12 +1,12 @@
 <script setup>
-import TextParagraphSkeleton from "@/Components/Skeleton/TextParagraphSkeleton.vue";
-import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
-import { Head, router } from "@inertiajs/vue3";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import utc from "dayjs/plugin/utc";
-import { ref } from "vue";
-import { BrainIcon } from "vue-tabler-icons";
+import TextParagraphSkeleton from '@/Components/Skeleton/TextParagraphSkeleton.vue';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { Head, router } from '@inertiajs/vue3';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import utc from 'dayjs/plugin/utc';
+import { ref } from 'vue';
+import { BrainIcon } from 'vue-tabler-icons';
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
@@ -32,20 +32,20 @@ const showSummary = ref(false);
 function getSummary() {
     // Intertial partial reload with lazy data evaluation
     // https://inertiajs.com/partial-reloads
-    router.reload({ only: ["summary"] });
+    router.reload({ only: ['summary'] });
 }
 
 // https://inertiajs.com/events
-router.on("start", (event) => {
+router.on('start', (event) => {
     // Summary: show loader
-    if (event.detail.visit.only.includes("summary")) {
+    if (event.detail.visit.only.includes('summary')) {
         loading.value = true;
     }
 });
 
-router.on("finish", (event) => {
+router.on('finish', (event) => {
     // Summary: hide loader and show summary
-    if (event.detail.visit.only.includes("summary")) {
+    if (event.detail.visit.only.includes('summary')) {
         loading.value = false;
         showSummary.value = true;
     }
@@ -87,7 +87,7 @@ function hideSummary() {
                             alt="Favicon of {{ feed.name }}"
                         />
                         <h2
-                            class="font-semibold text-xl text-gray-800 leading-tight"
+                            class="text-xl font-semibold leading-tight text-gray-800"
                         >
                             {{ entry.title }} - {{ feed.name }}
                         </h2>
@@ -118,20 +118,20 @@ function hideSummary() {
         </template>
 
         <div class="py-12">
-            <div class="max-w-3xl mx-auto sm:px-6 lg:px-8">
+            <div class="mx-auto max-w-3xl sm:px-6 lg:px-8">
                 <div
-                    class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-3"
+                    class="mb-3 overflow-hidden bg-white shadow-sm sm:rounded-lg"
                     v-if="showSummary || loading"
                 >
-                    <div class="p-6 bg-white border-b border-gray-200">
+                    <div class="border-b border-gray-200 bg-white p-6">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center">
                                 <h3
-                                    class="font-semibold text-xl text-gray-800 leading-tight mb-2"
+                                    class="mb-2 text-xl font-semibold leading-tight text-gray-800"
                                 >
                                     Summary
                                 </h3>
-                                <figcaption class="text-xs text-gray-500 ml-2">
+                                <figcaption class="ml-2 text-xs text-gray-500">
                                     Powered by ChatGPT
                                 </figcaption>
                             </div>
@@ -139,7 +139,7 @@ function hideSummary() {
                                 type="button"
                                 @click="hideSummary"
                                 v-if="summary"
-                                class="bg-white rounded-md p-2 inline-flex items-center justify-center text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
+                                class="inline-flex items-center justify-center rounded-md bg-white p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
                             >
                                 <span class="sr-only">Close menu</span>
                                 <svg
@@ -165,8 +165,8 @@ function hideSummary() {
                         </div>
                     </div>
                 </div>
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-6 bg-white border-b border-gray-200">
+                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                    <div class="border-b border-gray-200 bg-white p-6">
                         <div
                             class="prose prose-base max-w-none"
                             v-html="entry.content"

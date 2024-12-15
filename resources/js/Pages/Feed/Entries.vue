@@ -1,12 +1,12 @@
 <script setup>
-import InputError from "@/Components/InputError.vue";
-import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
-import { Head, Link, useForm } from "@inertiajs/vue3";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import utc from "dayjs/plugin/utc";
-import { ElNotification } from "element-plus";
-import { RefreshIcon } from "vue-tabler-icons";
+import InputError from '@/Components/InputError.vue';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { Head, Link, useForm } from '@inertiajs/vue3';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import utc from 'dayjs/plugin/utc';
+import { ElNotification } from 'element-plus';
+import { RefreshIcon } from 'vue-tabler-icons';
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
@@ -26,19 +26,19 @@ defineProps({
 
 const showRefreshSuccessNotification = () => {
     ElNotification({
-        title: "Feed refreshed",
-        message: "The feed entries have been fetched successfully.",
-        type: "success",
-        position: "bottom-right",
+        title: 'Feed refreshed',
+        message: 'The feed entries have been fetched successfully.',
+        type: 'success',
+        position: 'bottom-right',
     });
 };
 
 const showRefreshFailureNotification = () => {
     ElNotification({
-        title: "Error",
-        message: "There was an error refreshing the feed.",
-        type: "error",
-        position: "bottom-right",
+        title: 'Error',
+        message: 'There was an error refreshing the feed.',
+        type: 'error',
+        position: 'bottom-right',
     });
 };
 </script>
@@ -52,12 +52,12 @@ const showRefreshFailureNotification = () => {
                 <div>
                     <div class="flex items-center space-x-3">
                         <img
-                            class="h-8 w-8 mb-1"
+                            class="mb-1 h-8 w-8"
                             :src="feed.favicon_url"
                             alt="Favicon of {{ feed.name }}"
                         />
                         <h2
-                            class="font-semibold text-xl text-gray-800 leading-tight"
+                            class="text-xl font-semibold leading-tight text-gray-800"
                         >
                             {{ feed.name }} ({{ feed.entries_count }})
                         </h2>
@@ -84,7 +84,7 @@ const showRefreshFailureNotification = () => {
                                     onError: () => {
                                         showRefreshFailureNotification();
                                     },
-                                }
+                                },
                             )
                         "
                     >
@@ -102,15 +102,15 @@ const showRefreshFailureNotification = () => {
         </template>
 
         <div class="py-12">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+            <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
+                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                     <div
                         v-if="entries.length === 0"
-                        class="p-6 bg-white border-b border-gray-200"
+                        class="border-b border-gray-200 bg-white p-6"
                     >
                         <p class="text-gray-500">No entries found.</p>
                     </div>
-                    <div v-else class="p-6 bg-white border-b border-gray-200">
+                    <div v-else class="border-b border-gray-200 bg-white p-6">
                         <ol
                             class="relative border-l border-gray-200 dark:border-gray-700"
                         >
@@ -126,10 +126,10 @@ const showRefreshFailureNotification = () => {
                                             entry: entry.id,
                                         })
                                     "
-                                    class="flex-shrink-0 group block"
+                                    class="group block flex-shrink-0"
                                 >
                                     <div
-                                        class="absolute w-3 h-3 bg-gray-200 rounded-full mt-1.5 -left-1.5 border border-white dark:border-gray-900 dark:bg-gray-700"
+                                        class="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full border border-white bg-gray-200 dark:border-gray-900 dark:bg-gray-700"
                                     ></div>
                                     <time
                                         class="mb-1 text-sm font-normal leading-none text-gray-400 dark:text-gray-500"
