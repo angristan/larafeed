@@ -19,6 +19,9 @@ class DatabaseSeeder extends Seeder
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
-        FeedSeeder::class;
+
+        $this->call([
+            FeedSeeder::class,
+        ]);
     }
 }

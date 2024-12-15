@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { watchDebounced } from '@vueuse/core';
@@ -6,16 +6,22 @@ import dayjs from 'dayjs';
 import { ref } from 'vue';
 import { FileRssIcon } from 'vue-tabler-icons';
 
-const props = defineProps({
-    feeds: {
-        type: Object,
-        required: true,
-    },
+interface Feed {
+    id: number;
+    name: string;
+    favicon_url: string;
+    site_url: string;
+    entries_count: number;
+    last_crawled_at: string;
+    sparkline: string;
+}
+
+const props = defineProps<{
+    feeds: Feed[];
     filters: {
-        type: Object,
-        required: true,
-    },
-});
+        search: string;
+    };
+}>();
 
 const term = ref(props.filters.search);
 
