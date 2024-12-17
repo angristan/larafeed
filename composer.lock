@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e269b55c2b5f7504b9a1c62ec544a753",
+    "content-hash": "790ea10c9e958c382254dfaf457709f4",
     "packages": [
         {
             "name": "ashallendesign/favicon-fetcher",
@@ -172,23 +172,21 @@
         },
         {
             "name": "brendt/php-sparkline",
-            "version": "1.1.1",
+            "version": "2.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/brendt/php-sparkline.git",
-                "reference": "ef4868c645e6196435974bc6fe1fc1d74ba704ce"
+                "reference": "ae55ab9732e423c89c94fd0a2b763702e5cce637"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/brendt/php-sparkline/zipball/ef4868c645e6196435974bc6fe1fc1d74ba704ce",
-                "reference": "ef4868c645e6196435974bc6fe1fc1d74ba704ce",
+                "url": "https://api.github.com/repos/brendt/php-sparkline/zipball/ae55ab9732e423c89c94fd0a2b763702e5cce637",
+                "reference": "ae55ab9732e423c89c94fd0a2b763702e5cce637",
                 "shasum": ""
             },
             "require": {
-                "illuminate/collections": "^9.43|^10.0|^11.0",
                 "php": "^8.1",
-                "ramsey/uuid": "^4.6",
-                "spatie/period": "^2.3"
+                "ramsey/uuid": "^4.6"
             },
             "require-dev": {
                 "friendsofphp/php-cs-fixer": "^3.13",
@@ -220,9 +218,9 @@
             ],
             "support": {
                 "issues": "https://github.com/brendt/php-sparkline/issues",
-                "source": "https://github.com/brendt/php-sparkline/tree/1.1.1"
+                "source": "https://github.com/brendt/php-sparkline/tree/2.0.0"
             },
-            "time": "2024-04-09T10:50:39+00:00"
+            "time": "2024-06-11T11:33:21+00:00"
         },
         {
             "name": "brick/math",
@@ -4587,60 +4585,6 @@
                 }
             ],
             "time": "2024-12-09T16:29:14+00:00"
-        },
-        {
-            "name": "spatie/period",
-            "version": "2.4.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/spatie/period.git",
-                "reference": "85fbbea7b24fdff0c924aeed5b109be93c025850"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/spatie/period/zipball/85fbbea7b24fdff0c924aeed5b109be93c025850",
-                "reference": "85fbbea7b24fdff0c924aeed5b109be93c025850",
-                "shasum": ""
-            },
-            "require": {
-                "php": "^8.0"
-            },
-            "require-dev": {
-                "larapack/dd": "^1.1",
-                "nesbot/carbon": "^2.63",
-                "pestphp/pest": "^1.22",
-                "phpunit/phpunit": "^9.5",
-                "spatie/ray": "^1.31"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Spatie\\Period\\": "src"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Brent Roose",
-                    "email": "brent@spatie.be",
-                    "homepage": "https://spatie.be",
-                    "role": "Developer"
-                }
-            ],
-            "description": "Complex period comparisons",
-            "homepage": "https://github.com/spatie/period",
-            "keywords": [
-                "period",
-                "spatie"
-            ],
-            "support": {
-                "issues": "https://github.com/spatie/period/issues",
-                "source": "https://github.com/spatie/period/tree/2.4.0"
-            },
-            "time": "2023-02-20T14:31:09+00:00"
         },
         {
             "name": "symfony/clock",
@@ -10225,12 +10169,12 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": [],
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
         "php": "^8.2"
     },
-    "platform-dev": {},
+    "platform-dev": [],
     "plugin-api-version": "2.6.0"
 }
