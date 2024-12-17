@@ -23,7 +23,7 @@ class ShowEntryPage
             'feed' => $feed,
             'entry' => $entry,
             // https://inertiajs.com/partial-reloads#lazy-data-evaluation
-            'summary' => Inertia::lazy(fn () => SummarizeEntryWithChatGPT::run($entry)),
+            'summary' => Inertia::lazy(fn () => SummarizeEntryWithLLM::run($entry)),
         ]);
     }
 }

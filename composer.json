@@ -13,7 +13,7 @@
         "ashallendesign/favicon-fetcher": "^3.0",
         "bensampo/laravel-enum": "^6.2",
         "brendt/php-sparkline": "^1.0",
-        "gioni06/gpt3-tokenizer": "^1.1",
+        "echolabsdev/prism": "^0.22.0",
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^11.31",
         "laravel/horizon": "^5.30",
@@ -22,7 +22,6 @@
         "laravel/telescope": "^5.2",
         "laravel/tinker": "^2.9",
         "lorisleiva/laravel-actions": "^2.4",
-        "openai-php/laravel": "^0.10.0",
         "spatie/laravel-login-link": "^1.1",
         "tightenco/ziggy": "^2.0",
         "willvincent/feeds": "^2.4"

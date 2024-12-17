@@ -19309,6 +19309,34 @@ namespace Barryvdh\Debugbar\Facades {
             }
     }
 
+namespace EchoLabs\Prism\Facades {
+            /**
+     * 
+     *
+     */        class PrismServer {
+                    /**
+         * 
+         *
+         * @param \Closure():Generator|\EchoLabs\Prism\callable():Generator $prism
+         * @static 
+         */        public static function register($name, $prism)
+        {
+                        /** @var \EchoLabs\Prism\PrismServer $instance */
+                        return $instance->register($name, $prism);
+        }
+                    /**
+         * 
+         *
+         * @return \EchoLabs\Prism\Collection<int, array{name: string, prism: Closure():Generator|callable():Generator}>
+         * @static 
+         */        public static function prisms()
+        {
+                        /** @var \EchoLabs\Prism\PrismServer $instance */
+                        return $instance->prisms();
+        }
+            }
+    }
+
 namespace Lorisleiva\Actions\Facades {
             /**
      * 
@@ -23441,6 +23469,7 @@ namespace  {
             class View extends \Illuminate\Support\Facades\View {}
             class Vite extends \Illuminate\Support\Facades\Vite {}
             class Debugbar extends \Barryvdh\Debugbar\Facades\Debugbar {}
+            class PrismServer extends \EchoLabs\Prism\Facades\PrismServer {}
             class Horizon extends \Laravel\Horizon\Horizon {}
             class Action extends \Lorisleiva\Actions\Facades\Actions {}
             class Lody extends \Lorisleiva\Lody\Lody {}

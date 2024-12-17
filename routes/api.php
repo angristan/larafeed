@@ -1,6 +1,6 @@
 <?php
 
-use App\Actions\Entry\SummarizeEntryWithChatGPT;
+use App\Actions\Entry\SummarizeEntryWithLLM;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -9,5 +9,5 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 Route::middleware(['auth:sanctum'])->group(function () {
-    Route::get('/entry/{entry}/gpt-summary', SummarizeEntryWithChatGPT::class)->name('entry.gpt-summary');
+    Route::get('/entry/{entry}/gpt-summary', SummarizeEntryWithLLM::class)->name('entry.gpt-summary');
 });
