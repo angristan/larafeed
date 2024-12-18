@@ -63,6 +63,8 @@ class FeedController extends Controller
                 'search' => $search_input,
             ],
             'feeds' => $feeds,
+            'entries' => Entry::latest()->limit(10)->get(),
+            'currententry' => Entry::whereId($request->query('entry'))->first(),
         ]);
     }
 

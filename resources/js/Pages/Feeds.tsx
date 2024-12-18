@@ -1,14 +1,15 @@
 import { UserButton } from '../Components/UserButton/UserButton';
-import classes from './NavbarSearch.module.css';
+import classes from './Feeds.module.css';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Split } from '@gfazioli/mantine-split-pane';
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
     ActionIcon,
     Badge,
     Code,
     Group,
     Image,
+    Paper,
     ScrollArea,
     Text,
     TextInput,
@@ -39,7 +40,35 @@ interface Feed {
     sparkline: string;
 }
 
-export default function NavbarSearch({ feeds }: { feeds: Feed[] }) {
+interface Timestamps {
+    created_at: string | null;
+    updated_at: string | null;
+}
+
+interface Entry extends Timestamps {
+    id: number;
+    title: string;
+    url: string;
+    author: string | null;
+    content: string | null;
+    published_at: string;
+    status: string;
+    starred: boolean;
+    feed_id: number;
+    feed?: {
+        id: number;
+    };
+}
+
+export default function NavbarSearch({
+    feeds,
+    entries,
+    currententry,
+}: {
+    feeds: Feed[];
+    entries: Entry[];
+    currententry?: Entry;
+}) {
     const user = usePage().props.auth.user;
 
     const mainLinks = links.map((link) => (
@@ -76,6 +105,24 @@ export default function NavbarSearch({ feeds }: { feeds: Feed[] }) {
                 <span>{feed.name}</span>
             </div>
         </a>
+    ));
+
+    const entryList = entries.map((entry) => (
+        <div key={entry.id} className={classes.entry}>
+            <div className={classes.entryHeader}>
+                <Link only={['currententry']} href={`/feeds?entry=${entry.id}`}>
+                    <div className={classes.entryTitle}>{entry.title}</div>
+                    <div className={classes.entryMeta}>
+                        <Text size="xs" c="dimmed">
+                            {entry.author}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                            {entry.published_at}
+                        </Text>
+                    </div>
+                </Link>
+            </div>
+        </div>
     ));
 
     return (
@@ -155,7 +202,7 @@ export default function NavbarSearch({ feeds }: { feeds: Feed[] }) {
                                     height: '100%',
                                 }}
                             >
-                                {lorem}
+                                {entryList}
                             </ScrollArea>
                         </Split.Pane>
                         <Split.Pane
@@ -165,7 +212,33 @@ export default function NavbarSearch({ feeds }: { feeds: Feed[] }) {
                                 height: '100%',
                             }}
                         >
-                            {lorem}
+                            <ScrollArea
+                                style={{
+                                    backgroundColor: 'lightcoral',
+                                    height: '100%',
+                                }}
+                            >
+                                {currententry ? (
+                                    <Paper shadow="xs">
+                                        <Text>{currententry?.title}</Text>
+                                        <Text size="sm" c="dimmed">
+                                            {currententry?.published_at}
+                                        </Text>
+                                        <Text size="lg" mt="md">
+                                            <div
+                                                className="prose"
+                                                dangerouslySetInnerHTML={{
+                                                    __html:
+                                                        currententry?.content ||
+                                                        '',
+                                                }}
+                                            />
+                                        </Text>
+                                    </Paper>
+                                ) : (
+                                    <Text>Select an entry</Text>
+                                )}
+                            </ScrollArea>
                         </Split.Pane>
                     </Split>
                 </main>
@@ -173,6 +246,3 @@ export default function NavbarSearch({ feeds }: { feeds: Feed[] }) {
         </AuthenticatedLayout>
     );
 }
-
-const lorem = `
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam a nunc vel nunc tincidunt convallis. Sed aliquet nec tortor mollis bibendum. Aliquam erat volutpat. Nullam aliquet lorem id porttitor laoreet. Maecenas imperdiet nibh sit amet magna malesuada fermentum. Suspendisse vel enim enim. In tempus est dapibus luctus placerat. Duis laoreet ut neque ac tincidunt. Nam et elit at velit molestie aliquet at et ante. Vivamus varius tellus non lorem aliquet, ut elementum risus mollis. Vivamus arcu ipsum, ullamcorper non purus dictum, mollis tempor eros. Integer dignissim ac lectus pretium lacinia. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Etiam mattis arcu sapien. Aliquam et laoreet nisi. Etiam tincidunt consequat erat, nec tristique ligula. Vestibulum mi tellus, imperdiet a mollis eget, vulputate vel leo. Morbi urna dolor, varius non tempus at, auctor in mauris. In euismod nisi vulputate liberoelementum condimentum. Quisque necsapien lorem. Etiam facilisis commodonunc, nec rutrum magna volutpat quis.Quisque et placerat felis. Vivamus duiodio, tincidunt quis faucibus id,blandit et nisi. Quisque urna ipsum,pretium nec tellus nec, egestas cursussapien. Nam auctor nulla elit, rutrumultrices ex pharetra at. Fusce vehiculanulla imperdiet risus porttitor, nonlacinia velit ultricies. Ut dui augue,dapibus sit amet felis id, rhoncusfringilla ex. Praesent dictum eleifendsem, vel lobortis nibh tempus eu.Curabitur commodo, sapien nec fermentumefficitur, nulla augue finibus dui, eupulvinar odio nisl a nisi. Maecenaseuismod lacinia orci ac laoreet. Maurislobortis nibh diam, sed porttitor quammolestie at. Cras ultrices mi justo, atfinibus ex suscipit vel. Mauris etligula vestibulum, cursus quam vel,vulputate ex. Phasellus eget risus atfelis pulvinar fermentum non a libero.Interdum et malesuada fames ac anteipsum primis in faucibus. Aliquam acsemper turpis. Phasellus pretium purussit amet dolor placerat, sedpellentesque odio malesuada. Phasellustristique purus a commodo laoreet.Suspendisse venenatis, quam at elementuminterdum, purus lectus eleifend magna,consequat tincidunt sem dolor mattiserat. Vivamus gravida volutpat augue,vestibulum facilisis est viverra in.Etiam in nibh facilisis, tristique estet, sollicitudin diam. Suspendissecongue tempor mauris non posuere. Donecmollis sagittis molestie. Aliquam massajusto, accumsan id consequat ac, portanon lectus. Nulla facilisi. Vivamusconsectetur, ex posuere pulvinarmaximus, dui sem euismod lorem, egetsagittis enim ligula eget leo. Maecenasin ullamcorper mi. Vivamus fermentumviverra mauris, eu egestas augue portavel. Praesent at efficitur est, vitaelobortis nibh. Lorem ipsum dolor sitamet, consectetur adipiscing elit. Sedornare orci at mi ultrices, eu rutrumipsum tempus. Vivamus a volutpat augue.Quisque eget massa sapien. Etiam insodales lectus, fermentum ullamcorpermauris. Nam tincidunt lorem eget tellusfaucibus rhoncus. Cras tincidunt dolorante, eget maximus elit molestie ac.Quisque ultricies quis odio vel semper.Nulla convallis purus ac dolor laoreetfringilla. Vivamus posuere dui at arcualiquam tempus. Quisque egestas turpisin enim aliquet faucibus. Suspendisse aceleifend turpis. us gravida volutpat augue,vestibulum facilisis est viverra in.Etiam in nibh facilisis, tristique estet, sollicitudin diam. Suspendissecongue tempor mauris non posuere. Donecmollis sagittis molestie. Aliquam massajusto, accumsan id consequat ac, portanon lectus. Nulla facilisi. Vivamusconsectetur, ex posuere pulvinarmaximus, dui sem euismod lorem, egetsagittis enim ligula eget leo. Maecenasin ullamcorper mi. Vivamus fermentumviverra mauris, eu egestas augue portavel. Praesent at efficitur est, vitaelobortis nibh. Lorem ipsum dolor sitamet, consectetur adipiscing elit. Sedornare orci at mi ultrices, eu rutrumipsum tempus. Vivamus a volutpat augue.Quisque eget massa sapien. Etiam insodales lectus, fermentum ullamcorpermauris. Nam tincidunt lorem eget tellusfaucibus rhoncus. Cras tincidunt dolorante, eget maximus elit molestie ac.Quisque ultricies quis odio vel semper.Nulla convallis purus ac dolor laoreetfringilla. Vivamus posuere dui at arcualiquam tempus. Quisque egestas turpisin enim aliquet faucibus. Suspendisse aceleifend turpis.`;
