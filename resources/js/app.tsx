@@ -5,8 +5,6 @@ import '../css/app.css';
 import './bootstrap';
 import { createInertiaApp } from '@inertiajs/react';
 import { MantineProvider } from '@mantine/core';
-import 'allotment/dist/style.css';
-import 'allotment/dist/style.css';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 
