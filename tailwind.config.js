@@ -8,7 +8,7 @@ export default {
         './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
         './storage/framework/views/*.php',
         './resources/views/**/*.blade.php',
-        './resources/js/**/*.vue',
+        './resources/js/**/*.tsx',
     ],
 
     theme: {
@@ -19,14 +19,5 @@ export default {
         },
     },
 
-    plugins: [
-        forms,
-        typography,
-        require('daisyui'),
-        require('flowbite/plugin'),
-    ],
-
-    daisyui: {
-        themes: ['light'],
-    },
+    plugins: [forms, typography],
 };
