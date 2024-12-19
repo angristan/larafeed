@@ -5,3 +5,8 @@
 body {
     overscroll-behavior: none;
 }
+
+pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
