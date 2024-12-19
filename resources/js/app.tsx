@@ -1,7 +1,7 @@
-import '@gfazioli/mantine-split-pane/styles.css';
 import '@mantine/core/styles.css';
 
-import '../css/app.css';
+import '@gfazioli/mantine-split-pane/styles.css';
+
 import './bootstrap';
 import { createInertiaApp } from '@inertiajs/react';
 import { MantineProvider } from '@mantine/core';
