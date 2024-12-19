@@ -1,11 +1,13 @@
-import { UserButton } from '../Components/UserButton/UserButton';
 import classes from './Feeds.module.css';
+
+import { UserButton } from '../Components/UserButton/UserButton';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Split } from '@gfazioli/mantine-split-pane';
 import { Head, Link, usePage } from '@inertiajs/react';
 import {
     ActionIcon,
     Badge,
+    Card,
     Code,
     Group,
     Image,
@@ -13,7 +15,9 @@ import {
     ScrollArea,
     Text,
     TextInput,
+    Title,
     Tooltip,
+    TypographyStylesProvider,
     UnstyledButton,
 } from '@mantine/core';
 import {
@@ -23,12 +27,78 @@ import {
     IconSearch,
     IconUser,
 } from '@tabler/icons-react';
+import { memo } from 'react';
 
 const links = [
     { icon: IconBulb, label: 'Activity', notifications: 3 },
     { icon: IconCheckbox, label: 'Tasks', notifications: 4 },
     { icon: IconUser, label: 'Contacts' },
 ];
+
+const EntryListPane = memo(function EntryListPane({
+    entries,
+}: {
+    entries: Entry[];
+}) {
+    const entryList = entries.map((entry) => (
+        <div key={entry.id} className={classes.entry}>
+            <Card shadow="sm" padding="lg" radius="md" withBorder>
+                <Link only={['currententry']} href={`/feeds?entry=${entry.id}`}>
+                    <div className={classes.entryTitle}>{entry.title}</div>
+                    <div className={classes.entryMeta}>
+                        <Text size="xs" c="dimmed">
+                            {entry.author}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                            {entry.published_at}
+                        </Text>
+                    </div>
+                </Link>
+            </Card>
+        </div>
+    ));
+
+    return (
+        <Split.Pane
+            style={{ height: '100%' }}
+            initialWidth={500}
+            minWidth={400}
+            maxWidth={600}
+        >
+            <ScrollArea style={{ height: '100%' }}>{entryList}</ScrollArea>
+        </Split.Pane>
+    );
+});
+
+const CurrentEntryPane = memo(function CurrentEntryPane({
+    currententry,
+}: {
+    currententry?: Entry;
+}) {
+    return (
+        <Split.Pane grow style={{ height: '100%' }}>
+            <ScrollArea style={{ height: '100%' }}>
+                {currententry ? (
+                    <Paper shadow="xs" withBorder p={20}>
+                        <TypographyStylesProvider>
+                            <Title>{currententry.title}</Title>
+                            <Text size="sm" c="dimmed">
+                                {currententry.published_at}
+                            </Text>
+                            <div
+                                dangerouslySetInnerHTML={{
+                                    __html: currententry.content || '',
+                                }}
+                            />
+                        </TypographyStylesProvider>
+                    </Paper>
+                ) : (
+                    <Text>Select an entry</Text>
+                )}
+            </ScrollArea>
+        </Split.Pane>
+    );
+});
 
 interface Feed {
     id: number;
@@ -107,24 +177,6 @@ export default function NavbarSearch({
         </a>
     ));
 
-    const entryList = entries.map((entry) => (
-        <div key={entry.id} className={classes.entry}>
-            <div className={classes.entryHeader}>
-                <Link only={['currententry']} href={`/feeds?entry=${entry.id}`}>
-                    <div className={classes.entryTitle}>{entry.title}</div>
-                    <div className={classes.entryMeta}>
-                        <Text size="xs" c="dimmed">
-                            {entry.author}
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                            {entry.published_at}
-                        </Text>
-                    </div>
-                </Link>
-            </div>
-        </div>
-    ));
-
     return (
         <AuthenticatedLayout>
             <Head title="Dashboard" />
@@ -182,64 +234,18 @@ export default function NavbarSearch({
                     style={{
                         height: '100%',
                         width: '100%',
-                        backgroundColor: 'lightskyblue',
                     }}
                 >
                     <Split
+                        size="md"
+                        radius="xs"
+                        spacing="md"
                         style={{
                             height: '100%',
                         }}
                     >
-                        <Split.Pane
-                            initialWidth="50%"
-                            style={{
-                                height: '100%',
-                            }}
-                        >
-                            <ScrollArea
-                                style={{
-                                    backgroundColor: 'lightcoral',
-                                    height: '100%',
-                                }}
-                            >
-                                {entryList}
-                            </ScrollArea>
-                        </Split.Pane>
-                        <Split.Pane
-                            grow
-                            style={{
-                                backgroundColor: 'lightgreen',
-                                height: '100%',
-                            }}
-                        >
-                            <ScrollArea
-                                style={{
-                                    backgroundColor: 'lightcoral',
-                                    height: '100%',
-                                }}
-                            >
-                                {currententry ? (
-                                    <Paper shadow="xs">
-                                        <Text>{currententry?.title}</Text>
-                                        <Text size="sm" c="dimmed">
-                                            {currententry?.published_at}
-                                        </Text>
-                                        <Text size="lg" mt="md">
-                                            <div
-                                                className="prose"
-                                                dangerouslySetInnerHTML={{
-                                                    __html:
-                                                        currententry?.content ||
-                                                        '',
-                                                }}
-                                            />
-                                        </Text>
-                                    </Paper>
-                                ) : (
-                                    <Text>Select an entry</Text>
-                                )}
-                            </ScrollArea>
-                        </Split.Pane>
+                        <EntryListPane entries={entries} />
+                        <CurrentEntryPane currententry={currententry} />
                     </Split>
                 </main>
             </div>
