@@ -1,12 +1,15 @@
 import classes from './Feeds.module.css';
 
 import { UserButton } from '../Components/UserButton/UserButton';
+import ApplicationLogo from '@/Components/ApplicationLogo';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Split } from '@gfazioli/mantine-split-pane';
 import { Head, Link, usePage } from '@inertiajs/react';
 import {
     ActionIcon,
+    AppShell,
     Badge,
+    Burger,
     Card,
     Code,
     Group,
@@ -20,19 +23,20 @@ import {
     TypographyStylesProvider,
     UnstyledButton,
 } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import {
-    IconBulb,
+    IconBook,
     IconCheckbox,
     IconPlus,
     IconSearch,
-    IconUser,
+    IconStar,
 } from '@tabler/icons-react';
 import { memo } from 'react';
 
 const links = [
-    { icon: IconBulb, label: 'Activity', notifications: 3 },
-    { icon: IconCheckbox, label: 'Tasks', notifications: 4 },
-    { icon: IconUser, label: 'Contacts' },
+    { icon: IconBook, label: 'Unread', notifications: 3 },
+    { icon: IconCheckbox, label: 'Read' },
+    { icon: IconStar, label: 'Favorites' },
 ];
 
 const EntryListPane = memo(function EntryListPane({
@@ -163,53 +167,73 @@ export default function NavbarSearch({
         </UnstyledButton>
     ));
 
-    const feedLinks = feeds.map((feed) => (
-        <a
-            href="#"
-            onClick={(event) => event.preventDefault()}
-            key={feed.name}
-            className={classes.collectionLink}
-        >
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-                <Image src={feed.favicon_url} w={20} h={20} mr={9} />
-                <span>{feed.name}</span>
-            </div>
-        </a>
-    ));
+    const feedLinks = Array.from({ length: 30 }, () => feeds)
+        .flat()
+        .map((feed) => (
+            <a
+                href="#"
+                onClick={(event) => event.preventDefault()}
+                key={feed.name}
+                className={classes.collectionLink}
+            >
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <Image src={feed.favicon_url} w={20} h={20} mr={9} />
+                    <span>{feed.name}</span>
+                </div>
+            </a>
+        ));
+
+    const [opened, { toggle }] = useDisclosure();
 
     return (
         <AuthenticatedLayout>
-            <Head title="Dashboard" />
-            <div
-                style={{
-                    display: 'flex',
-                    height: '100vh',
-                    width: '100vw',
-                    overflow: 'hidden',
+            <AppShell
+                header={{ height: 60 }}
+                navbar={{
+                    width: 300,
+                    breakpoint: 'sm',
+                    collapsed: { mobile: !opened },
                 }}
+                padding="md"
             >
-                <nav className={classes.navbar}>
-                    <div className={classes.section}>
-                        <UserButton user={user} />
-                    </div>
+                <Head title="Dashboard" />
+                <AppShell.Header>
+                    <Group h="100%" px="md">
+                        <Burger
+                            opened={opened}
+                            onClick={toggle}
+                            hiddenFrom="sm"
+                            size="sm"
+                        />
+                        <ApplicationLogo width={50} />
+                        <Title order={3} style={{ margin: 0 }}>
+                            Larafeed
+                        </Title>
+                    </Group>
+                </AppShell.Header>
 
-                    <TextInput
-                        placeholder="Search"
-                        size="xs"
-                        leftSection={<IconSearch size={12} stroke={1.5} />}
-                        rightSectionWidth={70}
-                        rightSection={
-                            <Code className={classes.searchCode}>Ctrl + K</Code>
-                        }
-                        styles={{ section: { pointerEvents: 'none' } }}
-                        mb="sm"
-                    />
+                <AppShell.Navbar>
+                    <AppShell.Section pr="md" pl="md" pt="md">
+                        <TextInput
+                            placeholder="Search"
+                            size="xs"
+                            leftSection={<IconSearch size={12} stroke={1.5} />}
+                            rightSectionWidth={70}
+                            rightSection={
+                                <Code className={classes.searchCode}>
+                                    Ctrl + K
+                                </Code>
+                            }
+                            styles={{ section: { pointerEvents: 'none' } }}
+                            mb="sm"
+                        />
+                    </AppShell.Section>
 
-                    <div className={classes.section}>
+                    <AppShell.Section className={classes.section}>
                         <div className={classes.mainLinks}>{mainLinks}</div>
-                    </div>
+                    </AppShell.Section>
 
-                    <div className={classes.section}>
+                    <AppShell.Section>
                         <Group
                             className={classes.collectionsHeader}
                             justify="space-between"
@@ -227,28 +251,32 @@ export default function NavbarSearch({
                                 </ActionIcon>
                             </Tooltip>
                         </Group>
+                    </AppShell.Section>
+                    <AppShell.Section
+                        grow
+                        component={ScrollArea}
+                        className={classes.section}
+                    >
                         <div className={classes.collections}>{feedLinks}</div>
-                    </div>
-                </nav>
-                <main
+                    </AppShell.Section>
+                    <AppShell.Section>
+                        <UserButton user={user} />
+                    </AppShell.Section>
+                </AppShell.Navbar>
+                <AppShell.Main
                     style={{
-                        height: '100%',
-                        width: '100%',
+                        display: 'flex',
+                        height: '100vh',
+                        width: '100vw',
+                        overflow: 'hidden',
                     }}
                 >
-                    <Split
-                        size="md"
-                        radius="xs"
-                        spacing="md"
-                        style={{
-                            height: '100%',
-                        }}
-                    >
+                    <Split size="sm" radius="xs" spacing="md">
                         <EntryListPane entries={entries} />
                         <CurrentEntryPane currententry={currententry} />
                     </Split>
-                </main>
-            </div>
+                </AppShell.Main>
+            </AppShell>
         </AuthenticatedLayout>
     );
 }
