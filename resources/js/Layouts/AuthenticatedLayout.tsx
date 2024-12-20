@@ -8,7 +8,7 @@ export default function Authenticated({
     return (
         <div>
             <Head title={pageTitle}>
-                <script src="https://unpkg.com/react-scan/dist/auto.global.js"></script>
+                {/* <script src="https://unpkg.com/react-scan/dist/auto.global.js"></script> */}
             </Head>
             {children}
         </div>
