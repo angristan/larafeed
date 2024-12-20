@@ -5,7 +5,7 @@ import ApplicationLogo from '@/Components/ApplicationLogo';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { User } from '@/types';
 import { Split } from '@gfazioli/mantine-split-pane';
-import { Link, usePage } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import {
     ActionIcon,
     AppShell,
@@ -32,7 +32,7 @@ import {
     IconSearch,
     IconStar,
 } from '@tabler/icons-react';
-import { ReactNode, memo } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 
 const links = [
     { icon: IconBook, label: 'Unread', notifications: 3 },
@@ -40,7 +40,7 @@ const links = [
     { icon: IconStar, label: 'Favorites' },
 ];
 
-const EntryListPane = memo(function EntryListPane({
+const EntryListPane = function EntryListPane({
     entries,
 }: {
     entries: Entry[];
@@ -48,7 +48,16 @@ const EntryListPane = memo(function EntryListPane({
     const entryList = entries.map((entry) => (
         <div key={entry.id} className={classes.entry}>
             <Card shadow="sm" padding="lg" radius="md" withBorder>
-                <Link only={['currententry']} href={`/feeds?entry=${entry.id}`}>
+                <div
+                    onClick={() =>
+                        router.visit('feeds', {
+                            only: ['currententry'],
+                            data: { entry: entry.id },
+                            preserveScroll: true,
+                            preserveState: true,
+                        })
+                    }
+                >
                     <div className={classes.entryTitle}>{entry.title}</div>
                     <div className={classes.entryMeta}>
                         <Text size="xs" c="dimmed">
@@ -58,7 +67,7 @@ const EntryListPane = memo(function EntryListPane({
                             {entry.published_at}
                         </Text>
                     </div>
-                </Link>
+                </div>
             </Card>
         </div>
     ));
@@ -73,16 +82,24 @@ const EntryListPane = memo(function EntryListPane({
             <ScrollArea style={{ height: '100%' }}>{entryList}</ScrollArea>
         </Split.Pane>
     );
-});
+};
 
-const CurrentEntryPane = memo(function CurrentEntryPane({
+const CurrentEntryPane = function CurrentEntryPane({
     currententry,
 }: {
     currententry?: Entry;
 }) {
+    const viewport = useRef<HTMLDivElement>(null);
+    const scrollToTop = () =>
+        viewport.current!.scrollTo({ top: 0, behavior: 'smooth' });
+
+    useEffect(() => {
+        scrollToTop();
+    }, [currententry]);
+
     return (
         <Split.Pane grow style={{ height: '100%' }}>
-            <ScrollArea style={{ height: '100%' }}>
+            <ScrollArea style={{ height: '100%' }} viewportRef={viewport}>
                 {currententry ? (
                     <Paper shadow="xs" withBorder p={20}>
                         <TypographyStylesProvider>
@@ -103,7 +120,7 @@ const CurrentEntryPane = memo(function CurrentEntryPane({
             </ScrollArea>
         </Split.Pane>
     );
-});
+};
 
 const Main = function Main({
     entries,
@@ -129,7 +146,7 @@ const Main = function Main({
     );
 };
 
-const NavBar = memo(function Navbar({
+const NavBar = function Navbar({
     user,
     mainLinks,
     feedLinks,
@@ -185,7 +202,7 @@ const NavBar = memo(function Navbar({
             </AppShell.Section>
         </AppShell.Navbar>
     );
-});
+};
 
 interface Feed {
     id: number;

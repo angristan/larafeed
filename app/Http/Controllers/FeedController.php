@@ -64,7 +64,7 @@ class FeedController extends Controller
             ],
             'feeds' => $feeds,
             'entries' => Entry::latest()->limit(10)->get(),
-            'currententry' => Entry::whereId($request->query('entry'))->first(),
+            'currententry' => Inertia::lazy(fn () => Entry::whereId($request->query('entry'))->first()),
         ]);
     }
 
