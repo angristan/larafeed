@@ -69,14 +69,13 @@ const EntryListPane = function EntryListPane({
         >
             <Card
                 shadow="sm"
-                padding="lg"
-                radius="md"
+                radius="sm"
                 withBorder
                 className={`${classes.entryCard} ${entry.id === currentEntryID ? classes.activeEntry : ''}`}
             >
                 <div>
                     <div className={classes.entryTitle}>{entry.title}</div>
-                    <Flex justify="space-between">
+                    <Flex justify="space-between" mt={5}>
                         <Flex>
                             <Image
                                 src={entry.feed.favicon_url}
