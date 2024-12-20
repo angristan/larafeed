@@ -42,8 +42,10 @@ const links = [
 
 const EntryListPane = function EntryListPane({
     entries,
+    currentEntryID,
 }: {
     entries: Entry[];
+    currentEntryID?: number;
 }) {
     const entryList = entries.map((entry) => (
         <div key={entry.id} className={classes.entry}>
@@ -52,7 +54,7 @@ const EntryListPane = function EntryListPane({
                 padding="lg"
                 radius="md"
                 withBorder
-                className={classes.entryCard}
+                className={`${classes.entryCard} ${entry.id === currentEntryID ? classes.activeEntry : ''}`}
             >
                 <div
                     onClick={() =>
@@ -145,7 +147,10 @@ const Main = function Main({
             }}
         >
             <Split size="sm" radius="xs" spacing="md">
-                <EntryListPane entries={entries} />
+                <EntryListPane
+                    entries={entries}
+                    currentEntryID={currententry?.id}
+                />
                 <CurrentEntryPane currententry={currententry} />
             </Split>
         </AppShell.Main>

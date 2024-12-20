@@ -27,7 +27,11 @@
 }
 
 .entryCard:hover {
-    background-color: #f0f0f0;
+    background-color: #f3f3f3;
+}
+
+.activeEntry {
+    background-color: #eaeaea;
 }
 
 .mainLink {
