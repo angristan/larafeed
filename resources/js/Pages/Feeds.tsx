@@ -13,6 +13,7 @@ import {
     Burger,
     Card,
     Code,
+    Flex,
     Group,
     Image,
     Paper,
@@ -32,7 +33,13 @@ import {
     IconSearch,
     IconStar,
 } from '@tabler/icons-react';
+import dayjs from 'dayjs';
+import calendar from 'dayjs/plugin/calendar';
+import utc from 'dayjs/plugin/utc';
 import { ReactNode, useEffect, useRef } from 'react';
+
+dayjs.extend(calendar);
+dayjs.extend(utc);
 
 const links = [
     { icon: IconBook, label: 'Unread', notifications: 3 },
@@ -48,7 +55,18 @@ const EntryListPane = function EntryListPane({
     currentEntryID?: number;
 }) {
     const entryList = entries.map((entry) => (
-        <div key={entry.id} className={classes.entry}>
+        <div
+            key={entry.id}
+            className={classes.entry}
+            onClick={() =>
+                router.visit('feeds', {
+                    only: ['currententry'],
+                    data: { entry: entry.id },
+                    preserveScroll: true,
+                    preserveState: true,
+                })
+            }
+        >
             <Card
                 shadow="sm"
                 padding="lg"
@@ -56,25 +74,24 @@ const EntryListPane = function EntryListPane({
                 withBorder
                 className={`${classes.entryCard} ${entry.id === currentEntryID ? classes.activeEntry : ''}`}
             >
-                <div
-                    onClick={() =>
-                        router.visit('feeds', {
-                            only: ['currententry'],
-                            data: { entry: entry.id },
-                            preserveScroll: true,
-                            preserveState: true,
-                        })
-                    }
-                >
-                    <div>{entry.title}</div>
-                    <div>
+                <div>
+                    <div className={classes.entryTitle}>{entry.title}</div>
+                    <Flex justify="space-between">
+                        <Flex>
+                            <Image
+                                src={entry.feed.favicon_url}
+                                w={20}
+                                h={20}
+                                mr={9}
+                            />
+                            <Text size="xs" c="dimmed">
+                                <span>{entry.feed.name}</span>
+                            </Text>
+                        </Flex>
                         <Text size="xs" c="dimmed">
-                            {entry.author}
+                            {dayjs.utc(entry.published_at).calendar()}
                         </Text>
-                        <Text size="xs" c="dimmed">
-                            {entry.published_at}
-                        </Text>
-                    </div>
+                    </Flex>
                 </div>
             </Card>
         </div>
@@ -111,10 +128,19 @@ const CurrentEntryPane = function CurrentEntryPane({
                 {currententry ? (
                     <Paper shadow="xs" withBorder p={20}>
                         <TypographyStylesProvider>
-                            <Title>{currententry.title}</Title>
-                            <Text size="sm" c="dimmed">
-                                {currententry.published_at}
-                            </Text>
+                            <Title className={classes.entryTitle}>
+                                {currententry.title}
+                            </Title>
+                            <Flex justify={'space-between'}>
+                                <Text size="sm" c="dimmed">
+                                    {currententry.author}
+                                </Text>
+                                <Text size="sm" c="dimmed">
+                                    {dayjs
+                                        .utc(currententry.published_at)
+                                        .calendar()}
+                                </Text>
+                            </Flex>
                             <div
                                 dangerouslySetInnerHTML={{
                                     __html: currententry.content || '',
@@ -236,8 +262,10 @@ interface Entry extends Timestamps {
     status: string;
     starred: boolean;
     feed_id: number;
-    feed?: {
+    feed: {
         id: number;
+        favicon_url: string;
+        name: string;
     };
 }
 

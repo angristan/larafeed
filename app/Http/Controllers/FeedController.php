@@ -63,7 +63,7 @@ class FeedController extends Controller
                 'search' => $search_input,
             ],
             'feeds' => $feeds,
-            'entries' => Entry::latest()->limit(10)->get(),
+            'entries' => Entry::with('feed:id,favicon_url,name')->latest()->limit(10)->get(),
             'currententry' => Inertia::lazy(fn () => Entry::whereId($request->query('entry'))->first()),
         ]);
     }

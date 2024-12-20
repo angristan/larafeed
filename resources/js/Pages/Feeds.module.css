@@ -34,6 +34,10 @@
     background-color: #eaeaea;
 }
 
+.entryTitle {
+    word-break: break-word;
+}
+
 .mainLink {
     display: flex;
     align-items: center;
