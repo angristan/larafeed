@@ -302,21 +302,19 @@ const Feeds = ({
         </UnstyledButton>
     ));
 
-    const feedLinks = Array.from({ length: 30 }, () => feeds)
-        .flat()
-        .map((feed) => (
-            <a
-                href="#"
-                onClick={(event) => event.preventDefault()}
-                key={feed.name}
-                className={classes.collectionLink}
-            >
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <Image src={feed.favicon_url} w={20} h={20} mr={9} />
-                    <span>{feed.name}</span>
-                </div>
-            </a>
-        ));
+    const feedLinks = feeds.map((feed) => (
+        <a
+            href="#"
+            onClick={(event) => event.preventDefault()}
+            key={feed.id}
+            className={classes.collectionLink}
+        >
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+                <Image src={feed.favicon_url} w={20} h={20} mr={9} />
+                <span>{feed.name}</span>
+            </div>
+        </a>
+    ));
 
     const [opened, { toggle }] = useDisclosure();
 
