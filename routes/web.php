@@ -4,6 +4,7 @@ use App\Actions\Entry\ShowEntryPage;
 use App\Actions\Feed\RefreshFeedEntries;
 use App\Actions\Feed\ShowFeedPage;
 use App\Actions\Feed\ShowNewFeedPage;
+use App\Actions\ImportOPML;
 use App\Http\Controllers\FeedController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
@@ -35,6 +36,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/feed/{feed}/refresh', RefreshFeedEntries::class)->name('feed.refresh')->whereNumber('feed');
     Route::get('/feed/new', ShowNewFeedPage::class)->name('feed.create');
     Route::post('/feed', [FeedController::class, 'store'])->name('feed.store');
+
+    Route::get('/import', [ImportOPML::class, 'index'])->name('import.index');
+    Route::post('/import', [ImportOPML::class, 'store'])->name('import.store');
+
 });
 
 require __DIR__.'/auth.php';
