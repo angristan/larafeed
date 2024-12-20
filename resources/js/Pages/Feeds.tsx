@@ -47,7 +47,13 @@ const EntryListPane = function EntryListPane({
 }) {
     const entryList = entries.map((entry) => (
         <div key={entry.id} className={classes.entry}>
-            <Card shadow="sm" padding="lg" radius="md" withBorder>
+            <Card
+                shadow="sm"
+                padding="lg"
+                radius="md"
+                withBorder
+                className={classes.entryCard}
+            >
                 <div
                     onClick={() =>
                         router.visit('feeds', {
@@ -58,8 +64,8 @@ const EntryListPane = function EntryListPane({
                         })
                     }
                 >
-                    <div className={classes.entryTitle}>{entry.title}</div>
-                    <div className={classes.entryMeta}>
+                    <div>{entry.title}</div>
+                    <div>
                         <Text size="xs" c="dimmed">
                             {entry.author}
                         </Text>
@@ -171,7 +177,7 @@ const NavBar = function Navbar({
                 />
             </AppShell.Section>
 
-            <AppShell.Section className={classes.section}>
+            <AppShell.Section>
                 <div className={classes.mainLinks}>{mainLinks}</div>
             </AppShell.Section>
 
@@ -190,11 +196,7 @@ const NavBar = function Navbar({
                     </Tooltip>
                 </Group>
             </AppShell.Section>
-            <AppShell.Section
-                grow
-                component={ScrollArea}
-                className={classes.section}
-            >
+            <AppShell.Section grow component={ScrollArea}>
                 <div className={classes.collections}>{feedLinks}</div>
             </AppShell.Section>
             <AppShell.Section>

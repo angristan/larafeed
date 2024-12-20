@@ -16,6 +16,20 @@
     padding: 8px var(--mantine-spacing-xs);
 }
 
+.entry {
+    margin-top: 1em;
+    margin-right: 1em;
+}
+
+.entryCard {
+    transition: background-color 0.3s;
+    cursor: pointer;
+}
+
+.entryCard:hover {
+    background-color: #f0f0f0;
+}
+
 .mainLink {
     display: flex;
     align-items: center;
