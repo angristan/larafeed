@@ -13,7 +13,6 @@ Larafeed is a simple feed reader.
 - Full-text search through a reactive search bar
 - AI-generated summary of entries
 - Favicon display
-- GitHub-like sparkline graphs representing feed acitivity
 
 ## Technical overview
 
@@ -27,7 +26,6 @@ Larafeed is a simple feed reader.
 - Summary generation is powered by OpenAI through [echolabsdev/prism](https://github.com/echolabsdev/prism)
 - Background jobs are powered by the Laravel scheduler, Laravel queues and Laravel Horizon
 - Favicon fetching is powered by [ash-jc-allen/favicon-fetcher](https://github.com/ash-jc-allen/favicon-fetcher)
-- Sparkline graphs are powered by [brendt/php-sparkline](https://github.com/brendt/php-sparkline)
 - The frontend uses [Tailwind CSS](https://tailwindcss.com/) with some plugins
   - [Tailwind CSS Typography](https://tailwindcss.com/docs/typography-plugin) to render entry content
   - [daisyUI](https://daisyui.com/) to write less classes
@@ -48,7 +46,9 @@ Larafeed is a simple feed reader.
 
 ![](.github/readme/entry.png)
 
-## Run locally
+## Development
+
+### Run locally
 
 Larafeed is built with Laravel Sail, so you can run it locally with Docker.
 

@@ -6,11 +6,7 @@ use App\Http\Requests\StoreFeedRequest;
 use App\Models\Entry;
 use App\Models\Feed;
 use AshAllenDesign\FaviconFetcher\Facades\Favicon;
-use Brendt\SparkLine\SparkLine;
-use Brendt\SparkLine\SparkLineDay;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class FeedController extends Controller
@@ -22,38 +18,15 @@ class FeedController extends Controller
     {
         $search_input = $request->query('search');
 
-        $feeds_data = Feed::search($search_input)->get();
-
-        $feeds = $feeds_data->map(function (Feed $feed) {
-            $days = DB::query()
-                ->from((new Entry)->getTable())
-                ->selectRaw('DATE(published_at) as published_at_day, COUNT(*) as publishes')
-                ->where('feed_id', $feed->id)
-                ->groupBy('published_at_day')
-                ->orderByDesc('published_at_day')
-                ->limit(20)
-                ->get()
-                ->map(fn (object $row) => new SparkLineDay(
-                    count: $row->publishes,
-                    day: Carbon::make($row->published_at_day),
-                ));
-
-            $sparkLine = SparkLine::new($days)
-                ->withStrokeWidth(2)
-                ->withDimensions(200, 50)
-                ->withMaxItemAmount(30);
-            // ->withMaxValue(10);
-
-            return collect($feed->only([
+        $feeds = Feed::query($search_input)->withCount('entries')->get()->map(function (Feed $feed) {
+            return $feed->only([
                 'id',
                 'name',
                 'feed_url',
                 'site_url',
                 'favicon_url',
                 'last_crawled_at',
-            ]))->merge([
-                'entries_count' => $feed->entries()->count(),
-                'sparkline' => $sparkLine->make(),
+                'entries_count',
             ]);
         });
 

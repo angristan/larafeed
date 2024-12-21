@@ -243,7 +243,6 @@ interface Feed {
     site_url: string;
     entries_count: number;
     last_crawled_at: string;
-    sparkline: string;
 }
 
 interface Timestamps {
