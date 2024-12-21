@@ -7,6 +7,7 @@ import { User } from '@/types';
 import { useForm, usePage } from '@inertiajs/react';
 import { AppShell, Burger, Code, Group, TextInput, Title } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { notifications } from '@mantine/notifications';
 import { IconSearch } from '@tabler/icons-react';
 import { FormEventHandler, ReactNode } from 'react';
 
@@ -19,7 +20,13 @@ const Main = function Main() {
         e.preventDefault();
 
         post(route('import.store'), {
-            // onFinish: () => reset('password'),
+            onSuccess: () => {
+                notifications.show({
+                    title: 'OMPL imported',
+                    message:
+                        'The feeds are now being imported in the background',
+                });
+            },
         });
     };
 

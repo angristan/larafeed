@@ -1,4 +1,5 @@
 import '@mantine/core/styles.css';
+import '@mantine/notifications/styles.css';
 
 import '@gfazioli/mantine-split-pane/styles.css';
 
@@ -6,6 +7,7 @@ import '../css/app.css';
 import './bootstrap';
 import { createInertiaApp } from '@inertiajs/react';
 import { MantineProvider } from '@mantine/core';
+import { Notifications } from '@mantine/notifications';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 
@@ -23,6 +25,7 @@ createInertiaApp({
 
         root.render(
             <MantineProvider>
+                <Notifications />
                 <App {...props} />
             </MantineProvider>,
         );
