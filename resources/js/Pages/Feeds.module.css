@@ -38,6 +38,14 @@
     word-break: break-word;
 }
 
+.entryContent {
+    img {
+        /* override the default image size from the website to prevent stretching
+        */
+        height: auto;
+    }
+}
+
 .mainLink {
     display: flex;
     align-items: center;

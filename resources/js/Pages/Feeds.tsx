@@ -105,11 +105,13 @@ const EntryListPane = function EntryListPane({
     return (
         <Split.Pane
             style={{ height: '100%' }}
-            initialWidth={500}
+            initialWidth="50%"
             minWidth={400}
             maxWidth={600}
         >
-            <ScrollArea style={{ height: '100%' }}>{entryList}</ScrollArea>
+            <ScrollArea style={{ height: '100%', width: '100%' }}>
+                {entryList}
+            </ScrollArea>
         </Split.Pane>
     );
 };
@@ -147,6 +149,7 @@ const CurrentEntryPane = function CurrentEntryPane({
                                 </Text>
                             </Flex>
                             <div
+                                className={classes.entryContent}
                                 dangerouslySetInnerHTML={{
                                     __html: currententry.content || '',
                                 }}
