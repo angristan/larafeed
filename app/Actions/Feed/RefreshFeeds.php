@@ -3,11 +3,14 @@
 namespace App\Actions\Feed;
 
 use App\Models\Feed;
+use Illuminate\Console\Command;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 class RefreshFeeds
 {
     use AsAction;
+
+    public string $commandSignature = 'feeds:refresh';
 
     /**
      * Refresh all the feeds synchronously.
@@ -28,5 +31,11 @@ class RefreshFeeds
         Feed::all()->each(
             fn (Feed $feed) => RefreshFeedEntries::dispatch($feed)
         );
+    }
+
+    public function asCommand(Command $command): void
+    {
+        $this->asJob();
+        $command->info('Done!');
     }
 }

@@ -11,6 +11,11 @@ class RefreshFeedEntries
 {
     use AsAction;
 
+    public function asJob(Feed $feed)
+    {
+        RefreshFeedEntries::run($feed);
+    }
+
     public function handle(Feed $feed)
     {
         $crawledFeed = \Feeds::make(feedUrl: [$feed->feed_url]);
