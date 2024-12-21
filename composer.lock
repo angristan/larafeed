@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "22c114c0762037f15a8ef18fe9287dcf",
+    "content-hash": "5ce13d110800b5cdbd5b0f0181bc090e",
     "packages": [
         {
             "name": "ashallendesign/favicon-fetcher",
@@ -2827,16 +2827,16 @@
         },
         {
             "name": "lorisleiva/laravel-actions",
-            "version": "v2.8.4",
+            "version": "v2.8.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/lorisleiva/laravel-actions.git",
-                "reference": "5a168bfdd3b75dd6ff259019d4aeef784bbd5403"
+                "reference": "ae6f5e8dc1f450a0879f73059242e5834b2dbdec"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/lorisleiva/laravel-actions/zipball/5a168bfdd3b75dd6ff259019d4aeef784bbd5403",
-                "reference": "5a168bfdd3b75dd6ff259019d4aeef784bbd5403",
+                "url": "https://api.github.com/repos/lorisleiva/laravel-actions/zipball/ae6f5e8dc1f450a0879f73059242e5834b2dbdec",
+                "reference": "ae6f5e8dc1f450a0879f73059242e5834b2dbdec",
                 "shasum": ""
             },
             "require": {
@@ -2891,7 +2891,7 @@
             ],
             "support": {
                 "issues": "https://github.com/lorisleiva/laravel-actions/issues",
-                "source": "https://github.com/lorisleiva/laravel-actions/tree/v2.8.4"
+                "source": "https://github.com/lorisleiva/laravel-actions/tree/v2.8.5"
             },
             "funding": [
                 {
@@ -2899,7 +2899,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2024-09-10T09:57:29+00:00"
+            "time": "2024-12-19T15:58:09+00:00"
         },
         {
             "name": "lorisleiva/lody",
@@ -7309,16 +7309,16 @@
         },
         {
             "name": "barryvdh/laravel-ide-helper",
-            "version": "v3.2.2",
+            "version": "v3.3.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/barryvdh/laravel-ide-helper.git",
-                "reference": "07e3bd8796f3d1414801a03d3783f9d3ec9efc08"
+                "reference": "b7675670f75914bf34afdea52a6c2fe3781f7c44"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/barryvdh/laravel-ide-helper/zipball/07e3bd8796f3d1414801a03d3783f9d3ec9efc08",
-                "reference": "07e3bd8796f3d1414801a03d3783f9d3ec9efc08",
+                "url": "https://api.github.com/repos/barryvdh/laravel-ide-helper/zipball/b7675670f75914bf34afdea52a6c2fe3781f7c44",
+                "reference": "b7675670f75914bf34afdea52a6c2fe3781f7c44",
                 "shasum": ""
             },
             "require": {
@@ -7387,7 +7387,7 @@
             ],
             "support": {
                 "issues": "https://github.com/barryvdh/laravel-ide-helper/issues",
-                "source": "https://github.com/barryvdh/laravel-ide-helper/tree/v3.2.2"
+                "source": "https://github.com/barryvdh/laravel-ide-helper/tree/v3.3.0"
             },
             "funding": [
                 {
@@ -7399,7 +7399,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2024-10-29T14:00:16+00:00"
+            "time": "2024-12-18T08:24:19+00:00"
         },
         {
             "name": "barryvdh/reflection-docblock",

@@ -20,14 +20,14 @@
         "laravel/scout": "^10.11",
         "laravel/telescope": "^5.2",
         "laravel/tinker": "^2.9",
-        "lorisleiva/laravel-actions": "^2.4",
+        "lorisleiva/laravel-actions": "^2.8",
         "spatie/laravel-login-link": "^1.1",
-        "tightenco/ziggy": "^2.0",
+        "tightenco/ziggy": "^2.4",
         "willvincent/feeds": "^2.4"
     },
     "require-dev": {
         "barryvdh/laravel-debugbar": "^3.7",
-        "barryvdh/laravel-ide-helper": "*",
+        "barryvdh/laravel-ide-helper": "^3.3",
         "fakerphp/faker": "^1.23",
         "laravel/breeze": "^2.2",
         "laravel/pail": "^1.1",
