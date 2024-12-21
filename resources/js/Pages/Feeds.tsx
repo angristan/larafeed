@@ -64,7 +64,10 @@ const EntryListPane = function EntryListPane({
             onClick={() =>
                 router.visit('feeds', {
                     only: ['currententry'],
-                    data: { entry: entry.id },
+                    data: {
+                        entry: entry.id,
+                        feed: window.location.search.match(/feed=(\d+)/)?.[1],
+                    },
                     preserveScroll: true,
                     preserveState: true,
                 })
@@ -364,8 +367,18 @@ const Feeds = ({
 
     const feedLinks = feeds.map((feed) => (
         <a
-            href="#"
-            onClick={(event) => event.preventDefault()}
+            onClick={(event) => {
+                event.preventDefault();
+                router.visit('feeds', {
+                    only: ['feed', 'entries'],
+                    data: {
+                        feed: feed.id,
+                        entry: currententry?.id,
+                    },
+                    preserveScroll: true,
+                    preserveState: true,
+                });
+            }}
             key={feed.id}
             className={classes.collectionLink}
         >

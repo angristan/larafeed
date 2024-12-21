@@ -14,27 +14,22 @@ class FeedController extends Controller
      */
     public function index(Request $request): \Inertia\Response
     {
-        $search_input = $request->query('search');
+        $feed_id = $request->query('feed');
 
-        $feeds = Feed::query($search_input)->withCount('entries')->get()->map(function (Feed $feed) {
-            return $feed->only([
-                'id',
-                'name',
-                'feed_url',
-                'site_url',
-                'favicon_url',
-                'last_crawled_at',
-                'entries_count',
-            ]);
-        });
+        $feeds = Feed::query()->withCount('entries')->get();
+
+        $entries = Entry::query()
+            ->when($feed_id, fn ($query) => $query->where('feed_id', $feed_id))
+            ->orderByDesc('published_at')
+            ->with('feed:id,favicon_url,name')
+            ->latest()
+            ->limit(100)
+            ->get();
 
         // TODO https://laravel.com/docs/9.x/eloquent-resources
         return Inertia::render('Feeds', [
-            'filters' => [
-                'search' => $search_input,
-            ],
             'feeds' => $feeds,
-            'entries' => Entry::query()->orderByDesc('published_at')->with('feed:id,favicon_url,name')->latest()->limit(100)->get(),
+            'entries' => $entries,
             'currententry' => Inertia::lazy(fn () => Entry::whereId($request->query('entry'))->first()),
         ]);
     }
