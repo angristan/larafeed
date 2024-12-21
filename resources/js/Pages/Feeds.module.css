@@ -27,11 +27,11 @@
 }
 
 .entryCard:hover {
-    background-color: #f3f3f3;
+    background-color: var(--mantine-color-gray-1);
 }
 
 .activeEntry {
-    background-color: #eaeaea;
+    background-color: var(--mantine-color-gray-2);
 }
 
 .entryTitle {
