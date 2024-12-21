@@ -30,7 +30,7 @@ class FeedController extends Controller
         return Inertia::render('Feeds', [
             'feeds' => $feeds,
             'entries' => $entries,
-            'currententry' => Inertia::lazy(fn () => Entry::whereId($request->query('entry'))->first()),
+            'currententry' => fn () => Entry::whereId($request->query('entry'))->first(),
         ]);
     }
 }
