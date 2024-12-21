@@ -115,7 +115,7 @@ const CurrentEntryPane = function CurrentEntryPane({
 }) {
     const viewport = useRef<HTMLDivElement>(null);
     const scrollToTop = () =>
-        viewport.current!.scrollTo({ top: 0, behavior: 'smooth' });
+        viewport.current!.scrollTo({ top: 0, behavior: 'instant' });
 
     useEffect(() => {
         scrollToTop();
