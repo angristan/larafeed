@@ -5,12 +5,13 @@ import ApplicationLogo from '@/Components/ApplicationLogo';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { User } from '@/types';
 import { Split } from '@gfazioli/mantine-split-pane';
-import { router, usePage } from '@inertiajs/react';
+import { router, useForm, usePage } from '@inertiajs/react';
 import {
     ActionIcon,
     AppShell,
     Badge,
     Burger,
+    Button,
     Card,
     Code,
     Flex,
@@ -26,6 +27,8 @@ import {
     UnstyledButton,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { modals } from '@mantine/modals';
+import { notifications } from '@mantine/notifications';
 import {
     IconBook,
     IconCheckbox,
@@ -36,7 +39,7 @@ import {
 import dayjs from 'dayjs';
 import calendar from 'dayjs/plugin/calendar';
 import utc from 'dayjs/plugin/utc';
-import { ReactNode, useEffect, useRef } from 'react';
+import { FormEventHandler, ReactNode, useEffect, useRef } from 'react';
 
 dayjs.extend(calendar);
 dayjs.extend(utc);
@@ -182,6 +185,55 @@ const Main = function Main({
     );
 };
 
+const AddFeedModal = function AddFeedModal() {
+    const { data, setData, post, errors, processing } = useForm({
+        feed_url: '',
+    });
+
+    const submit: FormEventHandler = (e) => {
+        e.preventDefault();
+
+        post(route('feed.store'), {
+            onSuccess: () => {
+                notifications.show({
+                    title: 'Feed added',
+                    message: 'The feed has been added',
+                    color: 'green',
+                    withBorder: true,
+                });
+
+                modals.closeAll();
+            },
+            onError: (errors) => {
+                setData('feed_url', '');
+                notifications.show({
+                    title: 'Failed to add feed',
+                    message: errors.feed_url,
+                    color: 'red',
+                    withBorder: true,
+                });
+            },
+        });
+    };
+
+    return (
+        <form onSubmit={submit}>
+            <TextInput
+                type="text"
+                label="Feed URL"
+                placeholder="https://blog.cloudflare.com/rss/"
+                data-autofocus
+                value={data.feed_url}
+                onChange={(e) => setData('feed_url', e.target.value)}
+            />
+            {errors.feed_url && <div>{errors.feed_url}</div>}
+            <Button mt="md" fullWidth type="submit" disabled={processing}>
+                Submit
+            </Button>
+        </form>
+    );
+};
+
 const NavBar = function Navbar({
     user,
     mainLinks,
@@ -191,6 +243,12 @@ const NavBar = function Navbar({
     mainLinks: ReactNode[];
     feedLinks: ReactNode[];
 }) {
+    const openModal = () =>
+        modals.open({
+            title: 'Add a new feed',
+            children: <AddFeedModal />,
+        });
+
     return (
         <AppShell.Navbar>
             <AppShell.Section pr="md" pl="md" pt="md">
@@ -220,7 +278,11 @@ const NavBar = function Navbar({
                         Feeds
                     </Text>
                     <Tooltip label="Create feed" withArrow position="right">
-                        <ActionIcon variant="default" size={18}>
+                        <ActionIcon
+                            onClick={openModal}
+                            variant="default"
+                            size={18}
+                        >
                             <IconPlus size={12} stroke={1.5} />
                         </ActionIcon>
                     </Tooltip>

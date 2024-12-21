@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Entry\ShowEntryPage;
+use App\Actions\Feed\CreateNewFeed;
 use App\Actions\Feed\RefreshFeedEntries;
 use App\Actions\Feed\ShowFeedPage;
 use App\Actions\Feed\ShowNewFeedPage;
@@ -35,7 +36,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/feed/{feed}/entry/{entry}', ShowEntryPage::class)->name('feed.entry')->whereNumber('feed')->whereNumber('entry');
     Route::post('/feed/{feed}/refresh', RefreshFeedEntries::class)->name('feed.refresh')->whereNumber('feed');
     Route::get('/feed/new', ShowNewFeedPage::class)->name('feed.create');
-    Route::post('/feed', [FeedController::class, 'store'])->name('feed.store');
+    Route::post('/feed', CreateNewFeed::class)->name('feed.store');
 
     Route::get('/import', [ImportOPML::class, 'index'])->name('import.index');
     Route::post('/import', [ImportOPML::class, 'store'])->name('import.store');

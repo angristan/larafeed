@@ -4,6 +4,7 @@ namespace App\Actions\Feed;
 
 use App\Models\Feed;
 use AshAllenDesign\FaviconFetcher\Facades\Favicon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
 
@@ -11,11 +12,36 @@ class CreateNewFeed
 {
     use AsAction;
 
+    public function rules(): array
+    {
+        return [
+            'feed_url' => ['required', 'max:255', 'url'],
+        ];
+    }
+
+    public function getValidationMessages(): array
+    {
+        return [
+            'feed_url.required' => 'Please enter a feed URL',
+            'feed_url.url' => 'Please enter a valid URL',
+            'feed_url.max' => 'Please enter a URL that is less than 255 characters',
+        ];
+    }
+
+    public function asController(Request $request)
+    {
+        $this->handle($request->feed_url);
+
+        return redirect()->route('feeds.index');
+    }
+
     public function handle(string $feed_url)
     {
         // Skip if feed already exists
         if (Feed::where('feed_url', $feed_url)->exists()) {
-            return;
+            return redirect()->route('feeds.index')->withErrors([
+                'feed_url' => 'Feed already exists',
+            ]);
         }
 
         // TODO fetch limit
@@ -36,7 +62,9 @@ class CreateNewFeed
             //     'feed_url' => $error,
             // ]);
 
-            return;
+            return redirect()->route('feeds.index')->withErrors([
+                'feed_url' => $error,
+            ]);
         }
 
         // Handle feeds without site link such as https://aggregate.stitcher.io/rss
