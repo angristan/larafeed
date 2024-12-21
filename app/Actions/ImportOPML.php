@@ -32,7 +32,7 @@ class ImportOPML
             foreach ($category->outline as $outline) {
                 $feed_url = (string) $outline['xmlUrl'];
 
-                CreateNewFeed::run($feed_url);
+                CreateNewFeed::dispatch($feed_url);
             }
         }
 
