@@ -410,9 +410,25 @@ const Feeds = ({
             key={feed.id}
             className={classes.collectionLink}
         >
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-                <Image src={feed.favicon_url} w={20} h={20} mr={9} />
-                <span>{feed.name}</span>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    width: '100%',
+                    justifyContent: 'space-between',
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <Image src={feed.favicon_url} w={20} h={20} mr={9} />
+                    <span>{feed.name}</span>
+                </div>
+                <Badge
+                    size="xs"
+                    variant="default"
+                    className={classes.mainLinkBadge}
+                >
+                    {feed.entries_count}
+                </Badge>
             </div>
         </a>
     ));

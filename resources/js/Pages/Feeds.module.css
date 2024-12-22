@@ -80,9 +80,8 @@
 }
 
 .mainLinkBadge {
-    padding: 0;
-    width: 20px;
-    height: 20px;
+    padding: 1;
+    min-width: fit-content;
     pointer-events: none;
 }
 
