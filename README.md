@@ -18,7 +18,7 @@ Larafeed is a simple feed reader.
 
 - Backend build with Laravel 11
   - Architectured around [Actions](https://laravelactions.com/)
-- Vue.js 3 for the frontend
+- React for the frontend with the amazing [Mantine](https://mantine.dev/) components and hooks
 - [Inertia.js](https://inertiajs.com/) that does the magic glue between Laravel and Vue.js
 - Feed parsing is powered by [SimplePie](https://github.com/simplepie/simplepie)
   - Through [willvincent/feeds](https://github.com/willvincent/feeds)
