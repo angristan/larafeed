@@ -1,4 +1,4 @@
-import classes from './Feeds.module.css';
+import classes from './Reader.module.css';
 
 import { UserButton } from '../Components/UserButton/UserButton';
 import ApplicationLogo from '@/Components/ApplicationLogo';

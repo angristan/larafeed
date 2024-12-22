@@ -28,7 +28,7 @@ class ShowFeedReader
             ->get();
 
         // TODO https://laravel.com/docs/9.x/eloquent-resources
-        return Inertia::render('Feeds', [
+        return Inertia::render('Reader', [
             'feeds' => $feeds,
             'entries' => $entries,
             'currententry' => fn () => Entry::whereId($request->query('entry'))->first(),
