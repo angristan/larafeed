@@ -26,7 +26,7 @@ import {
     TypographyStylesProvider,
     UnstyledButton,
 } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
+import { useDisclosure, useHotkeys } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import {
@@ -57,6 +57,31 @@ const EntryListPane = function EntryListPane({
     entries: Entry[];
     currentEntryID?: number;
 }) {
+    const getCurrentFeedIdFromURL = () =>
+        window.location.search.match(/feed=(\d+)/)?.[1];
+
+    const navigateToEntry = (offset: number) => {
+        const index = entries.findIndex((entry) => entry.id === currentEntryID);
+        const newIndex = index + offset;
+
+        if (newIndex >= 0 && newIndex < entries.length) {
+            router.visit('feeds', {
+                only: ['currententry'],
+                data: {
+                    entry: entries[newIndex].id,
+                    feed: getCurrentFeedIdFromURL(),
+                },
+                preserveScroll: true,
+                preserveState: true,
+            });
+        }
+    };
+
+    useHotkeys([
+        ['J', () => navigateToEntry(+1)], // Next entry
+        ['K', () => navigateToEntry(-1)], // Previous entry
+    ]);
+
     const entryList = entries.map((entry) => (
         <div
             key={entry.id}
@@ -66,7 +91,7 @@ const EntryListPane = function EntryListPane({
                     only: ['currententry'],
                     data: {
                         entry: entry.id,
-                        feed: window.location.search.match(/feed=(\d+)/)?.[1],
+                        feed: getCurrentFeedIdFromURL(),
                     },
                     preserveScroll: true,
                     preserveState: true,
