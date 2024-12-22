@@ -1,10 +1,7 @@
 <?php
 
-use App\Actions\Entry\ShowEntryPage;
 use App\Actions\Feed\CreateNewFeed;
 use App\Actions\Feed\RefreshFeedEntries;
-use App\Actions\Feed\ShowFeedPage;
-use App\Actions\Feed\ShowNewFeedPage;
 use App\Actions\ImportOPML;
 use App\Actions\ShowFeedReader;
 use App\Http\Controllers\ProfileController;
@@ -21,10 +18,6 @@ Route::get('/', function () {
     ]);
 });
 
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
-
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -32,10 +25,7 @@ Route::middleware('auth')->group(function () {
 
     // TODO: scoped route bindings
     Route::get('/feeds', ShowFeedReader::class)->name('feeds.index');
-    Route::get('/feed/{feed}/entries', ShowFeedPage::class)->name('feed.entries')->whereNumber('feed');
-    Route::get('/feed/{feed}/entry/{entry}', ShowEntryPage::class)->name('feed.entry')->whereNumber('feed')->whereNumber('entry');
-    Route::post('/feed/{feed}/refresh', RefreshFeedEntries::class)->name('feed.refresh')->whereNumber('feed');
-    Route::get('/feed/new', ShowNewFeedPage::class)->name('feed.create');
+    // Route::post('/feed/{feed}/refresh', RefreshFeedEntries::class)->name('feed.refresh')->whereNumber('feed');
     Route::post('/feed', CreateNewFeed::class)->name('feed.store');
 
     Route::get('/import', [ImportOPML::class, 'index'])->name('import.index');
