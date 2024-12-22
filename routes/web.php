@@ -6,7 +6,7 @@ use App\Actions\Feed\RefreshFeedEntries;
 use App\Actions\Feed\ShowFeedPage;
 use App\Actions\Feed\ShowNewFeedPage;
 use App\Actions\ImportOPML;
-use App\Http\Controllers\FeedController;
+use App\Actions\ShowFeedReader;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -31,7 +31,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // TODO: scoped route bindings
-    Route::get('/feeds', [FeedController::class, 'index'])->name('feeds.index');
+    Route::get('/feeds', ShowFeedReader::class)->name('feeds.index');
     Route::get('/feed/{feed}/entries', ShowFeedPage::class)->name('feed.entries')->whereNumber('feed');
     Route::get('/feed/{feed}/entry/{entry}', ShowEntryPage::class)->name('feed.entry')->whereNumber('feed')->whereNumber('entry');
     Route::post('/feed/{feed}/refresh', RefreshFeedEntries::class)->name('feed.refresh')->whereNumber('feed');

@@ -1,18 +1,19 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Actions;
 
 use App\Models\Entry;
 use App\Models\Feed;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Lorisleiva\Actions\Concerns\AsAction;
 
-class FeedController extends Controller
+class ShowFeedReader
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index(Request $request): \Inertia\Response
+    use AsAction;
+
+    /* This action is only a controller for the main user facing view */
+    public function handle(Request $request): \Inertia\Response
     {
         $feed_id = $request->query('feed');
 
