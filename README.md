@@ -26,11 +26,6 @@ Larafeed is a simple feed reader.
 - Summary generation is powered by OpenAI through [echolabsdev/prism](https://github.com/echolabsdev/prism)
 - Background jobs are powered by the Laravel scheduler, Laravel queues and Laravel Horizon
 - Favicon fetching is powered by [ash-jc-allen/favicon-fetcher](https://github.com/ash-jc-allen/favicon-fetcher)
-- The frontend uses [Tailwind CSS](https://tailwindcss.com/) with some plugins
-  - [Tailwind CSS Typography](https://tailwindcss.com/docs/typography-plugin) to render entry content
-  - [daisyUI](https://daisyui.com/) to write less classes
-  - [Flowbite](https://flowbite.com/), for some components
-- [Element Plus](https://element-plus.org/en-US/) is available as a component library, it's only used for toasts right now lol
 
 ## Screenshots
 
