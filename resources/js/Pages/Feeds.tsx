@@ -37,11 +37,11 @@ import {
     IconStar,
 } from '@tabler/icons-react';
 import dayjs from 'dayjs';
-import calendar from 'dayjs/plugin/calendar';
+import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
 import { FormEventHandler, ReactNode, useEffect, useRef } from 'react';
 
-dayjs.extend(calendar);
+dayjs.extend(relativeTime);
 dayjs.extend(utc);
 
 const links = [
@@ -94,7 +94,7 @@ const EntryListPane = function EntryListPane({
                             </Text>
                         </Flex>
                         <Text size="xs" c="dimmed">
-                            {dayjs.utc(entry.published_at).calendar()}
+                            {dayjs.utc(entry.published_at).fromNow()}
                         </Text>
                     </Flex>
                 </div>
@@ -145,7 +145,7 @@ const CurrentEntryPane = function CurrentEntryPane({
                                 <Text size="sm" c="dimmed">
                                     {dayjs
                                         .utc(currententry.published_at)
-                                        .calendar()}
+                                        .fromNow()}
                                 </Text>
                             </Flex>
                             <div
