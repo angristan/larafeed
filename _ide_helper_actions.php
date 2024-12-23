@@ -3,20 +3,6 @@
 namespace App\Actions\Entry;
 
 /**
- * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\App\Models\Feed $feed, int $entryId)
- * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\App\Models\Feed $feed, int $entryId)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\App\Models\Feed $feed, int $entryId)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \App\Models\Feed $feed, int $entryId)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \App\Models\Feed $feed, int $entryId)
- * @method static dispatchSync(\App\Models\Feed $feed, int $entryId)
- * @method static dispatchNow(\App\Models\Feed $feed, int $entryId)
- * @method static dispatchAfterResponse(\App\Models\Feed $feed, int $entryId)
- * @method static \Inertia\Response run(\App\Models\Feed $feed, int $entryId)
- */
-class ShowEntryPage
-{
-}
-/**
  * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\App\Models\Entry $entry)
  * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\App\Models\Entry $entry)
  * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\App\Models\Entry $entry)
@@ -33,15 +19,15 @@ class SummarizeEntryWithLLM
 namespace App\Actions\Feed;
 
 /**
- * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(string $feed_url)
- * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(string $feed_url)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(string $feed_url)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, string $feed_url)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, string $feed_url)
- * @method static dispatchSync(string $feed_url)
- * @method static dispatchNow(string $feed_url)
- * @method static dispatchAfterResponse(string $feed_url)
- * @method static mixed run(string $feed_url)
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(string $feed_url, ?\App\Models\User $attachedUser)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(string $feed_url, ?\App\Models\User $attachedUser)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(string $feed_url, ?\App\Models\User $attachedUser)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, string $feed_url, ?\App\Models\User $attachedUser)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, string $feed_url, ?\App\Models\User $attachedUser)
+ * @method static dispatchSync(string $feed_url, ?\App\Models\User $attachedUser)
+ * @method static dispatchNow(string $feed_url, ?\App\Models\User $attachedUser)
+ * @method static dispatchAfterResponse(string $feed_url, ?\App\Models\User $attachedUser)
+ * @method static mixed run(string $feed_url, ?\App\Models\User $attachedUser)
  */
 class CreateNewFeed
 {
@@ -74,39 +60,25 @@ class RefreshFeedEntries
 class RefreshFeeds
 {
 }
-/**
- * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\App\Models\Feed $feed)
- * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\App\Models\Feed $feed)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\App\Models\Feed $feed)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \App\Models\Feed $feed)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \App\Models\Feed $feed)
- * @method static dispatchSync(\App\Models\Feed $feed)
- * @method static dispatchNow(\App\Models\Feed $feed)
- * @method static dispatchAfterResponse(\App\Models\Feed $feed)
- * @method static \Inertia\Response run(\App\Models\Feed $feed)
- */
-class ShowFeedPage
-{
-}
-/**
- * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob()
- * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob()
- * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch()
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean)
- * @method static dispatchSync()
- * @method static dispatchNow()
- * @method static dispatchAfterResponse()
- * @method static \Inertia\Response run()
- */
-class ShowNewFeedPage
-{
-}
 namespace App\Actions;
 
 /**
  */
 class ImportOPML
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\Illuminate\Http\Request $request)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\Illuminate\Http\Request $request)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\Illuminate\Http\Request $request)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \Illuminate\Http\Request $request)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \Illuminate\Http\Request $request)
+ * @method static dispatchSync(\Illuminate\Http\Request $request)
+ * @method static dispatchNow(\Illuminate\Http\Request $request)
+ * @method static dispatchAfterResponse(\Illuminate\Http\Request $request)
+ * @method static \Inertia\Response run(\Illuminate\Http\Request $request)
+ */
+class ShowFeedReader
 {
 }
 namespace Lorisleiva\Actions\Concerns;

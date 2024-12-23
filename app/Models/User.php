@@ -16,6 +16,12 @@ use Illuminate\Notifications\Notifiable;
  * @property string|null $remember_token
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read \App\Models\EntryInteraction|null $interaction
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Entry> $entriesInterracted
+ * @property-read int|null $entries_interracted_count
+ * @property-read \App\Models\FeedSubscription|null $subscription
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Feed> $feeds
+ * @property-read int|null $feeds_count
  * @property-read \Illuminate\Notifications\DatabaseNotificationCollection<int, \Illuminate\Notifications\DatabaseNotification> $notifications
  * @property-read int|null $notifications_count
  *
@@ -71,5 +77,23 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function feeds()
+    {
+        return $this->belongsToMany(Feed::class, 'feed_subscriptions', 'user_id', 'feed_id')
+            ->as('subscription')
+            ->using(FeedSubscription::class)
+            ->withTimestamps()
+            ->withPivot('custom_feed_name');
+    }
+
+    public function entriesInterracted()
+    {
+        return $this->belongsToMany(Entry::class, 'entry_interactions', 'user_id', 'entry_id')
+            ->as('interaction')
+            ->using(EntryInteraction::class)
+            ->withTimestamps()
+            ->withPivot(['read_at', 'starred_at', 'archived_at']);
     }
 }

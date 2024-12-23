@@ -14,28 +14,27 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $title
  * @property string $url
  * @property string|null $author
- * @property string|null $content
+ * @property string $content
  * @property string $published_at
- * @property string $status
- * @property bool $starred
  * @property int $feed_id
  * @property-read \App\Models\Feed $feed
+ * @property-read \App\Models\EntryInteraction|null $interaction
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\User> $users
+ * @property-read int|null $users_count
  *
  * @method static \Database\Factories\EntryFactory factory($count = null, $state = [])
- * @method static \Illuminate\Database\Eloquent\Builder|Entry newModelQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|Entry newQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|Entry query()
- * @method static \Illuminate\Database\Eloquent\Builder|Entry whereAuthor($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Entry whereContent($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Entry whereCreatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Entry whereFeedId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Entry whereId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Entry wherePublishedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Entry whereStarred($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Entry whereStatus($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Entry whereTitle($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Entry whereUpdatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Entry whereUrl($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry query()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry whereAuthor($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry whereContent($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry whereFeedId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry wherePublishedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry whereTitle($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry whereUpdatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry whereUrl($value)
  *
  * @mixin \Eloquent
  */
@@ -64,5 +63,23 @@ class Entry extends Model
     public function feed()
     {
         return $this->belongsTo(Feed::class);
+    }
+
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'entry_interactions', 'entry_id', 'user_id')
+            ->as('interaction')
+            ->using(EntryInteraction::class)
+            ->withTimestamps()
+            ->withPivot(['read_at', 'starred_at', 'archived_at']);
+    }
+
+    public function markAsRead(User $user)
+    {
+        if ($this->users->contains($user)) {
+            $this->users()->updateExistingPivot($user, ['read_at' => now()]);
+        } else {
+            $this->users()->attach($user, ['read_at' => now()]);
+        }
     }
 }

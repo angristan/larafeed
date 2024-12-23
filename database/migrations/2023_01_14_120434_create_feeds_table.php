@@ -14,13 +14,17 @@ return new class extends Migration
     public function up()
     {
         Schema::create('feeds', function (Blueprint $table) {
-            $table->id();
+            $table->id()->primary();
+
             $table->timestamps();
+
             $table->string('name');
-            $table->string('feed_url');
+            $table->string('feed_url')->unique();
             $table->string('site_url');
             $table->string('favicon_url')->nullable();
-            $table->timestamp('last_crawled_at')->useCurrent();
+            $table->timestamp('last_successful_refresh_at')->nullable();
+            $table->timestamp('last_failed_refresh_at')->nullable();
+            $table->string('last_error_message')->nullable();
         });
     }
 

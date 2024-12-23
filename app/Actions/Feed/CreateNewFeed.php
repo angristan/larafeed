@@ -3,6 +3,7 @@
 namespace App\Actions\Feed;
 
 use App\Models\Feed;
+use App\Models\User;
 use AshAllenDesign\FaviconFetcher\Facades\Favicon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -30,15 +31,27 @@ class CreateNewFeed
 
     public function asController(Request $request)
     {
-        $this->handle($request->feed_url);
+        $this->handle($request->feed_url, $request->user());
 
         return redirect()->route('feeds.index');
     }
 
-    public function handle(string $feed_url)
+    public function handle(string $feed_url, ?User $attachedUser)
     {
-        // Skip if feed already exists
+
         if (Feed::where('feed_url', $feed_url)->exists()) {
+            if ($attachedUser) {
+                if ($attachedUser->feeds()->where('feed_url', $feed_url)->exists()) {
+                    return redirect()->route('feeds.index')->withErrors([
+                        'feed_url' => "You're already following this feed",
+                    ]);
+                } else {
+                    $attachedUser->feeds()->attach(Feed::where('feed_url', $feed_url)->first());
+
+                    return redirect()->route('feeds.index');
+                }
+            }
+
             return redirect()->route('feeds.index')->withErrors([
                 'feed_url' => 'Feed already exists',
             ]);
@@ -85,6 +98,10 @@ class CreateNewFeed
             'favicon_url' => $favicon_url,
         ]);
 
+        if ($attachedUser) {
+            $attachedUser->feeds()->attach($feed);
+        }
+
         // TODO single insert
         $entries = $crawledFeed->get_items();
         foreach ($entries as $entry) {
@@ -95,6 +112,5 @@ class CreateNewFeed
                 'published_at' => $entry->get_date('Y-m-d H:i:s'),
             ]);
         }
-
     }
 }

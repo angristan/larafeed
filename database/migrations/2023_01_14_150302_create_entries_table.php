@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\EntryStatus;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -15,20 +14,22 @@ return new class extends Migration
     public function up()
     {
         Schema::create('entries', function (Blueprint $table) {
-            $table->id();
+            $table->id()->primary();
+
             $table->timestamps();
 
             $table->string('title');
             $table->string('url');
             $table->string('author')->nullable();
-            $table->text('content')->nullable();
+            // TODO: use fullText?
+            $table->text('content');
             $table->timestamp('published_at');
-            $table->enum('status', EntryStatus::getValues())->default(EntryStatus::Unread);
-            $table->boolean('starred')->default(false);
 
             $table->foreignId('feed_id')
                 ->constrained('feeds')
                 ->cascadeOnDelete();
+
+            $table->unique(['feed_id', 'url']);
         });
     }
 

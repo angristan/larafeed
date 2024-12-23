@@ -16,22 +16,29 @@ use Laravel\Scout\Searchable;
  * @property string $feed_url
  * @property string $site_url
  * @property string|null $favicon_url
- * @property string $last_crawled_at
+ * @property string|null $last_successful_refresh_at
+ * @property string|null $last_failed_refresh_at
+ * @property string|null $last_error_message
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Entry> $entries
  * @property-read int|null $entries_count
+ * @property-read \App\Models\FeedSubscription|null $subscription
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\User> $users
+ * @property-read int|null $users_count
  *
  * @method static \Database\Factories\FeedFactory factory($count = null, $state = [])
- * @method static \Illuminate\Database\Eloquent\Builder|Feed newModelQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|Feed newQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|Feed query()
- * @method static \Illuminate\Database\Eloquent\Builder|Feed whereCreatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Feed whereFaviconUrl($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Feed whereFeedUrl($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Feed whereId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Feed whereLastCrawledAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Feed whereName($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Feed whereSiteUrl($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Feed whereUpdatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed query()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereFaviconUrl($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereFeedUrl($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereLastErrorMessage($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereLastFailedRefreshAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereLastSuccessfulRefreshAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereSiteUrl($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereUpdatedAt($value)
  *
  * @mixin \Eloquent
  */
@@ -66,5 +73,14 @@ class Feed extends Model
     public function entries()
     {
         return $this->hasMany(Entry::class);
+    }
+
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'feed_subscriptions', 'feed_id', 'user_id')
+            ->as('subscription')
+            ->using(FeedSubscription::class)
+            ->withTimestamps()
+            ->withPivot('custom_feed_name');
     }
 }
