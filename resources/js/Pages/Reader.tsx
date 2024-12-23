@@ -46,7 +46,7 @@ dayjs.extend(relativeTime);
 dayjs.extend(utc);
 
 const links = [
-    { icon: IconBook, label: 'Unread', notifications: 3 },
+    { icon: IconBook, label: 'Unread' },
     { icon: IconCheckbox, label: 'Read' },
     { icon: IconStar, label: 'Favorites' },
 ];
@@ -67,7 +67,11 @@ const EntryListPane = function EntryListPane({
 
         if (newIndex >= 0 && newIndex < entries.length) {
             router.visit('feeds', {
-                only: ['currententry'],
+                only: [
+                    'currententry',
+                    'unreadEntriesCount',
+                    'readEntriesCount',
+                ],
                 data: {
                     entry: entries[newIndex].id,
                     feed: getCurrentFeedIdFromURL(),
@@ -89,7 +93,11 @@ const EntryListPane = function EntryListPane({
             className={classes.entry}
             onClick={() => {
                 router.visit('feeds', {
-                    only: ['currententry'],
+                    only: [
+                        'currententry',
+                        'unreadEntriesCount',
+                        'readEntriesCount',
+                    ],
                     data: {
                         entry: entry.id,
                         feed: getCurrentFeedIdFromURL(),
@@ -369,10 +377,14 @@ const Feeds = ({
     feeds,
     entries,
     currententry,
+    unreadEntriesCount,
+    readEntriesCount,
 }: {
     feeds: Feed[];
     entries: Entry[];
     currententry?: Entry;
+    unreadEntriesCount: number;
+    readEntriesCount: number;
 }) => {
     const user = usePage().props.auth.user;
 
@@ -386,13 +398,22 @@ const Feeds = ({
                 />
                 <span>{link.label}</span>
             </div>
-            {link.notifications && (
+            {link.label === 'Unread' && unreadEntriesCount > 0 && (
                 <Badge
                     size="sm"
                     variant="filled"
                     className={classes.mainLinkBadge}
                 >
-                    {link.notifications}
+                    {unreadEntriesCount}
+                </Badge>
+            )}
+            {link.label === 'Read' && readEntriesCount > 0 && (
+                <Badge
+                    size="sm"
+                    variant="default"
+                    className={classes.mainLinkBadge}
+                >
+                    {readEntriesCount}
                 </Badge>
             )}
         </UnstyledButton>

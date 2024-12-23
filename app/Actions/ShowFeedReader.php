@@ -81,7 +81,7 @@ class ShowFeedReader
                 ],
             ]);
 
-        $getCurrentEntry = function () use ($entry_id): Entry|null {
+        $getCurrentEntryFn = function () use ($entry_id): Entry|null {
             if (! $entry_id) {
                 return null;
             }
@@ -102,11 +102,41 @@ class ShowFeedReader
             return $requestedEntry;
         };
 
+        $unreadEntriesCountFn = function () {
+            return Entry::query()
+                ->join('feed_subscriptions', function ($join) {
+                    $join->on('entries.feed_id', '=', 'feed_subscriptions.feed_id')
+                        ->where('feed_subscriptions.user_id', '=', Auth::id());
+                })
+                ->leftJoin('entry_interactions', function ($join) {
+                    $join->on('entries.id', '=', 'entry_interactions.entry_id')
+                        ->where('entry_interactions.user_id', '=', Auth::id());
+                })
+                ->whereNull('entry_interactions.read_at')
+                ->count();
+        };
+
+        $readEntriesCountFn = function () {
+            return Entry::query()
+                ->join('feed_subscriptions', function ($join) {
+                    $join->on('entries.feed_id', '=', 'feed_subscriptions.feed_id')
+                        ->where('feed_subscriptions.user_id', '=', Auth::id());
+                })
+                ->leftJoin('entry_interactions', function ($join) {
+                    $join->on('entries.id', '=', 'entry_interactions.entry_id')
+                        ->where('entry_interactions.user_id', '=', Auth::id());
+                })
+                ->whereNotNull('entry_interactions.read_at')
+                ->count();
+        };
+
         // TODO https://laravel.com/docs/9.x/eloquent-resources
         return Inertia::render('Reader', [
             'feeds' => $feeds,
             'entries' => $entries,
-            'currententry' => $getCurrentEntry(),
+            'currententry' => $getCurrentEntryFn,
+            'unreadEntriesCount' => $unreadEntriesCountFn,
+            'readEntriesCount' => $readEntriesCountFn,
         ]);
     }
 }
