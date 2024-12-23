@@ -26,10 +26,12 @@ import {
     Tooltip,
     TypographyStylesProvider,
     UnstyledButton,
+    rem,
 } from '@mantine/core';
 import { useDisclosure, useHotkeys } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
+import { Spotlight, SpotlightActionData } from '@mantine/spotlight';
 import {
     IconBook,
     IconCheckbox,
@@ -461,6 +463,24 @@ const Feeds = ({
 
     const [opened, { toggle }] = useDisclosure();
 
+    const actions: SpotlightActionData[] = feeds.map((feed) => ({
+        id: `feed-${feed.id}`,
+        label: feed.name,
+        description: feed.site_url,
+        onClick: () => {
+            router.visit('feeds', {
+                only: ['feed', 'entries'],
+                data: {
+                    feed: feed.id,
+                    entry: currententry?.id,
+                },
+                preserveScroll: true,
+                preserveState: true,
+            });
+        },
+        leftSection: <Image src={feed.favicon_url} w={20} h={20} mr={9} />,
+    }));
+
     return (
         <AppShell
             header={{ height: 60 }}
@@ -471,6 +491,22 @@ const Feeds = ({
             }}
             padding="md"
         >
+            <Spotlight
+                shortcut="mod + K"
+                actions={actions}
+                nothingFound="Nothing found..."
+                highlightQuery
+                searchProps={{
+                    leftSection: (
+                        <IconSearch
+                            style={{ width: rem(20), height: rem(20) }}
+                            stroke={1.5}
+                        />
+                    ),
+                    placeholder: 'Search...',
+                }}
+            />
+
             <AppShell.Header>
                 <Group h="100%" px="md">
                     <Burger
@@ -485,9 +521,7 @@ const Feeds = ({
                     </Title>
                 </Group>
             </AppShell.Header>
-
             <NavBar user={user} mainLinks={mainLinks} feedLinks={feedLinks} />
-
             <Main entries={entries} currententry={currententry} />
         </AppShell>
     );
