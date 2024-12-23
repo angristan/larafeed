@@ -62,7 +62,7 @@
         ],
         "ide-helper": [
             "@php artisan ide-helper:generate",
-            "@php artisan ide-helper:models -W -r",
+            "@php artisan ide-helper:models -W -R",
             "@php artisan ide-helper:actions",
             "@pint"
         ],
