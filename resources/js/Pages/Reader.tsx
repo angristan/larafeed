@@ -17,6 +17,7 @@ import {
     Flex,
     Group,
     Image,
+    Indicator,
     Paper,
     ScrollArea,
     Text,
@@ -86,7 +87,7 @@ const EntryListPane = function EntryListPane({
         <div
             key={entry.id}
             className={classes.entry}
-            onClick={() =>
+            onClick={() => {
                 router.visit('feeds', {
                     only: ['currententry'],
                     data: {
@@ -95,34 +96,40 @@ const EntryListPane = function EntryListPane({
                     },
                     preserveScroll: true,
                     preserveState: true,
-                })
-            }
+                });
+                // Mark as read locally because we don't refetch the entries
+                entry.read_at = dayjs().toISOString();
+            }}
         >
             <Card
                 shadow="sm"
                 radius="sm"
                 withBorder
+                pt={10}
+                pb={10}
                 className={`${classes.entryCard} ${entry.id === currentEntryID ? classes.activeEntry : ''}`}
             >
-                <div>
-                    <div className={classes.entryTitle}>{entry.title}</div>
-                    <Flex justify="space-between" mt={5}>
-                        <Flex>
-                            <Image
-                                src={entry.feed.favicon_url}
-                                w={20}
-                                h={20}
-                                mr={9}
-                            />
+                <Indicator size={12} disabled={!!entry.read_at} withBorder>
+                    <div>
+                        <div className={classes.entryTitle}>{entry.title}</div>
+                        <Flex justify="space-between" mt={10}>
+                            <Flex>
+                                <Image
+                                    src={entry.feed.favicon_url}
+                                    w={20}
+                                    h={20}
+                                    mr={9}
+                                />
+                                <Text size="xs" c="dimmed">
+                                    <span>{entry.feed.name}</span>
+                                </Text>
+                            </Flex>
                             <Text size="xs" c="dimmed">
-                                <span>{entry.feed.name}</span>
+                                {dayjs.utc(entry.published_at).fromNow()}
                             </Text>
                         </Flex>
-                        <Text size="xs" c="dimmed">
-                            {dayjs.utc(entry.published_at).fromNow()}
-                        </Text>
-                    </Flex>
-                </div>
+                    </div>
+                </Indicator>
             </Card>
         </div>
     ));
@@ -349,9 +356,8 @@ interface Entry extends Timestamps {
     author: string | null;
     content: string | null;
     published_at: string;
-    status: string;
-    starred: boolean;
-    feed_id: number;
+    read_at: string | null;
+    starred_at: string | null;
     feed: {
         id: number;
         favicon_url: string;
