@@ -236,7 +236,6 @@ const AddFeedModal = function AddFeedModal() {
                 modals.closeAll();
             },
             onError: (errors) => {
-                setData('feed_url', '');
                 notifications.show({
                     title: 'Failed to add feed',
                     message: errors.feed_url,
