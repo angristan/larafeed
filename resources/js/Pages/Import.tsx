@@ -5,14 +5,26 @@ import ApplicationLogo from '@/Components/ApplicationLogo';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { User } from '@/types';
 import { useForm, usePage } from '@inertiajs/react';
-import { AppShell, Burger, Code, Group, TextInput, Title } from '@mantine/core';
+import {
+    AppShell,
+    Burger,
+    Button,
+    Code,
+    FileInput,
+    Group,
+    Progress,
+    Stack,
+    Text,
+    TextInput,
+    Title,
+} from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSearch } from '@tabler/icons-react';
+import { IconFile, IconSearch, IconUpload } from '@tabler/icons-react';
 import { FormEventHandler, ReactNode } from 'react';
 
 const Main = function Main() {
-    const { setData, post, progress } = useForm({
+    const { setData, post, progress, processing, errors } = useForm({
         opml_file: null as File | null,
     });
 
@@ -40,30 +52,49 @@ const Main = function Main() {
             }}
         >
             <form onSubmit={submit}>
-                <input
-                    type="file"
-                    onChange={(e) => {
-                        if (e.target.files) {
-                            if (e.target.files.length > 0) {
-                                setData('opml_file', e.target.files[0]);
+                <Stack gap="md">
+                    <FileInput
+                        clearable
+                        onChange={(file) => {
+                            if (file) {
+                                setData('opml_file', file);
                             }
-                        }
-                    }}
-                />
-                {progress && (
-                    <progress value={progress.percentage} max="100">
-                        {progress.percentage}%
-                    </progress>
-                )}
-                <button type="submit">Submit</button>
+                        }}
+                        leftSection={<IconFile />}
+                        accept=".opml"
+                        label="Upload OPML File"
+                        placeholder="Click to select file"
+                        error={errors.opml_file}
+                        size="md"
+                        radius="md"
+                    />
+
+                    {progress && (
+                        <div>
+                            <Text size="sm" mb={4}>
+                                Uploading: {progress.percentage}%
+                            </Text>
+                            <Progress
+                                value={progress.percentage || 0}
+                                size="md"
+                                radius="xl"
+                                animated
+                                striped
+                            />
+                        </div>
+                    )}
+
+                    <Button
+                        type="submit"
+                        loading={processing}
+                        leftSection={<IconUpload size={16} />}
+                        size="md"
+                        radius="md"
+                    >
+                        Upload File
+                    </Button>
+                </Stack>
             </form>
-            {/* <FileInput
-                clearable
-                leftSection={icon}
-                accept=".opml"
-                label="Upload files"
-                placeholder="Upload files"
-            /> */}
         </AppShell.Main>
     );
 };
