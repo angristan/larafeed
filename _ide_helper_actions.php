@@ -81,6 +81,20 @@ class ImportOPML
 class ShowFeedReader
 {
 }
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\Illuminate\Http\Request $request, string $entry_id)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\Illuminate\Http\Request $request, string $entry_id)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\Illuminate\Http\Request $request, string $entry_id)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \Illuminate\Http\Request $request, string $entry_id)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \Illuminate\Http\Request $request, string $entry_id)
+ * @method static dispatchSync(\Illuminate\Http\Request $request, string $entry_id)
+ * @method static dispatchNow(\Illuminate\Http\Request $request, string $entry_id)
+ * @method static dispatchAfterResponse(\Illuminate\Http\Request $request, string $entry_id)
+ * @method static \Illuminate\Http\JsonResponse run(\Illuminate\Http\Request $request, string $entry_id)
+ */
+class UpdateEntryInteractions
+{
+}
 namespace Lorisleiva\Actions\Concerns;
 
 /**
