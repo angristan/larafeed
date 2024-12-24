@@ -250,10 +250,13 @@ const CurrentEntryPane = function CurrentEntryPane({
             .finally(() => {
                 setFavoriteLoading(false);
                 router.visit('feeds', {
-                    only: ['currententry'],
+                    only: ['currententry', 'entries'],
                     data: {
-                        entry: currententry?.id,
-                        feed: currententry?.feed.id,
+                        entry: window.location.search.match(/entry=(\d+)/)?.[1],
+                        feed: window.location.search.match(/feed=(\d+)/)?.[1],
+                        filter: window.location.search.match(
+                            /filter=(\w+)/,
+                        )?.[1],
                     },
                     preserveScroll: true,
                     preserveState: true,
@@ -513,7 +516,21 @@ const Feeds = ({
     const user = usePage().props.auth.user;
 
     const mainLinks = links.map((link) => (
-        <UnstyledButton key={link.label} className={classes.mainLink}>
+        <UnstyledButton
+            key={link.label}
+            className={classes.mainLink}
+            onClick={() => {
+                router.visit('feeds', {
+                    only: ['entries'],
+                    data: {
+                        entry: currententry?.id,
+                        filter: link.label.toLowerCase(),
+                    },
+                    preserveScroll: true,
+                    preserveState: true,
+                });
+            }}
+        >
             <div className={classes.mainLinkInner}>
                 <link.icon
                     size={20}

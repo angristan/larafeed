@@ -18,6 +18,7 @@ class ShowFeedReader
     {
         $feed_id = $request->query('feed');
         $entry_id = $request->query('entry');
+        $filter = $request->query('filter');
 
         $feeds = Auth::user()
             ->feeds()
@@ -31,13 +32,16 @@ class ShowFeedReader
             ]);
 
         $entries = Entry::query()
+            // Apply optional filters
+            ->when($feed_id, fn ($query) => $query->where('entries.feed_id', $feed_id))
+            ->when($filter === 'unread', fn ($query) => $query->whereNull('entry_interactions.read_at'))
+            ->when($filter === 'read', fn ($query) => $query->whereNotNull('entry_interactions.read_at'))
+            ->when($filter === 'favorites', fn ($query) => $query->whereNotNull('entry_interactions.starred_at'))
             // Only show entries from feeds the user is subscribed to
             ->join('feed_subscriptions', function ($join) {
                 $join->on('entries.feed_id', '=', 'feed_subscriptions.feed_id')
                     ->where('feed_subscriptions.user_id', '=', Auth::id());
             })
-            // Optionally filter by feed id
-            ->when($feed_id, fn ($query) => $query->where('entries.feed_id', $feed_id))
             // Fetch the user interaction for each entry
             ->leftJoin('entry_interactions', function ($join) {
                 $join->on('entries.id', '=', 'entry_interactions.entry_id')
