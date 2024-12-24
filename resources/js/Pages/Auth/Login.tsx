@@ -1,115 +1,123 @@
-import Checkbox from '@/Components/Checkbox';
-import InputError from '@/Components/InputError';
-import InputLabel from '@/Components/InputLabel';
-import PrimaryButton from '@/Components/PrimaryButton';
-import TextInput from '@/Components/TextInput';
-import GuestLayout from '@/Layouts/GuestLayout';
-import { Head, Link, useForm } from '@inertiajs/react';
-import { FormEventHandler } from 'react';
+import classes from './Login.module.css';
 
-export default function Login({
-    status,
-    canResetPassword,
-}: {
+import { useForm } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
+import {
+    Alert,
+    Anchor,
+    Button,
+    Checkbox,
+    Container,
+    Group,
+    Paper,
+    PasswordInput,
+    Text,
+    TextInput,
+    Title,
+} from '@mantine/core';
+
+interface Props {
     status?: string;
     canResetPassword: boolean;
-}) {
+}
+
+export default function Login({ status, canResetPassword }: Props) {
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
         password: '',
         remember: false,
     });
 
-    const submit: FormEventHandler = (e) => {
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-
         post(route('login'), {
             onFinish: () => reset('password'),
         });
     };
 
     return (
-        <GuestLayout>
+        <Container size={420} my={40}>
             <Head title="Log in" />
 
+            <Title ta="center" className={classes.title}>
+                Welcome back!
+            </Title>
+            <Text c="dimmed" size="sm" ta="center" mt={5}>
+                Do not have an account yet?{' '}
+                <Anchor component="button" size="sm">
+                    Create account
+                </Anchor>
+            </Text>
+
             {status && (
-                <div className="mb-4 text-sm font-medium text-green-600">
+                <Alert color="green" mt="md">
                     {status}
-                </div>
+                </Alert>
             )}
 
-            <form onSubmit={submit}>
-                <div>
-                    <InputLabel htmlFor="email" value="Email" />
+            <Paper
+                withBorder
+                shadow="md"
+                p={30}
+                mt={30}
+                radius="md"
+                component="form"
+                onSubmit={handleSubmit}
+            >
+                <TextInput
+                    label="Email"
+                    placeholder="you@mantine.dev"
+                    required
+                    value={data.email}
+                    onChange={(e) => setData('email', e.target.value)}
+                    error={errors.email}
+                    autoComplete="username"
+                />
 
-                    <TextInput
-                        id="email"
-                        type="email"
-                        name="email"
-                        value={data.email}
-                        className="mt-1 block w-full"
-                        autoComplete="username"
-                        isFocused={true}
-                        onChange={(e) => setData('email', e.target.value)}
+                <PasswordInput
+                    label="Password"
+                    placeholder="Your password"
+                    required
+                    mt="md"
+                    value={data.password}
+                    onChange={(e) => setData('password', e.target.value)}
+                    error={errors.password}
+                    autoComplete="current-password"
+                />
+
+                <Group justify="space-between" mt="lg">
+                    <Checkbox
+                        label="Remember me"
+                        checked={data.remember}
+                        onChange={(e) => setData('remember', e.target.checked)}
                     />
+                    {canResetPassword && (
+                        <Anchor
+                            component="a"
+                            href={route('password.request')}
+                            size="sm"
+                        >
+                            Forgot password?
+                        </Anchor>
+                    )}
+                </Group>
 
-                    <InputError message={errors.email} className="mt-2" />
-                </div>
-
-                <div className="mt-4">
-                    <InputLabel htmlFor="password" value="Password" />
-
-                    <TextInput
-                        id="password"
-                        type="password"
-                        name="password"
-                        value={data.password}
-                        className="mt-1 block w-full"
-                        autoComplete="current-password"
-                        onChange={(e) => setData('password', e.target.value)}
-                    />
-
-                    <InputError message={errors.password} className="mt-2" />
-                </div>
-
-                <div className="mt-4 block">
-                    <label className="flex items-center">
-                        <Checkbox
-                            name="remember"
-                            checked={data.remember}
-                            onChange={(e) =>
-                                setData('remember', e.target.checked)
-                            }
-                        />
-                        <span className="ms-2 text-sm text-gray-600 dark:text-gray-400">
-                            Remember me
-                        </span>
-                    </label>
-                </div>
-
-                <div className="mt-4 flex items-center justify-between">
-                    <Link
+                <Group mt="xl" gap="sm">
+                    <Button fullWidth type="submit" loading={processing}>
+                        Sign in
+                    </Button>
+                    <Anchor
+                        component="a"
                         href={route('loginLinkLogin')}
-                        method="post"
-                        className="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:text-gray-400 dark:hover:text-gray-100 dark:focus:ring-offset-gray-800"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            post(route('loginLinkLogin'));
+                        }}
                     >
                         Quick Login
-                    </Link>
-
-                    {canResetPassword && (
-                        <Link
-                            href={route('password.request')}
-                            className="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:text-gray-400 dark:hover:text-gray-100 dark:focus:ring-offset-gray-800"
-                        >
-                            Forgot your password?
-                        </Link>
-                    )}
-
-                    <PrimaryButton className="ms-4" disabled={processing}>
-                        Log in
-                    </PrimaryButton>
-                </div>
-            </form>
-        </GuestLayout>
+                    </Anchor>
+                </Group>
+            </Paper>
+        </Container>
     );
 }

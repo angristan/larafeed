@@ -464,7 +464,9 @@ const NavBar = function Navbar({
                 <div className={classes.collections}>{feedLinks}</div>
             </AppShell.Section>
             <AppShell.Section>
-                <UserButton user={user} />
+                <div onClick={() => router.post(route('logout'))}>
+                    <UserButton user={user} />
+                </div>
             </AppShell.Section>
         </AppShell.Navbar>
     );
