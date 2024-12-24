@@ -449,7 +449,7 @@ const NavBar = function Navbar({
                     <Text size="xs" fw={500} c="dimmed">
                         Feeds
                     </Text>
-                    <Tooltip label="Create feed" withArrow position="right">
+                    <Tooltip label="Create feed" withArrow position="right" opened={feedLinks.length === 0}>
                         <ActionIcon
                             onClick={openModal}
                             variant="default"
