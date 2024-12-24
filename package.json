@@ -9,7 +9,6 @@
     "devDependencies": {
         "@gfazioli/mantine-split-pane": "^0.3.7",
         "@headlessui/react": "^2.0.0",
-        "@ianvs/prettier-plugin-sort-imports": "^4.4.0",
         "@inertiajs/react": "^2.0.0",
         "@mantine/charts": "^7.15.2",
         "@mantine/core": "^7.15.2",
@@ -20,6 +19,7 @@
         "@mantine/spotlight": "^7.15.2",
         "@rushstack/eslint-patch": "^1.8.0",
         "@tabler/icons-react": "^3.26.0",
+        "@trivago/prettier-plugin-sort-imports": "^5.2.0",
         "@types/node": "^18.13.0",
         "@types/react": "^18.0.28",
         "@types/react-dom": "^18.0.10",
