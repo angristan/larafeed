@@ -1,6 +1,6 @@
 import classes from './Login.module.css';
 
-import { useForm } from '@inertiajs/react';
+import { router, useForm } from '@inertiajs/react';
 import { Head } from '@inertiajs/react';
 import {
     Alert,
@@ -44,7 +44,10 @@ export default function Login({ status, canResetPassword }: Props) {
             </Title>
             <Text c="dimmed" size="sm" ta="center" mt={5}>
                 Do not have an account yet?{' '}
-                <Anchor component="button" size="sm">
+                <Anchor
+                    size="sm"
+                    onClick={() => router.visit(route('register'))}
+                >
                     Create account
                 </Anchor>
             </Text>

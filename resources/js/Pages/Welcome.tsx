@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { Container } from '@mantine/core';
+import { Container, Stack } from '@mantine/core';
 
 export default function Welcome() {
     return (
@@ -7,9 +7,10 @@ export default function Welcome() {
             <Head title="Welcome" />
             <Container>
                 <h1>Welcome to Larafeed</h1>
-                <p>
+                <Stack>
                     <Link href="/login">Login</Link>
-                </p>
+                    <Link href="/register">Create an account</Link>
+                </Stack>
             </Container>
         </>
     );
