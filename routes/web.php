@@ -4,6 +4,7 @@ use App\Actions\Feed\CreateNewFeed;
 use App\Actions\Feed\RefreshFeedEntries;
 use App\Actions\ImportOPML;
 use App\Actions\ShowFeedReader;
+use App\Actions\UpdateEntryInteractions;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -28,6 +29,7 @@ Route::middleware('auth')->group(function () {
     // Route::post('/feed/{feed}/refresh', RefreshFeedEntries::class)->name('feed.refresh')->whereNumber('feed');
     Route::post('/feed', CreateNewFeed::class)->name('feed.store');
 
+    Route::patch('/entry/{entry_id}', UpdateEntryInteractions::class)->name('entry.update');
     Route::get('/import', [ImportOPML::class, 'index'])->name('import.index');
     Route::post('/import', [ImportOPML::class, 'store'])->name('import.store');
 

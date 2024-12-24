@@ -74,12 +74,42 @@ class Entry extends Model
             ->withPivot(['read_at', 'starred_at', 'archived_at']);
     }
 
-    public function markAsRead(User $user)
+    private function updateOrCreateInteractionWithAttribute(User $user, string $column, mixed $value)
     {
         if ($this->users->contains($user)) {
-            $this->users()->updateExistingPivot($user, ['read_at' => now()]);
+            $this->users()->updateExistingPivot($user, [$column => $value]);
         } else {
-            $this->users()->attach($user, ['read_at' => now()]);
+            $this->users()->attach($user, [$column => $value]);
         }
+    }
+
+    public function markAsRead(User $user)
+    {
+        $this->updateOrCreateInteractionWithAttribute($user, 'read_at', now());
+    }
+
+    public function markAsUnread(User $user)
+    {
+        $this->updateOrCreateInteractionWithAttribute($user, 'read_at', null);
+    }
+
+    public function favorite(User $user)
+    {
+        $this->updateOrCreateInteractionWithAttribute($user, 'starred_at', now());
+    }
+
+    public function unfavorite(User $user)
+    {
+        $this->updateOrCreateInteractionWithAttribute($user, 'starred_at', null);
+    }
+
+    public function archive(User $user)
+    {
+        $this->updateOrCreateInteractionWithAttribute($user, 'archived_at', now());
+    }
+
+    public function unarchive(User $user)
+    {
+        $this->updateOrCreateInteractionWithAttribute($user, 'archived_at', null);
     }
 }

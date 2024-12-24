@@ -99,7 +99,21 @@ class ShowFeedReader
             // Mark as read
             $requestedEntry->markAsRead(Auth::user());
 
-            return $requestedEntry;
+            // Merge entry with feed data and user interactions
+            return Entry::query()
+                ->with('feed:id,name,favicon_url')
+                ->join('entry_interactions', function ($join) {
+                    $join->on('entries.id', '=', 'entry_interactions.entry_id')
+                        ->where('entry_interactions.user_id', '=', Auth::id());
+                })
+                ->where('entries.id', $entry_id)
+                ->select([
+                    'entries.*',
+                    'entry_interactions.read_at',
+                    'entry_interactions.starred_at',
+                    'entry_interactions.archived_at',
+                ])
+                ->first();
         };
 
         $unreadEntriesCountFn = function () {
