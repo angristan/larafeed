@@ -10,8 +10,6 @@
 }
 
 .mainLinks {
-    /* padding-left: calc(var(--mantine-spacing-md) - var(--mantine-spacing-xs));
-    padding-right: calc(var(--mantine-spacing-md) - var(--mantine-spacing-xs)); */
     padding-bottom: var(--mantine-spacing-md);
     padding: 8px var(--mantine-spacing-xs);
 }
@@ -27,11 +25,17 @@
 }
 
 .entryCard:hover {
-    background-color: var(--mantine-color-gray-1);
+    background-color: light-dark(
+        var(--mantine-color-gray-2),
+        var(--mantine-color-dark-8)
+    );
 }
 
 .activeEntry {
-    background-color: var(--mantine-color-gray-2);
+    background-color: light-dark(
+        var(--mantine-color-gray-1),
+        var(--mantine-color-dark-7)
+    );
 }
 
 .entryTitle {

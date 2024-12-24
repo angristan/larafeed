@@ -2,6 +2,7 @@ import classes from './Reader.module.css';
 
 import { UserButton } from '../Components/UserButton/UserButton';
 import ApplicationLogo from '@/Components/ApplicationLogo';
+import ColorSchemeSwitcher from '@/Components/ColorSchemeSwitcher';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { User } from '@/types';
 import { Split } from '@gfazioli/mantine-split-pane';
@@ -449,7 +450,12 @@ const NavBar = function Navbar({
                     <Text size="xs" fw={500} c="dimmed">
                         Feeds
                     </Text>
-                    <Tooltip label="Create feed" withArrow position="right" opened={feedLinks.length === 0}>
+                    <Tooltip
+                        label="Create feed"
+                        withArrow
+                        position="right"
+                        opened={feedLinks.length === 0}
+                    >
                         <ActionIcon
                             onClick={openModal}
                             variant="default"
@@ -649,17 +655,20 @@ const Feeds = ({
             />
 
             <AppShell.Header>
-                <Group h="100%" px="md">
-                    <Burger
-                        opened={opened}
-                        onClick={toggle}
-                        hiddenFrom="sm"
-                        size="sm"
-                    />
-                    <ApplicationLogo width={50} />
-                    <Title order={3} style={{ margin: 0 }}>
-                        Larafeed
-                    </Title>
+                <Group h="100%" px="md" justify="space-between">
+                    <Group h="100%" px="md" justify="space-between">
+                        <Burger
+                            opened={opened}
+                            onClick={toggle}
+                            hiddenFrom="sm"
+                            size="sm"
+                        />
+                        <ApplicationLogo width={50} />
+                        <Title order={3} style={{ margin: 0 }}>
+                            Larafeed
+                        </Title>
+                    </Group>
+                    <ColorSchemeSwitcher />
                 </Group>
             </AppShell.Header>
             <NavBar user={user} mainLinks={mainLinks} feedLinks={feedLinks} />
