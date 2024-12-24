@@ -16,7 +16,7 @@
         "@mantine/form": "^7.15.1",
         "@mantine/hooks": "^7.15.1",
         "@mantine/modals": "^7.15.2",
-        "@mantine/notifications": "^7.15.1",
+        "@mantine/notifications": "^7.15.2",
         "@mantine/spotlight": "^7.15.1",
         "@rushstack/eslint-patch": "^1.8.0",
         "@tabler/icons-react": "^3.26.0",
