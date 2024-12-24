@@ -106,16 +106,18 @@ export default function Login({ status, canResetPassword }: Props) {
                     <Button fullWidth type="submit" loading={processing}>
                         Sign in
                     </Button>
-                    <Anchor
-                        component="a"
-                        href={route('loginLinkLogin')}
-                        onClick={(e) => {
-                            e.preventDefault();
-                            post(route('loginLinkLogin'));
-                        }}
-                    >
-                        Quick Login
-                    </Anchor>
+                    {window.location.hostname === 'localhost' && (
+                        <Anchor
+                            component="a"
+                            href={route('loginLinkLogin')}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                post(route('loginLinkLogin'));
+                            }}
+                        >
+                            Quick Login
+                        </Anchor>
+                    )}
                 </Group>
             </Paper>
         </Container>
