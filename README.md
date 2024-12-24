@@ -13,6 +13,7 @@ Larafeed is a simple feed reader.
 - Full-text search through a reactive search bar
 - AI-generated summary of entries
 - Favicon display
+- Spotlight-like search
 
 ## Technical overview
 
