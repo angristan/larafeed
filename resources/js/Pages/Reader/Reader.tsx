@@ -2,7 +2,7 @@ import classes from './Reader.module.css';
 
 import CurrentEntryPane from './CurrentEntryPane';
 import EntryListPane from './EntryListPane';
-import NavBar from './Navbar';
+import Sidebar from './Sidebar';
 import ApplicationLogo from '@/Components/ApplicationLogo/ApplicationLogo';
 import ColorSchemeSwitcher from '@/Components/ColorSchemeSwitcher/ColorSchemeSwitcher';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
@@ -100,7 +100,7 @@ const Reader = ({
                     <ColorSchemeSwitcher />
                 </Group>
             </AppShell.Header>
-            <NavBar
+            <Sidebar
                 user={auth.user}
                 feeds={feeds}
                 unreadEntriesCount={unreadEntriesCount}

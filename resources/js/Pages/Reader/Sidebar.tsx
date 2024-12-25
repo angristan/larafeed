@@ -1,4 +1,4 @@
-import classes from './Navbar.module.css';
+import classes from './Sidebar.module.css';
 
 import { UserButton } from '@/Components/UserButton/UserButton';
 import { User } from '@/types';
@@ -40,7 +40,7 @@ const links = [
     { icon: IconStar, label: 'Favorites' },
 ];
 
-export default function Navbar({
+export default function Sidebar({
     user,
     feeds,
     unreadEntriesCount,
