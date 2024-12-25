@@ -5,7 +5,7 @@
 
 /**
  * A helper file for Laravel, to provide autocomplete information to your IDE
- * Generated for Laravel 11.35.1.
+ * Generated for Laravel 11.36.1.
  *
  * This file should not be included in your code, only analyzed by your IDE!
  *
@@ -5611,6 +5611,16 @@ namespace Illuminate\Support\Facades {
         {
                         /** @var \Illuminate\Database\DatabaseManager $instance */
                         return $instance->build($config);
+        }
+                    /**
+         * Calculate the dynamic connection name for an on-demand connection based on its configuration.
+         *
+         * @param array $config
+         * @return string 
+         * @static 
+         */        public static function calculateDynamicConnectionName($config)
+        {
+                        return \Illuminate\Database\DatabaseManager::calculateDynamicConnectionName($config);
         }
                     /**
          * Get a database connection instance from the given configuration.
@@ -15941,6 +15951,27 @@ namespace Illuminate\Support\Facades {
                         $instance->regenerateToken();
         }
                     /**
+         * Determine if the previous URI is available.
+         *
+         * @return bool 
+         * @static 
+         */        public static function hasPreviousUri()
+        {
+                        /** @var \Illuminate\Session\Store $instance */
+                        return $instance->hasPreviousUri();
+        }
+                    /**
+         * Get the previous URL from the session as a URI instance.
+         *
+         * @return \Illuminate\Support\Uri 
+         * @throws \RuntimeException
+         * @static 
+         */        public static function previousUri()
+        {
+                        /** @var \Illuminate\Session\Store $instance */
+                        return $instance->previousUri();
+        }
+                    /**
          * Get the previous URL from the session.
          *
          * @return string|null 
@@ -19309,6 +19340,200 @@ namespace EchoLabs\Prism\Facades {
         {
                         /** @var \EchoLabs\Prism\PrismServer $instance */
                         return $instance->prisms();
+        }
+            }
+    }
+
+namespace Laravel\Pennant {
+            /**
+     * 
+     *
+     * @method static void discover(string $namespace = 'App\\Features', string|null $path = null)
+     * @method static void define(string $feature, mixed $resolver = null)
+     * @method static bool isResolverValidForScope(callable|string $resolver, mixed $scope)
+     * @method static array defined()
+     * @method static array stored()
+     * @method static void activateForEveryone(string|array $feature, mixed $value = true)
+     * @method static void deactivateForEveryone(string|array $feature)
+     * @method static void purge(string|array|null $features = null)
+     * @method static string name(string $feature)
+     * @method static mixed instance(string $name)
+     * @method static \Laravel\Pennant\Contracts\Driver getDriver()
+     * @method static void macro(string $name, object|callable $macro)
+     * @method static void mixin(object $mixin, bool $replace = true)
+     * @method static bool hasMacro(string $name)
+     * @method static void flushMacros()
+     * @method static mixed macroCall(string $method, array $parameters)
+     * @method static \Laravel\Pennant\PendingScopedFeatureInteraction for(mixed $scope)
+     * @method static array load(string|array $features)
+     * @method static array loadMissing(string|array $features)
+     * @method static array loadAll()
+     * @method static mixed value(string $feature)
+     * @method static array values(array $features)
+     * @method static array all()
+     * @method static bool active(string $feature)
+     * @method static bool allAreActive(array $features)
+     * @method static bool someAreActive(array $features)
+     * @method static bool inactive(string $feature)
+     * @method static bool allAreInactive(array $features)
+     * @method static bool someAreInactive(array $features)
+     * @method static mixed when(string $feature, \Closure $whenActive, \Closure|null $whenInactive = null)
+     * @method static mixed unless(string $feature, \Closure $whenInactive, \Closure|null $whenActive = null)
+     * @method static void activate(string|array $feature, mixed $value = true)
+     * @method static void deactivate(string|array $feature)
+     * @method static void forget(string|array $features)
+     * @see \Laravel\Pennant\FeatureManager
+     */        class Feature {
+                    /**
+         * Get a Pennant store instance.
+         *
+         * @param string|null $store
+         * @return \Laravel\Pennant\Drivers\Decorator 
+         * @throws \InvalidArgumentException
+         * @static 
+         */        public static function store($store = null)
+        {
+                        /** @var \Laravel\Pennant\FeatureManager $instance */
+                        return $instance->store($store);
+        }
+                    /**
+         * Get a Pennant store instance by name.
+         *
+         * @param string|null $name
+         * @return \Laravel\Pennant\Drivers\Decorator 
+         * @throws \InvalidArgumentException
+         * @static 
+         */        public static function driver($name = null)
+        {
+                        /** @var \Laravel\Pennant\FeatureManager $instance */
+                        return $instance->driver($name);
+        }
+                    /**
+         * Create an instance of the array driver.
+         *
+         * @return \Laravel\Pennant\Drivers\ArrayDriver 
+         * @static 
+         */        public static function createArrayDriver()
+        {
+                        /** @var \Laravel\Pennant\FeatureManager $instance */
+                        return $instance->createArrayDriver();
+        }
+                    /**
+         * Create an instance of the database driver.
+         *
+         * @return \Laravel\Pennant\Drivers\DatabaseDriver 
+         * @static 
+         */        public static function createDatabaseDriver($config, $name)
+        {
+                        /** @var \Laravel\Pennant\FeatureManager $instance */
+                        return $instance->createDatabaseDriver($config, $name);
+        }
+                    /**
+         * Serialize the given scope for storage.
+         *
+         * @param mixed $scope
+         * @return string 
+         * @static 
+         */        public static function serializeScope($scope)
+        {
+                        /** @var \Laravel\Pennant\FeatureManager $instance */
+                        return $instance->serializeScope($scope);
+        }
+                    /**
+         * Specify that the Eloquent morph map should be used when serializing.
+         *
+         * @param bool $value
+         * @return \Laravel\Pennant\FeatureManager 
+         * @static 
+         */        public static function useMorphMap($value = true)
+        {
+                        /** @var \Laravel\Pennant\FeatureManager $instance */
+                        return $instance->useMorphMap($value);
+        }
+                    /**
+         * Flush the driver caches.
+         *
+         * @return void 
+         * @static 
+         */        public static function flushCache()
+        {
+                        /** @var \Laravel\Pennant\FeatureManager $instance */
+                        $instance->flushCache();
+        }
+                    /**
+         * Set the default scope resolver.
+         *
+         * @param (callable(string): mixed) $resolver
+         * @return void 
+         * @static 
+         */        public static function resolveScopeUsing($resolver)
+        {
+                        /** @var \Laravel\Pennant\FeatureManager $instance */
+                        $instance->resolveScopeUsing($resolver);
+        }
+                    /**
+         * Get the default store name.
+         *
+         * @return string 
+         * @static 
+         */        public static function getDefaultDriver()
+        {
+                        /** @var \Laravel\Pennant\FeatureManager $instance */
+                        return $instance->getDefaultDriver();
+        }
+                    /**
+         * Set the default store name.
+         *
+         * @param string $name
+         * @return void 
+         * @static 
+         */        public static function setDefaultDriver($name)
+        {
+                        /** @var \Laravel\Pennant\FeatureManager $instance */
+                        $instance->setDefaultDriver($name);
+        }
+                    /**
+         * Unset the given store instances.
+         *
+         * @param array|string|null $name
+         * @return \Laravel\Pennant\FeatureManager 
+         * @static 
+         */        public static function forgetDriver($name = null)
+        {
+                        /** @var \Laravel\Pennant\FeatureManager $instance */
+                        return $instance->forgetDriver($name);
+        }
+                    /**
+         * Forget all of the resolved store instances.
+         *
+         * @return \Laravel\Pennant\FeatureManager 
+         * @static 
+         */        public static function forgetDrivers()
+        {
+                        /** @var \Laravel\Pennant\FeatureManager $instance */
+                        return $instance->forgetDrivers();
+        }
+                    /**
+         * Register a custom driver creator Closure.
+         *
+         * @param string $driver
+         * @return \Laravel\Pennant\FeatureManager 
+         * @static 
+         */        public static function extend($driver, $callback)
+        {
+                        /** @var \Laravel\Pennant\FeatureManager $instance */
+                        return $instance->extend($driver, $callback);
+        }
+                    /**
+         * Set the container instance used by the manager.
+         *
+         * @param \Illuminate\Container\Container $container
+         * @return \Laravel\Pennant\FeatureManager 
+         * @static 
+         */        public static function setContainer($container)
+        {
+                        /** @var \Laravel\Pennant\FeatureManager $instance */
+                        return $instance->setContainer($container);
         }
             }
     }
@@ -23441,12 +23666,14 @@ namespace  {
             class Storage extends \Illuminate\Support\Facades\Storage {}
             class Str extends \Illuminate\Support\Str {}
             class URL extends \Illuminate\Support\Facades\URL {}
+            class Uri extends \Illuminate\Support\Uri {}
             class Validator extends \Illuminate\Support\Facades\Validator {}
             class View extends \Illuminate\Support\Facades\View {}
             class Vite extends \Illuminate\Support\Facades\Vite {}
             class Debugbar extends \Barryvdh\Debugbar\Facades\Debugbar {}
             class PrismServer extends \EchoLabs\Prism\Facades\PrismServer {}
             class Horizon extends \Laravel\Horizon\Horizon {}
+            class Feature extends \Laravel\Pennant\Feature {}
             class Action extends \Lorisleiva\Actions\Facades\Actions {}
             class Lody extends \Lorisleiva\Lody\Lody {}
             class Feeds extends \willvincent\Feeds\Facades\FeedsFacade {}

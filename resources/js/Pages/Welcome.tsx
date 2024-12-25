@@ -1,7 +1,11 @@
 import { Head, Link } from '@inertiajs/react';
 import { Container, Stack } from '@mantine/core';
 
-export default function Welcome() {
+interface Props {
+    canRegister: boolean;
+}
+
+export default function Welcome({ canRegister }: Props) {
     return (
         <>
             <Head title="Welcome" />
@@ -9,7 +13,11 @@ export default function Welcome() {
                 <h1>Welcome to Larafeed</h1>
                 <Stack>
                     <Link href="/login">Login</Link>
-                    <Link href="/register">Create an account</Link>
+                    {canRegister ? (
+                        <Link href="/register">Create an account</Link>
+                    ) : (
+                        <span>You can't register right now.</span>
+                    )}
                 </Stack>
             </Container>
         </>

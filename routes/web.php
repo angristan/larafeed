@@ -5,16 +5,20 @@ use App\Actions\Feed\RefreshFeedEntries;
 use App\Actions\ImportOPML;
 use App\Actions\ShowFeedReader;
 use App\Actions\UpdateEntryInteractions;
+use App\Features\Registration;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use Laravel\Pennant\Feature;
 
 Route::get('/', function () {
     if (auth()->check()) {
         return redirect()->route('feeds.index');
     }
 
-    return Inertia::render('Welcome');
+    return Inertia::render('Welcome', [
+        'canRegister' => Feature::active(Registration::class),
+    ]);
 });
 
 Route::middleware('auth')->group(function () {
