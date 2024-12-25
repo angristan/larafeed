@@ -6,8 +6,9 @@ import NavBar from './Navbar';
 import ApplicationLogo from '@/Components/ApplicationLogo/ApplicationLogo';
 import ColorSchemeSwitcher from '@/Components/ColorSchemeSwitcher/ColorSchemeSwitcher';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { PageProps } from '@/types';
 import { Split } from '@gfazioli/mantine-split-pane';
-import { router, usePage } from '@inertiajs/react';
+import { router } from '@inertiajs/react';
 import { AppShell, Burger, Group, Image, Title, rem } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { Spotlight, SpotlightActionData } from '@mantine/spotlight';
@@ -20,21 +21,22 @@ import { ReactNode } from 'react';
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
 
-const Reader = ({
-    feeds,
-    entries,
-    currententry,
-    unreadEntriesCount,
-    readEntriesCount,
-}: {
+interface ReaderProps extends PageProps {
     feeds: Feed[];
     entries: Entry[];
     currententry?: Entry;
     unreadEntriesCount: number;
     readEntriesCount: number;
-}) => {
-    const user = usePage().props.auth.user;
+}
 
+const Reader = ({
+    auth,
+    feeds,
+    entries,
+    currententry,
+    unreadEntriesCount,
+    readEntriesCount,
+}: ReaderProps) => {
     const [opened, { toggle }] = useDisclosure();
 
     const actions: SpotlightActionData[] = feeds.map((feed) => ({
@@ -99,7 +101,7 @@ const Reader = ({
                 </Group>
             </AppShell.Header>
             <NavBar
-                user={user}
+                user={auth.user}
                 feeds={feeds}
                 unreadEntriesCount={unreadEntriesCount}
                 readEntriesCount={readEntriesCount}
