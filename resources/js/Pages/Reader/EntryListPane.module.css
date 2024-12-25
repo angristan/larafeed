@@ -1,0 +1,27 @@
+.entry {
+    margin-top: 0.8rem;
+    margin-right: 1em;
+}
+
+.entryCard {
+    transition: background-color 0.3s;
+    cursor: pointer;
+}
+
+.entryCard:hover {
+    background-color: light-dark(
+        var(--mantine-color-gray-2),
+        var(--mantine-color-dark-8)
+    );
+}
+
+.activeEntry {
+    background-color: light-dark(
+        var(--mantine-color-gray-1),
+        var(--mantine-color-dark-7)
+    );
+}
+
+.entryTitle {
+    word-break: break-word;
+}

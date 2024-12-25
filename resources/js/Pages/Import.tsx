@@ -1,7 +1,7 @@
 import classes from './Import.module.css';
 
 import { UserButton } from '../Components/UserButton/UserButton';
-import ApplicationLogo from '@/Components/ApplicationLogo';
+import ApplicationLogo from '@/Components/ApplicationLogo/ApplicationLogo';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { User } from '@/types';
 import { useForm, usePage } from '@inertiajs/react';

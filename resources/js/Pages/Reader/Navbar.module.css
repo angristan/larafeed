@@ -14,40 +14,17 @@
     padding: 8px var(--mantine-spacing-xs);
 }
 
-.entry {
-    margin-top: 0.8rem;
-    margin-right: 1em;
+.collectionsHeader {
+    padding-left: calc(var(--mantine-spacing-md) + 2px);
+    padding-right: var(--mantine-spacing-md);
+    margin-bottom: 5px;
 }
 
-.entryCard {
-    transition: background-color 0.3s;
+.collections {
+    padding-left: calc(var(--mantine-spacing-md) - 6px);
+    padding-right: calc(var(--mantine-spacing-md) - 6px);
+    padding-bottom: var(--mantine-spacing-md);
     cursor: pointer;
-}
-
-.entryCard:hover {
-    background-color: light-dark(
-        var(--mantine-color-gray-2),
-        var(--mantine-color-dark-8)
-    );
-}
-
-.activeEntry {
-    background-color: light-dark(
-        var(--mantine-color-gray-1),
-        var(--mantine-color-dark-7)
-    );
-}
-
-.entryTitle {
-    word-break: break-word;
-}
-
-.entryContent {
-    img {
-        /* override the default image size from the website to prevent stretching
-        */
-        height: auto;
-    }
 }
 
 .mainLink {
@@ -87,19 +64,6 @@
     padding: 1;
     min-width: fit-content;
     pointer-events: none;
-}
-
-.collections {
-    padding-left: calc(var(--mantine-spacing-md) - 6px);
-    padding-right: calc(var(--mantine-spacing-md) - 6px);
-    padding-bottom: var(--mantine-spacing-md);
-    cursor: pointer;
-}
-
-.collectionsHeader {
-    padding-left: calc(var(--mantine-spacing-md) + 2px);
-    padding-right: var(--mantine-spacing-md);
-    margin-bottom: 5px;
 }
 
 .collectionLink {

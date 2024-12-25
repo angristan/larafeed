@@ -149,7 +149,7 @@ class ShowFeedReader
         };
 
         // TODO https://laravel.com/docs/9.x/eloquent-resources
-        return Inertia::render('Reader', [
+        return Inertia::render('Reader/Reader', [
             'feeds' => $feeds,
             'entries' => $entries,
             'currententry' => $getCurrentEntryFn,
