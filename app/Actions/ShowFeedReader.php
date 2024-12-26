@@ -85,7 +85,7 @@ class ShowFeedReader
                 ],
             ]);
 
-        $getCurrentEntryFn = function () use ($entry_id): Entry|null {
+        $getCurrentEntryFn = function () use ($request, $entry_id): Entry|null {
             if (! $entry_id) {
                 return null;
             }
@@ -100,8 +100,10 @@ class ShowFeedReader
                 return null;
             }
 
-            // Mark as read
-            $requestedEntry->markAsRead(Auth::user());
+            // Mark as read unless explicitly requested not to
+            if (! $request->query('skipSetRead')) {
+                $requestedEntry->markAsRead(Auth::user());
+            }
 
             // Merge entry with feed data and user interactions
             return Entry::query()

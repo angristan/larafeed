@@ -7,6 +7,7 @@ import {
     Card,
     Divider,
     Flex,
+    Group,
     Image,
     Paper,
     ScrollArea,
@@ -15,7 +16,12 @@ import {
     TypographyStylesProvider,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconStar, IconStarFilled } from '@tabler/icons-react';
+import {
+    IconCircle,
+    IconCircleFilled,
+    IconStar,
+    IconStarFilled,
+} from '@tabler/icons-react';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -122,6 +128,68 @@ export default function CurrentEntryPane({
             });
     };
 
+    const updateRead = () => {
+        axios
+            .patch(route('entry.update', currententry?.id), {
+                read: currententry?.read_at ? false : true,
+            })
+            .then((response) => {
+                const { data } = response as {
+                    data: {
+                        error?: string;
+                        message?: string;
+                    };
+                };
+                if (data.error) {
+                    notifications.show({
+                        title: 'Failed to mark entry as read',
+                        message: data.error,
+                        color: 'red',
+                        withBorder: true,
+                    });
+                    return;
+                }
+                if (currententry?.read_at) {
+                    notifications.show({
+                        title: 'Marked as unread',
+                        message: data.message,
+                        color: 'blue',
+                        withBorder: true,
+                    });
+                } else {
+                    notifications.show({
+                        title: 'Marked as read',
+                        message: data.message,
+                        color: 'blue',
+                        withBorder: true,
+                    });
+                }
+            })
+            .catch((error) => {
+                notifications.show({
+                    title: 'Failed to mark entry as read',
+                    message: error.message,
+                    color: 'red',
+                    withBorder: true,
+                });
+            })
+            .finally(() => {
+                router.visit('feeds', {
+                    only: ['currententry', 'entries'],
+                    data: {
+                        entry: window.location.search.match(/entry=(\d+)/)?.[1],
+                        feed: window.location.search.match(/feed=(\d+)/)?.[1],
+                        filter: window.location.search.match(
+                            /filter=(\w+)/,
+                        )?.[1],
+                        skipSetRead: true,
+                    },
+                    preserveScroll: true,
+                    preserveState: true,
+                });
+            });
+    };
+
     return (
         <Split.Pane grow style={{ height: '100%' }}>
             <Flex direction="column">
@@ -138,19 +206,34 @@ export default function CurrentEntryPane({
                         <Text size="sm" c="dimmed">
                             {currententry?.feed.name}
                         </Text>
-                        <ActionIcon
-                            variant="outline"
-                            color="gray"
-                            onClick={updateFavorite}
-                            loading={showLoading}
-                            loaderProps={{ type: 'dots' }}
-                        >
-                            {currententry?.starred_at ? (
-                                <IconStarFilled size={15} stroke={1.5} />
-                            ) : (
-                                <IconStar size={15} stroke={1.5} />
-                            )}
-                        </ActionIcon>
+                        <Group>
+                            <ActionIcon
+                                variant="outline"
+                                color="gray"
+                                onClick={updateFavorite}
+                                loading={showLoading}
+                                loaderProps={{ type: 'dots' }}
+                            >
+                                {currententry?.starred_at ? (
+                                    <IconStarFilled size={15} stroke={1.5} />
+                                ) : (
+                                    <IconStar size={15} stroke={1.5} />
+                                )}
+                            </ActionIcon>
+                            <ActionIcon
+                                variant="outline"
+                                color="gray"
+                                onClick={updateRead}
+                                // loading={showLoading}
+                                loaderProps={{ type: 'dots' }}
+                            >
+                                {currententry?.read_at ? (
+                                    <IconCircle size={15} stroke={1.5} />
+                                ) : (
+                                    <IconCircleFilled size={15} stroke={1.5} />
+                                )}
+                            </ActionIcon>
+                        </Group>
                     </Flex>
                 </Card>
                 <Divider mb={20} />
