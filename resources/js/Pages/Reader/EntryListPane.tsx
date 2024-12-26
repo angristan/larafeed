@@ -4,6 +4,7 @@ import { Split } from '@gfazioli/mantine-split-pane';
 import { router } from '@inertiajs/react';
 import { Card, Flex, Image, Indicator, ScrollArea, Text } from '@mantine/core';
 import { useHotkeys } from '@mantine/hooks';
+import { IconStarFilled } from '@tabler/icons-react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
@@ -82,7 +83,10 @@ export default function EntryListPane({
             >
                 <Indicator size={12} disabled={!!entry.read_at} withBorder>
                     <div>
-                        <div className={classes.entryTitle}>{entry.title}</div>
+                        <span className={classes.entryTitle}>
+                            {entry.title}{' '}
+                            {entry.starred_at && <IconStarFilled size={15} />}
+                        </span>
                         <Flex justify="space-between" mt={10}>
                             <Flex>
                                 <Image
