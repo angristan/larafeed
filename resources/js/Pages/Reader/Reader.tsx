@@ -127,11 +127,15 @@ const Main = function Main({
     return (
         <AppShell.Main className={classes.main}>
             <Split size="sm" radius="xs" spacing="md">
-                <EntryListPane
-                    entries={entries}
-                    currentEntryID={currententry?.id}
-                />
-                <CurrentEntryPane currententry={currententry} />
+                <Split.Pane initialWidth="40%" minWidth={300}>
+                    <EntryListPane
+                        entries={entries}
+                        currentEntryID={currententry?.id}
+                    />
+                </Split.Pane>
+                <Split.Pane grow>
+                    <CurrentEntryPane currententry={currententry} />
+                </Split.Pane>
             </Split>
         </AppShell.Main>
     );

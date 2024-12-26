@@ -1,6 +1,5 @@
 import classes from './EntryListPane.module.css';
 
-import { Split } from '@gfazioli/mantine-split-pane';
 import { router } from '@inertiajs/react';
 import { Card, Flex, Image, Indicator, ScrollArea, Text } from '@mantine/core';
 import { useHotkeys } from '@mantine/hooks';
@@ -110,15 +109,8 @@ export default function EntryListPane({
     ));
 
     return (
-        <Split.Pane
-            style={{ height: '100%' }}
-            initialWidth="50%"
-            minWidth={400}
-            maxWidth={600}
-        >
-            <ScrollArea style={{ height: '100%', width: '100%' }}>
-                {entryList}
-            </ScrollArea>
-        </Split.Pane>
+        <ScrollArea style={{ height: '100%', width: '100%' }}>
+            {entryList}
+        </ScrollArea>
     );
 }

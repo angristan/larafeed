@@ -1,6 +1,5 @@
 import classes from './CurrentEntryPane.module.css';
 
-import { Split } from '@gfazioli/mantine-split-pane';
 import { router } from '@inertiajs/react';
 import {
     ActionIcon,
@@ -191,84 +190,82 @@ export default function CurrentEntryPane({
     };
 
     return (
-        <Split.Pane grow style={{ height: '100%' }}>
-            <Flex direction="column">
-                <Card pb={10} pt={10} pl={10} pr={10}>
-                    <Flex direction="row" justify="space-between">
-                        <Image
-                            src={currententry?.feed.favicon_url}
-                            w={28}
-                            p={4}
-                            h={28}
-                            mr={9}
-                        />
+        <Flex direction="column">
+            <Card pb={10} pt={10} pl={10} pr={10}>
+                <Flex direction="row" justify="space-between">
+                    <Image
+                        src={currententry?.feed.favicon_url}
+                        w={28}
+                        p={4}
+                        h={28}
+                        mr={9}
+                    />
 
-                        <Text size="sm" c="dimmed">
-                            {currententry?.feed.name}
-                        </Text>
-                        <Group>
-                            <ActionIcon
-                                variant="outline"
-                                color="gray"
-                                onClick={updateFavorite}
-                                loading={showLoading}
-                                loaderProps={{ type: 'dots' }}
-                            >
-                                {currententry?.starred_at ? (
-                                    <IconStarFilled size={15} stroke={1.5} />
-                                ) : (
-                                    <IconStar size={15} stroke={1.5} />
-                                )}
-                            </ActionIcon>
-                            <ActionIcon
-                                variant="outline"
-                                color="gray"
-                                onClick={updateRead}
-                                // loading={showLoading}
-                                loaderProps={{ type: 'dots' }}
-                            >
-                                {currententry?.read_at ? (
-                                    <IconCircle size={15} stroke={1.5} />
-                                ) : (
-                                    <IconCircleFilled size={15} stroke={1.5} />
-                                )}
-                            </ActionIcon>
-                        </Group>
-                    </Flex>
-                </Card>
-                <Divider mb={20} />
-                <ScrollArea style={{ height: '100%' }} viewportRef={viewport}>
-                    {currententry ? (
-                        <div>
-                            <Paper shadow="xs" withBorder p={20}>
-                                <TypographyStylesProvider>
-                                    <Title className={classes.entryTitle}>
-                                        {currententry.title}
-                                    </Title>
-                                    <Flex justify={'space-between'}>
-                                        <Text size="sm" c="dimmed">
-                                            {currententry.author}
-                                        </Text>
-                                        <Text size="sm" c="dimmed">
-                                            {dayjs
-                                                .utc(currententry.published_at)
-                                                .fromNow()}
-                                        </Text>
-                                    </Flex>
-                                    <div
-                                        className={classes.entryContent}
-                                        dangerouslySetInnerHTML={{
-                                            __html: currententry.content || '',
-                                        }}
-                                    />
-                                </TypographyStylesProvider>
-                            </Paper>
-                        </div>
-                    ) : (
-                        <Text>Select an entry</Text>
-                    )}
-                </ScrollArea>
-            </Flex>
-        </Split.Pane>
+                    <Text size="sm" c="dimmed">
+                        {currententry?.feed.name}
+                    </Text>
+                    <Group>
+                        <ActionIcon
+                            variant="outline"
+                            color="gray"
+                            onClick={updateFavorite}
+                            loading={showLoading}
+                            loaderProps={{ type: 'dots' }}
+                        >
+                            {currententry?.starred_at ? (
+                                <IconStarFilled size={15} stroke={1.5} />
+                            ) : (
+                                <IconStar size={15} stroke={1.5} />
+                            )}
+                        </ActionIcon>
+                        <ActionIcon
+                            variant="outline"
+                            color="gray"
+                            onClick={updateRead}
+                            // loading={showLoading}
+                            loaderProps={{ type: 'dots' }}
+                        >
+                            {currententry?.read_at ? (
+                                <IconCircle size={15} stroke={1.5} />
+                            ) : (
+                                <IconCircleFilled size={15} stroke={1.5} />
+                            )}
+                        </ActionIcon>
+                    </Group>
+                </Flex>
+            </Card>
+            <Divider mb={20} />
+            <ScrollArea style={{ height: '100%' }} viewportRef={viewport}>
+                {currententry ? (
+                    <div>
+                        <Paper shadow="xs" withBorder p={20}>
+                            <TypographyStylesProvider>
+                                <Title className={classes.entryTitle}>
+                                    {currententry.title}
+                                </Title>
+                                <Flex justify={'space-between'}>
+                                    <Text size="sm" c="dimmed">
+                                        {currententry.author}
+                                    </Text>
+                                    <Text size="sm" c="dimmed">
+                                        {dayjs
+                                            .utc(currententry.published_at)
+                                            .fromNow()}
+                                    </Text>
+                                </Flex>
+                                <div
+                                    className={classes.entryContent}
+                                    dangerouslySetInnerHTML={{
+                                        __html: currententry.content || '',
+                                    }}
+                                />
+                            </TypographyStylesProvider>
+                        </Paper>
+                    </div>
+                ) : (
+                    <Text>Select an entry</Text>
+                )}
+            </ScrollArea>
+        </Flex>
     );
 }
