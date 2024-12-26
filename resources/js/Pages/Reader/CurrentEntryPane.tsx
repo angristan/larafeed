@@ -12,6 +12,7 @@ import {
     ScrollArea,
     Text,
     Title,
+    Tooltip,
     TypographyStylesProvider,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -205,32 +206,56 @@ export default function CurrentEntryPane({
                         {currententry?.feed.name}
                     </Text>
                     <Group>
-                        <ActionIcon
-                            variant="outline"
-                            color="gray"
-                            onClick={updateFavorite}
-                            loading={showLoading}
-                            loaderProps={{ type: 'dots' }}
+                        <Tooltip
+                            label={
+                                currententry?.starred_at
+                                    ? 'Remove from favorites'
+                                    : 'Add to favorites'
+                            }
+                            transitionProps={{
+                                transition: 'fade',
+                                duration: 300,
+                            }}
                         >
-                            {currententry?.starred_at ? (
-                                <IconStarFilled size={15} stroke={1.5} />
-                            ) : (
-                                <IconStar size={15} stroke={1.5} />
-                            )}
-                        </ActionIcon>
-                        <ActionIcon
-                            variant="outline"
-                            color="gray"
-                            onClick={updateRead}
-                            // loading={showLoading}
-                            loaderProps={{ type: 'dots' }}
+                            <ActionIcon
+                                variant="outline"
+                                color="gray"
+                                onClick={updateFavorite}
+                                loading={showLoading}
+                                loaderProps={{ type: 'dots' }}
+                            >
+                                {currententry?.starred_at ? (
+                                    <IconStarFilled size={15} stroke={1.5} />
+                                ) : (
+                                    <IconStar size={15} stroke={1.5} />
+                                )}
+                            </ActionIcon>
+                        </Tooltip>
+                        <Tooltip
+                            label={
+                                currententry?.read_at
+                                    ? 'Mark as unread'
+                                    : 'Mark as read'
+                            }
+                            transitionProps={{
+                                transition: 'fade',
+                                duration: 300,
+                            }}
                         >
-                            {currententry?.read_at ? (
-                                <IconCircle size={15} stroke={1.5} />
-                            ) : (
-                                <IconCircleFilled size={15} stroke={1.5} />
-                            )}
-                        </ActionIcon>
+                            <ActionIcon
+                                variant="outline"
+                                color="gray"
+                                onClick={updateRead}
+                                // loading={showLoading}
+                                loaderProps={{ type: 'dots' }}
+                            >
+                                {currententry?.read_at ? (
+                                    <IconCircle size={15} stroke={1.5} />
+                                ) : (
+                                    <IconCircleFilled size={15} stroke={1.5} />
+                                )}
+                            </ActionIcon>
+                        </Tooltip>
                     </Group>
                 </Flex>
             </Card>
