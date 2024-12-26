@@ -219,7 +219,7 @@ export default function Sidebar({
                                 />
                             }
                         >
-                            Import OPML
+                            OPML import/export
                         </Menu.Item>
 
                         <Menu.Divider />
