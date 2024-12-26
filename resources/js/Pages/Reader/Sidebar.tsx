@@ -1,6 +1,6 @@
 import classes from './Sidebar.module.css';
 
-import { UserButton } from '@/Components/UserButton/UserButton';
+import UserButton from '@/Components/UserButton/UserButton';
 import { User } from '@/types';
 import { router, useForm } from '@inertiajs/react';
 import {
@@ -11,19 +11,23 @@ import {
     Code,
     Group,
     Image,
+    Menu,
     ScrollArea,
     Text,
     TextInput,
     Tooltip,
     UnstyledButton,
+    rem,
 } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import {
     IconBook,
     IconCheckbox,
+    IconLogout,
     IconPlus,
     IconSearch,
+    IconSettings,
     IconStar,
 } from '@tabler/icons-react';
 import dayjs from 'dayjs';
@@ -190,9 +194,38 @@ export default function Sidebar({
                 <div className={classes.collections}>{feedLinks}</div>
             </AppShell.Section>
             <AppShell.Section>
-                <div onClick={() => router.post(route('logout'))}>
-                    <UserButton user={user} />
-                </div>
+                <Menu shadow="md" width={200} position="top-end">
+                    <Menu.Target>
+                        <UserButton user={user} />
+                    </Menu.Target>
+
+                    <Menu.Dropdown>
+                        {/* <Menu.Label>Application</Menu.Label> */}
+                        <Menu.Item
+                            leftSection={
+                                <IconSettings
+                                    style={{ width: rem(14), height: rem(14) }}
+                                />
+                            }
+                        >
+                            Settings
+                        </Menu.Item>
+
+                        <Menu.Divider />
+
+                        {/* <Menu.Label>Danger zone</Menu.Label> */}
+                        <Menu.Item
+                            onClick={() => router.post(route('logout'))}
+                            leftSection={
+                                <IconLogout
+                                    style={{ width: rem(14), height: rem(14) }}
+                                />
+                            }
+                        >
+                            Logout
+                        </Menu.Item>
+                    </Menu.Dropdown>
+                </Menu>
             </AppShell.Section>
         </AppShell.Navbar>
     );
