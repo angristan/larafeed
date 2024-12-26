@@ -15,7 +15,7 @@ class ImportOPML
 
     public function index(): \Inertia\Response
     {
-        return Inertia::render('Import');
+        return Inertia::render('OPMLImportExport');
     }
 
     public function store(Request $request): \Illuminate\Http\RedirectResponse

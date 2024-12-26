@@ -14,7 +14,7 @@ Larafeed is a simple feed reader.
 - AI-generated summary of entries
 - Favicon display
 - Spotlight-like search
-- OPML import
+- OPML import/export
 
 ## Technical overview
 

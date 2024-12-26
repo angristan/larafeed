@@ -10,11 +10,10 @@ import {
     Burger,
     Button,
     Code,
+    Divider,
     FileInput,
     Group,
-    Progress,
     Stack,
-    Text,
     TextInput,
     Title,
 } from '@mantine/core';
@@ -24,7 +23,7 @@ import { IconFile, IconSearch, IconUpload } from '@tabler/icons-react';
 import { FormEventHandler, ReactNode } from 'react';
 
 const Main = function Main() {
-    const { setData, post, progress, processing, errors } = useForm({
+    const { data, setData, post, processing, errors } = useForm({
         opml_file: null as File | null,
     });
 
@@ -51,50 +50,45 @@ const Main = function Main() {
                 overflow: 'hidden',
             }}
         >
-            <form onSubmit={submit}>
-                <Stack gap="md">
-                    <FileInput
-                        clearable
-                        onChange={(file) => {
-                            if (file) {
-                                setData('opml_file', file);
-                            }
-                        }}
-                        leftSection={<IconFile />}
-                        accept=".opml"
-                        label="Upload OPML File"
-                        placeholder="Click to select file"
-                        error={errors.opml_file}
-                        size="md"
-                        radius="md"
-                    />
+            <Stack>
+                <form onSubmit={submit}>
+                    <Stack gap="md">
+                        <FileInput
+                            clearable
+                            onChange={(file) => {
+                                if (file) {
+                                    setData('opml_file', file);
+                                }
+                            }}
+                            leftSection={<IconFile />}
+                            accept=".opml"
+                            label="Upload OPML file containing subscriptions"
+                            placeholder="Click to select file"
+                            error={errors.opml_file}
+                            disabled={processing}
+                            size="md"
+                            radius="md"
+                        />
 
-                    {progress && (
-                        <div>
-                            <Text size="sm" mb={4}>
-                                Uploading: {progress.percentage}%
-                            </Text>
-                            <Progress
-                                value={progress.percentage || 0}
-                                size="md"
-                                radius="xl"
-                                animated
-                                striped
-                            />
-                        </div>
-                    )}
+                        <Button
+                            type="submit"
+                            loading={processing}
+                            leftSection={<IconUpload size={16} />}
+                            disabled={data.opml_file === null}
+                            size="md"
+                            radius="md"
+                        >
+                            Upload OPML
+                        </Button>
+                    </Stack>
+                </form>
 
-                    <Button
-                        type="submit"
-                        loading={processing}
-                        leftSection={<IconUpload size={16} />}
-                        size="md"
-                        radius="md"
-                    >
-                        Upload File
-                    </Button>
-                </Stack>
-            </form>
+                <Divider my="md" />
+
+                <a download href={route('export.download')}>
+                    <Button>Export all subscription as OPML</Button>
+                </a>
+            </Stack>
         </AppShell.Main>
     );
 };
@@ -123,7 +117,7 @@ const NavBar = function Navbar({ user }: { user: User }) {
     );
 };
 
-const Import = () => {
+const OPMLImportExport = () => {
     const user = usePage().props.auth.user;
 
     const [opened, { toggle }] = useDisclosure();
@@ -160,8 +154,10 @@ const Import = () => {
     );
 };
 
-Import.layout = (page: ReactNode) => (
-    <AuthenticatedLayout pageTitle="Import">{page}</AuthenticatedLayout>
+OPMLImportExport.layout = (page: ReactNode) => (
+    <AuthenticatedLayout pageTitle="OPML Import/Export">
+        {page}
+    </AuthenticatedLayout>
 );
 
-export default Import;
+export default OPMLImportExport;

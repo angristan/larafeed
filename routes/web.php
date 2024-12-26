@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\ExportOPML;
 use App\Actions\Feed\CreateNewFeed;
 use App\Actions\Feed\RefreshFeedEntries;
 use App\Actions\ImportOPML;
@@ -34,6 +35,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/entry/{entry_id}', UpdateEntryInteractions::class)->name('entry.update');
     Route::get('/import', [ImportOPML::class, 'index'])->name('import.index');
     Route::post('/import', [ImportOPML::class, 'store'])->name('import.store');
+    Route::get('/export', ExportOPML::class)->name('export.download');
 
 });
 
