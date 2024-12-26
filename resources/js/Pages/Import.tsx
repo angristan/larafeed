@@ -1,6 +1,6 @@
 import classes from './Import.module.css';
 
-import { UserButton } from '../Components/UserButton/UserButton';
+import UserButton from '../Components/UserButton/UserButton';
 import ApplicationLogo from '@/Components/ApplicationLogo/ApplicationLogo';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { User } from '@/types';

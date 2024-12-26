@@ -24,6 +24,7 @@ import { notifications } from '@mantine/notifications';
 import {
     IconBook,
     IconCheckbox,
+    IconFileImport,
     IconLogout,
     IconPlus,
     IconSearch,
@@ -209,6 +210,16 @@ export default function Sidebar({
                             }
                         >
                             Settings
+                        </Menu.Item>
+                        <Menu.Item
+                            onClick={() => router.visit(route('import.index'))}
+                            leftSection={
+                                <IconFileImport
+                                    style={{ width: rem(14), height: rem(14) }}
+                                />
+                            }
+                        >
+                            Import OPML
                         </Menu.Item>
 
                         <Menu.Divider />
