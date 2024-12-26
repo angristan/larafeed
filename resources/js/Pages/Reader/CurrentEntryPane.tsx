@@ -125,12 +125,13 @@ export default function CurrentEntryPane({
     return (
         <Split.Pane grow style={{ height: '100%' }}>
             <Flex direction="column">
-                <Card pb={20} pt={20} pl={20} pr={20}>
+                <Card pb={10} pt={10} pl={10} pr={10}>
                     <Flex direction="row" justify="space-between">
                         <Image
                             src={currententry?.feed.favicon_url}
-                            w={20}
-                            h={20}
+                            w={28}
+                            p={4}
+                            h={28}
                             mr={9}
                         />
 
