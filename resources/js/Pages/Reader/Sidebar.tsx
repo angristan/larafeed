@@ -19,6 +19,7 @@ import {
     UnstyledButton,
     rem,
 } from '@mantine/core';
+import { useHover } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import {
@@ -147,6 +148,8 @@ export default function Sidebar({
             children: <AddFeedModal />,
         });
 
+    const { hovered, ref } = useHover();
+
     return (
         <AppShell.Navbar>
             <AppShell.Section pr="md" pl="md" pt="md">
@@ -179,12 +182,13 @@ export default function Sidebar({
                         label="Create feed"
                         withArrow
                         position="right"
-                        opened={feedLinks.length === 0}
+                        opened={feedLinks.length === 0 || hovered}
                     >
                         <ActionIcon
                             onClick={openModal}
                             variant="default"
                             size={18}
+                            ref={ref}
                         >
                             <IconPlus size={12} stroke={1.5} />
                         </ActionIcon>
