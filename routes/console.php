@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Feed\RefreshFeeds;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -10,4 +11,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('telescope:prune')->daily();
 
-Schedule::command('feeds:refresh')->everyFiveMinutes();
+Schedule::command(RefreshFeeds::class)->hourly();

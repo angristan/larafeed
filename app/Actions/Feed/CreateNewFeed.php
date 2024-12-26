@@ -109,6 +109,7 @@ class CreateNewFeed
                 'title' => $entry->get_title(),
                 'url' => $entry->get_permalink(),
                 'content' => $entry->get_content(),
+                'author' => $entry->get_author()?->get_name(),
                 'published_at' => $entry->get_date('Y-m-d H:i:s'),
             ]);
         }

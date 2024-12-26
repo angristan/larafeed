@@ -4,6 +4,8 @@ namespace App\Actions\Feed;
 
 use App\Exceptions\FeedCrawlFailedException;
 use App\Models\Feed;
+use Feeds;
+use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
 use SimplePie\Item;
 
@@ -18,9 +20,7 @@ class RefreshFeedEntries
 
     public function handle(Feed $feed)
     {
-        $crawledFeed = \Feeds::make(feedUrl: [$feed->feed_url]);
-        $feed->last_crawled_at = now();
-        $feed->save();
+        $crawledFeed = Feeds::make(feedUrl: [$feed->feed_url]);
         if ($crawledFeed->error()) {
             $error = '';
             if (is_array($crawledFeed->error())) {
@@ -32,8 +32,26 @@ class RefreshFeedEntries
             // idk why it adds a colon at the end
             $error = rtrim($error, ': ');
 
+            $feed->update([
+                'last_failed_refresh_at' => now(),
+                'last_error_message' => $error,
+            ]);
+
+            Log::withContext([
+                'feed_id' => $feed->id,
+                'feed_name' => $feed->name,
+                'feed_url' => $feed->feed_url,
+                'feed_site_url' => $feed->site_url,
+                'error' => $error,
+            ])->error('Failed to refresh feed');
+
             throw new FeedCrawlFailedException("Failed to refresh feed: {$error}");
         }
+
+        $feed->update([
+            'last_successful_refresh_at' => now(),
+            'last_error_message' => null,
+        ]);
 
         collect($crawledFeed->get_items())->each(function (Item $item) use ($feed) {
             if ($feed->entries()->where('url', $item->get_permalink())->exists()) {
@@ -47,10 +65,16 @@ class RefreshFeedEntries
                 'author' => $item->get_author()?->get_name(),
                 'content' => $item->get_content(),
                 'published_at' => $item->get_date('Y-m-d H:i:s'),
-                'status' => \App\Enums\EntryStatus::Unread,
-                'starred' => false,
             ]);
         });
+
+        Log::withContext([
+            'feed_id' => $feed->id,
+            'feed_name' => $feed->name,
+            'feed_url' => $feed->feed_url,
+            'feed_site_url' => $feed->site_url,
+            'feed_entries_count' => $feed->entries()->count(),
+        ])->info('Feed refreshed');
     }
 
     public function asController(Feed $feed)
