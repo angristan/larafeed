@@ -238,8 +238,8 @@ export default function CurrentEntryPane({
             <ScrollArea style={{ height: '100%' }} viewportRef={viewport}>
                 {currententry ? (
                     <div>
-                        <Paper shadow="xs" withBorder p={20}>
-                            <TypographyStylesProvider>
+                        <Paper shadow="xs" withBorder={false} pr={20} pl={20}>
+                            <TypographyStylesProvider className={classes.entry}>
                                 <Title className={classes.entryTitle}>
                                     {currententry.title}
                                 </Title>

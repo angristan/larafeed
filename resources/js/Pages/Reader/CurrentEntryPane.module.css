@@ -2,6 +2,10 @@
     word-break: break-word;
 }
 
+h1 {
+    margin: 0 !important;
+}
+
 .entryContent {
     img {
         /* override the default image size from the website to prevent stretching
