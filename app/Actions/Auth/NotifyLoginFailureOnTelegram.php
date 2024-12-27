@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Actions;
+namespace App\Actions\Auth;
 
 use App\Events\LoginFailed;
 use Lorisleiva\Actions\Concerns\AsAction;

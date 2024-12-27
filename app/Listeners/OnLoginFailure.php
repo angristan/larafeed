@@ -2,10 +2,10 @@
 
 namespace App\Listeners;
 
-use App\Actions\NotifyLoginFailureOnTelegram;
+use App\Actions\Auth\NotifyLoginFailureOnTelegram;
 use App\Events\LoginFailed;
 
-class OnLoginFailed
+class OnLoginFailure
 {
     public function handle(LoginFailed $event): void
     {
