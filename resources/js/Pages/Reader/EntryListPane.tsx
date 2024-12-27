@@ -34,7 +34,8 @@ export default function EntryListPane({
                 ],
                 data: {
                     entry: entries[newIndex].id,
-                    feed: getCurrentFeedIdFromURL(),
+                    feed: window.location.search.match(/feed=(\d+)/)?.[1],
+                    filter: window.location.search.match(/filter=(\w+)/)?.[1],
                 },
                 preserveScroll: true,
                 preserveState: true,
