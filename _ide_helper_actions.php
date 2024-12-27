@@ -1,5 +1,35 @@
 <?php
 
+namespace App\Actions\Auth;
+
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\App\Events\LoginFailed $event)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\App\Events\LoginFailed $event)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\App\Events\LoginFailed $event)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \App\Events\LoginFailed $event)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \App\Events\LoginFailed $event)
+ * @method static dispatchSync(\App\Events\LoginFailed $event)
+ * @method static dispatchNow(\App\Events\LoginFailed $event)
+ * @method static dispatchAfterResponse(\App\Events\LoginFailed $event)
+ * @method static mixed run(\App\Events\LoginFailed $event)
+ */
+class NotifyLoginFailureOnTelegram
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\App\Models\User $user)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\App\Models\User $user)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\App\Models\User $user)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \App\Models\User $user)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \App\Models\User $user)
+ * @method static dispatchSync(\App\Models\User $user)
+ * @method static dispatchNow(\App\Models\User $user)
+ * @method static dispatchAfterResponse(\App\Models\User $user)
+ * @method static mixed run(\App\Models\User $user)
+ */
+class NotifyUserRegistrationOnTelegram
+{
+}
 namespace App\Actions\Entry;
 
 /**
