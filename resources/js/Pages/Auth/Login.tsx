@@ -19,9 +19,14 @@ import {
 interface Props {
     status?: string;
     canResetPassword: boolean;
+    canRegister: boolean;
 }
 
-export default function Login({ status, canResetPassword }: Props) {
+export default function Login({
+    status,
+    canResetPassword,
+    canRegister,
+}: Props) {
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
         password: '',
@@ -42,15 +47,17 @@ export default function Login({ status, canResetPassword }: Props) {
             <Title ta="center" className={classes.title}>
                 Welcome back!
             </Title>
-            <Text c="dimmed" size="sm" ta="center" mt={5}>
-                Do not have an account yet?{' '}
-                <Anchor
-                    size="sm"
-                    onClick={() => router.visit(route('register'))}
-                >
-                    Create account
-                </Anchor>
-            </Text>
+            {canRegister && (
+                <Text c="dimmed" size="sm" ta="center" mt={5}>
+                    Do not have an account yet?{' '}
+                    <Anchor
+                        size="sm"
+                        onClick={() => router.visit(route('register'))}
+                    >
+                        Create account
+                    </Anchor>
+                </Text>
+            )}
 
             {status && (
                 <Alert color="green" mt="md">
