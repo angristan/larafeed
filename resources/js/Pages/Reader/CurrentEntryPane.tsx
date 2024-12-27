@@ -191,7 +191,7 @@ export default function CurrentEntryPane({
     };
 
     return (
-        <Flex direction="column">
+        <Flex direction="column" w="100%">
             <Card pb={10} pt={10} pl={10} pr={10}>
                 <Flex direction="row" justify="space-between">
                     <Image

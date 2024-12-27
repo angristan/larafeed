@@ -4,3 +4,7 @@
     width: 100vw;
     overflow: hidden;
 }
+
+:global(.mantine-Split-root) {
+    flex: 1;
+}
