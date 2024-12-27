@@ -3,12 +3,12 @@ import classes from './CurrentEntryPane.module.css';
 import { router } from '@inertiajs/react';
 import {
     ActionIcon,
+    Box,
     Card,
     Divider,
     Flex,
     Group,
     Image,
-    Paper,
     ScrollArea,
     Text,
     Title,
@@ -262,31 +262,29 @@ export default function CurrentEntryPane({
             <Divider mb={20} />
             <ScrollArea style={{ height: '100%' }} viewportRef={viewport}>
                 {currententry ? (
-                    <div>
-                        <Paper shadow="xs" withBorder={false} pr={20} pl={20}>
-                            <TypographyStylesProvider className={classes.entry}>
-                                <Title className={classes.entryTitle}>
-                                    {currententry.title}
-                                </Title>
-                                <Flex justify={'space-between'}>
-                                    <Text size="sm" c="dimmed">
-                                        {currententry.author}
-                                    </Text>
-                                    <Text size="sm" c="dimmed">
-                                        {dayjs
-                                            .utc(currententry.published_at)
-                                            .fromNow()}
-                                    </Text>
-                                </Flex>
-                                <div
-                                    className={classes.entryContent}
-                                    dangerouslySetInnerHTML={{
-                                        __html: currententry.content || '',
-                                    }}
-                                />
-                            </TypographyStylesProvider>
-                        </Paper>
-                    </div>
+                    <Box pr={20} pl={20}>
+                        <TypographyStylesProvider className={classes.entry}>
+                            <Title className={classes.entryTitle}>
+                                {currententry.title}
+                            </Title>
+                            <Flex justify={'space-between'}>
+                                <Text size="sm" c="dimmed">
+                                    {currententry.author}
+                                </Text>
+                                <Text size="sm" c="dimmed">
+                                    {dayjs
+                                        .utc(currententry.published_at)
+                                        .fromNow()}
+                                </Text>
+                            </Flex>
+                            <div
+                                className={classes.entryContent}
+                                dangerouslySetInnerHTML={{
+                                    __html: currententry.content || '',
+                                }}
+                            />
+                        </TypographyStylesProvider>
+                    </Box>
                 ) : (
                     <Text>Select an entry</Text>
                 )}

@@ -2,7 +2,7 @@
     word-break: break-word;
 }
 
-h1 {
+.entry h1 {
     margin: 0 !important;
 }
 
