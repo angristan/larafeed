@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f65699e7133a67892de0da4316778eb6",
+    "content-hash": "0e856785e2a527e83e6c6a1555186ebc",
     "packages": [
         {
             "name": "ashallendesign/favicon-fetcher",
@@ -10533,7 +10533,8 @@
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
-        "php": "^8.2"
+        "php": "^8.2",
+        "ext-redis": "*"
     },
     "platform-dev": {},
     "plugin-api-version": "2.6.0"
