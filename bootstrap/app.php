@@ -12,12 +12,15 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        $middleware->web(append: [
-            \App\Http\Middleware\HandleInertiaRequests::class,
-            \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
-        ]);
-
-        //
+        $middleware
+            ->web(append: [
+                \App\Http\Middleware\HandleInertiaRequests::class,
+                \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+            ])
+            ->trustProxies(at: [
+                '100.64.0.0/10', // For Railway
+            ]);
+        // ->trustHosts(at: ['xzy.com']);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
