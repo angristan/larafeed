@@ -4,23 +4,30 @@ import { router } from '@inertiajs/react';
 import {
     ActionIcon,
     Box,
+    Button,
     Card,
     Divider,
     Flex,
     Group,
     Image,
+    Menu,
+    Modal,
     ScrollArea,
     Text,
     Title,
     Tooltip,
     TypographyStylesProvider,
+    rem,
 } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
+    IconAdjustments,
     IconCircle,
     IconCircleFilled,
     IconStar,
     IconStarFilled,
+    IconTrash,
 } from '@tabler/icons-react';
 import axios from 'axios';
 import dayjs from 'dayjs';
@@ -190,6 +197,8 @@ export default function CurrentEntryPane({
             });
     };
 
+    const [opened, { open, close }] = useDisclosure(false);
+
     return (
         <Flex direction="column" w="100%">
             <Card pb={10} pt={10} pl={10} pr={10}>
@@ -256,6 +265,47 @@ export default function CurrentEntryPane({
                                 )}
                             </ActionIcon>
                         </Tooltip>
+                        <Menu shadow="md">
+                            <Menu.Target>
+                                <ActionIcon
+                                    color="gray"
+                                    variant="outline"
+                                    aria-label="Settings"
+                                >
+                                    <IconAdjustments
+                                        style={{ width: '70%', height: '70%' }}
+                                    />
+                                </ActionIcon>
+                            </Menu.Target>
+
+                            {currententry?.feed && (
+                                <DeleteFeedModal
+                                    feed={currententry.feed}
+                                    opened={opened}
+                                    onClose={close}
+                                />
+                            )}
+
+                            <Menu.Dropdown>
+                                <Menu.Label>Feed</Menu.Label>
+                                <Menu.Item
+                                    color="red"
+                                    leftSection={
+                                        <IconTrash
+                                            style={{
+                                                width: rem(14),
+                                                height: rem(14),
+                                            }}
+                                        />
+                                    }
+                                    onClick={() => {
+                                        open();
+                                    }}
+                                >
+                                    Unsubscribe from feed
+                                </Menu.Item>
+                            </Menu.Dropdown>
+                        </Menu>
                     </Group>
                 </Flex>
             </Card>
@@ -292,3 +342,44 @@ export default function CurrentEntryPane({
         </Flex>
     );
 }
+
+const DeleteFeedModal = ({
+    feed,
+    opened,
+    onClose,
+}: {
+    feed: { name: string; id: number };
+    opened: boolean;
+    onClose: () => void;
+}) => {
+    return (
+        <Modal title="Unsubscribe from feed" opened={opened} onClose={onClose}>
+            <Text size="sm">
+                Are you sure you want to delete the feed{' '}
+                <strong>{feed.name}</strong>?
+            </Text>
+            <Group justify="center" mt="xl">
+                <Button variant="outline" size="sm" onClick={onClose}>
+                    Cancel
+                </Button>
+                <Button
+                    onClick={() => {
+                        router.delete(route('feed.unsubscribe', feed.id));
+                        notifications.show({
+                            title: 'Unsubscribed',
+                            message: `You have successfully unsubscribed from ${feed.name}.`,
+                            color: 'blue',
+                            withBorder: true,
+                        });
+                        onClose();
+                    }}
+                    color="red"
+                    variant="outline"
+                    size="sm"
+                >
+                    Delete
+                </Button>
+            </Group>
+        </Modal>
+    );
+};
