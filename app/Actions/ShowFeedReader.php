@@ -23,6 +23,7 @@ class ShowFeedReader
         $feeds = Auth::user()
             ->feeds()
             ->withCount('entries')
+            ->orderBy('name')
             ->get()->map(fn (Feed $feed) => [
                 'id' => $feed->id,
                 'name' => $feed->subscription?->custom_feed_name ?? $feed->name,
