@@ -35,35 +35,14 @@ RUN apt-get update; \
     apt-get install -yqq --no-install-recommends --show-progress \
     apt-utils \
     curl \
-    wget \
-    vim \
     git \
-    ncdu \
-    procps \
     ca-certificates \
-    supervisor \
-    libsodium-dev \
-    libbrotli-dev \
     # Install PHP extensions (included with dunglas/frankenphp)
     && install-php-extensions \
-    bz2 \
-    pcntl \
-    mbstring \
-    bcmath \
-    sockets \
     pgsql \
     pdo_pgsql \
     opcache \
-    exif \
-    pdo_mysql \
-    zip \
-    intl \
-    gd \
     redis \
-    rdkafka \
-    memcached \
-    igbinary \
-    ldap \
     && apt-get -y autoremove \
     && apt-get clean \
     && docker-php-source delete \
@@ -125,7 +104,7 @@ RUN npm run build
 
 FROM common AS runner
 
-USER ${USER}
+USER root
 
 COPY --link --chown=${WWWUSER}:${WWWUSER} . .
 COPY --link --chown=${WWWUSER}:${WWWUSER} --from=build ${ROOT}/public public
