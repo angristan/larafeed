@@ -43,7 +43,7 @@ dayjs.extend(utc);
 export default function CurrentEntryPane({
     currententry,
 }: {
-    currententry?: Entry;
+    currententry: Entry;
 }) {
     const viewport = useRef<HTMLDivElement>(null);
     const scrollToTop = () =>
@@ -77,8 +77,8 @@ export default function CurrentEntryPane({
     const updateFavorite = () => {
         setFavoriteLoading(true);
         axios
-            .patch(route('entry.update', currententry?.id), {
-                starred: currententry?.starred_at ? false : true,
+            .patch(route('entry.update', currententry.id), {
+                starred: currententry.starred_at ? false : true,
             })
             .then((response) => {
                 const { data } = response as {
@@ -96,7 +96,7 @@ export default function CurrentEntryPane({
                     });
                     return;
                 }
-                if (currententry?.starred_at) {
+                if (currententry.starred_at) {
                     notifications.show({
                         title: 'Not that good...',
                         message: data.message,
@@ -139,8 +139,8 @@ export default function CurrentEntryPane({
 
     const updateRead = () => {
         axios
-            .patch(route('entry.update', currententry?.id), {
-                read: currententry?.read_at ? false : true,
+            .patch(route('entry.update', currententry.id), {
+                read: currententry.read_at ? false : true,
             })
             .then((response) => {
                 const { data } = response as {
@@ -158,7 +158,7 @@ export default function CurrentEntryPane({
                     });
                     return;
                 }
-                if (currententry?.read_at) {
+                if (currententry.read_at) {
                     notifications.show({
                         title: 'Marked as unread',
                         message: data.message,
@@ -205,7 +205,7 @@ export default function CurrentEntryPane({
         <Flex direction="column" w="100%">
             <Card pb={10} pt={10} pl={10} pr={10}>
                 <Flex direction="row" justify="space-between">
-                    {currententry?.feed.favicon_url ? (
+                    {currententry.feed.favicon_url ? (
                         <Image
                             src={currententry.feed.favicon_url}
                             w={20}
@@ -221,7 +221,7 @@ export default function CurrentEntryPane({
                     )}
 
                     <Text size="sm" c="dimmed">
-                        {currententry?.feed.name}
+                        {currententry.feed.name}
                     </Text>
                     <Group>
                         <Tooltip
@@ -235,7 +235,7 @@ export default function CurrentEntryPane({
                                 variant="outline"
                                 color="gray"
                                 onClick={() => {
-                                    window.open(currententry?.url, '_blank');
+                                    window.open(currententry.url, '_blank');
                                 }}
                             >
                                 <IconLink size={15} stroke={3} />
@@ -243,7 +243,7 @@ export default function CurrentEntryPane({
                         </Tooltip>
                         <Tooltip
                             label={
-                                currententry?.starred_at
+                                currententry.starred_at
                                     ? 'Remove from favorites'
                                     : 'Add to favorites'
                             }
@@ -259,7 +259,7 @@ export default function CurrentEntryPane({
                                 loading={showLoading}
                                 loaderProps={{ type: 'dots' }}
                             >
-                                {currententry?.starred_at ? (
+                                {currententry.starred_at ? (
                                     <IconStarFilled size={15} stroke={3} />
                                 ) : (
                                     <IconStar size={15} stroke={3} />
@@ -268,7 +268,7 @@ export default function CurrentEntryPane({
                         </Tooltip>
                         <Tooltip
                             label={
-                                currententry?.read_at
+                                currententry.read_at
                                     ? 'Mark as unread'
                                     : 'Mark as read'
                             }
@@ -284,7 +284,7 @@ export default function CurrentEntryPane({
                                 // loading={showLoading}
                                 loaderProps={{ type: 'dots' }}
                             >
-                                {currententry?.read_at ? (
+                                {currententry.read_at ? (
                                     <IconCircle size={15} stroke={3} />
                                 ) : (
                                     <IconCircleFilled size={15} stroke={3} />
@@ -304,7 +304,7 @@ export default function CurrentEntryPane({
                                 </ActionIcon>
                             </Menu.Target>
 
-                            {currententry?.feed && (
+                            {currententry.feed && (
                                 <DeleteFeedModal
                                     feed={currententry.feed}
                                     opened={opened}
@@ -337,33 +337,27 @@ export default function CurrentEntryPane({
             </Card>
             <Divider mb={20} />
             <ScrollArea style={{ height: '100%' }} viewportRef={viewport}>
-                {currententry ? (
-                    <Box pr={20} pl={20}>
-                        <TypographyStylesProvider className={classes.entry}>
-                            <Title className={classes.entryTitle}>
-                                {currententry.title}
-                            </Title>
-                            <Flex justify={'space-between'}>
-                                <Text size="sm" c="dimmed">
-                                    {currententry.author}
-                                </Text>
-                                <Text size="sm" c="dimmed">
-                                    {dayjs
-                                        .utc(currententry.published_at)
-                                        .fromNow()}
-                                </Text>
-                            </Flex>
-                            <div
-                                className={classes.entryContent}
-                                dangerouslySetInnerHTML={{
-                                    __html: currententry.content || '',
-                                }}
-                            />
-                        </TypographyStylesProvider>
-                    </Box>
-                ) : (
-                    <Text>Select an entry</Text>
-                )}
+                <Box pr={20} pl={20}>
+                    <TypographyStylesProvider className={classes.entry}>
+                        <Title className={classes.entryTitle}>
+                            {currententry.title}
+                        </Title>
+                        <Flex justify={'space-between'}>
+                            <Text size="sm" c="dimmed">
+                                {currententry.author}
+                            </Text>
+                            <Text size="sm" c="dimmed">
+                                {dayjs.utc(currententry.published_at).fromNow()}
+                            </Text>
+                        </Flex>
+                        <div
+                            className={classes.entryContent}
+                            dangerouslySetInnerHTML={{
+                                __html: currententry.content || '',
+                            }}
+                        />
+                    </TypographyStylesProvider>
+                </Box>
             </ScrollArea>
         </Flex>
     );

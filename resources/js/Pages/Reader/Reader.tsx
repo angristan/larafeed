@@ -134,7 +134,9 @@ const Main = function Main({
                     />
                 </Split.Pane>
                 <Split.Pane grow>
-                    <CurrentEntryPane currententry={currententry} />
+                    {currententry && (
+                        <CurrentEntryPane currententry={currententry} />
+                    )}
                 </Split.Pane>
             </Split>
         </AppShell.Main>
