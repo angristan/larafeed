@@ -3,6 +3,8 @@
 namespace App\Actions;
 
 use App\Actions\Feed\CreateNewFeed;
+use App\Models\EntryInteraction;
+use App\Models\FeedSubscription;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -25,8 +27,8 @@ class ImportOPML
         $xml = simplexml_load_file($file);
 
         // TODO: make this optional
-        Auth::user()->entriesInterracted()->delete();
-        Auth::user()->feeds()->delete();
+        EntryInteraction::where('user_id', Auth::user()->id)->delete();
+        FeedSubscription::where('user_id', Auth::user()->id)->delete();
 
         foreach ($xml->body->outline as $category) {
             foreach ($category->outline as $outline) {
