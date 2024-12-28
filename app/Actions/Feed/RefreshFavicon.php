@@ -21,9 +21,9 @@ class RefreshFavicon
             $feed->favicon_url = $favicon_url;
             $feed->save();
 
-            Log::info('Favicon refreshed for feed: '.$feed->id);
+            Log::info('Favicon refreshed for feed: '.$feed->site_url);
         } else {
-            Log::warn('Failed to refresh favicon for feed: '.$feed->id);
+            Log::warning('Failed to refresh favicon for feed: '.$feed->site_url);
         }
     }
 }
