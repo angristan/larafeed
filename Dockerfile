@@ -46,6 +46,7 @@ RUN apt-get update; \
     opcache \
     redis \
     pcntl \
+    zip \
     && apt-get -y autoremove \
     && apt-get clean \
     && docker-php-source delete \
