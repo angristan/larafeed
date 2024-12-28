@@ -26,6 +26,7 @@ import {
     IconCircle,
     IconCircleFilled,
     IconLink,
+    IconRss,
     IconStar,
     IconStarFilled,
     IconTrash,
@@ -204,13 +205,20 @@ export default function CurrentEntryPane({
         <Flex direction="column" w="100%">
             <Card pb={10} pt={10} pl={10} pr={10}>
                 <Flex direction="row" justify="space-between">
-                    <Image
-                        src={currententry?.feed.favicon_url}
-                        w={28}
-                        p={4}
-                        h={28}
-                        mr={9}
-                    />
+                    {currententry?.feed.favicon_url ? (
+                        <Image
+                            src={currententry.feed.favicon_url}
+                            w={20}
+                            h={20}
+                            mr={9}
+                        />
+                    ) : (
+                        <IconRss
+                            size={20}
+                            stroke={1.5}
+                            style={{ marginRight: 9 }}
+                        />
+                    )}
 
                     <Text size="sm" c="dimmed">
                         {currententry?.feed.name}

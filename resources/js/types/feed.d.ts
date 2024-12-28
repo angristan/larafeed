@@ -1,7 +1,7 @@
 interface Feed {
     id: number;
     name: string;
-    favicon_url: string;
+    favicon_url: string | null;
     site_url: string;
     entries_count: number;
     last_successful_refresh_at: string | null;

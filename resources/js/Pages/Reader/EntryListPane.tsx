@@ -3,7 +3,7 @@ import classes from './EntryListPane.module.css';
 import { router } from '@inertiajs/react';
 import { Card, Flex, Image, Indicator, ScrollArea, Text } from '@mantine/core';
 import { useHotkeys } from '@mantine/hooks';
-import { IconStarFilled } from '@tabler/icons-react';
+import { IconRss, IconStarFilled } from '@tabler/icons-react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
@@ -97,12 +97,20 @@ export default function EntryListPane({
                         </span>
                         <Flex justify="space-between" mt={10}>
                             <Flex>
-                                <Image
-                                    src={entry.feed.favicon_url}
-                                    w={20}
-                                    h={20}
-                                    mr={9}
-                                />
+                                {entry.feed.favicon_url ? (
+                                    <Image
+                                        src={entry.feed.favicon_url}
+                                        w={20}
+                                        h={20}
+                                        mr={9}
+                                    />
+                                ) : (
+                                    <IconRss
+                                        size={20}
+                                        stroke={1.5}
+                                        style={{ marginRight: 9 }}
+                                    />
+                                )}
                                 <Text size="xs" c="dimmed">
                                     <span>{entry.feed.name}</span>
                                 </Text>
