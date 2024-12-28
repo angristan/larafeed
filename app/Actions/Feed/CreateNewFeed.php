@@ -36,29 +36,10 @@ class CreateNewFeed
         return redirect()->route('feeds.index');
     }
 
-    public function handle(string $feed_url, ?User $attachedUser)
+    public function handle(string $requested_feed_url, ?User $attachedUser)
     {
-
-        if (Feed::where('feed_url', $feed_url)->exists()) {
-            if ($attachedUser) {
-                if ($attachedUser->feeds()->where('feed_url', $feed_url)->exists()) {
-                    return redirect()->route('feeds.index')->withErrors([
-                        'feed_url' => "You're already following this feed",
-                    ]);
-                } else {
-                    $attachedUser->feeds()->attach(Feed::where('feed_url', $feed_url)->first());
-
-                    return redirect()->route('feeds.index');
-                }
-            }
-
-            return redirect()->route('feeds.index')->withErrors([
-                'feed_url' => 'Feed already exists',
-            ]);
-        }
-
         // TODO fetch limit
-        $crawledFeed = \Feeds::make(feedUrl: $feed_url);
+        $crawledFeed = \Feeds::make(feedUrl: $requested_feed_url);
         if ($crawledFeed->error()) {
             $error = '';
             if (is_array($crawledFeed->error())) {
@@ -77,6 +58,26 @@ class CreateNewFeed
 
             return redirect()->route('feeds.index')->withErrors([
                 'feed_url' => $error,
+            ]);
+        }
+
+        $feed_url = $crawledFeed->feed_url;
+
+        if (Feed::where('feed_url', $feed_url)->exists()) {
+            if ($attachedUser) {
+                if ($attachedUser->feeds()->where('feed_url', $feed_url)->exists()) {
+                    return redirect()->route('feeds.index')->withErrors([
+                        'feed_url' => "You're already following this feed",
+                    ]);
+                } else {
+                    $attachedUser->feeds()->attach(Feed::where('feed_url', $feed_url)->first());
+
+                    return redirect()->route('feeds.index');
+                }
+            }
+
+            return redirect()->route('feeds.index')->withErrors([
+                'feed_url' => 'Feed already exists',
             ]);
         }
 
