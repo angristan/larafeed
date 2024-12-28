@@ -9,10 +9,24 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { PageProps } from '@/types';
 import { Split } from '@gfazioli/mantine-split-pane';
 import { router } from '@inertiajs/react';
-import { AppShell, Burger, Group, Image, Title, rem } from '@mantine/core';
+import {
+    AppShell,
+    Avatar,
+    Burger,
+    Group,
+    Image,
+    Menu,
+    Title,
+    rem,
+} from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { Spotlight, SpotlightActionData } from '@mantine/spotlight';
-import { IconSearch } from '@tabler/icons-react';
+import {
+    IconFileImport,
+    IconLogout,
+    IconSearch,
+    IconSettings,
+} from '@tabler/icons-react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
@@ -97,7 +111,69 @@ const Reader = ({
                             Larafeed
                         </Title>
                     </Group>
-                    <ColorSchemeSwitcher />
+                    <Group style={{ alignItems: 'center' }}>
+                        <ColorSchemeSwitcher />
+
+                        <Menu shadow="md" width={200} position="top-end">
+                            <Menu.Target>
+                                <Avatar
+                                    src={null}
+                                    radius="xl"
+                                    className={classes.user}
+                                >
+                                    {auth.user.name[0]}
+                                </Avatar>
+                            </Menu.Target>
+
+                            <Menu.Dropdown>
+                                <Menu.Label>{auth.user.email}</Menu.Label>
+                                <Menu.Item
+                                    leftSection={
+                                        <IconSettings
+                                            style={{
+                                                width: rem(14),
+                                                height: rem(14),
+                                            }}
+                                        />
+                                    }
+                                >
+                                    Settings
+                                </Menu.Item>
+                                <Menu.Item
+                                    onClick={() =>
+                                        router.visit(route('import.index'))
+                                    }
+                                    leftSection={
+                                        <IconFileImport
+                                            style={{
+                                                width: rem(14),
+                                                height: rem(14),
+                                            }}
+                                        />
+                                    }
+                                >
+                                    OPML import/export
+                                </Menu.Item>
+
+                                <Menu.Divider />
+
+                                {/* <Menu.Label>Danger zone</Menu.Label> */}
+                                <Menu.Item
+                                    onClick={() => router.post(route('logout'))}
+                                    leftSection={
+                                        <IconLogout
+                                            style={{
+                                                width: rem(14),
+                                                height: rem(14),
+                                            }}
+                                        />
+                                    }
+                                >
+                                    Logout
+                                </Menu.Item>
+                            </Menu.Dropdown>
+                        </Menu>
+                    </Group>
                 </Group>
             </AppShell.Header>
             <Sidebar

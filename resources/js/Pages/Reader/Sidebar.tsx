@@ -169,50 +169,6 @@ export default function Sidebar({
             <AppShell.Section grow component={ScrollArea}>
                 <div className={classes.collections}>{feedLinks}</div>
             </AppShell.Section>
-            <AppShell.Section>
-                <Menu shadow="md" width={200} position="top-end">
-                    <Menu.Target>
-                        <UserButton user={user} />
-                    </Menu.Target>
-
-                    <Menu.Dropdown>
-                        {/* <Menu.Label>Application</Menu.Label> */}
-                        <Menu.Item
-                            leftSection={
-                                <IconSettings
-                                    style={{ width: rem(14), height: rem(14) }}
-                                />
-                            }
-                        >
-                            Settings
-                        </Menu.Item>
-                        <Menu.Item
-                            onClick={() => router.visit(route('import.index'))}
-                            leftSection={
-                                <IconFileImport
-                                    style={{ width: rem(14), height: rem(14) }}
-                                />
-                            }
-                        >
-                            OPML import/export
-                        </Menu.Item>
-
-                        <Menu.Divider />
-
-                        {/* <Menu.Label>Danger zone</Menu.Label> */}
-                        <Menu.Item
-                            onClick={() => router.post(route('logout'))}
-                            leftSection={
-                                <IconLogout
-                                    style={{ width: rem(14), height: rem(14) }}
-                                />
-                            }
-                        >
-                            Logout
-                        </Menu.Item>
-                    </Menu.Dropdown>
-                </Menu>
-            </AppShell.Section>
         </AppShell.Navbar>
     );
 }
