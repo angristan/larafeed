@@ -11,6 +11,7 @@ import {
     Code,
     Group,
     Image,
+    Indicator,
     Menu,
     ScrollArea,
     Text,
@@ -119,26 +120,47 @@ export default function Sidebar({
             key={feed.id}
             className={classes.collectionLink}
         >
-            <div
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    width: '100%',
-                    justifyContent: 'space-between',
-                }}
+            <Tooltip
+                withArrow
+                position="right"
+                label={`${feed.last_failed_refresh_at ? 'Last refresh failed' : 'Last refresh successful'} ${dayjs(
+                    feed.last_failed_refresh_at
+                        ? feed.last_failed_refresh_at
+                        : feed.last_successful_refresh_at,
+                ).fromNow()}`}
             >
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <Image src={feed.favicon_url} w={20} h={20} mr={9} />
-                    <span>{feed.name}</span>
-                </div>
-                <Badge
-                    size="xs"
-                    variant="default"
-                    className={classes.mainLinkBadge}
+                <Indicator
+                    color="orange"
+                    withBorder
+                    disabled={!feed.last_failed_refresh_at}
                 >
-                    {feed.entries_count}
-                </Badge>
-            </div>
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            width: '100%',
+                            justifyContent: 'space-between',
+                        }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <Image
+                                src={feed.favicon_url}
+                                w={20}
+                                h={20}
+                                mr={9}
+                            />
+                            <span>{feed.name}</span>
+                        </div>
+                        <Badge
+                            size="xs"
+                            variant="default"
+                            className={classes.mainLinkBadge}
+                        >
+                            {feed.entries_count}
+                        </Badge>
+                    </div>
+                </Indicator>
+            </Tooltip>
         </a>
     ));
 

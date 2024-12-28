@@ -29,6 +29,8 @@ class ShowFeedReader
                 'site_url' => $feed->site_url,
                 'favicon_url' => $feed->favicon_url,
                 'entries_count' => $feed->entries_count,
+                'last_successful_refresh_at' => $feed->last_successful_refresh_at,
+                'last_failed_refresh_at' => $feed->last_failed_refresh_at,
             ]);
 
         $entries = Entry::query()

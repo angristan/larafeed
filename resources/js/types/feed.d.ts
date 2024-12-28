@@ -4,7 +4,8 @@ interface Feed {
     favicon_url: string;
     site_url: string;
     entries_count: number;
-    last_crawled_at: string;
+    last_successful_refresh_at: string | null;
+    last_failed_refresh_at: string | null;
 }
 
 interface Timestamps {
