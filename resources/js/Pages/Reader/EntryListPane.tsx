@@ -75,8 +75,9 @@ export default function EntryListPane({
         >
             <Indicator
                 size={12}
-                offset={10}
+                offset={15}
                 disabled={!!entry.read_at}
+                color="grey"
                 withBorder
             >
                 <Card
@@ -85,7 +86,9 @@ export default function EntryListPane({
                     withBorder
                     pt={10}
                     pb={10}
-                    className={`${classes.entryCard} ${entry.id === currentEntryID ? classes.activeEntry : ''}`}
+                    className={`${classes.entryCard}
+                        ${entry.id === currentEntryID ? classes.activeEntry : ''}
+                        ${entry.read_at ? classes.readEntry : ''}`}
                 >
                     <div>
                         <span className={classes.entryTitle}>

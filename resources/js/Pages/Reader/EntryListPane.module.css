@@ -22,6 +22,10 @@
     );
 }
 
+.readEntry {
+    color: var(--mantine-color-gray-6);
+}
+
 .entryTitle {
     word-break: break-word;
 }
