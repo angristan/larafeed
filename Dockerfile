@@ -88,7 +88,7 @@ COPY --link package.json ./
 RUN npm install --frozen-lockfile
 
 COPY --link . .
-COPY --link --from=base ${ROOT}/vendor vendor
+# COPY --link --from=base ${ROOT}/vendor vendor
 
 RUN npm run build
 
