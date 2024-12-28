@@ -25,6 +25,7 @@ import {
     IconAdjustments,
     IconCircle,
     IconCircleFilled,
+    IconLink,
     IconStar,
     IconStarFilled,
     IconTrash,
@@ -216,6 +217,23 @@ export default function CurrentEntryPane({
                     </Text>
                     <Group>
                         <Tooltip
+                            label={'Open in a new tab'}
+                            transitionProps={{
+                                transition: 'fade',
+                                duration: 300,
+                            }}
+                        >
+                            <ActionIcon
+                                variant="outline"
+                                color="gray"
+                                onClick={() => {
+                                    window.open(currententry?.url, '_blank');
+                                }}
+                            >
+                                <IconLink size={15} stroke={3} />
+                            </ActionIcon>
+                        </Tooltip>
+                        <Tooltip
                             label={
                                 currententry?.starred_at
                                     ? 'Remove from favorites'
@@ -234,9 +252,9 @@ export default function CurrentEntryPane({
                                 loaderProps={{ type: 'dots' }}
                             >
                                 {currententry?.starred_at ? (
-                                    <IconStarFilled size={15} stroke={1.5} />
+                                    <IconStarFilled size={15} stroke={3} />
                                 ) : (
-                                    <IconStar size={15} stroke={1.5} />
+                                    <IconStar size={15} stroke={3} />
                                 )}
                             </ActionIcon>
                         </Tooltip>
@@ -259,9 +277,9 @@ export default function CurrentEntryPane({
                                 loaderProps={{ type: 'dots' }}
                             >
                                 {currententry?.read_at ? (
-                                    <IconCircle size={15} stroke={1.5} />
+                                    <IconCircle size={15} stroke={3} />
                                 ) : (
-                                    <IconCircleFilled size={15} stroke={1.5} />
+                                    <IconCircleFilled size={15} stroke={3} />
                                 )}
                             </ActionIcon>
                         </Tooltip>
