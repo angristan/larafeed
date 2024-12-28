@@ -13,6 +13,7 @@ import {
     Image,
     Indicator,
     Menu,
+    Modal,
     ScrollArea,
     Text,
     TextInput,
@@ -20,24 +21,28 @@ import {
     UnstyledButton,
     rem,
 } from '@mantine/core';
-import { useHover } from '@mantine/hooks';
+import { useDisclosure, useHover } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import {
     IconBook,
     IconCheckbox,
+    IconDots,
     IconFileImport,
     IconLogout,
+    IconPencil,
     IconPlus,
+    IconRefresh,
     IconRss,
     IconSearch,
     IconSettings,
     IconStar,
+    IconTrash,
 } from '@tabler/icons-react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
-import { FormEventHandler } from 'react';
+import { FormEventHandler, useState } from 'react';
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
@@ -105,73 +110,7 @@ export default function Sidebar({
     ));
 
     const feedLinks = feeds.map((feed) => (
-        <a
-            onClick={(event) => {
-                event.preventDefault();
-                router.visit('feeds', {
-                    only: ['feed', 'entries'],
-                    data: {
-                        feed: feed.id,
-                        entry: window.location.search.match(/entry=(\d+)/)?.[1],
-                    },
-                    preserveScroll: true,
-                    preserveState: true,
-                });
-            }}
-            key={feed.id}
-            className={classes.collectionLink}
-        >
-            <Tooltip
-                withArrow
-                position="right"
-                label={`${feed.last_failed_refresh_at ? 'Last refresh failed' : 'Last refresh successful'} ${dayjs(
-                    feed.last_failed_refresh_at
-                        ? feed.last_failed_refresh_at
-                        : feed.last_successful_refresh_at,
-                ).fromNow()}`}
-            >
-                <Indicator
-                    color="orange"
-                    withBorder
-                    disabled={!feed.last_failed_refresh_at}
-                >
-                    <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            width: '100%',
-                            justifyContent: 'space-between',
-                        }}
-                    >
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                            {feed.favicon_url ? (
-                                <Image
-                                    src={feed.favicon_url}
-                                    w={20}
-                                    h={20}
-                                    mr={9}
-                                />
-                            ) : (
-                                <IconRss
-                                    size={20}
-                                    className={classes.mainLinkIcon}
-                                    stroke={1.5}
-                                    style={{ marginRight: 9 }}
-                                />
-                            )}
-                            <span>{feed.name}</span>
-                        </div>
-                        <Badge
-                            size="xs"
-                            variant="default"
-                            className={classes.mainLinkBadge}
-                        >
-                            {feed.entries_count}
-                        </Badge>
-                    </div>
-                </Indicator>
-            </Tooltip>
-        </a>
+        <FeedLink key={feed.id} feed={feed} />
     ));
 
     const openModal = () =>
@@ -323,5 +262,214 @@ const AddFeedModal = function AddFeedModal() {
                 Submit
             </Button>
         </form>
+    );
+};
+
+const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
+    const { hovered, ref } = useHover();
+    const [opened, setOpened] = useState(false);
+    const [modalopened, { open, close }] = useDisclosure(false);
+
+    return (
+        <>
+            <DeleteFeedModal feed={feed} opened={modalopened} onClose={close} />
+            <a
+                ref={ref}
+                onClick={(event) => {
+                    event.preventDefault();
+                    router.visit('feeds', {
+                        only: ['feed', 'entries'],
+                        data: {
+                            feed: feed.id,
+                            entry: window.location.search.match(
+                                /entry=(\d+)/,
+                            )?.[1],
+                        },
+                        preserveScroll: true,
+                        preserveState: true,
+                    });
+                }}
+                key={feed.id}
+                className={classes.collectionLink}
+            >
+                <Tooltip
+                    withArrow
+                    position="right"
+                    label={`${feed.last_failed_refresh_at ? 'Last refresh failed' : 'Last refresh successful'} ${dayjs(
+                        feed.last_failed_refresh_at
+                            ? feed.last_failed_refresh_at
+                            : feed.last_successful_refresh_at,
+                    ).fromNow()}`}
+                >
+                    <Indicator
+                        color="orange"
+                        withBorder
+                        disabled={!feed.last_failed_refresh_at}
+                    >
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                width: '100%',
+                                justifyContent: 'space-between',
+                            }}
+                        >
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                }}
+                            >
+                                {feed.favicon_url ? (
+                                    <Image
+                                        src={feed.favicon_url}
+                                        w={20}
+                                        h={20}
+                                        mr={9}
+                                    />
+                                ) : (
+                                    <IconRss
+                                        size={20}
+                                        className={classes.mainLinkIcon}
+                                        stroke={1.5}
+                                        style={{ marginRight: 9 }}
+                                    />
+                                )}
+                                <span>{feed.name}</span>
+                            </div>
+                            <Menu
+                                shadow="md"
+                                width={200}
+                                opened={opened}
+                                onChange={setOpened}
+                            >
+                                <Menu.Target>
+                                    {hovered || opened ? (
+                                        <div
+                                            onClick={() => {
+                                                router.visit('feeds', {
+                                                    only: ['feed', 'entries'],
+                                                    data: {
+                                                        feed: feed.id,
+                                                        entry: window.location.search.match(
+                                                            /entry=(\d+)/,
+                                                        )?.[1],
+                                                    },
+                                                    preserveScroll: true,
+                                                    preserveState: true,
+                                                });
+                                            }}
+                                        >
+                                            <IconDots
+                                                size={15}
+                                                stroke={1.5}
+                                                className={classes.feedLinkDots}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <Badge
+                                            size="xs"
+                                            variant="default"
+                                            className={classes.mainLinkBadge}
+                                        >
+                                            {feed.entries_count}
+                                        </Badge>
+                                    )}
+                                </Menu.Target>
+
+                                <Menu.Dropdown>
+                                    <Menu.Label>Feed settings</Menu.Label>
+                                    <Menu.Item
+                                        leftSection={
+                                            <IconPencil
+                                                style={{
+                                                    width: rem(14),
+                                                    height: rem(14),
+                                                }}
+                                            />
+                                        }
+                                    >
+                                        Edit name
+                                    </Menu.Item>
+
+                                    <Menu.Item
+                                        leftSection={
+                                            <IconRefresh
+                                                style={{
+                                                    width: rem(14),
+                                                    height: rem(14),
+                                                }}
+                                            />
+                                        }
+                                    >
+                                        Request refresh
+                                    </Menu.Item>
+
+                                    <Menu.Divider />
+
+                                    <Menu.Item
+                                        color="red"
+                                        leftSection={
+                                            <IconTrash
+                                                style={{
+                                                    width: rem(14),
+                                                    height: rem(14),
+                                                }}
+                                            />
+                                        }
+                                        onClick={() => {
+                                            open();
+                                        }}
+                                    >
+                                        Unsubscribe
+                                    </Menu.Item>
+                                </Menu.Dropdown>
+                            </Menu>
+                        </div>
+                    </Indicator>
+                </Tooltip>
+            </a>
+        </>
+    );
+};
+
+const DeleteFeedModal = ({
+    feed,
+    opened,
+    onClose,
+}: {
+    feed: { name: string; id: number };
+    opened: boolean;
+    onClose: () => void;
+}) => {
+    return (
+        <Modal title="Unsubscribe from feed" opened={opened} onClose={onClose}>
+            <Text size="sm">
+                Are you sure you want to delete the feed{' '}
+                <strong>{feed.name}</strong>?
+            </Text>
+            <Group justify="center" mt="xl">
+                <Button variant="outline" size="sm" onClick={onClose}>
+                    Cancel
+                </Button>
+                <Button
+                    onClick={() => {
+                        router.delete(route('feed.unsubscribe', feed.id));
+                        notifications.show({
+                            title: 'Unsubscribed',
+                            message: `You have successfully unsubscribed from ${feed.name}.`,
+                            color: 'blue',
+                            withBorder: true,
+                        });
+                        onClose();
+                    }}
+                    color="red"
+                    variant="outline"
+                    size="sm"
+                >
+                    Delete
+                </Button>
+            </Group>
+        </Modal>
     );
 };
