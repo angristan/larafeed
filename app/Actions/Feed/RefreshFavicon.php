@@ -4,6 +4,7 @@ namespace App\Actions\Feed;
 
 use App\Models\Feed;
 use AshAllenDesign\FaviconFetcher\Facades\Favicon;
+use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 class RefreshFavicon
@@ -19,6 +20,10 @@ class RefreshFavicon
         if ($favicon_url) {
             $feed->favicon_url = $favicon_url;
             $feed->save();
+
+            Log::info('Favicon refreshed for feed: '.$feed->id);
+        } else {
+            Log::warn('Failed to refresh favicon for feed: '.$feed->id);
         }
     }
 }

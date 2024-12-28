@@ -4,6 +4,7 @@ namespace App\Actions\Feed;
 
 use App\Models\Feed;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 class RefreshMissingFavicons
@@ -15,7 +16,10 @@ class RefreshMissingFavicons
     public function handle(): void
     {
         Feed::whereNull('favicon_url')->each(
-            fn (Feed $feed) => RefreshFavicon::dispatch($feed)
+            function (Feed $feed) {
+                Log::info('Dispatching RefreshFavicon for feed: '.$feed->id);
+                RefreshFavicon::dispatch($feed);
+            }
         );
 
     }
