@@ -28,6 +28,8 @@ COPY . ./
 
 # Install dependencies using Composer
 RUN composer install --no-dev --optimize-autoloader
+# Build assets using NPM
+RUN npm run build
 
 RUN rm -rf ./git
 
