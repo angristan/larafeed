@@ -19,7 +19,8 @@ RUN install-php-extensions \
     zip \
     exif \
     sodium \
-    pcntl
+    pcntl \
+    redis
 
 WORKDIR /app
 
