@@ -73,15 +73,20 @@ export default function EntryListPane({
                 entry.read_at = dayjs().toISOString();
             }}
         >
-            <Card
-                shadow="sm"
-                radius="sm"
+            <Indicator
+                size={12}
+                offset={10}
+                disabled={!!entry.read_at}
                 withBorder
-                pt={10}
-                pb={10}
-                className={`${classes.entryCard} ${entry.id === currentEntryID ? classes.activeEntry : ''}`}
             >
-                <Indicator size={12} disabled={!!entry.read_at} withBorder>
+                <Card
+                    shadow="sm"
+                    radius="sm"
+                    withBorder
+                    pt={10}
+                    pb={10}
+                    className={`${classes.entryCard} ${entry.id === currentEntryID ? classes.activeEntry : ''}`}
+                >
                     <div>
                         <span className={classes.entryTitle}>
                             {entry.title}{' '}
@@ -104,8 +109,8 @@ export default function EntryListPane({
                             </Text>
                         </Flex>
                     </div>
-                </Indicator>
-            </Card>
+                </Card>
+            </Indicator>
         </div>
     ));
 
