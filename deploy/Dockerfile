@@ -47,6 +47,7 @@ RUN apt-get update; \
     redis \
     pcntl \
     zip \
+    excimer \
     && apt-get -y autoremove \
     && apt-get clean \
     && docker-php-source delete \
