@@ -24,7 +24,6 @@ Larafeed is a simple feed reader.
 - [Inertia.js](https://inertiajs.com/) that does the magic glue between Laravel and React
 - Feed parsing is powered by [SimplePie](https://github.com/simplepie/simplepie)
   - Through [willvincent/feeds](https://github.com/willvincent/feeds)
-- Full text search with Laravel Scout
 - Summary generation is powered by OpenAI through [echolabsdev/prism](https://github.com/echolabsdev/prism)
 - Background jobs are powered by the Laravel scheduler, Laravel queues and Laravel Horizon
 - Favicon fetching is powered by [ash-jc-allen/favicon-fetcher](https://github.com/ash-jc-allen/favicon-fetcher)

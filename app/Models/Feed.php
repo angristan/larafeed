@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Laravel\Scout\Searchable;
 
 /**
  * App\Models\Feed
@@ -45,23 +44,6 @@ use Laravel\Scout\Searchable;
 class Feed extends Model
 {
     use HasFactory;
-    use Searchable;
-
-    /**
-     * Get the indexable data array for the model.
-     * https://laravel.com/docs/9.x/scout#configuring-searchable-data
-     *
-     * @return array
-     */
-    public function toSearchableArray()
-    {
-        return $this->only([
-            'id',
-            'name',
-            'feed_url',
-            'site_url',
-        ]);
-    }
 
     protected $fillable = [
         'name',
