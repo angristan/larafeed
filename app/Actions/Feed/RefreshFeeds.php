@@ -28,7 +28,7 @@ class RefreshFeeds
      */
     public function asJob(): void
     {
-        Feed::all()->each(
+        Feed::inRandomOrder()->limit(5)->get()->each(
             fn (Feed $feed) => RefreshFeedEntries::dispatch($feed)
         );
     }
