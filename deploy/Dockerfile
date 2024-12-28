@@ -71,6 +71,8 @@ COPY --link --chown=${WWWUSER}:${WWWUSER} php.ini ${PHP_INI_DIR}/conf.d/99-octan
 COPY --link --chown=${WWWUSER}:${WWWUSER} composer.json composer.lock ./
 
 RUN composer install \
+    --classmap-authoritative \
+    --optimize-autoloader \
     --no-dev \
     --no-interaction \
     --no-autoloader \
@@ -94,7 +96,7 @@ RUN npm run build
 
 FROM base AS app
 
-USER root
+USER ${USER}
 
 COPY --link --chown=${WWWUSER}:${WWWUSER} . .
 COPY --link --chown=${WWWUSER}:${WWWUSER} --from=npm_build ${ROOT}/public public
@@ -103,10 +105,3 @@ RUN mkdir -p \
     storage/framework/{sessions,views,cache,testing} \
     storage/logs \
     bootstrap/cache && chmod -R a+rw storage
-
-RUN composer install \
-    --classmap-authoritative \
-    --no-interaction \
-    --no-ansi \
-    --no-dev \
-    && composer clear-cache
