@@ -86,7 +86,7 @@ class CreateNewFeed
 
         // TODO fix + cache/store + refresh
         try {
-            $favicon_url = Favicon::withFallback('favicon-kit')->fetch($site_url)?->getFaviconUrl();
+            $favicon_url = Favicon::withFallback('unavatar')->fetch($site_url)?->getFaviconUrl();
         } catch (\Exception $e) {
             Log::error('Failed to fetch favicon for '.$site_url.': '.$e->getMessage());
             $favicon_url = null;
