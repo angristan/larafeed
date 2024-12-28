@@ -32,10 +32,9 @@ class RefreshFeedEntries
             // idk why it adds a colon at the end
             $error = rtrim($error, ': ');
 
-            $feed->update([
-                'last_failed_refresh_at' => now(),
-                'last_error_message' => $error,
-            ]);
+            $feed->last_error_message = $error;
+            $feed->last_failed_refresh_at = now();
+            $feed->save();
 
             Log::withContext([
                 'feed_id' => $feed->id,
@@ -48,10 +47,9 @@ class RefreshFeedEntries
             throw new FeedCrawlFailedException("Failed to refresh feed: {$error}");
         }
 
-        $feed->update([
-            'last_successful_refresh_at' => now(),
-            'last_error_message' => null,
-        ]);
+        $feed->last_successful_refresh_at = now();
+        $feed->last_error_message = null;
+        $feed->save();
 
         collect($crawledFeed->get_items())->each(function (Item $item) use ($feed) {
             if ($feed->entries()->where('url', $item->get_permalink())->exists()) {
