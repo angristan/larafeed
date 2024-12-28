@@ -1,9 +1,11 @@
+# Adapted from https://github.com/exaco/laravel-octane-dockerfile
+
 ARG PHP_VERSION=8.3
 ARG FRANKENPHP_VERSION=1.3.6
 ARG COMPOSER_VERSION=2.8
 ARG NODE_VERSION=20
 
-FROM composer:${COMPOSER_VERSION} AS vendor
+FROM composer:${COMPOSER_VERSION} AS composer
 
 FROM dunglas/frankenphp:${FRANKENPHP_VERSION}-php${PHP_VERSION} AS base
 
@@ -43,6 +45,7 @@ RUN apt-get update; \
     pdo_pgsql \
     opcache \
     redis \
+    pcntl \
     && apt-get -y autoremove \
     && apt-get clean \
     && docker-php-source delete \
@@ -60,16 +63,9 @@ RUN cp ${PHP_INI_DIR}/php.ini-production ${PHP_INI_DIR}/php.ini
 
 USER ${USER}
 
-COPY --link --chown=${WWWUSER}:${WWWUSER} --from=vendor /usr/bin/composer /usr/bin/composer
+COPY --link --chown=${WWWUSER}:${WWWUSER} --from=composer /usr/bin/composer /usr/bin/composer
 
 COPY --link --chown=${WWWUSER}:${WWWUSER} php.ini ${PHP_INI_DIR}/conf.d/99-octane.ini
-
-
-###########################################
-
-FROM base AS common
-
-USER ${USER}
 
 COPY --link --chown=${WWWUSER}:${WWWUSER} composer.json composer.lock ./
 
@@ -81,11 +77,7 @@ RUN composer install \
     --no-scripts \
     --audit
 
-###########################################
-# Build frontend assets with Bun
-###########################################
-
-FROM node:${NODE_VERSION} AS build
+FROM node:${NODE_VERSION} AS npm_build
 
 ENV ROOT=/var/www/html
 
@@ -96,18 +88,16 @@ COPY --link package.json ./
 RUN npm install --frozen-lockfile
 
 COPY --link . .
-COPY --link --from=common ${ROOT}/vendor vendor
+COPY --link --from=base ${ROOT}/vendor vendor
 
 RUN npm run build
 
-###########################################
-
-FROM common AS runner
+FROM base AS app
 
 USER root
 
 COPY --link --chown=${WWWUSER}:${WWWUSER} . .
-COPY --link --chown=${WWWUSER}:${WWWUSER} --from=build ${ROOT}/public public
+COPY --link --chown=${WWWUSER}:${WWWUSER} --from=npm_build ${ROOT}/public public
 
 RUN mkdir -p \
     storage/framework/{sessions,views,cache,testing} \
