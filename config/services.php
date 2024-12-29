@@ -40,4 +40,9 @@ return [
         'chat_id' => env('TELEGRAM_CHAT_ID', 'YOUR CHAT ID HERE'),
     ],
 
+    'imgproxy' => [
+        'url' => env('IMGPROXY_URL'),
+        'salt' => env('IMGPROXY_SALT'),
+        'key' => env('IMGPROXY_KEY'),
+    ],
 ];

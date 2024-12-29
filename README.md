@@ -27,6 +27,7 @@ Larafeed is a simple feed reader.
 - Summary generation is powered by OpenAI through [echolabsdev/prism](https://github.com/echolabsdev/prism)
 - Background jobs are powered by the Laravel scheduler, Laravel queues and Laravel Horizon
 - Favicon fetching is powered by [ash-jc-allen/favicon-fetcher](https://github.com/ash-jc-allen/favicon-fetcher)
+  - They are proxified through [imgproxy](https://github.com/imgproxy/imgproxy)
 
 ## Screenshots
 

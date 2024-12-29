@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\BuildProfixedFaviconURL;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -64,5 +65,10 @@ class Feed extends Model
             ->using(FeedSubscription::class)
             ->withTimestamps()
             ->withPivot('custom_feed_name');
+    }
+
+    public function favicon_url()
+    {
+        return BuildProfixedFaviconURL::run($this->favicon_url);
     }
 }

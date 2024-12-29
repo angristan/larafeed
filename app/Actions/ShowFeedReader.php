@@ -28,7 +28,7 @@ class ShowFeedReader
                 'id' => $feed->id,
                 'name' => $feed->subscription?->custom_feed_name ?? $feed->name,
                 'site_url' => $feed->site_url,
-                'favicon_url' => $feed->favicon_url,
+                'favicon_url' => $feed->favicon_url(),
                 'entries_count' => $feed->entries_count,
                 'last_successful_refresh_at' => $feed->last_successful_refresh_at,
                 'last_failed_refresh_at' => $feed->last_failed_refresh_at,
@@ -84,7 +84,7 @@ class ShowFeedReader
                 'feed' => [
                     'id' => $entry->feed_id,
                     'name' => $entry->feed_name,
-                    'favicon_url' => $entry->feed_favicon_url,
+                    'favicon_url' => BuildProfixedFaviconURL::run($entry->feed_favicon_url),
                 ],
             ]);
 
