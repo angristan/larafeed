@@ -177,7 +177,6 @@ const Reader = ({
                 </Group>
             </AppShell.Header>
             <Sidebar
-                user={auth.user}
                 feeds={feeds}
                 unreadEntriesCount={unreadEntriesCount}
                 readEntriesCount={readEntriesCount}
