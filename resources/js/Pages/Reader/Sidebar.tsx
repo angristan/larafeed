@@ -1,7 +1,5 @@
 import classes from './Sidebar.module.css';
 
-import UserButton from '@/Components/UserButton/UserButton';
-import { User } from '@/types';
 import { router, useForm } from '@inertiajs/react';
 import {
     ActionIcon,
@@ -28,14 +26,11 @@ import {
     IconBook,
     IconCheckbox,
     IconDots,
-    IconFileImport,
-    IconLogout,
     IconPencil,
     IconPlus,
     IconRefresh,
     IconRss,
     IconSearch,
-    IconSettings,
     IconStar,
     IconTrash,
 } from '@tabler/icons-react';
@@ -54,12 +49,10 @@ const links = [
 ];
 
 export default function Sidebar({
-    user,
     feeds,
     unreadEntriesCount,
     readEntriesCount,
 }: {
-    user: User;
     feeds: Feed[];
     unreadEntriesCount: number;
     readEntriesCount: number;
@@ -229,33 +222,34 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
     return (
         <>
             <DeleteFeedModal feed={feed} opened={modalopened} onClose={close} />
-            <a
-                ref={ref}
-                onClick={(event) => {
-                    event.preventDefault();
-                    router.visit('feeds', {
-                        only: ['feed', 'entries'],
-                        data: {
-                            feed: feed.id,
-                            entry: window.location.search.match(
-                                /entry=(\d+)/,
-                            )?.[1],
-                        },
-                        preserveScroll: true,
-                        preserveState: true,
-                    });
-                }}
-                key={feed.id}
-                className={classes.collectionLink}
+            <Tooltip
+                withArrow
+                position="right"
+                openDelay={1000}
+                label={`${feed.last_failed_refresh_at ? 'Last refresh failed' : 'Last refresh successful'} ${dayjs(
+                    feed.last_failed_refresh_at
+                        ? feed.last_failed_refresh_at
+                        : feed.last_successful_refresh_at,
+                ).fromNow()}`}
             >
-                <Tooltip
-                    withArrow
-                    position="right"
-                    label={`${feed.last_failed_refresh_at ? 'Last refresh failed' : 'Last refresh successful'} ${dayjs(
-                        feed.last_failed_refresh_at
-                            ? feed.last_failed_refresh_at
-                            : feed.last_successful_refresh_at,
-                    ).fromNow()}`}
+                <a
+                    ref={ref}
+                    onClick={(event) => {
+                        event.preventDefault();
+                        router.visit('feeds', {
+                            only: ['feed', 'entries'],
+                            data: {
+                                feed: feed.id,
+                                entry: window.location.search.match(
+                                    /entry=(\d+)/,
+                                )?.[1],
+                            },
+                            preserveScroll: true,
+                            preserveState: true,
+                        });
+                    }}
+                    key={feed.id}
+                    className={classes.collectionLink}
                 >
                     <Indicator
                         color="orange"
@@ -301,7 +295,9 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                             >
                                 <Menu.Target>
                                     {hovered || opened ? (
-                                        <div
+                                        <ActionIcon
+                                            size="xs"
+                                            color="gray"
                                             onClick={() => {
                                                 router.visit('feeds', {
                                                     only: ['feed', 'entries'],
@@ -316,12 +312,8 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                                                 });
                                             }}
                                         >
-                                            <IconDots
-                                                size={15}
-                                                stroke={1.5}
-                                                className={classes.feedLinkDots}
-                                            />
-                                        </div>
+                                            <IconDots size={15} stroke={1.5} />
+                                        </ActionIcon>
                                     ) : (
                                         <Badge
                                             size="xs"
@@ -383,8 +375,8 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                             </Menu>
                         </div>
                     </Indicator>
-                </Tooltip>
-            </a>
+                </a>
+            </Tooltip>
         </>
     );
 };
