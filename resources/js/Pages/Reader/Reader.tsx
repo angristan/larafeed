@@ -86,6 +86,8 @@ const Reader = ({
                 actions={actions}
                 nothingFound="Nothing found..."
                 highlightQuery
+                scrollable
+                maxHeight="calc(100vh * 0.6)"
                 searchProps={{
                     leftSection: (
                         <IconSearch
