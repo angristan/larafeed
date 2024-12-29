@@ -10,6 +10,7 @@ import { PageProps } from '@/types';
 import { Split } from '@gfazioli/mantine-split-pane';
 import { router } from '@inertiajs/react';
 import {
+    ActionIcon,
     AppShell,
     Avatar,
     Burger,
@@ -22,7 +23,9 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { Spotlight, SpotlightActionData } from '@mantine/spotlight';
 import {
+    IconBrandGithub,
     IconFileImport,
+    IconGitBranch,
     IconLogout,
     IconSearch,
     IconSettings,
@@ -114,6 +117,20 @@ const Reader = ({
                         </Title>
                     </Group>
                     <Group style={{ alignItems: 'center' }}>
+                        <ActionIcon
+                            onClick={() =>
+                                window.open(
+                                    'https://github.com/angristan/larafeed',
+                                    '_blank',
+                                )
+                            }
+                            variant="default"
+                            size="lg"
+                            aria-label="Toggle color scheme"
+                            mt={1}
+                        >
+                            <IconBrandGithub stroke={1.5} size={20} />
+                        </ActionIcon>
                         <ColorSchemeSwitcher />
 
                         <Menu shadow="md" width={200} position="top-end">
