@@ -26,6 +26,7 @@ import {
     IconBook,
     IconCheckbox,
     IconDots,
+    IconExternalLink,
     IconPencil,
     IconPlus,
     IconRefresh,
@@ -364,7 +365,27 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                                 </Menu.Target>
 
                                 <Menu.Dropdown>
-                                    <Menu.Label>Feed settings</Menu.Label>
+                                    <Menu.Label>Manage feed</Menu.Label>
+                                    <Menu.Item
+                                        leftSection={
+                                            <IconExternalLink
+                                                style={{
+                                                    width: rem(14),
+                                                    height: rem(14),
+                                                }}
+                                            />
+                                        }
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            window.open(
+                                                feed.site_url,
+                                                '_blank',
+                                            );
+                                        }}
+                                    >
+                                        Open website
+                                    </Menu.Item>
+
                                     <Menu.Item
                                         leftSection={
                                             <IconPencil

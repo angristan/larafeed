@@ -25,7 +25,7 @@ import {
     IconAdjustments,
     IconCircle,
     IconCircleFilled,
-    IconLink,
+    IconExternalLink,
     IconRss,
     IconStar,
     IconStarFilled,
@@ -238,7 +238,7 @@ export default function CurrentEntryPane({
                                     window.open(currententry.url, '_blank');
                                 }}
                             >
-                                <IconLink size={15} stroke={3} />
+                                <IconExternalLink size={15} stroke={3} />
                             </ActionIcon>
                         </Tooltip>
                         <Tooltip
