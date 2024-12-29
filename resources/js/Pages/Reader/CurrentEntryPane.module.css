@@ -13,3 +13,10 @@
         height: auto;
     }
 }
+
+.entrySummary {
+    background-color: light-dark(
+        var(--mantine-color-gray-1),
+        var(--mantine-color-dark-9)
+    );
+}

@@ -3,14 +3,14 @@ import classes from './CurrentEntryPane.module.css';
 import { router } from '@inertiajs/react';
 import {
     ActionIcon,
+    Badge,
     Box,
-    Button,
     Card,
     Divider,
     Flex,
     Group,
     Image,
-    Modal,
+    Paper,
     ScrollArea,
     SegmentedControl,
     Skeleton,
@@ -18,6 +18,7 @@ import {
     Title,
     Tooltip,
     TypographyStylesProvider,
+    useMantineTheme,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -26,6 +27,7 @@ import {
     IconCircle,
     IconCircleFilled,
     IconExternalLink,
+    IconRobot,
     IconStar,
     IconStarFilled,
 } from '@tabler/icons-react';
@@ -37,7 +39,6 @@ import { useEffect, useRef, useState } from 'react';
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
-
 export default function CurrentEntryPane({
     currententry,
     summary,
@@ -45,6 +46,7 @@ export default function CurrentEntryPane({
     currententry: Entry;
     summary?: string;
 }) {
+    const theme = useMantineTheme();
     const viewport = useRef<HTMLDivElement>(null);
     const scrollToTop = () =>
         viewport.current!.scrollTo({ top: 0, behavior: 'instant' });
@@ -395,54 +397,84 @@ export default function CurrentEntryPane({
                                     __html: currententry.content || '',
                                 }}
                             />
-                        ) : summary ? (
-                            <div
-                                className={classes.entryContent}
-                                dangerouslySetInnerHTML={{
-                                    __html: summary,
-                                }}
-                            />
                         ) : (
-                            <div className={classes.entryContent}>
-                                {/* First paragraph */}
-                                <Skeleton height={8} width="95%" radius="xl" />
-                                <Skeleton
-                                    height={8}
-                                    mt={6}
-                                    width="100%"
-                                    radius="xl"
-                                />
-                                <Skeleton
-                                    height={8}
-                                    mt={6}
-                                    width="89%"
-                                    radius="xl"
-                                />
-                                <Skeleton
-                                    height={8}
-                                    mt={6}
-                                    width="92%"
-                                    radius="xl"
-                                />
+                            <Paper
+                                shadow="xs"
+                                p="md"
+                                withBorder
+                                className={classes.entrySummary}
+                            >
+                                <Flex align="center" gap="xs" mb="sm">
+                                    <IconRobot
+                                        size={16}
+                                        color={theme.colors.blue[5]}
+                                    />
+                                    <Badge
+                                        size="sm"
+                                        variant="light"
+                                        color="blue"
+                                    >
+                                        AI Summary
+                                    </Badge>
+                                </Flex>
+                                {summary ? (
+                                    <div
+                                        className={classes.entryContent}
+                                        dangerouslySetInnerHTML={{
+                                            __html: summary,
+                                        }}
+                                    />
+                                ) : (
+                                    <div className={classes.entryContent}>
+                                        {/* First paragraph */}
+                                        <Skeleton
+                                            height={8}
+                                            width="95%"
+                                            radius="xl"
+                                        />
+                                        <Skeleton
+                                            height={8}
+                                            mt={6}
+                                            width="100%"
+                                            radius="xl"
+                                        />
+                                        <Skeleton
+                                            height={8}
+                                            mt={6}
+                                            width="89%"
+                                            radius="xl"
+                                        />
+                                        <Skeleton
+                                            height={8}
+                                            mt={6}
+                                            width="92%"
+                                            radius="xl"
+                                        />
 
-                                {/* Paragraph break */}
-                                <Box mt={16} />
+                                        {/* Paragraph break */}
+                                        <Box mt={16} />
 
-                                {/* Second paragraph */}
-                                <Skeleton height={8} width="97%" radius="xl" />
-                                <Skeleton
-                                    height={8}
-                                    mt={6}
-                                    width="85%"
-                                    radius="xl"
-                                />
-                                <Skeleton
-                                    height={8}
-                                    mt={6}
-                                    width="91%"
-                                    radius="xl"
-                                />
-                            </div>
+                                        {/* Second paragraph */}
+                                        <Skeleton
+                                            height={8}
+                                            width="97%"
+                                            radius="xl"
+                                        />
+                                        <Skeleton
+                                            height={8}
+                                            mt={6}
+                                            width="85%"
+                                            radius="xl"
+                                        />
+                                        <Skeleton
+                                            height={8}
+                                            mt={6}
+                                            width="91%"
+                                            radius="xl"
+                                        />
+                                    </div>
+                                )}
+                            </Paper>
                         )}
                     </TypographyStylesProvider>
                 </Box>
