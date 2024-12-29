@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $title
  * @property string $url
  * @property string|null $author
- * @property string $content
+ * @property string|null $content
  * @property string $published_at
  * @property int $feed_id
  * @property-read \App\Models\Feed $feed
