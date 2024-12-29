@@ -68,6 +68,7 @@ export default function Sidebar({
                     data: {
                         entry: window.location.search.match(/entry=(\d+)/)?.[1],
                         filter: link.label.toLowerCase(),
+                        summarize: window.location.search.includes('summarize'),
                     },
                     preserveScroll: true,
                     preserveState: true,
@@ -293,6 +294,10 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                                 entry: window.location.search.match(
                                     /entry=(\d+)/,
                                 )?.[1],
+                                summarize:
+                                    window.location.search.includes(
+                                        'summarize',
+                                    ),
                             },
                             preserveScroll: true,
                             preserveState: true,

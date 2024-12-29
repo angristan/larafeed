@@ -44,6 +44,7 @@ interface ReaderProps extends PageProps {
     currententry?: Entry;
     unreadEntriesCount: number;
     readEntriesCount: number;
+    summary?: string;
 }
 
 const Reader = ({
@@ -53,6 +54,7 @@ const Reader = ({
     currententry,
     unreadEntriesCount,
     readEntriesCount,
+    summary,
 }: ReaderProps) => {
     const [opened, { toggle }] = useDisclosure();
 
@@ -208,7 +210,11 @@ const Reader = ({
                 unreadEntriesCount={unreadEntriesCount}
                 readEntriesCount={readEntriesCount}
             />
-            <Main entries={entries} currententry={currententry} />
+            <Main
+                entries={entries}
+                currententry={currententry}
+                summary={summary}
+            />
         </AppShell>
     );
 };
@@ -222,9 +228,11 @@ export default Reader;
 const Main = function Main({
     entries,
     currententry,
+    summary,
 }: {
     entries: Entry[];
     currententry?: Entry;
+    summary?: string;
 }) {
     return (
         <AppShell.Main className={classes.main}>
@@ -237,7 +245,10 @@ const Main = function Main({
                 </Split.Pane>
                 <Split.Pane grow>
                     {currententry && (
-                        <CurrentEntryPane currententry={currententry} />
+                        <CurrentEntryPane
+                            currententry={currententry}
+                            summary={summary}
+                        />
                     )}
                 </Split.Pane>
             </Split>

@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Actions\Entry\SummarizeEntryWithLLM;
 use App\Models\Entry;
 use App\Models\Feed;
 use Illuminate\Http\Request;
@@ -125,6 +126,31 @@ class ShowFeedReader
                 ->first();
         };
 
+        $getEntrySummaryFn = function () use ($request, $entry_id): string|null {
+            // Only summarize if requested
+            if ($request->query('summarize') != 'true') {
+                return null;
+            }
+
+            if (! $entry_id) {
+                return null;
+            }
+
+            $requestedEntry = Entry::whereId($entry_id)->first();
+            if (! $requestedEntry) {
+                return null;
+            }
+
+            // Check if the user has access to the feed
+            if (! Auth::user()->feeds()->where('id', $requestedEntry->feed_id)->exists()) {
+                return null;
+            }
+
+            $entry = Entry::whereId($entry_id)->first();
+
+            return SummarizeEntryWithLLM::run($entry);
+        };
+
         $unreadEntriesCountFn = function () {
             return Entry::query()
                 ->join('feed_subscriptions', function ($join) {
@@ -155,11 +181,13 @@ class ShowFeedReader
 
         // TODO https://laravel.com/docs/9.x/eloquent-resources
         return Inertia::render('Reader/Reader', [
+            // TODO lazy
             'feeds' => $feeds,
             'entries' => $entries,
             'currententry' => $getCurrentEntryFn,
             'unreadEntriesCount' => $unreadEntriesCountFn,
             'readEntriesCount' => $readEntriesCountFn,
+            'summary' => Inertia::always($getEntrySummaryFn),
         ]);
     }
 }

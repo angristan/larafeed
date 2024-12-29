@@ -13,6 +13,8 @@ import {
     Menu,
     Modal,
     ScrollArea,
+    SegmentedControl,
+    Skeleton,
     Text,
     Title,
     Tooltip,
@@ -23,6 +25,8 @@ import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
     IconAdjustments,
+    IconBook,
+    IconBrain,
     IconCircle,
     IconCircleFilled,
     IconExternalLink,
@@ -41,8 +45,10 @@ dayjs.extend(utc);
 
 export default function CurrentEntryPane({
     currententry,
+    summary,
 }: {
     currententry: Entry;
+    summary?: string;
 }) {
     const viewport = useRef<HTMLDivElement>(null);
     const scrollToTop = () =>
@@ -129,6 +135,7 @@ export default function CurrentEntryPane({
                         filter: window.location.search.match(
                             /filter=(\w+)/,
                         )?.[1],
+                        summarize: window.location.search.includes('summarize'),
                     },
                     preserveScroll: true,
                     preserveState: true,
@@ -191,6 +198,7 @@ export default function CurrentEntryPane({
                             /filter=(\w+)/,
                         )?.[1],
                         skipSetRead: true,
+                        summarize: window.location.search.includes('summarize'),
                     },
                     preserveScroll: true,
                     preserveState: true,
@@ -199,6 +207,48 @@ export default function CurrentEntryPane({
     };
 
     const [opened, { open, close }] = useDisclosure(false);
+
+    const [value, setValue] = useState(summary ? 'summary' : 'content');
+
+    useEffect(() => {
+        if (summary) {
+            setValue('summary');
+        } else {
+            setValue('content');
+        }
+    }, [summary]);
+
+    useEffect(() => {
+        console.log('value', value);
+        if (value === 'summary') {
+            router.visit('feeds', {
+                only: ['summary'],
+                data: {
+                    entry: window.location.search.match(/entry=(\d+)/)?.[1],
+                    feed: window.location.search.match(/feed=(\d+)/)?.[1],
+                    filter: window.location.search.match(/filter=(\w+)/)?.[1],
+                    summarize: true,
+                },
+                preserveScroll: true,
+                preserveState: true,
+            });
+        }
+        if (
+            value === 'content' &&
+            window.location.search.includes('summarize')
+        ) {
+            router.visit('feeds', {
+                only: ['summary'],
+                data: {
+                    entry: window.location.search.match(/entry=(\d+)/)?.[1],
+                    feed: window.location.search.match(/feed=(\d+)/)?.[1],
+                    filter: window.location.search.match(/filter=(\w+)/)?.[1],
+                },
+                preserveScroll: true,
+                preserveState: true,
+            });
+        }
+    }, [value]);
 
     return (
         <Flex direction="column" w="100%">
@@ -215,6 +265,48 @@ export default function CurrentEntryPane({
                         {currententry.feed.name}
                     </Text>
                     <Group>
+                        <Tooltip
+                            label={
+                                'Summarize conent with AI or switch back to content'
+                            }
+                            openDelay={500}
+                            transitionProps={{
+                                transition: 'fade',
+                                duration: 300,
+                            }}
+                        >
+                            <SegmentedControl
+                                value={value}
+                                onChange={setValue}
+                                size="xs"
+                                styles={{
+                                    label: {
+                                        paddingInline: '10px',
+                                        paddingBlock: '3px',
+                                    },
+                                }}
+                                data={[
+                                    {
+                                        label: (
+                                            <IconBook
+                                                size={16}
+                                                style={{ marginBottom: -3 }}
+                                            />
+                                        ),
+                                        value: 'content',
+                                    },
+                                    {
+                                        label: (
+                                            <IconBrain
+                                                size={15}
+                                                style={{ marginBottom: -3 }}
+                                            />
+                                        ),
+                                        value: 'summary',
+                                    },
+                                ]}
+                            />
+                        </Tooltip>
                         <Tooltip
                             label={'Open in a new tab'}
                             transitionProps={{
@@ -341,12 +433,62 @@ export default function CurrentEntryPane({
                                 {dayjs.utc(currententry.published_at).fromNow()}
                             </Text>
                         </Flex>
-                        <div
-                            className={classes.entryContent}
-                            dangerouslySetInnerHTML={{
-                                __html: currententry.content || '',
-                            }}
-                        />
+                        {value === 'content' ? (
+                            <div
+                                className={classes.entryContent}
+                                dangerouslySetInnerHTML={{
+                                    __html: currententry.content || '',
+                                }}
+                            />
+                        ) : summary ? (
+                            <div
+                                className={classes.entryContent}
+                                dangerouslySetInnerHTML={{
+                                    __html: summary,
+                                }}
+                            />
+                        ) : (
+                            <div className={classes.entryContent}>
+                                {/* First paragraph */}
+                                <Skeleton height={8} width="95%" radius="xl" />
+                                <Skeleton
+                                    height={8}
+                                    mt={6}
+                                    width="100%"
+                                    radius="xl"
+                                />
+                                <Skeleton
+                                    height={8}
+                                    mt={6}
+                                    width="89%"
+                                    radius="xl"
+                                />
+                                <Skeleton
+                                    height={8}
+                                    mt={6}
+                                    width="92%"
+                                    radius="xl"
+                                />
+
+                                {/* Paragraph break */}
+                                <Box mt={16} />
+
+                                {/* Second paragraph */}
+                                <Skeleton height={8} width="97%" radius="xl" />
+                                <Skeleton
+                                    height={8}
+                                    mt={6}
+                                    width="85%"
+                                    radius="xl"
+                                />
+                                <Skeleton
+                                    height={8}
+                                    mt={6}
+                                    width="91%"
+                                    radius="xl"
+                                />
+                            </div>
+                        )}
                     </TypographyStylesProvider>
                 </Box>
             </ScrollArea>
