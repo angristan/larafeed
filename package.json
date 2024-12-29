@@ -43,7 +43,6 @@
         "react-dom": "^18.2.0",
         "recharts": "^2.15.0",
         "typescript": "^5.0.2",
-        "unplugin-auto-import": "^0.12.1",
         "vite": "^6.0"
     }
 }
