@@ -5,6 +5,7 @@ import {
     useComputedColorScheme,
     useMantineColorScheme,
 } from '@mantine/core';
+import { useHotkeys } from '@mantine/hooks';
 import { IconMoon, IconSun } from '@tabler/icons-react';
 import cx from 'clsx';
 
@@ -13,6 +14,16 @@ export default function ColorSchemeSwitcher() {
     const computedColorScheme = useComputedColorScheme('light', {
         getInitialValueInEffect: true,
     });
+
+    useHotkeys([
+        [
+            'mod+j',
+            () =>
+                computedColorScheme === 'light'
+                    ? setColorScheme('dark')
+                    : setColorScheme('light'),
+        ],
+    ]);
 
     return (
         <ActionIcon
