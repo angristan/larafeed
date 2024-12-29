@@ -15,7 +15,7 @@ class BuildProfixedFaviconURL
     public function handle(?string $favicon_url)
     {
         if (is_null($favicon_url)) {
-            return null;
+            return config('app.url').'/rss.svg';
         }
 
         $favicon_uri = app(UrlBuilder::class)

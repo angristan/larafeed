@@ -30,7 +30,6 @@ import {
     IconPencil,
     IconPlus,
     IconRefresh,
-    IconRss,
     IconSearch,
     IconStar,
     IconTrash,
@@ -319,21 +318,12 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                                     alignItems: 'center',
                                 }}
                             >
-                                {feed.favicon_url ? (
-                                    <Image
-                                        src={feed.favicon_url}
-                                        w={20}
-                                        h={20}
-                                        mr={9}
-                                    />
-                                ) : (
-                                    <IconRss
-                                        size={20}
-                                        className={classes.mainLinkIcon}
-                                        stroke={1.5}
-                                        style={{ marginRight: 9 }}
-                                    />
-                                )}
+                                <Image
+                                    src={feed.favicon_url}
+                                    w={20}
+                                    h={20}
+                                    mr={9}
+                                />
                                 <span>{feed.name}</span>
                             </div>
                             <Menu
