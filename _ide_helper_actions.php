@@ -112,17 +112,31 @@ class UpdateEntryInteractions
 namespace App\Actions\Feed;
 
 /**
- * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(string $feed_url, ?\App\Models\User $attachedUser)
- * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(string $feed_url, ?\App\Models\User $attachedUser)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(string $feed_url, ?\App\Models\User $attachedUser)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, string $feed_url, ?\App\Models\User $attachedUser)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, string $feed_url, ?\App\Models\User $attachedUser)
- * @method static dispatchSync(string $feed_url, ?\App\Models\User $attachedUser)
- * @method static dispatchNow(string $feed_url, ?\App\Models\User $attachedUser)
- * @method static dispatchAfterResponse(string $feed_url, ?\App\Models\User $attachedUser)
- * @method static mixed run(string $feed_url, ?\App\Models\User $attachedUser)
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(string $requested_feed_url, ?\App\Models\User $attachedUser)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(string $requested_feed_url, ?\App\Models\User $attachedUser)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(string $requested_feed_url, ?\App\Models\User $attachedUser)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, string $requested_feed_url, ?\App\Models\User $attachedUser)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, string $requested_feed_url, ?\App\Models\User $attachedUser)
+ * @method static dispatchSync(string $requested_feed_url, ?\App\Models\User $attachedUser)
+ * @method static dispatchNow(string $requested_feed_url, ?\App\Models\User $attachedUser)
+ * @method static dispatchAfterResponse(string $requested_feed_url, ?\App\Models\User $attachedUser)
+ * @method static mixed run(string $requested_feed_url, ?\App\Models\User $attachedUser)
  */
 class CreateNewFeed
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\App\Models\Feed $feed)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\App\Models\Feed $feed)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\App\Models\Feed $feed)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \App\Models\Feed $feed)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \App\Models\Feed $feed)
+ * @method static dispatchSync(\App\Models\Feed $feed)
+ * @method static dispatchNow(\App\Models\Feed $feed)
+ * @method static dispatchAfterResponse(\App\Models\Feed $feed)
+ * @method static void run(\App\Models\Feed $feed)
+ */
+class RefreshFavicon
 {
 }
 /**
@@ -151,6 +165,20 @@ class RefreshFeedEntries
  * @method static void run()
  */
 class RefreshFeeds
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob()
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob()
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch()
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean)
+ * @method static dispatchSync()
+ * @method static dispatchNow()
+ * @method static dispatchAfterResponse()
+ * @method static void run()
+ */
+class RefreshMissingFavicons
 {
 }
 namespace Lorisleiva\Actions\Concerns;
