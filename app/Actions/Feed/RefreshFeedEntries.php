@@ -4,7 +4,9 @@ namespace App\Actions\Feed;
 
 use App\Exceptions\FeedCrawlFailedException;
 use App\Models\Feed;
+use Carbon\Carbon;
 use Feeds;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
 use SimplePie\Item;
@@ -75,20 +77,25 @@ class RefreshFeedEntries
         ])->info('Feed refreshed');
     }
 
-    public function asController(Feed $feed)
+    public function asController(string $feed_id)
     {
-        try {
-            $this->handle($feed);
-        } catch (FeedCrawlFailedException $e) {
-            return redirect()->back()->withErrors([
-                'refresh' => $e->getMessage(),
-            ]);
-            // Alternative:
-            // throw ValidationException::withMessages([
-            //     'refresh' => 'ups, there was an error',
-            // ]);
+        if (! $feed_id) {
+            return response()->json(['error' => 'Missing feed id'], 400);
         }
 
-        return redirect()->route('feed.entries', $feed);
+        // Check if the user has access to the feed
+        if (! Auth::user()->feeds()->where('id', $feed_id)->exists()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $feed = Feed::whereId($feed_id)->first();
+
+        if ($feed->last_successful_refresh_at && Carbon::parse($feed->last_successful_refresh_at)->diffInMinutes(now()) < 5) {
+            return response()->json(['message' => 'Feed has already been refreshed less than 5min ago'], 429);
+        }
+
+        $this->dispatch($feed);
+
+        return response()->json(['message' => 'Feed refresh requested'], 200);
     }
 }

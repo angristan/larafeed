@@ -35,6 +35,7 @@ Route::middleware('auth')->group(function () {
 
     Route::patch('/entry/{entry_id}', UpdateEntryInteractions::class)->name('entry.update');
     Route::delete('/feed/{feed_id}', UnsubscribeFromFeed::class)->name('feed.unsubscribe');
+    Route::post('/feed/{feed_id}/refresh', RefreshFeedEntries::class)->name('feed.refresh');
 
     Route::get('/import', [ImportOPML::class, 'index'])->name('import.index');
     Route::post('/import', [ImportOPML::class, 'store'])->name('import.store');

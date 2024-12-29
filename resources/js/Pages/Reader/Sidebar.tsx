@@ -34,6 +34,7 @@ import {
     IconStar,
     IconTrash,
 } from '@tabler/icons-react';
+import axios from 'axios';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
@@ -219,6 +220,54 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
     const [opened, setOpened] = useState(false);
     const [modalopened, { open, close }] = useDisclosure(false);
 
+    const requestRefresh = () => {
+        axios
+            .post(route('feed.refresh', feed.id))
+            .then((response) => {
+                const { data } = response as {
+                    data: {
+                        error?: string;
+                        message?: string;
+                    };
+                };
+                if (data.error) {
+                    notifications.show({
+                        title: 'Failed to refresh feed',
+                        message: data.error,
+                        color: 'red',
+                        withBorder: true,
+                    });
+                    return;
+                }
+
+                notifications.show({
+                    title: data.message,
+                    message: 'Check back in a few minutes',
+                    color: 'blue',
+                    withBorder: true,
+                });
+            })
+            .catch((error) => {
+                if (error.response) {
+                    if (error.response.status === 429) {
+                        notifications.show({
+                            title: 'What an avid reader you are!',
+                            message: error.response.data.message,
+                            color: 'yellow',
+                            withBorder: true,
+                        });
+                        return;
+                    }
+                    notifications.show({
+                        title: 'Failed to refresh feed',
+                        message: error.response.data.error,
+                        color: 'red',
+                        withBorder: true,
+                    });
+                }
+            });
+    };
+
     return (
         <>
             <DeleteFeedModal feed={feed} opened={modalopened} onClose={close} />
@@ -232,10 +281,11 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                         : feed.last_successful_refresh_at,
                 ).fromNow()}`}
             >
-                <a
+                <div
                     ref={ref}
-                    onClick={(event) => {
-                        event.preventDefault();
+                    key={feed.id}
+                    className={classes.collectionLink}
+                    onClick={() => {
                         router.visit('feeds', {
                             only: ['feed', 'entries'],
                             data: {
@@ -248,8 +298,6 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                             preserveState: true,
                         });
                     }}
-                    key={feed.id}
-                    className={classes.collectionLink}
                 >
                     <Indicator
                         color="orange"
@@ -298,18 +346,8 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                                         <ActionIcon
                                             size="xs"
                                             color="gray"
-                                            onClick={() => {
-                                                router.visit('feeds', {
-                                                    only: ['feed', 'entries'],
-                                                    data: {
-                                                        feed: feed.id,
-                                                        entry: window.location.search.match(
-                                                            /entry=(\d+)/,
-                                                        )?.[1],
-                                                    },
-                                                    preserveScroll: true,
-                                                    preserveState: true,
-                                                });
+                                            onClick={(e) => {
+                                                e.stopPropagation();
                                             }}
                                         >
                                             <IconDots size={15} stroke={1.5} />
@@ -349,6 +387,10 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                                                 }}
                                             />
                                         }
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            requestRefresh();
+                                        }}
                                     >
                                         Request refresh
                                     </Menu.Item>
@@ -375,7 +417,7 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                             </Menu>
                         </div>
                     </Indicator>
-                </a>
+                </div>
             </Tooltip>
         </>
     );
