@@ -407,7 +407,8 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                                                 }}
                                             />
                                         }
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                            e.stopPropagation();
                                             open();
                                         }}
                                     >
