@@ -12,8 +12,12 @@ class BuildProfixedFaviconURL
 {
     use AsAction;
 
-    public function handle(string $favicon_url)
+    public function handle(?string $favicon_url)
     {
+        if (is_null($favicon_url)) {
+            return null;
+        }
+
         $favicon_uri = app(UrlBuilder::class)
             ->with(
                 new Width(32),
