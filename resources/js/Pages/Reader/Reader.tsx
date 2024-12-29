@@ -5,6 +5,7 @@ import EntryListPane from './EntryListPane';
 import Sidebar from './Sidebar';
 import ApplicationLogo from '@/Components/ApplicationLogo/ApplicationLogo';
 import ColorSchemeSwitcher from '@/Components/ColorSchemeSwitcher/ColorSchemeSwitcher';
+import KeyboardShortcuts from '@/Components/KeyboardShortcuts/KeyboardShortcuts';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { PageProps } from '@/types';
 import { Split } from '@gfazioli/mantine-split-pane';
@@ -25,7 +26,6 @@ import { Spotlight, SpotlightActionData } from '@mantine/spotlight';
 import {
     IconBrandGithub,
     IconFileImport,
-    IconGitBranch,
     IconLogout,
     IconSearch,
     IconSettings,
@@ -131,6 +131,7 @@ const Reader = ({
                         >
                             <IconBrandGithub stroke={1.5} size={20} />
                         </ActionIcon>
+                        <KeyboardShortcuts />
                         <ColorSchemeSwitcher />
 
                         <Menu shadow="md" width={200} position="top-end">
