@@ -213,7 +213,10 @@ export default function CurrentEntryPane({
 
     useEffect(() => {
         console.log('value', value);
-        if (value === 'summary') {
+        if (
+            value === 'summary' &&
+            !window.location.search.includes('summarize')
+        ) {
             router.visit('feeds', {
                 only: ['summary'],
                 data: {
