@@ -34,7 +34,7 @@ import {
     IconStar,
     IconTrash,
 } from '@tabler/icons-react';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
@@ -215,6 +215,11 @@ const AddFeedModal = function AddFeedModal() {
     );
 };
 
+interface RefreshResponse {
+    error?: string;
+    message?: string;
+}
+
 const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
     const { hovered, ref } = useHover();
     const [opened, setOpened] = useState(false);
@@ -222,14 +227,9 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
 
     const requestRefresh = () => {
         axios
-            .post(route('feed.refresh', feed.id))
+            .post<RefreshResponse>(route('feed.refresh', feed.id))
             .then((response) => {
-                const { data } = response as {
-                    data: {
-                        error?: string;
-                        message?: string;
-                    };
-                };
+                const { data } = response;
                 if (data.error) {
                     notifications.show({
                         title: 'Failed to refresh feed',
@@ -247,7 +247,7 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                     withBorder: true,
                 });
             })
-            .catch((error) => {
+            .catch((error: AxiosError<RefreshResponse>) => {
                 if (error.response) {
                     if (error.response.status === 429) {
                         notifications.show({
