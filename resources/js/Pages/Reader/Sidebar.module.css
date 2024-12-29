@@ -61,9 +61,9 @@
 }
 
 .mainLinkBadge {
-    padding: 1;
     min-width: fit-content;
     pointer-events: none;
+    margin-left: 5px;
 }
 
 .collectionLink {
