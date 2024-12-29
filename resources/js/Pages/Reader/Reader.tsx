@@ -134,7 +134,14 @@ const Reader = ({
                         <KeyboardShortcuts />
                         <ColorSchemeSwitcher />
 
-                        <Menu shadow="md" width={200} position="top-end">
+                        <Menu
+                            shadow="md"
+                            width={200}
+                            position="top-end"
+                            trigger="click-hover"
+                            openDelay={100}
+                            closeDelay={300}
+                        >
                             <Menu.Target>
                                 <Avatar
                                     src={null}
