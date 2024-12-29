@@ -19,7 +19,6 @@ import {
     Tooltip,
     TypographyStylesProvider,
 } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
     IconBook,
@@ -201,8 +200,6 @@ export default function CurrentEntryPane({
                 });
             });
     };
-
-    const [opened, { open, close }] = useDisclosure(false);
 
     const [value, setValue] = useState(summary ? 'summary' : 'content');
 
@@ -450,44 +447,3 @@ export default function CurrentEntryPane({
         </Flex>
     );
 }
-
-const DeleteFeedModal = ({
-    feed,
-    opened,
-    onClose,
-}: {
-    feed: { name: string; id: number };
-    opened: boolean;
-    onClose: () => void;
-}) => {
-    return (
-        <Modal title="Unsubscribe from feed" opened={opened} onClose={onClose}>
-            <Text size="sm">
-                Are you sure you want to delete the feed{' '}
-                <strong>{feed.name}</strong>?
-            </Text>
-            <Group justify="center" mt="xl">
-                <Button variant="outline" size="sm" onClick={onClose}>
-                    Cancel
-                </Button>
-                <Button
-                    onClick={() => {
-                        router.delete(route('feed.unsubscribe', feed.id));
-                        notifications.show({
-                            title: 'Unsubscribed',
-                            message: `You have successfully unsubscribed from ${feed.name}.`,
-                            color: 'blue',
-                            withBorder: true,
-                        });
-                        onClose();
-                    }}
-                    color="red"
-                    variant="outline"
-                    size="sm"
-                >
-                    Delete
-                </Button>
-            </Group>
-        </Modal>
-    );
-};
