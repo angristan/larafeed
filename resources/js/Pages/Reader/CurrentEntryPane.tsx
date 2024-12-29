@@ -10,7 +10,6 @@ import {
     Flex,
     Group,
     Image,
-    Menu,
     Modal,
     ScrollArea,
     SegmentedControl,
@@ -19,12 +18,10 @@ import {
     Title,
     Tooltip,
     TypographyStylesProvider,
-    rem,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
-    IconAdjustments,
     IconBook,
     IconBrain,
     IconCircle,
@@ -32,7 +29,6 @@ import {
     IconExternalLink,
     IconStar,
     IconStarFilled,
-    IconTrash,
 } from '@tabler/icons-react';
 import axios from 'axios';
 import dayjs from 'dayjs';
@@ -374,47 +370,6 @@ export default function CurrentEntryPane({
                                 )}
                             </ActionIcon>
                         </Tooltip>
-                        <Menu shadow="md">
-                            <Menu.Target>
-                                <ActionIcon
-                                    color="gray"
-                                    variant="outline"
-                                    aria-label="Settings"
-                                >
-                                    <IconAdjustments
-                                        style={{ width: '70%', height: '70%' }}
-                                    />
-                                </ActionIcon>
-                            </Menu.Target>
-
-                            {currententry.feed && (
-                                <DeleteFeedModal
-                                    feed={currententry.feed}
-                                    opened={opened}
-                                    onClose={close}
-                                />
-                            )}
-
-                            <Menu.Dropdown>
-                                <Menu.Label>Feed</Menu.Label>
-                                <Menu.Item
-                                    color="red"
-                                    leftSection={
-                                        <IconTrash
-                                            style={{
-                                                width: rem(14),
-                                                height: rem(14),
-                                            }}
-                                        />
-                                    }
-                                    onClick={() => {
-                                        open();
-                                    }}
-                                >
-                                    Unsubscribe from feed
-                                </Menu.Item>
-                            </Menu.Dropdown>
-                        </Menu>
                     </Group>
                 </Flex>
             </Card>
