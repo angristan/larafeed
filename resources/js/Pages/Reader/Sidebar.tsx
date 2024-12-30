@@ -227,6 +227,39 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
     const [opened, setOpened] = useState(false);
     const [modalopened, { open, close }] = useDisclosure(false);
 
+    const markFeedAsRead = () => {
+        router.post(
+            route('feed.mark-read', feed.id),
+            {},
+            {
+                only: [
+                    // not yet as there is unread badge per feed on the sidebar
+                    // 'feeds',
+                    'unreadEntriesCount',
+                    'readEntriesCount',
+                    'entries', // unread badge in list
+                    'currententry', // unread badge on entry
+                ],
+                onSuccess: () => {
+                    notifications.show({
+                        title: 'Feed marked as read',
+                        message: `All entries from ${feed.name} have been marked as read.`,
+                        color: 'blue',
+                        withBorder: true,
+                    });
+                },
+                onError: (error) => {
+                    notifications.show({
+                        title: 'Failed to mark feed as read',
+                        message: error.message,
+                        color: 'red',
+                        withBorder: true,
+                    });
+                },
+            },
+        );
+    };
+
     const requestRefresh = () => {
         axios
             .post<RefreshResponse>(route('feed.refresh', feed.id))
@@ -385,6 +418,10 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                                     </Menu.Item>
 
                                     <Menu.Item
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            markFeedAsRead();
+                                        }}
                                         leftSection={
                                             <IconCheck
                                                 style={{

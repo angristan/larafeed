@@ -6,6 +6,7 @@ use App\Actions\ExportOPML;
 use App\Actions\Feed\CreateNewFeed;
 use App\Actions\Feed\RefreshFeedEntries;
 use App\Actions\ImportOPML;
+use App\Actions\MarkEntriesAsRead;
 use App\Actions\ShowFeedReader;
 use App\Actions\UnsubscribeFromFeed;
 use App\Actions\UpdateEntryInteractions;
@@ -38,6 +39,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/entry/{entry_id}', UpdateEntryInteractions::class)->name('entry.update');
     Route::delete('/feed/{feed_id}', UnsubscribeFromFeed::class)->name('feed.unsubscribe');
     Route::post('/feed/{feed_id}/refresh', RefreshFeedEntries::class)->name('feed.refresh');
+    Route::post('/feed/{feed_id}/mark-read', MarkEntriesAsRead::class)->name('feed.mark-read');
 
     Route::get('/import', [ImportOPML::class, 'index'])->name('import.index');
     Route::post('/import', [ImportOPML::class, 'store'])->name('import.store');

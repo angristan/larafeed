@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Actions\BuildProfixedFaviconURL;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * App\Models\Feed
@@ -55,7 +56,7 @@ class Feed extends Model
         'favicon_url',
     ];
 
-    public function entries()
+    public function entries(): HasMany
     {
         return $this->hasMany(Entry::class);
     }
