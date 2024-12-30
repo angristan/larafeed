@@ -10,7 +10,7 @@
         "format-check": "prettier --check ."
     },
     "devDependencies": {
-        "@gfazioli/mantine-split-pane": "^0.3.7",
+        "@gfazioli/mantine-split-pane": "^1.0.0",
         "@headlessui/react": "^2.0.0",
         "@inertiajs/react": "^2.0.0",
         "@mantine/core": "^7.15.2",
