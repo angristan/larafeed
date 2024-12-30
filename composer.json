@@ -76,7 +76,7 @@
             "vendor/bin/pint"
         ],
         "phpstan": [
-            "vendor/bin/phpstan analyse -l 1 app"
+            "vendor/bin/phpstan analyse --memory-limit=256M"
         ],
         "lint": [
             "@pint",
