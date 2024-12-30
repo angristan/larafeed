@@ -214,7 +214,6 @@ export default function CurrentEntryPane({
     }, [summary]);
 
     useEffect(() => {
-        console.log('value', value);
         if (
             value === 'summary' &&
             !window.location.search.includes('summarize')
@@ -247,6 +246,33 @@ export default function CurrentEntryPane({
             });
         }
     }, [value]);
+
+    const typographyProviderRef = useRef<HTMLDivElement>(null);
+
+    // Update entry content anchor targets to open in a new tab
+    useEffect(() => {
+        const updateAnchorsTarget = () => {
+            try {
+                const element = typographyProviderRef.current;
+                if (!element) return;
+
+                const parser = new DOMParser();
+                const htmlText = element.innerHTML;
+                const content = parser.parseFromString(htmlText, 'text/html');
+                const anchors = content.getElementsByTagName('a');
+
+                Array.from(anchors).forEach((a) => {
+                    a.setAttribute('target', '_blank');
+                });
+
+                element.innerHTML = content.body.innerHTML;
+            } catch (error) {
+                console.error('Error updating anchor targets:', error);
+            }
+        };
+
+        updateAnchorsTarget();
+    }, [currententry]);
 
     return (
         <Flex direction="column" w="100%">
@@ -392,6 +418,7 @@ export default function CurrentEntryPane({
                         </Flex>
                         {value === 'content' ? (
                             <div
+                                ref={typographyProviderRef}
                                 className={classes.entryContent}
                                 dangerouslySetInnerHTML={{
                                     __html: currententry.content || '',
