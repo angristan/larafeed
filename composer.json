@@ -10,7 +10,6 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
-        "ext-redis": "*",
         "ashallendesign/favicon-fetcher": "^3.0",
         "bensampo/laravel-enum": "^6.2",
         "echolabsdev/prism": "^0.22.0",
