@@ -9,7 +9,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: php-actions/composer@v6
         with:
-          php_version: "7.3"
+          php_version: "8.3"
           php_extensions: redis
       - name: "run phpstan"
         run: composer phpstan
@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: php-actions/composer@v6
         with:
-          php_version: "7.3"
+          php_version: "8.3"
           php_extensions: redis
       - name: "run pint"
         run: composer pint
