@@ -8,16 +8,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: php-actions/composer@v6
-      - uses: php-actions/phpstan@v3
         with:
-          path: app/
-          memory_limit: 256M
+          php_version: "7.3"
+          php_extensions: redis
+      - name: "run phpstan"
+        run: composer phpstan
 
   pint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: "laravel-pint"
-        uses: aglipanci/laravel-pint-action@2.4
+      - uses: php-actions/composer@v6
         with:
-          preset: laravel
+          php_version: "7.3"
+          php_extensions: redis
+      - name: "run pint"
+        run: composer pint
