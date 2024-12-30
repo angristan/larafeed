@@ -13,7 +13,7 @@ jobs:
           path: app/
           memory_limit: 256M
 
-  phplint:
+  pint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
