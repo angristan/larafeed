@@ -132,7 +132,9 @@ export default function CurrentEntryPane({
                         filter: window.location.search.match(
                             /filter=(\w+)/,
                         )?.[1],
-                        summarize: window.location.search.includes('summarize'),
+                        ...(window.location.search.includes('summarize') && {
+                            summarize: true,
+                        }),
                     },
                     preserveScroll: true,
                     preserveState: true,
@@ -195,7 +197,9 @@ export default function CurrentEntryPane({
                             /filter=(\w+)/,
                         )?.[1],
                         skipSetRead: true,
-                        summarize: window.location.search.includes('summarize'),
+                        ...(window.location.search.includes('summarize') && {
+                            summarize: true,
+                        }),
                     },
                     preserveScroll: true,
                     preserveState: true,
