@@ -343,6 +343,7 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                                         <ActionIcon
                                             size="xs"
                                             color="gray"
+                                            className={classes.feedMenuIcon}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                             }}

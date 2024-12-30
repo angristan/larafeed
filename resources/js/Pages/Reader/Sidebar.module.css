@@ -66,6 +66,10 @@
     margin-left: 5px;
 }
 
+.feedMenuIcon {
+    margin-left: 11px;
+}
+
 .collectionLink {
     display: block;
     padding: 8px var(--mantine-spacing-xs);
