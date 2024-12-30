@@ -30,24 +30,22 @@ class NotifyLoginFailureOnTelegram
 class NotifyUserRegistrationOnTelegram
 {
 }
-namespace App\Actions\Entry;
-
-/**
- * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\App\Models\Entry $entry)
- * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\App\Models\Entry $entry)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\App\Models\Entry $entry)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \App\Models\Entry $entry)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \App\Models\Entry $entry)
- * @method static dispatchSync(\App\Models\Entry $entry)
- * @method static dispatchNow(\App\Models\Entry $entry)
- * @method static dispatchAfterResponse(\App\Models\Entry $entry)
- * @method static string run(\App\Models\Entry $entry)
- */
-class SummarizeEntryWithLLM
-{
-}
 namespace App\Actions;
 
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(?string $favicon_url)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(?string $favicon_url)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(?string $favicon_url)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, ?string $favicon_url)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, ?string $favicon_url)
+ * @method static dispatchSync(?string $favicon_url)
+ * @method static dispatchNow(?string $favicon_url)
+ * @method static dispatchAfterResponse(?string $favicon_url)
+ * @method static mixed run(?string $favicon_url)
+ */
+class BuildProfixedFaviconURL
+{
+}
 /**
  * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob()
  * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob()
@@ -60,6 +58,20 @@ namespace App\Actions;
  * @method static string run()
  */
 class ExportOPML
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(string $site_url)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(string $site_url)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(string $site_url)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, string $site_url)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, string $site_url)
+ * @method static dispatchSync(string $site_url)
+ * @method static dispatchNow(string $site_url)
+ * @method static dispatchAfterResponse(string $site_url)
+ * @method static ?string run(string $site_url)
+ */
+class GetFaviconURL
 {
 }
 /**
@@ -107,6 +119,22 @@ class UnsubscribeFromFeed
  * @method static \Illuminate\Http\JsonResponse run(\Illuminate\Http\Request $request, string $entry_id)
  */
 class UpdateEntryInteractions
+{
+}
+namespace App\Actions\Entry;
+
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\App\Models\Entry $entry)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\App\Models\Entry $entry)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\App\Models\Entry $entry)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \App\Models\Entry $entry)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \App\Models\Entry $entry)
+ * @method static dispatchSync(\App\Models\Entry $entry)
+ * @method static dispatchNow(\App\Models\Entry $entry)
+ * @method static dispatchAfterResponse(\App\Models\Entry $entry)
+ * @method static string run(\App\Models\Entry $entry)
+ */
+class SummarizeEntryWithLLM
 {
 }
 namespace App\Actions\Feed;

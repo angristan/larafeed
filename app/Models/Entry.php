@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * App\Models\Entry
@@ -60,7 +61,7 @@ class Entry extends Model
     /**
      * Get the feed that owns the entry.
      */
-    public function feed()
+    public function feed(): BelongsTo
     {
         return $this->belongsTo(Feed::class);
     }

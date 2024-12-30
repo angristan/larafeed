@@ -1,5 +1,16 @@
 {
     "singleQuote": true,
+    "overrides": [
+        {
+            "files": [
+                "**/*.yaml",
+                "**/*.yml"
+            ],
+            "options": {
+                "singleQuote": false
+            }
+        }
+    ],
     "plugins": [
         "@trivago/prettier-plugin-sort-imports"
     ],

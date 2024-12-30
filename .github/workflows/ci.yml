@@ -3,15 +3,15 @@ name: Lint
 on: [push]
 
 jobs:
-  # phpstan:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: php-actions/composer@v6
-  #     - uses: php-actions/phpstan@v3
-  #       with:
-  #         path: app/
-  #         memory_limit: 256M
+  phpstan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: php-actions/composer@v6
+      - uses: php-actions/phpstan@v3
+        with:
+          path: app/
+          memory_limit: 256M
 
   phplint:
     runs-on: ubuntu-latest
