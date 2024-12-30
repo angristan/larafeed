@@ -24,3 +24,29 @@ jobs:
           php_extensions: redis
       - name: "run pint"
         run: composer pint
+
+  eslint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: npm ci
+        run: npm ci
+
+      - name: eslint
+        run: npm run lint -- --max-warnings 0
+
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: npm ci
+        run: npm ci
+
+      - name: prettier
+        run: npm run format-check
