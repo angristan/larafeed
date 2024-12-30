@@ -29,7 +29,7 @@ class RefreshFeeds
     public function asJob(): void
     {
 
-        Feed::orderByRaw('GREATEST(last_successful_refresh_at, last_failed_refresh_at) ASC')->limit(10)->get()->each(
+        Feed::orderByRaw('LEAST(last_successful_refresh_at, last_failed_refresh_at) ASC')->limit(10)->get()->each(
             fn (Feed $feed) => RefreshFeedEntries::dispatch($feed)
         );
     }
