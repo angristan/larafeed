@@ -58,7 +58,7 @@ jobs:
       - name: eslint
         run: npm run lint -- --max-warnings 0
 
-  format:
+  prettier:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
