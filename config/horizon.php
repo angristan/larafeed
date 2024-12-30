@@ -119,7 +119,7 @@ return [
     */
 
     'silenced' => [
-        // App\Jobs\ExampleJob::class,
+        Laravel\Telescope\Jobs\ProcessPendingUpdates::class,
     ],
 
     /*
@@ -166,7 +166,7 @@ return [
     |
     */
 
-    'memory_limit' => 64,
+    'memory_limit' => 32,
 
     /*
     |--------------------------------------------------------------------------
@@ -188,7 +188,7 @@ return [
             'maxProcesses' => 1,
             'maxTime' => 3600,
             'maxJobs' => 100,
-            'memory' => 64,
+            'memory' => 32,
             'tries' => 1,
             'timeout' => 60,
             'nice' => 0,
