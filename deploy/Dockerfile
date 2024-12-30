@@ -1,6 +1,6 @@
 # Adapted from https://github.com/exaco/laravel-octane-dockerfile
 
-ARG PHP_VERSION=8.3
+ARG PHP_VERSION=8.4
 ARG FRANKENPHP_VERSION=1.3.6
 ARG COMPOSER_VERSION=2.8
 ARG NODE_VERSION=20
