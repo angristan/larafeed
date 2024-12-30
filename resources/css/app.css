@@ -7,10 +7,9 @@ pre {
     word-break: break-word;
 }
 
-
 /* https://dev.to/lennythedev/css-gotcha-how-to-fill-page-with-a-div-270j */
 html,
 body {
-  margin: 0 !important;
-  padding: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
 }

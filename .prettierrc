@@ -2,18 +2,13 @@
     "singleQuote": true,
     "overrides": [
         {
-            "files": [
-                "**/*.yaml",
-                "**/*.yml"
-            ],
+            "files": ["**/*.yaml", "**/*.yml"],
             "options": {
                 "singleQuote": false
             }
         }
     ],
-    "plugins": [
-        "@trivago/prettier-plugin-sort-imports"
-    ],
+    "plugins": ["@trivago/prettier-plugin-sort-imports"],
     "importOrderSeparation": true,
     "importOrderSortSpecifiers": true,
     "importOrder": [
