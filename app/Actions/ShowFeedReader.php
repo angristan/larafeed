@@ -134,7 +134,7 @@ class ShowFeedReader
 
         $getEntrySummaryFn = function () use ($request, $entry_id): string|null {
             // Only summarize if requested
-            if ($request->query('summarize') != 'true') {
+            if ($request->query('summarize') !== 'true') {
                 return null;
             }
 
