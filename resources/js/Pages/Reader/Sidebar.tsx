@@ -24,6 +24,7 @@ import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import {
     IconBook,
+    IconCheck,
     IconCheckbox,
     IconDots,
     IconExternalLink,
@@ -361,6 +362,7 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
 
                                 <Menu.Dropdown>
                                     <Menu.Label>Manage feed</Menu.Label>
+
                                     <Menu.Item
                                         leftSection={
                                             <IconExternalLink
@@ -379,6 +381,19 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                                         }}
                                     >
                                         Open website
+                                    </Menu.Item>
+
+                                    <Menu.Item
+                                        leftSection={
+                                            <IconCheck
+                                                style={{
+                                                    width: rem(14),
+                                                    height: rem(14),
+                                                }}
+                                            />
+                                        }
+                                    >
+                                        Mark as read
                                     </Menu.Item>
 
                                     <Menu.Item
