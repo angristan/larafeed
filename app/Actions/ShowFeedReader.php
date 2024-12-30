@@ -65,10 +65,10 @@ class ShowFeedReader
                     'entries.author',
                     'entries.content',
                     'entries.published_at',
+                    'entries.feed_id',
                     'entry_interactions.read_at',
                     'entry_interactions.starred_at',
                     'entry_interactions.archived_at',
-                    'feeds.id as feed_id',
                     'feeds.name as feed_name',
                     'feeds.favicon_url as feed_favicon_url',
 
@@ -84,13 +84,13 @@ class ShowFeedReader
                     'author' => $entry->author,
                     'content' => $entry->content,
                     'published_at' => $entry->published_at,
-                    'read_at' => $entry->read_at,
-                    'starred_at' => $entry->starred_at,
-                    'archived_at' => $entry->archived_at,
+                    'read_at' => $entry['read_at'],
+                    'starred_at' => $entry['starred_at'],
+                    'archived_at' => $entry['archived_at'],
                     'feed' => [
                         'id' => $entry->feed_id,
-                        'name' => $entry->feed_name,
-                        'favicon_url' => BuildProfixedFaviconURL::run($entry->feed_favicon_url),
+                        'name' => $entry['feed_name'],
+                        'favicon_url' => BuildProfixedFaviconURL::run($entry['feed_favicon_url']),
                     ],
                 ]);
         };
