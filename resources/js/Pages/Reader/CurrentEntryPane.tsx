@@ -49,7 +49,7 @@ export default function CurrentEntryPane({
     const theme = useMantineTheme();
     const viewport = useRef<HTMLDivElement>(null);
     const scrollToTop = () =>
-        viewport.current!.scrollTo({ top: 0, behavior: 'instant' });
+        viewport.current?.scrollTo({ top: 0, behavior: 'instant' });
 
     useEffect(() => {
         scrollToTop();

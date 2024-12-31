@@ -7,6 +7,7 @@ import { IconStarFilled } from '@tabler/icons-react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
+import { useEffect, useRef } from 'react';
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
@@ -18,6 +19,16 @@ export default function EntryListPane({
     entries: Entry[];
     currentEntryID?: number;
 }) {
+    const viewport = useRef<HTMLDivElement>(null);
+
+    const scrollToTop = () => {
+        viewport.current?.scrollTo({ top: 0, behavior: 'instant' });
+    };
+
+    useEffect(() => {
+        scrollToTop();
+    }, [entries]);
+
     const getCurrentFeedIdFromURL = () =>
         window.location.search.match(/feed=(\d+)/)?.[1];
 
@@ -118,7 +129,10 @@ export default function EntryListPane({
     ));
 
     return (
-        <ScrollArea style={{ height: '100%', width: '100%' }}>
+        <ScrollArea
+            style={{ height: '100%', width: '100%' }}
+            viewportRef={viewport}
+        >
             {entryList}
         </ScrollArea>
     );
