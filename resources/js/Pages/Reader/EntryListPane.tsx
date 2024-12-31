@@ -29,9 +29,6 @@ export default function EntryListPane({
         scrollToTop();
     }, [entries]);
 
-    const getCurrentFeedIdFromURL = () =>
-        window.location.search.match(/feed=(\d+)/)?.[1];
-
     const navigateToEntry = (offset: number) => {
         const index = entries.findIndex((entry) => entry.id === currentEntryID);
         const newIndex = index + offset;
@@ -44,9 +41,10 @@ export default function EntryListPane({
                     'readEntriesCount',
                 ],
                 data: {
+                    ...Object.fromEntries(
+                        new URLSearchParams(window.location.search),
+                    ),
                     entry: entries[newIndex].id,
-                    feed: window.location.search.match(/feed=(\d+)/)?.[1],
-                    filter: window.location.search.match(/filter=(\w+)/)?.[1],
                 },
                 preserveScroll: true,
                 preserveState: true,
@@ -64,6 +62,12 @@ export default function EntryListPane({
             key={entry.id}
             className={classes.entry}
             onClick={() => {
+                const urlParams = new URLSearchParams(window.location.search);
+
+                urlParams.delete('summarize');
+                urlParams.delete('read');
+                urlParams.set('entry', entry.id.toString());
+
                 router.visit('feeds', {
                     only: [
                         'currententry',
@@ -71,11 +75,7 @@ export default function EntryListPane({
                         'readEntriesCount',
                     ],
                     data: {
-                        entry: entry.id,
-                        feed: getCurrentFeedIdFromURL(),
-                        filter: window.location.search.match(
-                            /filter=(\w+)/,
-                        )?.[1],
+                        ...Object.fromEntries(urlParams),
                     },
                     preserveScroll: true,
                     preserveState: true,

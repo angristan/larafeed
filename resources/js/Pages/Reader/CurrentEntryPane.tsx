@@ -31,7 +31,6 @@ import {
     IconStar,
     IconStarFilled,
 } from '@tabler/icons-react';
-import axios from 'axios';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
@@ -39,6 +38,7 @@ import { useEffect, useRef, useState } from 'react';
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
+
 export default function CurrentEntryPane({
     currententry,
     summary,
@@ -47,164 +47,101 @@ export default function CurrentEntryPane({
     summary?: string;
 }) {
     const theme = useMantineTheme();
+
     const viewport = useRef<HTMLDivElement>(null);
     const scrollToTop = () =>
         viewport.current?.scrollTo({ top: 0, behavior: 'instant' });
 
     useEffect(() => {
         scrollToTop();
-    }, [currententry]);
-
-    const [favoriteLoading, setFavoriteLoading] = useState(false);
-    const [showLoading, setShowLoading] = useState(false);
-    const loadingTimeout = useRef<NodeJS.Timeout>();
-
-    // Show loading indicator only after 1s
-    useEffect(() => {
-        if (favoriteLoading) {
-            loadingTimeout.current = setTimeout(() => {
-                setShowLoading(true);
-            }, 1000);
-        } else {
-            setShowLoading(false);
-        }
-
-        return () => {
-            if (loadingTimeout.current) {
-                clearTimeout(loadingTimeout.current);
-            }
-        };
-    }, [favoriteLoading]);
+    }, [currententry.id]);
 
     const updateFavorite = () => {
-        setFavoriteLoading(true);
-        axios
-            .patch(route('entry.update', currententry.id), {
+        router.patch(
+            route('entry.update', currententry.id),
+            {
                 starred: currententry.starred_at ? false : true,
-            })
-            .then((response) => {
-                const { data } = response as {
-                    data: {
-                        error?: string;
-                        message?: string;
-                    };
-                };
-                if (data.error) {
+            },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                only: ['currententry', 'entries'],
+                onSuccess: () => {
+                    if (currententry.starred_at) {
+                        notifications.show({
+                            title: 'Not that good...',
+                            message: 'Entry removed from favorites',
+                            color: 'blue',
+                            withBorder: true,
+                        });
+                    } else {
+                        notifications.show({
+                            title: 'Starred!',
+                            message: 'Entry added to favorites',
+                            color: 'blue',
+                            withBorder: true,
+                        });
+                    }
+                },
+                onError: (error) => {
                     notifications.show({
                         title: 'Failed to star entry',
-                        message: data.error,
+                        message: error.message,
                         color: 'red',
                         withBorder: true,
                     });
-                    return;
-                }
-                if (currententry.starred_at) {
-                    notifications.show({
-                        title: 'Not that good...',
-                        message: data.message,
-                        color: 'blue',
-                        withBorder: true,
-                    });
-                } else {
-                    notifications.show({
-                        title: 'Starred!',
-                        message: data.message,
-                        color: 'blue',
-                        withBorder: true,
-                    });
-                }
-            })
-            .catch((error) => {
-                notifications.show({
-                    title: 'Failed to star entry',
-                    message: error.message,
-                    color: 'red',
-                    withBorder: true,
-                });
-            })
-            .finally(() => {
-                setFavoriteLoading(false);
-                router.visit('feeds', {
-                    only: ['currententry', 'entries'],
-                    data: {
-                        entry: window.location.search.match(/entry=(\d+)/)?.[1],
-                        feed: window.location.search.match(/feed=(\d+)/)?.[1],
-                        filter: window.location.search.match(
-                            /filter=(\w+)/,
-                        )?.[1],
-                        ...(window.location.search.includes('summarize') && {
-                            summarize: true,
-                        }),
-                    },
-                    preserveScroll: true,
-                    preserveState: true,
-                });
-            });
+                },
+            },
+        );
     };
 
     const updateRead = () => {
-        axios
-            .patch(route('entry.update', currententry.id), {
-                read: currententry.read_at ? false : true,
-            })
-            .then((response) => {
-                const { data } = response as {
-                    data: {
-                        error?: string;
-                        message?: string;
-                    };
-                };
-                if (data.error) {
-                    notifications.show({
-                        title: 'Failed to mark entry as read',
-                        message: data.error,
-                        color: 'red',
-                        withBorder: true,
-                    });
-                    return;
-                }
+        const urlParams = new URLSearchParams(window.location.search);
+
+        if (currententry.read_at) {
+            urlParams.set('read', 'false');
+        } else {
+            urlParams.delete('read');
+        }
+
+        router.visit('feeds', {
+            data: {
+                ...Object.fromEntries(urlParams),
+            },
+            preserveScroll: true,
+            preserveState: true,
+            only: [
+                'currententry',
+                'entries',
+                'unreadEntriesCount',
+                'readEntriesCount',
+            ],
+            onSuccess: () => {
                 if (currententry.read_at) {
                     notifications.show({
                         title: 'Marked as unread',
-                        message: data.message,
+                        message: 'Entry marked as unread',
                         color: 'blue',
                         withBorder: true,
                     });
                 } else {
                     notifications.show({
                         title: 'Marked as read',
-                        message: data.message,
+                        message: 'Entry marked as read',
                         color: 'blue',
                         withBorder: true,
                     });
                 }
-            })
-            .catch((error) => {
+            },
+            onError: (error) => {
                 notifications.show({
                     title: 'Failed to mark entry as read',
                     message: error.message,
                     color: 'red',
                     withBorder: true,
                 });
-            })
-            .finally(() => {
-                router.visit('feeds', {
-                    only: ['currententry', 'entries'],
-                    data: {
-                        entry: window.location.search.match(/entry=(\d+)/)?.[1],
-                        feed: window.location.search.match(/feed=(\d+)/)?.[1],
-                        filter: window.location.search.match(
-                            /filter=(\w+)/,
-                        )?.[1],
-                        skipSetRead: true,
-                        ...(window.location.search.includes('summarize') && {
-                            summarize: true,
-                        }),
-                    },
-                    preserveScroll: true,
-                    preserveState: true,
-                });
-            });
+            },
+        });
     };
 
     const [value, setValue] = useState(summary ? 'summary' : 'content');
@@ -222,13 +159,13 @@ export default function CurrentEntryPane({
             value === 'summary' &&
             !window.location.search.includes('summarize')
         ) {
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.set('summarize', 'true');
+
             router.visit('feeds', {
                 only: ['summary'],
                 data: {
-                    entry: window.location.search.match(/entry=(\d+)/)?.[1],
-                    feed: window.location.search.match(/feed=(\d+)/)?.[1],
-                    filter: window.location.search.match(/filter=(\w+)/)?.[1],
-                    summarize: true,
+                    ...Object.fromEntries(urlParams),
                 },
                 preserveScroll: true,
                 preserveState: true,
@@ -238,12 +175,13 @@ export default function CurrentEntryPane({
             value === 'content' &&
             window.location.search.includes('summarize')
         ) {
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.delete('summarize');
+
             router.visit('feeds', {
                 only: ['summary'],
                 data: {
-                    entry: window.location.search.match(/entry=(\d+)/)?.[1],
-                    feed: window.location.search.match(/feed=(\d+)/)?.[1],
-                    filter: window.location.search.match(/filter=(\w+)/)?.[1],
+                    ...Object.fromEntries(urlParams),
                 },
                 preserveScroll: true,
                 preserveState: true,
@@ -367,7 +305,6 @@ export default function CurrentEntryPane({
                                 variant="outline"
                                 color="gray"
                                 onClick={updateFavorite}
-                                loading={showLoading}
                                 loaderProps={{ type: 'dots' }}
                             >
                                 {currententry.starred_at ? (

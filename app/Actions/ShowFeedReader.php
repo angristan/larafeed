@@ -110,8 +110,9 @@ class ShowFeedReader
                 return null;
             }
 
-            // Mark as read unless explicitly requested not to
-            if (! $request->query('skipSetRead')) {
+            if ($request->query('read') === 'false') {
+                $requestedEntry->markAsUnread(Auth::user());
+            } else {
                 $requestedEntry->markAsRead(Auth::user());
             }
 

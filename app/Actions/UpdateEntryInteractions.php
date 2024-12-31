@@ -22,31 +22,30 @@ class UpdateEntryInteractions
         ];
     }
 
-    public function handle(Request $request, string $entry_id): \Illuminate\Http\JsonResponse
+    public function handle(Request $request, string $entry_id)
     {
         if (! $entry_id) {
-            return response()->json(['error' => 'Missing entry id'], 400);
+            return redirect()->back()->withErrors('Missing entry id');
         }
 
         $entry = Entry::whereId($entry_id)->first();
         if (! $entry) {
-            return response()->json(['error' => 'Entry not found'], 404);
+            return redirect()->back()->withErrors('Entry not found');
         }
 
-        // Check if the user has access to the feed
         if (! Auth::user()->feeds()->where('id', $entry->feed_id)->exists()) {
-            return response()->json(['error' => 'Unauthorized'], 401);
+            return redirect()->back()->withErrors('You\'re not subscribed to this feed');
         }
 
         if ($request->has('read')) {
             if ($request->input('read')) {
                 $entry->markAsRead(Auth::user());
 
-                return response()->json(['message' => 'Entry marked as read'], 200);
+                return redirect()->back();
             } else {
                 $entry->markAsUnread(Auth::user());
 
-                return response()->json(['message' => 'Entry marked as unread'], 200);
+                return redirect()->back();
             }
         }
 
@@ -54,11 +53,11 @@ class UpdateEntryInteractions
             if ($request->input('starred')) {
                 $entry->favorite(Auth::user());
 
-                return response()->json(['message' => 'Entry added to favorites'], 200);
+                return redirect()->back();
             } else {
                 $entry->unfavorite(Auth::user());
 
-                return response()->json(['message' => 'Entry removed from favorites'], 200);
+                return redirect()->back();
             }
         }
 
@@ -66,14 +65,15 @@ class UpdateEntryInteractions
             if ($request->input('archived')) {
                 $entry->archive(Auth::user());
 
-                return response()->json(['message' => 'Entry archived'], 200);
+                return redirect()->back();
+
             } else {
                 $entry->unarchive(Auth::user());
 
-                return response()->json(['message' => 'Entry unarchived'], 200);
+                return redirect()->back();
             }
         }
 
-        return response()->json(['error' => 'Missing interaction'], 400);
+        return redirect()->back()->withErrors('Invalid request');
     }
 }

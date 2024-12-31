@@ -64,14 +64,14 @@ export default function Sidebar({
             key={link.label}
             className={classes.mainLink}
             onClick={() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                urlParams.delete('feed');
+                urlParams.set('filter', link.label.toLowerCase());
+
                 router.visit('feeds', {
                     only: ['entries'],
                     data: {
-                        entry: window.location.search.match(/entry=(\d+)/)?.[1],
-                        filter: link.label.toLowerCase(),
-                        ...(window.location.search.includes('summarize') && {
-                            summarize: true,
-                        }),
+                        ...Object.fromEntries(urlParams),
                     },
                     preserveScroll: true,
                     preserveState: true,
@@ -323,18 +323,16 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                     key={feed.id}
                     className={classes.collectionLink}
                     onClick={() => {
+                        const urlParams = new URLSearchParams(
+                            window.location.search,
+                        );
+                        urlParams.delete('filter');
+                        urlParams.set('feed', feed.id.toString());
+
                         router.visit('feeds', {
                             only: ['feed', 'entries'],
                             data: {
-                                feed: feed.id,
-                                entry: window.location.search.match(
-                                    /entry=(\d+)/,
-                                )?.[1],
-                                ...(window.location.search.includes(
-                                    'summarize',
-                                ) && {
-                                    summarize: true,
-                                }),
+                                ...Object.fromEntries(urlParams),
                             },
                             preserveScroll: true,
                             preserveState: true,
