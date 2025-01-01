@@ -23480,6 +23480,822 @@ namespace Laravel\Pennant {
             }
     }
 
+namespace Laravel\Pulse\Facades {
+    /**
+     * 
+     *
+     * @method static void store(\Illuminate\Support\Collection $items)
+     * @method static void trim()
+     * @method static void purge(array $types = null)
+     * @method static \Illuminate\Support\Collection values(string $type, array $keys = null)
+     * @method static \Illuminate\Support\Collection graph(array $types, string $aggregate, \Carbon\CarbonInterval $interval)
+     * @method static \Illuminate\Support\Collection aggregate(string $type, string|array $aggregates, \Carbon\CarbonInterval $interval, string|null $orderBy = null, string $direction = 'desc', int $limit = 101)
+     * @method static \Illuminate\Support\Collection aggregateTypes(string|array $types, string $aggregate, \Carbon\CarbonInterval $interval, string|null $orderBy = null, string $direction = 'desc', int $limit = 101)
+     * @method static float|\Illuminate\Support\Collection aggregateTotal(string|array $types, string $aggregate, \Carbon\CarbonInterval $interval)
+     * @see \Laravel\Pulse\Pulse
+     */
+    class Pulse {
+        /**
+         * Register a recorder.
+         *
+         * @param array<class-string, array<mixed>|bool> $recorders
+         * @static 
+         */
+        public static function register($recorders)
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->register($recorders);
+        }
+
+        /**
+         * Record an entry.
+         *
+         * @static 
+         */
+        public static function record($type, $key, $value = null, $timestamp = null)
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->record($type, $key, $value, $timestamp);
+        }
+
+        /**
+         * Record a value.
+         *
+         * @static 
+         */
+        public static function set($type, $key, $value, $timestamp = null)
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->set($type, $key, $value, $timestamp);
+        }
+
+        /**
+         * Lazily capture items.
+         *
+         * @static 
+         */
+        public static function lazy($closure)
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->lazy($closure);
+        }
+
+        /**
+         * Report the throwable exception to Pulse.
+         *
+         * @static 
+         */
+        public static function report($e)
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->report($e);
+        }
+
+        /**
+         * Start recording.
+         *
+         * @static 
+         */
+        public static function startRecording()
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->startRecording();
+        }
+
+        /**
+         * Stop recording.
+         *
+         * @static 
+         */
+        public static function stopRecording()
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->stopRecording();
+        }
+
+        /**
+         * Execute the given callback without recording.
+         *
+         * @template TReturn
+         * @param (callable(): TReturn) $callback
+         * @return TReturn 
+         * @static 
+         */
+        public static function ignore($callback)
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->ignore($callback);
+        }
+
+        /**
+         * Flush the queue.
+         *
+         * @static 
+         */
+        public static function flush()
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->flush();
+        }
+
+        /**
+         * Filter items before storage using the provided filter.
+         *
+         * @param (callable(\Laravel\Pulse\Entry|\Laravel\Pulse\Value): bool) $filter
+         * @static 
+         */
+        public static function filter($filter)
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->filter($filter);
+        }
+
+        /**
+         * Ingest the entries.
+         *
+         * @static 
+         */
+        public static function ingest()
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->ingest();
+        }
+
+        /**
+         * Digest the entries.
+         *
+         * @static 
+         */
+        public static function digest()
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->digest();
+        }
+
+        /**
+         * Determine if Pulse wants to ingest entries.
+         *
+         * @static 
+         */
+        public static function wantsIngesting()
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->wantsIngesting();
+        }
+
+        /**
+         * Get the registered recorders.
+         *
+         * @return \Illuminate\Support\Collection<int, object> 
+         * @static 
+         */
+        public static function recorders()
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->recorders();
+        }
+
+        /**
+         * Resolve the user details for the given user IDs.
+         *
+         * @param \Illuminate\Support\Collection<int, string> $keys
+         * @static 
+         */
+        public static function resolveUsers($keys)
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->resolveUsers($keys);
+        }
+
+        /**
+         * Resolve the users' details using the given closure.
+         *
+         * @deprecated 
+         * @param \Laravel\Pulse\callable(\Illuminate\Support\Collection<int, mixed>):  ?iterable<int|string, array{name: string, email?: ?string, avatar?: ?string, extra?: ?string}>  $callback
+         * @static 
+         */
+        public static function users($callback)
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->users($callback);
+        }
+
+        /**
+         * Resolve the user's details using the given closure.
+         *
+         * @param \Laravel\Pulse\callable(\Illuminate\Contracts\Auth\Authenticatable):  array{name: string, email?: ?string, avatar?: ?string, extra?: ?string}  $callback
+         * @static 
+         */
+        public static function user($callback)
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->user($callback);
+        }
+
+        /**
+         * Get the authenticated user ID resolver.
+         *
+         * @return \Laravel\Pulse\callable(): (int|string|null)
+         * @static 
+         */
+        public static function authenticatedUserIdResolver()
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->authenticatedUserIdResolver();
+        }
+
+        /**
+         * Resolve the authenticated user id.
+         *
+         * @static 
+         */
+        public static function resolveAuthenticatedUserId()
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->resolveAuthenticatedUserId();
+        }
+
+        /**
+         * Remember the authenticated user's ID.
+         *
+         * @static 
+         */
+        public static function rememberUser($user)
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->rememberUser($user);
+        }
+
+        /**
+         * Register or return CSS for the Pulse dashboard.
+         *
+         * @param string|\Illuminate\Contracts\Support\Htmlable|list<string|Htmlable>|null $css
+         * @static 
+         */
+        public static function css($css = null)
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->css($css);
+        }
+
+        /**
+         * Return the compiled JavaScript from the vendor directory.
+         *
+         * @static 
+         */
+        public static function js()
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->js();
+        }
+
+        /**
+         * The default "vendor" cache keys that should be ignored by Pulse.
+         *
+         * @return list<string> 
+         * @static 
+         */
+        public static function defaultVendorCacheKeys()
+        {
+            return \Laravel\Pulse\Pulse::defaultVendorCacheKeys();
+        }
+
+        /**
+         * Determine if Pulse may register routes.
+         *
+         * @static 
+         */
+        public static function registersRoutes()
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->registersRoutes();
+        }
+
+        /**
+         * Configure Pulse to not register its routes.
+         *
+         * @static 
+         */
+        public static function ignoreRoutes()
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->ignoreRoutes();
+        }
+
+        /**
+         * Handle exceptions using the given callback.
+         *
+         * @param (callable(\Throwable): mixed) $callback
+         * @static 
+         */
+        public static function handleExceptionsUsing($callback)
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->handleExceptionsUsing($callback);
+        }
+
+        /**
+         * Execute the given callback handling any exceptions.
+         *
+         * @template TReturn
+         * @param (callable(): TReturn) $callback
+         * @return TReturn|null 
+         * @static 
+         */
+        public static function rescue($callback)
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->rescue($callback);
+        }
+
+        /**
+         * Set the container instance.
+         *
+         * @param \Illuminate\Contracts\Foundation\Application $container
+         * @return \Laravel\Pulse\Pulse 
+         * @static 
+         */
+        public static function setContainer($container)
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->setContainer($container);
+        }
+
+        /**
+         * Configure the class after resolving.
+         *
+         * @static 
+         */
+        public static function afterResolving($app, $class, $callback)
+        {
+            /** @var \Laravel\Pulse\Pulse $instance */
+            return $instance->afterResolving($app, $class, $callback);
+        }
+
+            }
+    }
+
+namespace Livewire {
+    /**
+     * 
+     *
+     * @see \Livewire\LivewireManager
+     */
+    class Livewire {
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function setProvider($provider)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->setProvider($provider);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function provide($callback)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->provide($callback);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function component($name, $class = null)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->component($name, $class);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function componentHook($hook)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->componentHook($hook);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function propertySynthesizer($synth)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->propertySynthesizer($synth);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function directive($name, $callback)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->directive($name, $callback);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function precompiler($callback)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->precompiler($callback);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function new($name, $id = null)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->new($name, $id);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function isDiscoverable($componentNameOrClass)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->isDiscoverable($componentNameOrClass);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function resolveMissingComponent($resolver)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->resolveMissingComponent($resolver);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function mount($name, $params = [], $key = null)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->mount($name, $params, $key);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function snapshot($component)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->snapshot($component);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function fromSnapshot($snapshot)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->fromSnapshot($snapshot);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function listen($eventName, $callback)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->listen($eventName, $callback);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function current()
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->current();
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function update($snapshot, $diff, $calls)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->update($snapshot, $diff, $calls);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function updateProperty($component, $path, $value)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->updateProperty($component, $path, $value);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function isLivewireRequest()
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->isLivewireRequest();
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function componentHasBeenRendered()
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->componentHasBeenRendered();
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function forceAssetInjection()
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->forceAssetInjection();
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function setUpdateRoute($callback)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->setUpdateRoute($callback);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function getUpdateUri()
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->getUpdateUri();
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function setScriptRoute($callback)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->setScriptRoute($callback);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function useScriptTagAttributes($attributes)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->useScriptTagAttributes($attributes);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function withUrlParams($params)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->withUrlParams($params);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function withQueryParams($params)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->withQueryParams($params);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function withCookie($name, $value)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->withCookie($name, $value);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function withCookies($cookies)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->withCookies($cookies);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function withHeaders($headers)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->withHeaders($headers);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function withoutLazyLoading()
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->withoutLazyLoading();
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function test($name, $params = [])
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->test($name, $params);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function visit($name)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->visit($name);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function actingAs($user, $driver = null)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->actingAs($user, $driver);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function isRunningServerless()
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->isRunningServerless();
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function addPersistentMiddleware($middleware)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->addPersistentMiddleware($middleware);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function setPersistentMiddleware($middleware)
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->setPersistentMiddleware($middleware);
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function getPersistentMiddleware()
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->getPersistentMiddleware();
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function flushState()
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->flushState();
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function originalUrl()
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->originalUrl();
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function originalPath()
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->originalPath();
+        }
+
+        /**
+         * 
+         *
+         * @static 
+         */
+        public static function originalMethod()
+        {
+            /** @var \Livewire\LivewireManager $instance */
+            return $instance->originalMethod();
+        }
+
+            }
+    }
+
 namespace Lorisleiva\Actions\Facades {
     /**
      * 
@@ -24217,6 +25033,24 @@ namespace Illuminate\Routing {
         }
 
             }
+    /**
+     * 
+     *
+     */
+    class Route {
+        /**
+         * 
+         *
+         * @see \Livewire\Features\SupportLazyLoading\SupportLazyLoading::registerRouteMacro()
+         * @param mixed $enabled
+         * @static 
+         */
+        public static function lazy($enabled = true)
+        {
+            return \Illuminate\Routing\Route::lazy($enabled);
+        }
+
+            }
     }
 
 namespace Illuminate\Testing {
@@ -24274,6 +25108,119 @@ namespace Illuminate\Console\Scheduling {
         public static function sentryMonitor($monitorSlug = null, $checkInMargin = null, $maxRuntime = null, $updateMonitorConfig = true, $failureIssueThreshold = null, $recoveryThreshold = null)
         {
             return \Illuminate\Console\Scheduling\Event::sentryMonitor($monitorSlug, $checkInMargin, $maxRuntime, $updateMonitorConfig, $failureIssueThreshold, $recoveryThreshold);
+        }
+
+            }
+    }
+
+namespace Illuminate\View {
+    /**
+     * 
+     *
+     */
+    class ComponentAttributeBag {
+        /**
+         * 
+         *
+         * @see \Livewire\Features\SupportBladeAttributes\SupportBladeAttributes::provide()
+         * @param mixed $name
+         * @static 
+         */
+        public static function wire($name)
+        {
+            return \Illuminate\View\ComponentAttributeBag::wire($name);
+        }
+
+            }
+    /**
+     * 
+     *
+     */
+    class View {
+        /**
+         * 
+         *
+         * @see \Livewire\Features\SupportPageComponents\SupportPageComponents::registerLayoutViewMacros()
+         * @param mixed $data
+         * @static 
+         */
+        public static function layoutData($data = [])
+        {
+            return \Illuminate\View\View::layoutData($data);
+        }
+
+        /**
+         * 
+         *
+         * @see \Livewire\Features\SupportPageComponents\SupportPageComponents::registerLayoutViewMacros()
+         * @param mixed $section
+         * @static 
+         */
+        public static function section($section)
+        {
+            return \Illuminate\View\View::section($section);
+        }
+
+        /**
+         * 
+         *
+         * @see \Livewire\Features\SupportPageComponents\SupportPageComponents::registerLayoutViewMacros()
+         * @param mixed $title
+         * @static 
+         */
+        public static function title($title)
+        {
+            return \Illuminate\View\View::title($title);
+        }
+
+        /**
+         * 
+         *
+         * @see \Livewire\Features\SupportPageComponents\SupportPageComponents::registerLayoutViewMacros()
+         * @param mixed $slot
+         * @static 
+         */
+        public static function slot($slot)
+        {
+            return \Illuminate\View\View::slot($slot);
+        }
+
+        /**
+         * 
+         *
+         * @see \Livewire\Features\SupportPageComponents\SupportPageComponents::registerLayoutViewMacros()
+         * @param mixed $view
+         * @param mixed $params
+         * @static 
+         */
+        public static function extends($view, $params = [])
+        {
+            return \Illuminate\View\View::extends($view, $params);
+        }
+
+        /**
+         * 
+         *
+         * @see \Livewire\Features\SupportPageComponents\SupportPageComponents::registerLayoutViewMacros()
+         * @param mixed $view
+         * @param mixed $params
+         * @static 
+         */
+        public static function layout($view, $params = [])
+        {
+            return \Illuminate\View\View::layout($view, $params);
+        }
+
+        /**
+         * 
+         *
+         * @see \Livewire\Features\SupportPageComponents\SupportPageComponents::registerLayoutViewMacros()
+         * @param callable $callback
+         * @static 
+         */
+        public static function response($callback)
+        {
+            return \Illuminate\View\View::response($callback);
         }
 
             }
@@ -28577,6 +29524,8 @@ namespace  {
     class Horizon extends \Laravel\Horizon\Horizon {}
     class Octane extends \Laravel\Octane\Facades\Octane {}
     class Feature extends \Laravel\Pennant\Feature {}
+    class Pulse extends \Laravel\Pulse\Facades\Pulse {}
+    class Livewire extends \Livewire\Livewire {}
     class Action extends \Lorisleiva\Actions\Facades\Actions {}
     class Lody extends \Lorisleiva\Lody\Lody {}
     class Sentry extends \Sentry\Laravel\Facade {}
