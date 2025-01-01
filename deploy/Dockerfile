@@ -14,4 +14,10 @@ USER www-data
 RUN npm install
 RUN npm run build
 
-RUN composer install --no-interaction --optimize-autoloader --no-dev
+RUN composer install \
+    --classmap-authoritative \
+    --optimize-autoloader \
+    --no-interaction \
+    --no-ansi \
+    --no-dev \
+    && composer clear-cache
