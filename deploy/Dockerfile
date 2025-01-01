@@ -1,113 +1,17 @@
-# Adapted from https://github.com/exaco/laravel-octane-dockerfile
+FROM serversideup/php:8.4-fpm-nginx
 
-ARG PHP_VERSION=8.4
-ARG FRANKENPHP_VERSION=1.3.6
-ARG COMPOSER_VERSION=2.8
-ARG NODE_VERSION=20
+ENV PHP_OPCACHE_ENABLE=1
 
-FROM composer:${COMPOSER_VERSION} AS composer
+USER root
 
-FROM dunglas/frankenphp:${FRANKENPHP_VERSION}-php${PHP_VERSION} AS base
+RUN curl -sL https://deb.nodesource.com/setup_20.x | bash -
+RUN apt-get install -y nodejs
 
-ARG WWWUSER=1000
-ARG WWWGROUP=1000
-ARG TZ=UTC
-ARG APP_DIR=/var/www/html
+COPY --chown=www-data:www-data . /var/www/html
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    TERM=xterm-color \
-    OCTANE_SERVER=frankenphp \
-    TZ=${TZ} \
-    USER=octane \
-    ROOT=${APP_DIR} \
-    COMPOSER_FUND=0 \
-    COMPOSER_MAX_PARALLEL_HTTP=24 \
-    XDG_CONFIG_HOME=${APP_DIR}/.config \
-    XDG_DATA_HOME=${APP_DIR}/.data
+USER www-data
 
-WORKDIR ${ROOT}
-
-SHELL ["/bin/bash", "-eou", "pipefail", "-c"]
-
-RUN ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime \
-    && echo ${TZ} > /etc/timezone
-
-RUN apt-get update; \
-    apt-get upgrade -yqq; \
-    apt-get install -yqq --no-install-recommends --show-progress \
-    apt-utils \
-    curl \
-    git \
-    ca-certificates \
-    # Install PHP extensions (included with dunglas/frankenphp)
-    && install-php-extensions \
-    pgsql \
-    pdo_pgsql \
-    opcache \
-    redis \
-    pcntl \
-    zip \
-    excimer \
-    && apt-get -y autoremove \
-    && apt-get clean \
-    && docker-php-source delete \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
-    && rm /var/log/lastlog /var/log/faillog
-
-RUN userdel --remove --force www-data \
-    && groupadd --force -g ${WWWGROUP} ${USER} \
-    && useradd -ms /bin/bash --no-log-init --no-user-group -g ${WWWGROUP} -u ${WWWUSER} ${USER}
-
-RUN chown -R ${USER}:${USER} ${ROOT} /var/{log,run} \
-    && chmod -R a+rw ${ROOT} /var/{log,run}
-
-RUN cp ${PHP_INI_DIR}/php.ini-production ${PHP_INI_DIR}/php.ini
-
-USER ${USER}
-
-COPY --link --chown=${WWWUSER}:${WWWUSER} --from=composer /usr/bin/composer /usr/bin/composer
-
-COPY --link --chown=${WWWUSER}:${WWWUSER} deploy/php.ini ${PHP_INI_DIR}/conf.d/99-octane.ini
-
-COPY --link --chown=${WWWUSER}:${WWWUSER} composer.json composer.lock ./
-
-RUN composer install \
-    --no-dev \
-    --no-interaction \
-    --no-autoloader \
-    --no-ansi \
-    --no-scripts \
-    --audit
-
-FROM node:${NODE_VERSION} AS npm_build
-
-ENV ROOT=/var/www/html
-
-WORKDIR ${ROOT}
-
-COPY --link package.json ./
-
-RUN npm install --frozen-lockfile
-
-COPY --link . .
-
+RUN npm install
 RUN npm run build
 
-FROM base AS app
-
-USER ${USER}
-
-COPY --link --chown=${WWWUSER}:${WWWUSER} . .
-COPY --link --chown=${WWWUSER}:${WWWUSER} --from=npm_build ${ROOT}/public public
-
-RUN mkdir -p \
-    storage/framework/{sessions,views,cache,testing} \
-    storage/logs \
-    bootstrap/cache && chmod -R a+rw storage
-
-RUN composer install \
-    --classmap-authoritative \
-    --no-interaction \
-    --no-ansi \
-    --no-dev \
-    && composer clear-cache
+RUN composer install --no-interaction --optimize-autoloader --no-dev
