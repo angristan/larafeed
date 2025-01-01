@@ -31,9 +31,11 @@ class RefreshFeeds
     public function asJob(): void
     {
 
-        Feed::orderByRaw('LEAST(last_successful_refresh_at, last_failed_refresh_at) ASC')->limit(10)->get()->each(
-            fn (Feed $feed) => RefreshFeedEntries::dispatch($feed)
-        );
+        Feed::orderByRaw('LEAST(last_successful_refresh_at, last_failed_refresh_at) ASC')
+            ->where('last_successful_refresh_at', '<', now()->subMinutes(10))
+            ->limit(10)->get()->each(
+                fn (Feed $feed) => RefreshFeedEntries::dispatch($feed)
+            );
     }
 
     public function asCommand(Command $command): void
