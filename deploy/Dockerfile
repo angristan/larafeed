@@ -39,6 +39,7 @@ RUN apt-get update; \
     curl \
     git \
     ca-certificates \
+    iputils-ping \
     # Install PHP extensions (included with dunglas/frankenphp)
     && install-php-extensions \
     pgsql \
