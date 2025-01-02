@@ -9,4 +9,5 @@ php artisan octane:start --server=frankenphp \
     --port=8080 \
     --log-level=info \
     --caddyfile=./deploy/Caddyfile \
-    --max-requests=100
+    --max-requests=100 \
+    --workers=4
