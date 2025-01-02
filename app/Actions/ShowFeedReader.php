@@ -22,6 +22,11 @@ class ShowFeedReader
         $feed_id = $request->query('feed');
         $entry_id = $request->query('entry');
         $filter = $request->query('filter');
+        $order_by = 'published_at';
+
+        if ($request->query('order_by') === 'created_at') {
+            $order_by = 'created_at';
+        }
 
         $getFeedsFn = function () {
             return Auth::user()
@@ -39,7 +44,7 @@ class ShowFeedReader
                 ]);
         };
 
-        $getEntriesFn = function () use ($feed_id, $filter) {
+        $getEntriesFn = function () use ($feed_id, $filter, $order_by): \Illuminate\Support\Collection {
             return Entry::query()
                // Apply optional filters
                 ->when($feed_id, fn ($query) => $query->where('entries.feed_id', $feed_id))
@@ -74,7 +79,7 @@ class ShowFeedReader
 
                 ])
                // Fetch the feed for each entry
-                ->orderByDesc('entries.published_at')
+                ->orderByDesc('entries.'.$order_by)
                 ->limit(100)
                 ->get()
                 ->map(fn ($entry) => [
