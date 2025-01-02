@@ -32,6 +32,7 @@ RUN apk update \
     && apk add --no-cache \
     curl \
     git \
+    bash \
     ca-certificates \
     # Install PHP extensions
     && install-php-extensions \
