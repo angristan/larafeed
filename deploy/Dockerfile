@@ -1,9 +1,9 @@
 # Adapted from https://github.com/exaco/laravel-octane-dockerfile
 
 ARG PHP_VERSION=8.4
-ARG FRANKENPHP_VERSION=1.3.6
+ARG FRANKENPHP_VERSION=1.3
 ARG COMPOSER_VERSION=2.8
-ARG NODE_VERSION=20
+ARG NODE_VERSION=22
 
 FROM composer:${COMPOSER_VERSION} AS composer
 
@@ -47,6 +47,7 @@ RUN apt-get update; \
     redis \
     pcntl \
     zip \
+    # for sentry profiles
     excimer \
     && apt-get -y autoremove \
     && apt-get clean \
