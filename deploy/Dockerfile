@@ -7,16 +7,14 @@ ARG NODE_VERSION=22
 
 FROM composer:${COMPOSER_VERSION} AS composer
 
-FROM dunglas/frankenphp:${FRANKENPHP_VERSION}-php${PHP_VERSION} AS base
+FROM dunglas/frankenphp:${FRANKENPHP_VERSION}-php${PHP_VERSION}-alpine AS base
 
 ARG WWWUSER=1000
 ARG WWWGROUP=1000
 ARG TZ=UTC
 ARG APP_DIR=/var/www/html
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    TERM=xterm-color \
-    OCTANE_SERVER=frankenphp \
+ENV OCTANE_SERVER=frankenphp \
     TZ=${TZ} \
     USER=octane \
     ROOT=${APP_DIR} \
@@ -27,19 +25,15 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR ${ROOT}
 
-SHELL ["/bin/bash", "-eou", "pipefail", "-c"]
-
 RUN ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime \
     && echo ${TZ} > /etc/timezone
 
-RUN apt-get update; \
-    apt-get upgrade -yqq; \
-    apt-get install -yqq --no-install-recommends --show-progress \
-    apt-utils \
+RUN apk update \
+    && apk add --no-cache \
     curl \
     git \
     ca-certificates \
-    # Install PHP extensions (included with dunglas/frankenphp)
+    # Install PHP extensions
     && install-php-extensions \
     pgsql \
     pdo_pgsql \
@@ -47,20 +41,13 @@ RUN apt-get update; \
     redis \
     pcntl \
     zip \
-    # for sentry profiles
     excimer \
-    && apt-get -y autoremove \
-    && apt-get clean \
     && docker-php-source delete \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
-    && rm /var/log/lastlog /var/log/faillog
+    && rm -rf /var/cache/apk/* /tmp/* /var/tmp/*
 
-RUN userdel --remove --force www-data \
-    && groupadd --force -g ${WWWGROUP} ${USER} \
-    && useradd -ms /bin/bash --no-log-init --no-user-group -g ${WWWGROUP} -u ${WWWUSER} ${USER}
-
-RUN chown -R ${USER}:${USER} ${ROOT} /var/{log,run} \
-    && chmod -R a+rw ${ROOT} /var/{log,run}
+RUN deluser --remove-home www-data 2>/dev/null || true \
+    && addgroup -g ${WWWGROUP} ${USER} \
+    && adduser -D -s /bin/sh -u ${WWWUSER} -G ${USER} ${USER}
 
 RUN cp ${PHP_INI_DIR}/php.ini-production ${PHP_INI_DIR}/php.ini
 
@@ -80,7 +67,7 @@ RUN composer install \
     --no-scripts \
     --audit
 
-FROM node:${NODE_VERSION} AS npm_build
+FROM node:${NODE_VERSION}-alpine AS npm_build
 
 ENV ROOT=/var/www/html
 
