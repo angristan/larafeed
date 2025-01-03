@@ -9,4 +9,4 @@ Schedule::command('telescope:prune')->daily();
 
 Schedule::command(RefreshFeeds::class)->hourly();
 
-Schedule::command('horizon:snapshot')->everyFiveMinutes();
+// Schedule::command('horizon:snapshot')->everyFiveMinutes();
