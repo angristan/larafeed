@@ -59,7 +59,7 @@ class CreateNewFeed
             // ]);
 
             return redirect()->route('feeds.index')->withErrors([
-                'feed_url' => $error,
+                'feed_url' => 'Failed to fetch feed: '.$error,
             ]);
         }
 
