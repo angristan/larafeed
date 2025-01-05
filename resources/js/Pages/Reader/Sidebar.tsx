@@ -227,6 +227,10 @@ export const FeedLinksGroup = ({
             label={
                 <CategoryHeader
                     category={category}
+                    entriesCount={feedsPerCategory[category.id].reduce(
+                        (acc, feed) => acc + feed.entries_count,
+                        0,
+                    )}
                     feedCount={feedsPerCategory[category.id].length}
                 />
             }
@@ -247,9 +251,11 @@ export const FeedLinksGroup = ({
 
 export function CategoryHeader({
     category,
+    entriesCount,
     feedCount,
 }: {
     category: Category;
+    entriesCount: number;
     feedCount: number;
 }) {
     const { hovered, ref } = useHover();
@@ -278,7 +284,7 @@ export function CategoryHeader({
                             variant="default"
                             className={classes.mainLinkBadge}
                         >
-                            {feedCount}
+                            {entriesCount}
                         </Badge>
                     )}
                 </Menu.Target>
