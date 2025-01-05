@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCategory;
+use App\Actions\DeleteCategory;
 use App\Actions\ExportOPML;
 use App\Actions\Feed\CreateNewFeed;
 use App\Actions\Feed\RefreshFeedEntries;
@@ -39,6 +40,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/feed', CreateNewFeed::class)->name('feed.store');
 
     Route::post('category', CreateCategory::class)->name('category.store');
+    Route::delete('category/{category_id}', DeleteCategory::class)->name('category.delete')->whereNumber('category_id');
 
     Route::patch('feed/{feed_id}', UpdateFeed::class)->name('feed.update');
 
