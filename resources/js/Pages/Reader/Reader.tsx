@@ -45,6 +45,7 @@ interface ReaderProps extends PageProps {
     unreadEntriesCount: number;
     readEntriesCount: number;
     summary?: string;
+    categories: Category[];
 }
 
 const Reader = ({
@@ -55,6 +56,7 @@ const Reader = ({
     unreadEntriesCount,
     readEntriesCount,
     summary,
+    categories,
 }: ReaderProps) => {
     const [opened, { toggle }] = useDisclosure();
 
@@ -209,6 +211,7 @@ const Reader = ({
                 feeds={feeds}
                 unreadEntriesCount={unreadEntriesCount}
                 readEntriesCount={readEntriesCount}
+                categories={categories}
             />
             <Main
                 entries={entries}

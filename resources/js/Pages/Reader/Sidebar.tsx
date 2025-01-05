@@ -7,12 +7,17 @@ import {
     Badge,
     Button,
     Code,
+    Fieldset,
     Group,
     Image,
     Indicator,
     Menu,
     Modal,
+    NativeSelect,
+    NavLink,
     ScrollArea,
+    SegmentedControl,
+    Space,
     Text,
     TextInput,
     Tooltip,
@@ -20,13 +25,15 @@ import {
     rem,
 } from '@mantine/core';
 import { useDisclosure, useHover } from '@mantine/hooks';
-import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import {
     IconBook,
+    IconCategory,
     IconCheck,
     IconCheckbox,
+    IconChevronRight,
     IconDots,
+    IconExclamationCircle,
     IconExternalLink,
     IconPencil,
     IconPlus,
@@ -54,10 +61,12 @@ export default function Sidebar({
     feeds,
     unreadEntriesCount,
     readEntriesCount,
+    categories,
 }: {
     feeds: Feed[];
     unreadEntriesCount: number;
     readEntriesCount: number;
+    categories: Category[];
 }) {
     const mainLinks = links.map((link) => (
         <UnstyledButton
@@ -107,73 +116,161 @@ export default function Sidebar({
         </UnstyledButton>
     ));
 
-    const feedLinks = feeds.map((feed) => (
-        <FeedLink key={feed.id} feed={feed} />
+    interface FeedsByCategory {
+        [key: number]: Feed[];
+    }
+
+    const feedsPerCategory = categories
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .reduce<FeedsByCategory>((acc, category) => {
+            acc[category.id] = [];
+            return acc;
+        }, {});
+
+    feeds.forEach((feed) => {
+        feedsPerCategory[feed.category_id].push(feed);
+    });
+
+    const feedLinks = categories.map((category) => (
+        <NavLink
+            key={category.id}
+            label={category.name}
+            defaultOpened={feedsPerCategory[category.id].length > 0}
+            leftSection={<IconCategory size={20} stroke={1.5} />}
+        >
+            {feedsPerCategory[category.id].map((feed: Feed) => (
+                <FeedLink key={feed.id} feed={feed} categories={categories} />
+            ))}
+        </NavLink>
     ));
 
-    const openModal = () =>
-        modals.open({
-            title: 'Add a new feed',
-            children: <AddFeedModal />,
-        });
+    const [opened, { open, close }] = useDisclosure(false);
 
     const { hovered, ref } = useHover();
 
     return (
-        <AppShell.Navbar>
-            <AppShell.Section pr="md" pl="md" pt="md">
-                <TextInput
-                    placeholder="Search"
-                    size="xs"
-                    leftSection={<IconSearch size={12} stroke={1.5} />}
-                    rightSectionWidth={70}
-                    rightSection={
-                        <Code className={classes.searchCode}>Ctrl + K</Code>
-                    }
-                    styles={{ section: { pointerEvents: 'none' } }}
-                    mb="sm"
-                />
-            </AppShell.Section>
+        <>
+            <AddFeedModal
+                opened={opened}
+                close={close}
+                categories={categories}
+            />
+            <AppShell.Navbar>
+                <AppShell.Section pr="md" pl="md" pt="md">
+                    <TextInput
+                        placeholder="Search"
+                        size="xs"
+                        leftSection={<IconSearch size={12} stroke={1.5} />}
+                        rightSectionWidth={70}
+                        rightSection={
+                            <Code className={classes.searchCode}>Ctrl + K</Code>
+                        }
+                        styles={{ section: { pointerEvents: 'none' } }}
+                        mb="sm"
+                    />
+                </AppShell.Section>
 
-            <AppShell.Section>
-                <div className={classes.mainLinks}>{mainLinks}</div>
-            </AppShell.Section>
+                <AppShell.Section>
+                    <div className={classes.mainLinks}>{mainLinks}</div>
+                </AppShell.Section>
 
-            <AppShell.Section>
-                <Group
-                    className={classes.collectionsHeader}
-                    justify="space-between"
-                >
-                    <Text size="xs" fw={500} c="dimmed">
-                        Feeds
-                    </Text>
-                    <Tooltip
-                        label="Create feed"
-                        withArrow
-                        position="right"
-                        opened={feedLinks.length === 0 || hovered}
+                <AppShell.Section>
+                    <Group
+                        className={classes.collectionsHeader}
+                        justify="space-between"
                     >
-                        <ActionIcon
-                            onClick={openModal}
-                            variant="default"
-                            size={18}
-                            ref={ref}
+                        <Text size="xs" fw={500} c="dimmed">
+                            Feeds
+                        </Text>
+                        <Tooltip
+                            label="Create feed or category"
+                            withArrow
+                            position="right"
+                            opened={feedLinks.length === 0 || hovered}
                         >
-                            <IconPlus size={12} stroke={1.5} />
-                        </ActionIcon>
-                    </Tooltip>
-                </Group>
-            </AppShell.Section>
-            <AppShell.Section grow component={ScrollArea}>
-                <div className={classes.collections}>{feedLinks}</div>
-            </AppShell.Section>
-        </AppShell.Navbar>
+                            <ActionIcon
+                                onClick={open}
+                                variant="default"
+                                size={18}
+                                ref={ref}
+                            >
+                                <IconPlus size={12} stroke={1.5} />
+                            </ActionIcon>
+                        </Tooltip>
+                    </Group>
+                </AppShell.Section>
+                <AppShell.Section grow component={ScrollArea}>
+                    <div className={classes.collections}>{feedLinks}</div>
+                </AppShell.Section>
+            </AppShell.Navbar>
+        </>
     );
 }
 
-const AddFeedModal = function AddFeedModal() {
+const AddFeedModal = function AddFeedModal({
+    opened,
+    close,
+    categories,
+}: {
+    opened: boolean;
+    close: () => void;
+    categories: Category[];
+}) {
+    const [value, setValue] = useState('new_feed');
+
+    return (
+        <>
+            <Modal.Root opened={opened} onClose={close}>
+                <Modal.Overlay />
+                <Modal.Content>
+                    <Modal.Header>
+                        <Modal.Title>
+                            <SegmentedControl
+                                value={value}
+                                onChange={setValue}
+                                radius="sm"
+                                size="sm"
+                                data={[
+                                    { value: 'new_feed', label: 'New feed' },
+                                    {
+                                        value: 'new_category',
+                                        label: 'New category',
+                                    },
+                                ]}
+                            />
+                        </Modal.Title>
+                        <Modal.CloseButton />
+                    </Modal.Header>
+                    <Modal.Body>
+                        <Fieldset variant="filled">
+                            {value === 'new_feed' && (
+                                <AddFeedForm
+                                    categories={categories}
+                                    close={close}
+                                />
+                            )}
+
+                            {value === 'new_category' && (
+                                <AddCategoryForm close={close} />
+                            )}
+                        </Fieldset>
+                    </Modal.Body>
+                </Modal.Content>
+            </Modal.Root>
+        </>
+    );
+};
+
+const AddFeedForm = function AddFeedForm({
+    categories,
+    close,
+}: {
+    categories: Category[];
+    close: () => void;
+}) {
     const { data, setData, post, errors, processing } = useForm({
         feed_url: '',
+        category_id: 1,
     });
 
     const submit: FormEventHandler = (e) => {
@@ -188,7 +285,7 @@ const AddFeedModal = function AddFeedModal() {
                     withBorder: true,
                 });
 
-                modals.closeAll();
+                close();
             },
             onError: (errors) => {
                 notifications.show({
@@ -205,14 +302,122 @@ const AddFeedModal = function AddFeedModal() {
         <form onSubmit={submit}>
             <TextInput
                 type="text"
-                label="Feed URL"
+                label="Site URL"
+                description="You can use the URL of the website or the RSS feed, we will try to find the feed for you"
                 placeholder="https://blog.cloudflare.com/rss/"
+                withErrorStyles={false}
+                rightSectionPointerEvents="none"
+                rightSection={
+                    errors.feed_url && (
+                        <IconExclamationCircle
+                            style={{
+                                width: rem(20),
+                                height: rem(20),
+                            }}
+                            color="var(--mantine-color-error)"
+                        />
+                    )
+                }
                 data-autofocus
                 value={data.feed_url}
                 onChange={(e) => setData('feed_url', e.target.value)}
+                error={errors.feed_url}
             />
-            {errors.feed_url && <div>{errors.feed_url}</div>}
-            <Button mt="md" fullWidth type="submit" disabled={processing}>
+
+            <NativeSelect
+                mt={10}
+                label="Category"
+                description="The category where the feed will be added"
+                data={categories.map((category) => ({
+                    value: category.id.toString(),
+                    label: category.name,
+                }))}
+                value={data.category_id.toString()}
+                onChange={(e) =>
+                    setData('category_id', parseInt(e.target.value))
+                }
+                error={errors.category_id}
+            />
+
+            <Button
+                mt="md"
+                fullWidth
+                type="submit"
+                disabled={processing}
+                loading={processing}
+            >
+                Submit
+            </Button>
+        </form>
+    );
+};
+
+const AddCategoryForm = function AddCategoryForm({
+    close,
+}: {
+    close: () => void;
+}) {
+    const { data, setData, post, errors, processing } = useForm({
+        categoryName: '',
+    });
+
+    const submit: FormEventHandler = (e) => {
+        e.preventDefault();
+
+        post(route('category.store'), {
+            onSuccess: () => {
+                notifications.show({
+                    title: 'Category added',
+                    message: 'The category has been added',
+                    color: 'green',
+                    withBorder: true,
+                });
+
+                close();
+            },
+            onError: (errors) => {
+                notifications.show({
+                    title: 'Failed to add category',
+                    message: errors.categoryName,
+                    color: 'red',
+                    withBorder: true,
+                });
+            },
+        });
+    };
+
+    return (
+        <form onSubmit={submit}>
+            <TextInput
+                type="text"
+                label="Category name"
+                description="You will then be able to assign feeds to this category"
+                placeholder="Tech"
+                data-autofocus
+                value={data.categoryName}
+                onChange={(e) => setData('categoryName', e.target.value)}
+                withErrorStyles={false}
+                rightSectionPointerEvents="none"
+                rightSection={
+                    errors.categoryName && (
+                        <IconExclamationCircle
+                            style={{
+                                width: rem(20),
+                                height: rem(20),
+                            }}
+                            color="var(--mantine-color-error)"
+                        />
+                    )
+                }
+                error={errors.categoryName}
+            />
+            <Button
+                mt="md"
+                fullWidth
+                type="submit"
+                disabled={processing}
+                loading={processing}
+            >
                 Submit
             </Button>
         </form>
@@ -224,10 +429,26 @@ interface RefreshResponse {
     message?: string;
 }
 
-const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
+const FeedLink = function FeedLink({
+    feed,
+    categories,
+}: {
+    feed: Feed;
+    categories: Category[];
+}) {
     const { hovered, ref } = useHover();
     const [opened, setOpened] = useState(false);
-    const [modalopened, { open, close }] = useDisclosure(false);
+    const [
+        deleteFeedModalopened,
+        { open: openDeleteFeedModal, close: closeDeleteFeedModal },
+    ] = useDisclosure(false);
+    const [
+        updateFeedCategoryModalOpened,
+        {
+            open: openUpdateFeedCategoryModal,
+            close: closeUpdateFeedCategoryModal,
+        },
+    ] = useDisclosure(false);
 
     const markFeedAsRead = () => {
         router.post(
@@ -307,7 +528,17 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
 
     return (
         <>
-            <DeleteFeedModal feed={feed} opened={modalopened} onClose={close} />
+            <DeleteFeedModal
+                feed={feed}
+                opened={deleteFeedModalopened}
+                onClose={closeDeleteFeedModal}
+            />
+            <UpdateFeedModal
+                feed={feed}
+                categories={categories}
+                opened={updateFeedCategoryModalOpened}
+                onClose={closeUpdateFeedCategoryModal}
+            />
             <Tooltip
                 withArrow
                 position="right"
@@ -465,6 +696,29 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                                         Request refresh
                                     </Menu.Item>
 
+                                    <Menu.Item
+                                        leftSection={
+                                            <IconCategory
+                                                style={{
+                                                    width: rem(14),
+                                                    height: rem(14),
+                                                }}
+                                            />
+                                        }
+                                        rightSection={
+                                            <IconChevronRight
+                                                style={{
+                                                    width: rem(14),
+                                                    height: rem(14),
+                                                }}
+                                            />
+                                        }
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            openUpdateFeedCategoryModal();
+                                        }}
+                                    ></Menu.Item>
+
                                     <Menu.Divider />
 
                                     <Menu.Item
@@ -479,7 +733,7 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                                         }
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            open();
+                                            openDeleteFeedModal();
                                         }}
                                     >
                                         Unsubscribe
@@ -491,6 +745,113 @@ const FeedLink = function FeedLink({ feed }: { feed: Feed }) {
                 </div>
             </Tooltip>
         </>
+    );
+};
+
+const UpdateFeedModal = ({
+    feed,
+    categories,
+    opened,
+    onClose,
+}: {
+    feed: Feed;
+    categories: Category[];
+    opened: boolean;
+    onClose: () => void;
+}) => {
+    const { data, setData, errors, processing } = useForm({
+        category_id: feed.category_id,
+        name: '',
+    });
+
+    const submit: FormEventHandler = (e) => {
+        e.preventDefault();
+
+        router.patch(
+            route('feed.update', feed.id),
+            {
+                category_id: data.category_id,
+                name: data.name,
+            },
+            {
+                onSuccess: () => {
+                    notifications.show({
+                        title: 'Feed updated',
+                        message: 'The feed has been updated',
+                        color: 'green',
+                        withBorder: true,
+                    });
+
+                    onClose();
+                },
+                onError: (errors) => {
+                    notifications.show({
+                        title: 'Failed to update feed',
+                        message: errors.name,
+                        color: 'red',
+                        withBorder: true,
+                    });
+                },
+            },
+        );
+    };
+
+    return (
+        <Modal title="Update feed" opened={opened} onClose={onClose}>
+            <Fieldset variant="filled">
+                <form onSubmit={submit}>
+                    <TextInput
+                        type="text"
+                        label="Feed name"
+                        placeholder={feed.original_name}
+                        description="Leave empty to keep the original name"
+                        data-autofocus
+                        value={data.name}
+                        onChange={(e) => setData('name', e.target.value)}
+                        withErrorStyles={false}
+                        rightSectionPointerEvents="none"
+                        rightSection={
+                            errors.name && (
+                                <IconExclamationCircle
+                                    style={{
+                                        width: rem(20),
+                                        height: rem(20),
+                                    }}
+                                    color="var(--mantine-color-error)"
+                                />
+                            )
+                        }
+                        error={errors.name}
+                    />
+
+                    <Space mt="md" />
+
+                    <NativeSelect
+                        label="Category"
+                        description="The category where the feed will be moved"
+                        data={categories.map((category) => ({
+                            value: category.id.toString(),
+                            label: category.name,
+                        }))}
+                        value={data.category_id.toString()}
+                        onChange={(e) =>
+                            setData('category_id', parseInt(e.target.value))
+                        }
+                        error={errors.category_id}
+                    />
+
+                    <Button
+                        mt="md"
+                        fullWidth
+                        type="submit"
+                        disabled={processing}
+                        loading={processing}
+                    >
+                        Submit
+                    </Button>
+                </form>
+            </Fieldset>
+        </Modal>
     );
 };
 

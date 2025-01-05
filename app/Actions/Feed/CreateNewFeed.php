@@ -8,6 +8,7 @@ use App\Actions\GetFaviconURL;
 use App\Models\Feed;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
 
@@ -19,6 +20,7 @@ class CreateNewFeed
     {
         return [
             'feed_url' => ['required', 'max:255', 'url'],
+            'category_id' => ['required', 'exists:subscription_categories,id'],
         ];
     }
 
@@ -28,17 +30,26 @@ class CreateNewFeed
             'feed_url.required' => 'Please enter a feed URL',
             'feed_url.url' => 'Please enter a valid URL',
             'feed_url.max' => 'Please enter a URL that is less than 255 characters',
+            'category_id.required' => 'Please select a category',
+            'category_id.exists' => 'Please select a valid category',
         ];
     }
 
     public function asController(Request $request)
     {
-        $this->handle($request->feed_url, $request->user());
+        // Check if category exists for the user
+        if (! Auth::user()->subscriptionCategories()->where('id', request('category_id'))->exists()) {
+            return redirect()->route('feeds.index')->withErrors([
+                'category_id' => 'Invalid category',
+            ]);
+        }
+
+        $this->handle($request->feed_url, $request->user(), $request->category_id);
 
         return redirect()->route('feeds.index');
     }
 
-    public function handle(string $requested_feed_url, ?User $attachedUser)
+    public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id)
     {
         // TODO fetch limit
         $crawledFeed = \Feeds::make(feedUrl: $requested_feed_url);
@@ -72,7 +83,10 @@ class CreateNewFeed
                         'feed_url' => "You're already following this feed",
                     ]);
                 } else {
-                    $attachedUser->feeds()->attach(Feed::where('feed_url', $feed_url)->first());
+                    $attachedUser->feeds()->attach(
+                        Feed::where('feed_url', $feed_url)->first(),
+                        ['category_id' => $category_id]
+                    );
 
                     return redirect()->route('feeds.index');
                 }
@@ -96,11 +110,12 @@ class CreateNewFeed
         ]);
 
         if ($attachedUser) {
-            $attachedUser->feeds()->attach($feed);
+            $attachedUser->feeds()->attach($feed, ['category_id' => $category_id]);
         }
 
         // TODO single insert
         $entries = $crawledFeed->get_items();
+
         foreach ($entries as $entry) {
             $feed->entries()->create([
                 'title' => $entry->get_title(),

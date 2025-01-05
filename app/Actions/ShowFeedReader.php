@@ -31,16 +31,28 @@ class ShowFeedReader
         $getFeedsFn = function () {
             return Auth::user()
                 ->feeds()
-                ->withCount('entries')
                 ->orderBy('name')
+                ->join('subscription_categories', 'feed_subscriptions.category_id', '=', 'subscription_categories.id')
+                ->select([
+                    'feeds.id',
+                    'feeds.name',
+                    'feeds.site_url',
+                    'feeds.favicon_url',
+                    'feeds.last_successful_refresh_at',
+                    'feeds.last_failed_refresh_at',
+                    'subscription_categories.id as category_id',
+                    \DB::raw('(SELECT COUNT(*) FROM entries WHERE entries.feed_id = feeds.id) as entries_count'),
+                ])
                 ->get()->map(fn (Feed $feed) => [
                     'id' => $feed->id,
                     'name' => $feed->subscription?->custom_feed_name ?? $feed->name,
+                    'original_name' => $feed->name,
                     'site_url' => $feed->site_url,
                     'favicon_url' => $feed->favicon_url(),
-                    'entries_count' => $feed->entries_count,
+                    'entries_count' => $feed['entries_count'],
                     'last_successful_refresh_at' => $feed->last_successful_refresh_at,
                     'last_failed_refresh_at' => $feed->last_failed_refresh_at,
+                    'category_id' => $feed['category_id'],
                 ]);
         };
 
@@ -191,6 +203,10 @@ class ShowFeedReader
                 ->count();
         };
 
+        $getUserCategoriesFn = function () {
+            return Auth::user()->subscriptionCategories()->get();
+        };
+
         // TODO https://laravel.com/docs/9.x/eloquent-resources
         return Inertia::render('Reader/Reader', [
             'feeds' => $getFeedsFn,
@@ -199,6 +215,7 @@ class ShowFeedReader
             'unreadEntriesCount' => $unreadEntriesCountFn,
             'readEntriesCount' => $readEntriesCountFn,
             'summary' => Inertia::always($getEntrySummaryFn),
+            'categories' => $getUserCategoriesFn,
         ]);
     }
 }

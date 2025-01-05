@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCategory;
 use App\Actions\ExportOPML;
 use App\Actions\Feed\CreateNewFeed;
 use App\Actions\Feed\RefreshFeedEntries;
@@ -10,6 +11,7 @@ use App\Actions\MarkEntriesAsRead;
 use App\Actions\ShowFeedReader;
 use App\Actions\UnsubscribeFromFeed;
 use App\Actions\UpdateEntryInteractions;
+use App\Actions\UpdateFeed;
 use App\Features\Registration;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -35,6 +37,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/feeds', ShowFeedReader::class)->name('feeds.index');
     // Route::post('/feed/{feed}/refresh', RefreshFeedEntries::class)->name('feed.refresh')->whereNumber('feed');
     Route::post('/feed', CreateNewFeed::class)->name('feed.store');
+
+    Route::post('category', CreateCategory::class)->name('category.store');
+
+    Route::patch('feed/{feed_id}', UpdateFeed::class)->name('feed.update');
 
     Route::patch('/entry/{entry_id}', UpdateEntryInteractions::class)->name('entry.update');
     Route::delete('/feed/{feed_id}', UnsubscribeFromFeed::class)->name('feed.unsubscribe');

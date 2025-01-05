@@ -47,6 +47,20 @@ class BuildProfixedFaviconURL
 {
 }
 /**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\App\Models\User $user, string $name)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\App\Models\User $user, string $name)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\App\Models\User $user, string $name)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \App\Models\User $user, string $name)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \App\Models\User $user, string $name)
+ * @method static dispatchSync(\App\Models\User $user, string $name)
+ * @method static dispatchNow(\App\Models\User $user, string $name)
+ * @method static dispatchAfterResponse(\App\Models\User $user, string $name)
+ * @method static mixed run(\App\Models\User $user, string $name)
+ */
+class CreateCategory
+{
+}
+/**
  * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob()
  * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob()
  * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch()
@@ -145,15 +159,15 @@ class SummarizeEntryWithLLM
 namespace App\Actions\Feed;
 
 /**
- * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(string $requested_feed_url, ?\App\Models\User $attachedUser)
- * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(string $requested_feed_url, ?\App\Models\User $attachedUser)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(string $requested_feed_url, ?\App\Models\User $attachedUser)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, string $requested_feed_url, ?\App\Models\User $attachedUser)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, string $requested_feed_url, ?\App\Models\User $attachedUser)
- * @method static dispatchSync(string $requested_feed_url, ?\App\Models\User $attachedUser)
- * @method static dispatchNow(string $requested_feed_url, ?\App\Models\User $attachedUser)
- * @method static dispatchAfterResponse(string $requested_feed_url, ?\App\Models\User $attachedUser)
- * @method static mixed run(string $requested_feed_url, ?\App\Models\User $attachedUser)
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
+ * @method static dispatchSync(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
+ * @method static dispatchNow(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
+ * @method static dispatchAfterResponse(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
+ * @method static mixed run(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
  */
 class CreateNewFeed
 {

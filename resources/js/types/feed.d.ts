@@ -1,11 +1,13 @@
 interface Feed {
     id: number;
     name: string;
+    original_name: string;
     favicon_url: string;
     site_url: string;
     entries_count: number;
     last_successful_refresh_at: string | null;
     last_failed_refresh_at: string | null;
+    category_id: number;
 }
 
 interface Timestamps {
@@ -27,4 +29,9 @@ interface Entry extends Timestamps {
         favicon_url: string;
         name: string;
     };
+}
+
+interface Category extends Timestamps {
+    id: number;
+    name: string;
 }

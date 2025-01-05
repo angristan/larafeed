@@ -6,6 +6,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -26,6 +27,8 @@ use Illuminate\Notifications\Notifiable;
  * @property-read int|null $feeds_count
  * @property-read \Illuminate\Notifications\DatabaseNotificationCollection<int, \Illuminate\Notifications\DatabaseNotification> $notifications
  * @property-read int|null $notifications_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\SubscriptionCategory> $subscriptionCategories
+ * @property-read int|null $subscription_categories_count
  *
  * @method static \Database\Factories\UserFactory factory($count = null, $state = [])
  * @method static \Illuminate\Database\Eloquent\Builder<static>|User newModelQuery()
@@ -97,5 +100,10 @@ class User extends Authenticatable
             ->using(EntryInteraction::class)
             ->withTimestamps()
             ->withPivot(['read_at', 'starred_at', 'archived_at']);
+    }
+
+    public function subscriptionCategories(): HasMany
+    {
+        return $this->hasMany(SubscriptionCategory::class);
     }
 }
