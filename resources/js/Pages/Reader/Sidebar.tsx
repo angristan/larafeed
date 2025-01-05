@@ -283,7 +283,7 @@ export function CategoryHeader({
                         </ActionIcon>
                     ) : (
                         <Badge
-                            size="xs"
+                            size="sm"
                             variant="default"
                             className={classes.mainLinkBadge}
                         >
@@ -781,7 +781,7 @@ const FeedLink = function FeedLink({
                                         </ActionIcon>
                                     ) : (
                                         <Badge
-                                            size="xs"
+                                            size="sm"
                                             variant="default"
                                             className={classes.mainLinkBadge}
                                         >
