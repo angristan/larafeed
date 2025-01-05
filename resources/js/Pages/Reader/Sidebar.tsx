@@ -45,7 +45,7 @@ import axios, { AxiosError } from 'axios';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
-import { FormEventHandler, useState } from 'react';
+import { FormEventHandler, useEffect, useState } from 'react';
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
@@ -131,16 +131,12 @@ export default function Sidebar({
     });
 
     const feedLinks = categories.map((category) => (
-        <NavLink
+        <FeedLinksGroup
             key={category.id}
-            label={category.name}
-            defaultOpened={feedsPerCategory[category.id].length > 0}
-            leftSection={<IconRss size={15} stroke={1.5} />}
-        >
-            {feedsPerCategory[category.id].map((feed: Feed) => (
-                <FeedLink key={feed.id} feed={feed} categories={categories} />
-            ))}
-        </NavLink>
+            category={category}
+            feedsPerCategory={feedsPerCategory}
+            categories={categories}
+        />
     ));
 
     const [opened, { open, close }] = useDisclosure(false);
@@ -203,6 +199,166 @@ export default function Sidebar({
                 </AppShell.Section>
             </AppShell.Navbar>
         </>
+    );
+}
+
+interface FeedLinksGroupProps {
+    category: Category;
+    feedsPerCategory: Record<number, Feed[]>;
+    categories: Category[];
+}
+
+export const FeedLinksGroup = ({
+    category,
+    feedsPerCategory,
+    categories,
+}: FeedLinksGroupProps) => {
+    const [opened, setOpened] = useState(
+        feedsPerCategory[category.id].length > 0,
+    );
+
+    useEffect(() => {
+        setOpened(feedsPerCategory[category.id].length > 0);
+    }, [category.id, feedsPerCategory]);
+
+    return (
+        <NavLink
+            key={category.id}
+            label={
+                <CategoryHeader
+                    category={category}
+                    feedCount={feedsPerCategory[category.id].length}
+                />
+            }
+            opened={opened}
+            defaultOpened={feedsPerCategory[category.id].length > 0}
+            leftSection={<IconRss size={15} stroke={1.5} />}
+            onClick={(e) => {
+                e.preventDefault();
+                setOpened(!opened);
+            }}
+        >
+            {feedsPerCategory[category.id].map((feed: Feed) => (
+                <FeedLink key={feed.id} feed={feed} categories={categories} />
+            ))}
+        </NavLink>
+    );
+};
+
+export function CategoryHeader({
+    category,
+    feedCount,
+}: {
+    category: Category;
+    feedCount: number;
+}) {
+    const { hovered, ref } = useHover();
+    const [opened, setOpened] = useState(false);
+
+    return (
+        <Menu shadow="md" opened={opened} onChange={setOpened}>
+            <Group justify="space-between" ref={ref}>
+                <span>{category.name}</span>
+                <Menu.Target>
+                    {hovered || opened ? (
+                        <ActionIcon
+                            size="xs"
+                            color="gray"
+                            className={classes.feedMenuIcon}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setOpened(!opened);
+                            }}
+                        >
+                            <IconDots size={15} stroke={1.5} />
+                        </ActionIcon>
+                    ) : (
+                        <Badge
+                            size="xs"
+                            variant="default"
+                            className={classes.mainLinkBadge}
+                        >
+                            {feedCount}
+                        </Badge>
+                    )}
+                </Menu.Target>
+            </Group>
+
+            <Menu.Dropdown>
+                <Menu.Label>Manage category</Menu.Label>
+
+                <Menu.Item
+                    onClick={(e) => {
+                        e.stopPropagation();
+                    }}
+                    leftSection={
+                        <IconCheck
+                            style={{
+                                width: rem(14),
+                                height: rem(14),
+                            }}
+                        />
+                    }
+                >
+                    Mark feeds as read
+                </Menu.Item>
+
+                <Menu.Item
+                    leftSection={
+                        <IconPencil
+                            style={{
+                                width: rem(14),
+                                height: rem(14),
+                            }}
+                        />
+                    }
+                >
+                    Edit category name
+                </Menu.Item>
+
+                <Menu.Divider />
+
+                <Menu.Item
+                    color="red"
+                    disabled={feedCount > 0}
+                    leftSection={
+                        <IconTrash
+                            style={{
+                                width: rem(14),
+                                height: rem(14),
+                            }}
+                        />
+                    }
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        router.delete(route('category.delete', category.id), {
+                            preserveScroll: true,
+                            preserveState: true,
+                            onSuccess: () => {
+                                notifications.show({
+                                    title: 'Category deleted',
+                                    message: `The category ${category.name} has been deleted`,
+                                    color: 'green',
+                                    withBorder: true,
+                                });
+                            },
+                            onError: (error) => {
+                                notifications.show({
+                                    title: `Failed to delete category ${category.name}`,
+                                    message: error.message,
+                                    color: 'red',
+                                    withBorder: true,
+                                });
+                            },
+                        });
+                    }}
+                >
+                    {feedCount > 0
+                        ? 'Delete (needs to be empty)'
+                        : 'Delete category'}
+                </Menu.Item>
+            </Menu.Dropdown>
+        </Menu>
     );
 }
 
