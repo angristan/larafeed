@@ -755,8 +755,8 @@ const FeedLink = function FeedLink({
                             >
                                 <Image
                                     src={feed.favicon_url}
-                                    w={20}
-                                    h={20}
+                                    w={15}
+                                    h={15}
                                     mr={9}
                                 />
                                 <span>{feed.name}</span>
