@@ -28,16 +28,15 @@ import { useDisclosure, useHover } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
     IconBook,
-    IconCategory,
     IconCheck,
     IconCheckbox,
-    IconChevronRight,
     IconDots,
     IconExclamationCircle,
     IconExternalLink,
     IconPencil,
     IconPlus,
     IconRefresh,
+    IconRss,
     IconSearch,
     IconStar,
     IconTrash,
@@ -136,7 +135,7 @@ export default function Sidebar({
             key={category.id}
             label={category.name}
             defaultOpened={feedsPerCategory[category.id].length > 0}
-            leftSection={<IconCategory size={20} stroke={1.5} />}
+            leftSection={<IconRss size={15} stroke={1.5} />}
         >
             {feedsPerCategory[category.id].map((feed: Feed) => (
                 <FeedLink key={feed.id} feed={feed} categories={categories} />
@@ -668,19 +667,6 @@ const FeedLink = function FeedLink({
 
                                     <Menu.Item
                                         leftSection={
-                                            <IconPencil
-                                                style={{
-                                                    width: rem(14),
-                                                    height: rem(14),
-                                                }}
-                                            />
-                                        }
-                                    >
-                                        Edit name
-                                    </Menu.Item>
-
-                                    <Menu.Item
-                                        leftSection={
                                             <IconRefresh
                                                 style={{
                                                     width: rem(14),
@@ -698,15 +684,7 @@ const FeedLink = function FeedLink({
 
                                     <Menu.Item
                                         leftSection={
-                                            <IconCategory
-                                                style={{
-                                                    width: rem(14),
-                                                    height: rem(14),
-                                                }}
-                                            />
-                                        }
-                                        rightSection={
-                                            <IconChevronRight
+                                            <IconPencil
                                                 style={{
                                                     width: rem(14),
                                                     height: rem(14),
@@ -717,7 +695,9 @@ const FeedLink = function FeedLink({
                                             e.stopPropagation();
                                             openUpdateFeedCategoryModal();
                                         }}
-                                    ></Menu.Item>
+                                    >
+                                        Edit feed
+                                    </Menu.Item>
 
                                     <Menu.Divider />
 
