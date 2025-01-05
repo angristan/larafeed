@@ -27,4 +27,13 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
 class FeedSubscription extends Pivot
 {
     protected $table = 'feed_subscriptions';
+    public $incrementing = false;
+
+    protected $primaryKey = null;
+
+    protected function setKeysForSaveQuery($query)
+    {
+        return $query->where('user_id', $this->getAttribute('user_id'))
+            ->where('feed_id', $this->getAttribute('feed_id'));
+    }
 }
