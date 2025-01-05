@@ -7,6 +7,7 @@ import {
     Badge,
     Button,
     Code,
+    Divider,
     Fieldset,
     Group,
     Image,
@@ -168,6 +169,8 @@ export default function Sidebar({
                 <AppShell.Section>
                     <div className={classes.mainLinks}>{mainLinks}</div>
                 </AppShell.Section>
+
+                <Divider mb="sm" />
 
                 <AppShell.Section>
                     <Group
