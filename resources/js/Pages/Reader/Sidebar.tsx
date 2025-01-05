@@ -897,7 +897,7 @@ const UpdateFeedModal = ({
 }) => {
     const { data, setData, errors, processing } = useForm({
         category_id: feed.category_id,
-        name: '',
+        name: feed.name === feed.original_name ? '' : feed.name,
     });
 
     const submit: FormEventHandler = (e) => {
