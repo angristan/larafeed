@@ -19,7 +19,7 @@ class CreateNewFeed
     public function rules(): array
     {
         return [
-            'feed_url' => ['required', 'max:255', 'url'],
+            'feed_url' => ['required', 'max:255', 'url', 'active_url'],
             'category_id' => ['required', 'exists:subscription_categories,id'],
         ];
     }
@@ -29,6 +29,7 @@ class CreateNewFeed
         return [
             'feed_url.required' => 'Please enter a feed URL',
             'feed_url.url' => 'Please enter a valid URL',
+            'feed_url.active_url' => 'Please ensure the URL is reachable',
             'feed_url.max' => 'Please enter a URL that is less than 255 characters',
             'category_id.required' => 'Please select a category',
             'category_id.exists' => 'Please select a valid category',
