@@ -23,7 +23,10 @@ Please provide a concise summary of the following article in 3-4 sentences.
 Focus on the main points and key takeaways.
 Maintain a neutral, informative tone.
 Use bullet points if appropriate.
-If the content appears incomplete or unclear, mention that in your summary.
+If the entry is from an aggregator like hacker news and there is no content, only links or
+if the article in only an excerpt, don't summarize it,
+just say in a single sentence that you cannot summarize it and why.
+Don't use first person language, use passive voice.
 Return the summary as HTML, WITHOUT any additional formatting.
 Here's the article:
 
