@@ -376,13 +376,22 @@ export default function CurrentEntryPane({
                                         size={16}
                                         color={theme.colors.blue[5]}
                                     />
-                                    <Badge
-                                        size="sm"
-                                        variant="light"
-                                        color="blue"
+                                    <Tooltip
+                                        label="Generated with Google's Gemini 1.5 Flash"
+                                        position="right"
+                                        transitionProps={{
+                                            transition: 'fade',
+                                            duration: 300,
+                                        }}
                                     >
-                                        AI Summary
-                                    </Badge>
+                                        <Badge
+                                            size="sm"
+                                            variant="light"
+                                            color="blue"
+                                        >
+                                            AI Summary
+                                        </Badge>
+                                    </Tooltip>
                                 </Flex>
                                 {summary ? (
                                     <div
