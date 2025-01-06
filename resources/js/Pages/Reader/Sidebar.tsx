@@ -725,11 +725,18 @@ const FeedLink = function FeedLink({
                 withArrow
                 position="right"
                 openDelay={1000}
-                label={`${feed.last_failed_refresh_at ? 'Last refresh failed' : 'Last refresh successful'} ${dayjs(
-                    feed.last_failed_refresh_at
-                        ? feed.last_failed_refresh_at
-                        : feed.last_successful_refresh_at,
-                ).fromNow()}`}
+                label={(() => {
+                    const failedAt = feed.last_failed_refresh_at;
+                    const successAt = feed.last_successful_refresh_at;
+
+                    const showFailed =
+                        failedAt &&
+                        (!successAt || dayjs(failedAt).isAfter(successAt));
+
+                    return `${showFailed ? 'Last refresh failed' : 'Last refresh successful'} ${dayjs(
+                        showFailed ? failedAt : successAt,
+                    ).fromNow()}`;
+                })()}
             >
                 <Link
                     ref={ref}
@@ -748,7 +755,13 @@ const FeedLink = function FeedLink({
                     <Indicator
                         color="orange"
                         withBorder
-                        disabled={!feed.last_failed_refresh_at}
+                        disabled={
+                            feed.last_failed_refresh_at
+                                ? dayjs(
+                                      feed.last_successful_refresh_at,
+                                  ).isAfter(dayjs(feed.last_failed_refresh_at))
+                                : true
+                        }
                     >
                         <div
                             style={{
