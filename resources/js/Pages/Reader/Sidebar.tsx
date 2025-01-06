@@ -432,9 +432,23 @@ const AddFeedForm = function AddFeedForm({
     categories: Category[];
     close: () => void;
 }) {
-    const { data, setData, post, errors, processing } = useForm({
+    const { data, setData, post, errors, processing, transform } = useForm({
         feed_url: '',
         category_id: 1,
+    });
+
+    // Transform the feed URL to have a protocol if it doesn't have one
+    transform((data) => {
+        const feedUrl = RegExp('^(http|https)://').test(data.feed_url)
+            ? data.feed_url
+            : `https://${data.feed_url}`;
+
+        setData('feed_url', feedUrl);
+
+        return {
+            ...data,
+            feed_url: feedUrl,
+        };
     });
 
     const submit: FormEventHandler = (e) => {
