@@ -14,6 +14,7 @@ import {
     ScrollArea,
     SegmentedControl,
     Skeleton,
+    Space,
     Text,
     Title,
     Tooltip,
@@ -369,6 +370,7 @@ export default function CurrentEntryPane({
                                 shadow="xs"
                                 p="md"
                                 withBorder
+                                pb={0}
                                 className={classes.entrySummary}
                             >
                                 <Flex align="center" gap="xs" mb="sm">
@@ -447,6 +449,7 @@ export default function CurrentEntryPane({
                                             mt={6}
                                             width="91%"
                                             radius="xl"
+                                            mb={20}
                                         />
                                     </div>
                                 )}
