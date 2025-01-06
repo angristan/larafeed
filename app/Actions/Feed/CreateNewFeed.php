@@ -40,14 +40,14 @@ class CreateNewFeed
     {
         // Check if category exists for the user
         if (! Auth::user()->subscriptionCategories()->where('id', request('category_id'))->exists()) {
-            return redirect()->route('feeds.index')->withErrors([
+            return redirect()->back()->withErrors([
                 'category_id' => 'Invalid category',
             ]);
         }
 
         $this->handle($request->feed_url, $request->user(), $request->category_id);
 
-        return redirect()->route('feeds.index');
+        return redirect()->back();
     }
 
     public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id)
@@ -70,7 +70,7 @@ class CreateNewFeed
             //     'feed_url' => $error,
             // ]);
 
-            return redirect()->route('feeds.index')->withErrors([
+            return redirect()->back()->withErrors([
                 'feed_url' => 'Failed to fetch feed: '.$error,
             ]);
         }
@@ -80,7 +80,7 @@ class CreateNewFeed
         if (Feed::where('feed_url', $feed_url)->exists()) {
             if ($attachedUser) {
                 if ($attachedUser->feeds()->where('feed_url', $feed_url)->exists()) {
-                    return redirect()->route('feeds.index')->withErrors([
+                    return redirect()->back()->withErrors([
                         'feed_url' => "You're already following this feed",
                     ]);
                 } else {
@@ -89,11 +89,11 @@ class CreateNewFeed
                         ['category_id' => $category_id]
                     );
 
-                    return redirect()->route('feeds.index');
+                    return redirect()->back();
                 }
             }
 
-            return redirect()->route('feeds.index')->withErrors([
+            return redirect()->back()->withErrors([
                 'feed_url' => 'Feed already exists',
             ]);
         }
