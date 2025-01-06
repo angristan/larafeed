@@ -22,12 +22,12 @@ class SummarizeEntryWithLLM
 Please provide a concise summary of the following article in 3-4 sentences.
 Focus on the main points and key takeaways.
 Maintain a neutral, informative tone.
-Use bullet points if appropriate.
+Use bullet points if appropriate, but at least don't write a wall of text, break it down into paragraphs (HTML).
 If the entry is from an aggregator like hacker news and there is no content, only links or
 if the article in only an excerpt, don't summarize it,
 just say in a single sentence that you cannot summarize it and why.
 Don't use first person language, use passive voice.
-Return the summary as HTML, WITHOUT any additional formatting.
+Return the summary as HTML, WITHOUT any additional formatting (like ```)
 Here's the article:
 
 {$entry->content}
@@ -38,7 +38,7 @@ EOT;
             now()->addDays(30),
             function () use ($prompt) {
                 return Prism::text()
-                    ->using(Provider::OpenAI, 'gpt-4o-mini')
+                    ->using(Provider::Gemini, 'gemini-1.5-flash')
                     ->withPrompt($prompt)
                     ->withMaxTokens(512)
                     ->generate()->text;
