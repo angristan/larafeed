@@ -27,6 +27,7 @@ If the entry is from an aggregator like hacker news and there is no content, onl
 if the article in only an excerpt, don't summarize it,
 just say in a single sentence that you cannot summarize it and why.
 Don't use first person language, use passive voice.
+Use simple english.
 Return the summary as HTML, WITHOUT any additional formatting (like ```)
 Here's the article:
 
