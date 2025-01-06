@@ -24,7 +24,11 @@ class GetFaviconURL
             $response = Http::head($favicon_url);
 
             if (! $response->ok()) {
-                Log::error('Failed to fetch favicon for '.$site_url.': '.$response->status());
+                Log::withContext([
+                    'response_status' => $response->status(),
+                    'site_url' => $site_url,
+                    'favicon_url' => $favicon_url,
+                ])->error('Failed to fetch favicon: invalid response');
                 $favicon_url = null;
             }
 
