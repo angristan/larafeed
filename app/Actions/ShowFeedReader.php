@@ -129,14 +129,15 @@ class ShowFeedReader
 
             if ($request->query('read') === 'false') {
                 $requestedEntry->markAsUnread(Auth::user());
-            } else {
+            }
+            if ($request->query('read') === 'true') {
                 $requestedEntry->markAsRead(Auth::user());
             }
 
             // Merge entry with feed data and user interactions
-            return Entry::query()
+            $currentEntry = Entry::query()
                 ->with('feed:id,name,favicon_url')
-                ->join('entry_interactions', function ($join) {
+                ->leftJoin('entry_interactions', function ($join) {
                     $join->on('entries.id', '=', 'entry_interactions.entry_id')
                         ->where('entry_interactions.user_id', '=', Auth::id());
                 })
@@ -148,6 +149,8 @@ class ShowFeedReader
                     'entry_interactions.archived_at',
                 ])
                 ->first();
+
+            return $currentEntry;
         };
 
         $getEntrySummaryFn = function () use ($request, $entry_id): string|null {

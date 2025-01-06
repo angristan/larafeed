@@ -101,7 +101,7 @@ export default function CurrentEntryPane({
         if (currententry.read_at) {
             urlParams.set('read', 'false');
         } else {
-            urlParams.delete('read');
+            urlParams.set('read', 'true');
         }
 
         router.visit('feeds', {
@@ -329,7 +329,6 @@ export default function CurrentEntryPane({
                                 variant="outline"
                                 color="gray"
                                 onClick={updateRead}
-                                // loading={showLoading}
                                 loaderProps={{ type: 'dots' }}
                             >
                                 {currententry.read_at ? (
