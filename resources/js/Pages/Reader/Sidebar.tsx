@@ -1,6 +1,6 @@
 import classes from './Sidebar.module.css';
 
-import { router, useForm } from '@inertiajs/react';
+import { Link, router, useForm } from '@inertiajs/react';
 import {
     ActionIcon,
     AppShell,
@@ -22,7 +22,6 @@ import {
     Text,
     TextInput,
     Tooltip,
-    UnstyledButton,
     rem,
 } from '@mantine/core';
 import { useDisclosure, useHover } from '@mantine/hooks';
@@ -68,53 +67,54 @@ export default function Sidebar({
     readEntriesCount: number;
     categories: Category[];
 }) {
-    const mainLinks = links.map((link) => (
-        <UnstyledButton
-            key={link.label}
-            className={classes.mainLink}
-            onClick={() => {
-                const urlParams = new URLSearchParams(window.location.search);
-                urlParams.delete('feed');
-                urlParams.set('filter', link.label.toLowerCase());
+    const mainLinks = links.map((link) => {
+        const urlParams = new URLSearchParams(window.location.search);
+        urlParams.delete('feed');
+        urlParams.set('filter', link.label.toLowerCase());
 
-                router.visit('feeds', {
-                    only: ['entries'],
-                    data: {
-                        ...Object.fromEntries(urlParams),
-                    },
-                    preserveScroll: true,
-                    preserveState: true,
-                });
-            }}
-        >
-            <div className={classes.mainLinkInner}>
-                <link.icon
-                    size={20}
-                    className={classes.mainLinkIcon}
-                    stroke={1.5}
-                />
-                <span>{link.label}</span>
-            </div>
-            {link.label === 'Unread' && unreadEntriesCount > 0 && (
-                <Badge
-                    size="sm"
-                    variant="filled"
-                    className={classes.mainLinkBadge}
-                >
-                    {unreadEntriesCount}
-                </Badge>
-            )}
-            {link.label === 'Read' && readEntriesCount > 0 && (
-                <Badge
-                    size="sm"
-                    variant="default"
-                    className={classes.mainLinkBadge}
-                >
-                    {readEntriesCount}
-                </Badge>
-            )}
-        </UnstyledButton>
-    ));
+        return (
+            <Link
+                key={link.label}
+                className={classes.mainLink}
+                href={route('feeds.index')}
+                only={['entries']}
+                preserveScroll
+                preserveState
+                data={{
+                    ...Object.fromEntries(urlParams),
+                }}
+                prefetch
+                as="UnstyledButton"
+            >
+                <div className={classes.mainLinkInner}>
+                    <link.icon
+                        size={20}
+                        className={classes.mainLinkIcon}
+                        stroke={1.5}
+                    />
+                    <span>{link.label}</span>
+                </div>
+                {link.label === 'Unread' && unreadEntriesCount > 0 && (
+                    <Badge
+                        size="sm"
+                        variant="filled"
+                        className={classes.mainLinkBadge}
+                    >
+                        {unreadEntriesCount}
+                    </Badge>
+                )}
+                {link.label === 'Read' && readEntriesCount > 0 && (
+                    <Badge
+                        size="sm"
+                        variant="default"
+                        className={classes.mainLinkBadge}
+                    >
+                        {readEntriesCount}
+                    </Badge>
+                )}
+            </Link>
+        );
+    });
 
     interface FeedsByCategory {
         [key: number]: Feed[];
@@ -690,6 +690,10 @@ const FeedLink = function FeedLink({
             });
     };
 
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.delete('filter');
+    urlParams.set('feed', feed.id.toString());
+
     return (
         <>
             <DeleteFeedModal
@@ -713,26 +717,19 @@ const FeedLink = function FeedLink({
                         : feed.last_successful_refresh_at,
                 ).fromNow()}`}
             >
-                <div
+                <Link
                     ref={ref}
                     key={feed.id}
                     className={classes.collectionLink}
-                    onClick={() => {
-                        const urlParams = new URLSearchParams(
-                            window.location.search,
-                        );
-                        urlParams.delete('filter');
-                        urlParams.set('feed', feed.id.toString());
-
-                        router.visit('feeds', {
-                            only: ['feed', 'entries'],
-                            data: {
-                                ...Object.fromEntries(urlParams),
-                            },
-                            preserveScroll: true,
-                            preserveState: true,
-                        });
+                    as="div"
+                    href={route('feeds.index')}
+                    only={['feed', 'entries']}
+                    preserveScroll
+                    preserveState
+                    data={{
+                        ...Object.fromEntries(urlParams),
                     }}
+                    prefetch
                 >
                     <Indicator
                         color="orange"
@@ -887,7 +884,7 @@ const FeedLink = function FeedLink({
                             </Menu>
                         </div>
                     </Indicator>
-                </div>
+                </Link>
             </Tooltip>
         </>
     );
