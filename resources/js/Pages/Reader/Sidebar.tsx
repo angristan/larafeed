@@ -318,7 +318,8 @@ export const FeedLinksGroup = ({
                     <IconChevronRight
                         size={15}
                         stroke={1.5}
-                        onClick={() => {
+                        onClick={(e) => {
+                            e.stopPropagation();
                             setManualOpened(
                                 manualOpened === null ? !opened : !manualOpened,
                             );
