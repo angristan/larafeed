@@ -29,6 +29,12 @@ class GetFaviconURL
                 ->fetch($site_url)
                 ?->getFaviconUrl();
 
+            if (! $favicon_url) {
+                Log::error('Failed to fetch favicon for '.$site_url.': No favicon URL found');
+
+                return null;
+            }
+
             // Check the favicon URL is valid
             $response = Http::get($favicon_url);
 
@@ -38,12 +44,14 @@ class GetFaviconURL
                     'site_url' => $site_url,
                     'favicon_url' => $favicon_url,
                 ])->error('Failed to fetch favicon: invalid response');
-                $favicon_url = null;
+
+                return null;
             }
 
             if ($response->header('Content-Length') === '0') {
                 Log::error('Failed to fetch favicon for '.$site_url.': Empty content');
-                $favicon_url = null;
+
+                return null;
             }
 
             return $favicon_url;
