@@ -30,7 +30,7 @@ class GetFaviconURL
                 ?->getFaviconUrl();
 
             // Check the favicon URL is valid
-            $response = Http::head($favicon_url);
+            $response = Http::get($favicon_url);
 
             if (! $response->ok()) {
                 Log::withContext([
