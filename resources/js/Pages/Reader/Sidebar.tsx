@@ -834,7 +834,12 @@ const FeedLink = function FeedLink({
                 <Link
                     ref={ref}
                     key={feed.id}
-                    className={classes.collectionLink}
+                    className={`${classes.collectionLink} ${
+                        feed.id.toString() ===
+                        new URLSearchParams(window.location.search).get('feed')
+                            ? classes.activeFeed
+                            : ''
+                    }`}
                     as="div"
                     href={route('feeds.index')}
                     only={['feed', 'entries']}

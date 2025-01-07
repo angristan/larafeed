@@ -27,6 +27,8 @@
     cursor: pointer;
 }
 
+
+
 .mainLink {
     cursor: pointer;
     display: flex;
@@ -71,6 +73,7 @@
     margin-left: 11px;
 }
 
+
 .collectionLink {
     display: block;
     padding: 8px var(--mantine-spacing-xs);
@@ -83,12 +86,19 @@
 
     &:hover {
         background-color: light-dark(
-            var(--mantine-color-gray-0),
-            var(--mantine-color-dark-6)
+            var(--mantine-color-gray-2),
+            var(--mantine-color-dark-8)
         );
         color: light-dark(
             var(--mantine-color-gray-7),
             var(--mantine-color-dark-0)
         );
     }
+}
+
+.activeFeed{
+    background-color: light-dark(
+        var(--mantine-color-gray-1),
+        var(--mantine-color-dark-7)
+    );
 }
