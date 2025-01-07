@@ -8,28 +8,21 @@ Larafeed is a simple feed reader.
 
 ## Features
 
+- A pleasant and snappy UI
+  - Prefetching is leveraged to make the app feel snappy
+  - Entry is marked as read when you view it
+  - Entry content is modified so that links open in a new tab
 - RSS and Atom feed support
 - Background feed updates
-- Full-text search through a reactive search bar
+  - Failures are stored and displayed in the UI
+- Custom feed names and categories
+- Read and starred entries
 - AI-generated summary of entries
-- Favicon display
-- Spotlight-like search
+- Favicon display (proxified through imgproxy)
+- Spotlight-like go to feed
 - OPML import/export
 
-## Technical overview
-
-- Backend build with Laravel 11
-  - Architectured around [Actions](https://laravelactions.com/)
-- React for the frontend with the amazing [Mantine](https://mantine.dev/) components and hooks
-- [Inertia.js](https://inertiajs.com/) that does the magic glue between Laravel and React
-- Feed parsing is powered by [SimplePie](https://github.com/simplepie/simplepie)
-  - Through [willvincent/feeds](https://github.com/willvincent/feeds)
-- Summary generation is powered by OpenAI through [echolabsdev/prism](https://github.com/echolabsdev/prism)
-- Background jobs are powered by the Laravel scheduler, Laravel queues and Laravel Horizon
-- Favicon fetching is powered by [ash-jc-allen/favicon-fetcher](https://github.com/ash-jc-allen/favicon-fetcher)
-  - They are proxified through [imgproxy](https://github.com/imgproxy/imgproxy)
-
-## Screenshots
+### Screenshots
 
 <details>
 <summary>New screenshots coming soon, here are the old ones</summary>
@@ -47,6 +40,99 @@ Larafeed is a simple feed reader.
 ![](.github/readme/entry.png)
 
 </details>
+
+## Technical overview
+
+- Backend build with Laravel 11
+  - Architectured around [Actions](https://laravelactions.com/)
+- React for the frontend with the amazing [Mantine](https://mantine.dev/) components and hooks
+- [Inertia.js](https://inertiajs.com/) that does the magic glue between Laravel and React
+  - Prefetching is leveraged to make the app feel snappy
+- Feed parsing is powered by [SimplePie](https://github.com/simplepie/simplepie)
+  - Through [willvincent/feeds](https://github.com/willvincent/feeds)
+- Summary generation is powered by Gemini through [echolabsdev/prism](https://github.com/echolabsdev/prism)
+- Background jobs are powered by Laravel queues
+- Favicon fetching is powered by [ash-jc-allen/favicon-fetcher](https://github.com/ash-jc-allen/favicon-fetcher)
+  - They are proxified through [imgproxy](https://github.com/imgproxy/imgproxy)
+
+### Database schema
+
+```mermaid
+erDiagram
+    users {
+        int8 id PK
+        varchar name
+        varchar email
+        timestamp email_verified_at
+        varchar password
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    feeds {
+        int8 id PK
+        varchar name
+        varchar feed_url
+        varchar site_url
+        varchar favicon_url
+        timestamp last_successful_refresh_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    entries {
+        int8 id PK
+        varchar title
+        varchar url
+        varchar author
+        text content
+        timestamp published_at
+        int8 feed_id FK
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    feed_subscriptions {
+        int8 user_id FK
+        int8 feed_id FK
+        int8 category_id FK
+        varchar custom_feed_name
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    subscription_categories {
+        int8 id PK
+        int8 user_id FK
+        varchar name
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    entry_interactions {
+        int8 user_id FK
+        int8 entry_id FK
+        timestamp read_at
+        timestamp starred_at
+        timestamp archived_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    users ||--o{ feed_subscriptions : "subscribes"
+    users ||--o{ entry_interactions : "interacts"
+    users ||--o{ subscription_categories : "has"
+    feeds ||--o{ entries : "contains"
+    feeds ||--o{ feed_subscriptions : "has"
+    entries ||--o{ entry_interactions : "has"
+    subscription_categories ||--o{ feed_subscriptions : "organizes"
+```
+
+### Deployment
+
+The project is currently deployed on [Railway](https://railway.com?referralCode=XPWq2Z):
+
+![](.github/readme/railway.png)
 
 ## Development
 

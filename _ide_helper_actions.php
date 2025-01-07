@@ -61,6 +61,20 @@ class CreateCategory
 {
 }
 /**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\Request $request, string $category_id)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\Request $request, string $category_id)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\Request $request, string $category_id)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \Request $request, string $category_id)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \Request $request, string $category_id)
+ * @method static dispatchSync(\Request $request, string $category_id)
+ * @method static dispatchNow(\Request $request, string $category_id)
+ * @method static dispatchAfterResponse(\Request $request, string $category_id)
+ * @method static mixed run(\Request $request, string $category_id)
+ */
+class DeleteCategory
+{
+}
+/**
  * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob()
  * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob()
  * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch()
@@ -138,6 +152,20 @@ class UnsubscribeFromFeed
  * @method static mixed run(\Illuminate\Http\Request $request, string $entry_id)
  */
 class UpdateEntryInteractions
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\Illuminate\Http\Request $request, string $feed_id)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\Illuminate\Http\Request $request, string $feed_id)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\Illuminate\Http\Request $request, string $feed_id)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \Illuminate\Http\Request $request, string $feed_id)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \Illuminate\Http\Request $request, string $feed_id)
+ * @method static dispatchSync(\Illuminate\Http\Request $request, string $feed_id)
+ * @method static dispatchNow(\Illuminate\Http\Request $request, string $feed_id)
+ * @method static dispatchAfterResponse(\Illuminate\Http\Request $request, string $feed_id)
+ * @method static mixed run(\Illuminate\Http\Request $request, string $feed_id)
+ */
+class UpdateFeed
 {
 }
 namespace App\Actions\Entry;
