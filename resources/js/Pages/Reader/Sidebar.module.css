@@ -27,8 +27,6 @@
     cursor: pointer;
 }
 
-
-
 .mainLink {
     cursor: pointer;
     display: flex;
@@ -73,7 +71,6 @@
     margin-left: 11px;
 }
 
-
 .collectionLink {
     display: block;
     padding: 8px var(--mantine-spacing-xs);
@@ -97,7 +94,7 @@
     }
 }
 
-.activeFeed{
+.activeFeed {
     transition: background-color 0.3s;
     background-color: light-dark(
         var(--mantine-color-gray-1),
