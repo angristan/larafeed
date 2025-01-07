@@ -145,12 +145,28 @@ export default function Sidebar({
 
     const { hovered, ref } = useHover();
 
+    // Open pre-filled new feed modal if URL contains addFeedUrl
+    const [hasBeenOpened, setHasBeenOpened] = useState(false);
+    if (window.location.search.includes('addFeedUrl')) {
+        if (!hasBeenOpened) {
+            if (!opened) {
+                open();
+                setHasBeenOpened(true);
+            }
+        }
+    }
+
     return (
         <>
             <AddFeedModal
                 opened={opened}
                 close={close}
                 categories={categories}
+                initialFeedURL={
+                    new URLSearchParams(window.location.search).get(
+                        'addFeedUrl',
+                    ) || undefined
+                }
             />
             <AppShell.Navbar>
                 <AppShell.Section pr="md" pl="md" pt="md">
@@ -376,16 +392,30 @@ const AddFeedModal = function AddFeedModal({
     opened,
     close,
     categories,
+    initialFeedURL,
 }: {
     opened: boolean;
     close: () => void;
     categories: Category[];
+    initialFeedURL?: string;
 }) {
     const [value, setValue] = useState('new_feed');
 
     return (
         <>
-            <Modal.Root opened={opened} onClose={close}>
+            <Modal.Root
+                opened={opened}
+                onClose={() => {
+                    const urlParams = new URLSearchParams(
+                        window.location.search,
+                    );
+                    urlParams.delete('addFeedUrl');
+                    router.replace({
+                        url: route('feeds.index'),
+                    });
+                    close();
+                }}
+            >
                 <Modal.Overlay />
                 <Modal.Content>
                     <Modal.Header>
@@ -412,6 +442,7 @@ const AddFeedModal = function AddFeedModal({
                                 <AddFeedForm
                                     categories={categories}
                                     close={close}
+                                    initialFeedURL={initialFeedURL}
                                 />
                             )}
 
@@ -429,12 +460,14 @@ const AddFeedModal = function AddFeedModal({
 const AddFeedForm = function AddFeedForm({
     categories,
     close,
+    initialFeedURL,
 }: {
     categories: Category[];
     close: () => void;
+    initialFeedURL?: string;
 }) {
     const { data, setData, post, errors, processing, transform } = useForm({
-        feed_url: '',
+        feed_url: initialFeedURL || '',
         category_id: categories[0].id,
     });
 
@@ -462,6 +495,12 @@ const AddFeedForm = function AddFeedForm({
                     message: 'The feed has been added',
                     color: 'green',
                     withBorder: true,
+                });
+
+                const urlParams = new URLSearchParams(window.location.search);
+                urlParams.delete('addFeedUrl');
+                router.replace({
+                    url: route('feeds.index'),
                 });
 
                 close();
