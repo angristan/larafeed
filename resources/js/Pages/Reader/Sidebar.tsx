@@ -31,6 +31,7 @@ import {
     IconCategory,
     IconCheck,
     IconCheckbox,
+    IconChevronRight,
     IconDots,
     IconExclamationCircle,
     IconExternalLink,
@@ -244,6 +245,8 @@ export const FeedLinksGroup = ({
         feedsPerCategory[category.id].length > 0,
     );
 
+    const [manualOpened, setManualOpened] = useState<boolean | null>(null);
+
     useEffect(() => {
         setOpened(feedsPerCategory[category.id].length > 0);
     }, [category.id, feedsPerCategory]);
@@ -251,6 +254,10 @@ export const FeedLinksGroup = ({
     return (
         <NavLink
             key={category.id}
+            active={
+                new URLSearchParams(window.location.search).get('category') ===
+                category.id.toString()
+            }
             label={
                 <CategoryHeader
                     category={category}
@@ -261,12 +268,33 @@ export const FeedLinksGroup = ({
                     feedCount={feedsPerCategory[category.id].length}
                 />
             }
-            opened={opened}
-            defaultOpened={feedsPerCategory[category.id].length > 0}
+            opened={manualOpened ?? opened}
+            defaultOpened
             leftSection={<IconRss size={15} stroke={1.5} />}
-            onClick={(e) => {
-                e.preventDefault();
-                setOpened(!opened);
+            rightSection={
+                <IconChevronRight
+                    size={15}
+                    stroke={1.5}
+                    onClick={() => {
+                        setManualOpened(
+                            manualOpened === null ? !opened : !manualOpened,
+                        );
+                    }}
+                />
+            }
+            onClick={() => {
+                const params = new URLSearchParams(window.location.search);
+                params.delete('feed');
+                params.delete('filter');
+                params.set('category', category.id.toString());
+                router.visit(route('feeds.index'), {
+                    only: ['entries'],
+                    data: {
+                        ...Object.fromEntries(params),
+                    },
+                    preserveScroll: true,
+                    preserveState: true,
+                });
             }}
         >
             {feedsPerCategory[category.id].map((feed: Feed) => (
