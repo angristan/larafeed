@@ -24,6 +24,8 @@ Larafeed is a simple feed reader.
 
 ### Screenshots
 
+![](.github/readme/reader.png)
+
 <details>
 <summary>New screenshots coming soon, here are the old ones</summary>
 
