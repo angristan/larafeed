@@ -408,13 +408,6 @@ const AddFeedModal = function AddFeedModal({
             <Modal.Root
                 opened={opened}
                 onClose={() => {
-                    const urlParams = new URLSearchParams(
-                        window.location.search,
-                    );
-                    urlParams.delete('addFeedUrl');
-                    router.replace({
-                        url: route('feeds.index'),
-                    });
                     close();
                 }}
             >
@@ -497,12 +490,6 @@ const AddFeedForm = function AddFeedForm({
                     message: 'The feed has been added',
                     color: 'green',
                     withBorder: true,
-                });
-
-                const urlParams = new URLSearchParams(window.location.search);
-                urlParams.delete('addFeedUrl');
-                router.replace({
-                    url: route('feeds.index'),
                 });
 
                 close();

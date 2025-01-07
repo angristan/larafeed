@@ -45,9 +45,7 @@ class CreateNewFeed
             ]);
         }
 
-        $this->handle($request->feed_url, $request->user(), $request->category_id);
-
-        return redirect()->back();
+        return $this->handle($request->feed_url, $request->user(), $request->category_id);
     }
 
     public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
@@ -133,5 +131,7 @@ class CreateNewFeed
                 'published_at' => $entry->get_date('Y-m-d H:i:s'),
             ]);
         }
+
+        return redirect()->route('feeds.index', ['feed' => $feed->id]);
     }
 }
