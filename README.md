@@ -136,6 +136,8 @@ The project is currently deployed on [Railway](https://railway.com?referralCode=
 
 ![](.github/readme/railway.png)
 
+The web server is powered by Laravel Octane, FrankenPHP and Caddy. ⚡️
+
 ## Development
 
 ### Run locally
