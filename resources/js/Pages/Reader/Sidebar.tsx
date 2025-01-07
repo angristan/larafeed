@@ -251,6 +251,11 @@ export const FeedLinksGroup = ({
         setOpened(feedsPerCategory[category.id].length > 0);
     }, [category.id, feedsPerCategory]);
 
+    const params = new URLSearchParams(window.location.search);
+    params.delete('feed');
+    params.delete('filter');
+    params.set('category', category.id.toString());
+
     return (
         <NavLink
             key={category.id}
@@ -259,14 +264,26 @@ export const FeedLinksGroup = ({
                 category.id.toString()
             }
             label={
-                <CategoryHeader
-                    category={category}
-                    entriesCount={feedsPerCategory[category.id].reduce(
-                        (acc, feed) => acc + feed.entries_count,
-                        0,
-                    )}
-                    feedCount={feedsPerCategory[category.id].length}
-                />
+                <Link
+                    href={route('feeds.index')}
+                    only={['entries']}
+                    prefetch
+                    preserveScroll
+                    preserveState
+                    data={{
+                        ...Object.fromEntries(params),
+                    }}
+                    as="div"
+                >
+                    <CategoryHeader
+                        category={category}
+                        entriesCount={feedsPerCategory[category.id].reduce(
+                            (acc, feed) => acc + feed.entries_count,
+                            0,
+                        )}
+                        feedCount={feedsPerCategory[category.id].length}
+                    />
+                </Link>
             }
             opened={manualOpened ?? opened}
             defaultOpened
@@ -282,20 +299,16 @@ export const FeedLinksGroup = ({
                     }}
                 />
             }
-            onClick={() => {
-                const params = new URLSearchParams(window.location.search);
-                params.delete('feed');
-                params.delete('filter');
-                params.set('category', category.id.toString());
-                router.visit(route('feeds.index'), {
-                    only: ['entries'],
-                    data: {
-                        ...Object.fromEntries(params),
-                    },
-                    preserveScroll: true,
-                    preserveState: true,
-                });
-            }}
+            // onClick={() => {
+            //     router.visit(route('feeds.index'), {
+            //         only: ['entries'],
+            //         data: {
+            //             ...Object.fromEntries(params),
+            //         },
+            //         preserveScroll: true,
+            //         preserveState: true,
+            //     });
+            // }}
         >
             {feedsPerCategory[category.id].map((feed: Feed) => (
                 <FeedLink key={feed.id} feed={feed} categories={categories} />
