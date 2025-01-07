@@ -62,7 +62,7 @@ class RefreshFeedEntries
             }
 
             $feed->entries()->create([
-                'title' => $item->get_title(),
+                'title' => str_replace('&amp;', '&', $item->get_title()),
                 'url' => $item->get_permalink(),
                 'author' => $item->get_author()?->get_name(),
                 'content' => $item->get_content(),

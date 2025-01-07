@@ -126,7 +126,7 @@ class CreateNewFeed
 
         foreach ($entries as $entry) {
             $feed->entries()->create([
-                'title' => $entry->get_title(),
+                'title' => str_replace('&amp;', '&', $entry->get_title()),
                 'url' => $entry->get_permalink(),
                 'content' => $entry->get_content(),
                 'author' => $entry->get_author()?->get_name(),
