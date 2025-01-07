@@ -15,6 +15,13 @@ interface Timestamps {
     updated_at: string | null;
 }
 
+interface PaginatedEntries {
+    data: Entry[];
+    current_page: number;
+    last_page: number;
+    total: number;
+}
+
 interface Entry extends Timestamps {
     id: number;
     title: string;

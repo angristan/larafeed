@@ -1,7 +1,15 @@
 import classes from './EntryListPane.module.css';
 
 import { Link, router } from '@inertiajs/react';
-import { Card, Flex, Image, Indicator, ScrollArea, Text } from '@mantine/core';
+import {
+    Card,
+    Flex,
+    Image,
+    Indicator,
+    Pagination,
+    ScrollArea,
+    Text,
+} from '@mantine/core';
 import { useHotkeys } from '@mantine/hooks';
 import { IconStarFilled } from '@tabler/icons-react';
 import dayjs from 'dayjs';
@@ -16,7 +24,7 @@ export default function EntryListPane({
     entries,
     currentEntryID,
 }: {
-    entries: Entry[];
+    entries: PaginatedEntries;
     currentEntryID?: number;
 }) {
     const viewport = useRef<HTMLDivElement>(null);
@@ -30,10 +38,12 @@ export default function EntryListPane({
     }, [entries]);
 
     const navigateToEntry = (offset: number) => {
-        const index = entries.findIndex((entry) => entry.id === currentEntryID);
+        const index = entries.data.findIndex(
+            (entry) => entry.id === currentEntryID,
+        );
         const newIndex = index + offset;
 
-        if (newIndex >= 0 && newIndex < entries.length) {
+        if (newIndex >= 0 && newIndex < entries.data.length) {
             router.visit('feeds', {
                 only: [
                     'currententry',
@@ -44,7 +54,7 @@ export default function EntryListPane({
                     ...Object.fromEntries(
                         new URLSearchParams(window.location.search),
                     ),
-                    entry: entries[newIndex].id,
+                    entry: entries.data[newIndex].id,
                 },
                 preserveScroll: true,
                 preserveState: true,
@@ -57,7 +67,7 @@ export default function EntryListPane({
         ['K', () => navigateToEntry(-1)], // Previous entry
     ]);
 
-    const entryList = entries.map((entry) => {
+    const entryList = entries.data.map((entry) => {
         const urlParams = new URLSearchParams(window.location.search);
 
         urlParams.delete('summarize');
@@ -151,6 +161,24 @@ export default function EntryListPane({
             viewportRef={viewport}
         >
             {entryList}
+            <Pagination
+                total={entries.last_page}
+                value={entries.current_page}
+                onChange={(page) => {
+                    router.visit(route('feeds.index'), {
+                        only: ['entries'],
+                        data: {
+                            ...Object.fromEntries(
+                                new URLSearchParams(window.location.search),
+                            ),
+                            page,
+                        },
+                        preserveScroll: true,
+                        preserveState: true,
+                    });
+                }}
+                mt="md"
+            />
         </ScrollArea>
     );
 }

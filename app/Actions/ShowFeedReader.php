@@ -56,7 +56,7 @@ class ShowFeedReader
                 ]);
         };
 
-        $getEntriesFn = function () use ($feed_id, $filter, $order_by): \Illuminate\Support\Collection {
+        $getEntriesFn = function () use ($feed_id, $filter, $order_by) {
             return Entry::query()
                // Apply optional filters
                 ->when($feed_id, fn ($query) => $query->where('entries.feed_id', $feed_id))
@@ -88,13 +88,10 @@ class ShowFeedReader
                     'entry_interactions.archived_at',
                     'feeds.name as feed_name',
                     'feeds.favicon_url as feed_favicon_url',
-
                 ])
-               // Fetch the feed for each entry
                 ->orderByDesc('entries.'.$order_by)
-                ->limit(100)
-                ->get()
-                ->map(fn ($entry) => [
+                ->paginate(perPage: 10) // Paginate with 25 items per page
+                ->through(fn ($entry) => [
                     'id' => $entry->id,
                     'title' => $entry->title,
                     'url' => $entry->url,
