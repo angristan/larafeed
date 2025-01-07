@@ -435,7 +435,7 @@ const AddFeedForm = function AddFeedForm({
 }) {
     const { data, setData, post, errors, processing, transform } = useForm({
         feed_url: '',
-        category_id: 1,
+        category_id: categories[0].id,
     });
 
     // Transform the feed URL to have a protocol if it doesn't have one
