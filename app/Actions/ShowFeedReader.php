@@ -147,6 +147,10 @@ class ShowFeedReader
                 ])
                 ->first();
 
+            if ($currentEntry && $currentEntry->feed) {
+                $currentEntry->feed->favicon_url = BuildProfixedFaviconURL::run($currentEntry->feed->favicon_url);
+            }
+
             return $currentEntry;
         };
 
