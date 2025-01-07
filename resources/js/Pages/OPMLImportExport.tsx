@@ -88,6 +88,23 @@ const Main = function Main() {
                 <a download href={route('export.download')}>
                     <Button>Export all subscription as OPML</Button>
                 </a>
+
+                <Button
+                    onClick={() => {
+                        post(route('profile.wipe'), {
+                            onSuccess: () => {
+                                notifications.show({
+                                    title: 'Account wiped',
+                                    message:
+                                        'Feeds, entries and categories have been deleted',
+                                });
+                            },
+                        });
+                    }}
+                    color="red"
+                >
+                    Wipe account
+                </Button>
             </Stack>
         </AppShell.Main>
     );

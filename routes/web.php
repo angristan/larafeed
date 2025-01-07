@@ -13,6 +13,7 @@ use App\Actions\ShowFeedReader;
 use App\Actions\UnsubscribeFromFeed;
 use App\Actions\UpdateEntryInteractions;
 use App\Actions\UpdateFeed;
+use App\Actions\User\WipeAccount;
 use App\Features\Registration;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -33,6 +34,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::post('/profile/wipe', WipeAccount::class)->name('profile.wipe');
 
     // TODO: scoped route bindings
     Route::get('/feeds', ShowFeedReader::class)->name('feeds.index');
