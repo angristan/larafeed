@@ -70,6 +70,7 @@ export default function Sidebar({
     const mainLinks = links.map((link) => {
         const urlParams = new URLSearchParams(window.location.search);
         urlParams.delete('feed');
+        urlParams.delete('page');
         urlParams.set('filter', link.label.toLowerCase());
 
         return (
@@ -706,6 +707,7 @@ const FeedLink = function FeedLink({
 
     const urlParams = new URLSearchParams(window.location.search);
     urlParams.delete('filter');
+    urlParams.delete('page');
     urlParams.set('feed', feed.id.toString());
 
     return (

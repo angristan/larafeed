@@ -3,9 +3,11 @@ import classes from './EntryListPane.module.css';
 import { Link, router } from '@inertiajs/react';
 import {
     Card,
+    Divider,
     Flex,
     Image,
     Indicator,
+    List,
     Pagination,
     ScrollArea,
     Text,
@@ -121,6 +123,7 @@ export default function EntryListPane({
                         withBorder
                         pt={10}
                         pb={10}
+                        mb={10}
                         className={`${classes.entryCard}
                         ${entry.id === currentEntryID ? classes.activeEntry : ''}
                         ${entry.read_at ? classes.readEntry : ''}`}
@@ -156,29 +159,41 @@ export default function EntryListPane({
     });
 
     return (
-        <ScrollArea
-            style={{ height: '100%', width: '100%' }}
-            viewportRef={viewport}
+        <List
+            style={{
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%',
+                width: '100%',
+            }}
         >
-            {entryList}
-            <Pagination
-                total={entries.last_page}
-                value={entries.current_page}
-                onChange={(page) => {
-                    router.visit(route('feeds.index'), {
-                        only: ['entries'],
-                        data: {
-                            ...Object.fromEntries(
-                                new URLSearchParams(window.location.search),
-                            ),
-                            page,
-                        },
-                        preserveScroll: true,
-                        preserveState: true,
-                    });
-                }}
-                mt="md"
-            />
-        </ScrollArea>
+            <ScrollArea style={{ flex: 1 }} viewportRef={viewport}>
+                {entryList}
+            </ScrollArea>
+            <Divider />
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <Pagination
+                    size="sm"
+                    withEdges
+                    color="dark"
+                    total={entries.last_page}
+                    value={entries.current_page}
+                    onChange={(page) => {
+                        router.visit(route('feeds.index'), {
+                            only: ['entries'],
+                            data: {
+                                ...Object.fromEntries(
+                                    new URLSearchParams(window.location.search),
+                                ),
+                                page,
+                            },
+                            preserveScroll: true,
+                            preserveState: true,
+                        });
+                    }}
+                    mt="md"
+                />
+            </div>
+        </List>
     );
 }
