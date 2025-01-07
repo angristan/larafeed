@@ -80,7 +80,7 @@ const Reader = ({
 
     return (
         <AppShell
-            header={{ height: 60 }}
+            header={{ height: 50 }}
             navbar={{
                 width: 300,
                 breakpoint: 'sm',
@@ -115,7 +115,7 @@ const Reader = ({
                             hiddenFrom="sm"
                             size="sm"
                         />
-                        <ApplicationLogo width={50} />
+                        <ApplicationLogo width={40} />
                         <Title order={3} style={{ margin: 0 }}>
                             Larafeed
                         </Title>
