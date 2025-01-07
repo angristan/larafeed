@@ -23,6 +23,7 @@ class ShowFeedReader
         $entry_id = $request->query('entry');
         $filter = $request->query('filter');
         $order_by = 'published_at';
+        $category_id = $request->query('category');
 
         if ($request->query('order_by') === 'created_at') {
             $order_by = 'created_at';
@@ -56,7 +57,7 @@ class ShowFeedReader
                 ]);
         };
 
-        $getEntriesFn = function () use ($feed_id, $filter, $order_by) {
+        $getEntriesFn = function () use ($feed_id, $filter, $order_by, $category_id) {
             return Entry::query()
                // Apply optional filters
                 ->when($feed_id, fn ($query) => $query->where('entries.feed_id', $feed_id))
@@ -68,6 +69,8 @@ class ShowFeedReader
                     $join->on('entries.feed_id', '=', 'feed_subscriptions.feed_id')
                         ->where('feed_subscriptions.user_id', '=', Auth::id());
                 })
+                // Only show entries from the requested category
+                ->when($category_id, fn ($query) => $query->where('feed_subscriptions.category_id', $category_id))
                // Fetch the user interaction for each entry
                 ->leftJoin('entry_interactions', function ($join) {
                     $join->on('entries.id', '=', 'entry_interactions.entry_id')
