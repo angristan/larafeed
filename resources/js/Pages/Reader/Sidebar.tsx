@@ -270,24 +270,38 @@ export const FeedLinksGroup = ({
     }
 
     return (
-        <NavLink
-            key={category.id}
-            active={
-                new URLSearchParams(window.location.search).get('category') ===
-                category.id.toString()
-            }
-            label={
-                <Link
-                    href={route('feeds.index')}
-                    only={['entries']}
-                    prefetch
-                    preserveScroll
-                    preserveState
-                    data={{
-                        ...Object.fromEntries(params),
-                    }}
-                    as="div"
-                >
+        <Link
+            href={route('feeds.index')}
+            only={['entries']}
+            prefetch
+            preserveScroll
+            preserveState
+            data={{
+                ...Object.fromEntries(params),
+            }}
+            as="div"
+        >
+            <NavLink
+                key={category.id}
+                onClick={() => {
+                    // This should not be needed as the NavLink is wrapped in a Link
+                    // But for some reason the click does not work on the Link.
+                    // We keep the Link for the prefetch on hover
+                    router.visit(route('feeds.index'), {
+                        only: ['entries'],
+                        preserveScroll: true,
+                        preserveState: true,
+                        data: {
+                            ...Object.fromEntries(params),
+                        },
+                    });
+                }}
+                active={
+                    new URLSearchParams(window.location.search).get(
+                        'category',
+                    ) === category.id.toString()
+                }
+                label={
                     <CategoryHeader
                         category={category}
                         entriesCount={feedsPerCategory[category.id].reduce(
@@ -296,27 +310,31 @@ export const FeedLinksGroup = ({
                         )}
                         feedCount={feedsPerCategory[category.id].length}
                     />
-                </Link>
-            }
-            opened={manualOpened ?? opened}
-            defaultOpened
-            leftSection={<IconRss size={15} stroke={1.5} />}
-            rightSection={
-                <IconChevronRight
-                    size={15}
-                    stroke={1.5}
-                    onClick={() => {
-                        setManualOpened(
-                            manualOpened === null ? !opened : !manualOpened,
-                        );
-                    }}
-                />
-            }
-        >
-            {feedsPerCategory[category.id].map((feed: Feed) => (
-                <FeedLink key={feed.id} feed={feed} categories={categories} />
-            ))}
-        </NavLink>
+                }
+                opened={manualOpened ?? opened}
+                defaultOpened
+                leftSection={<IconRss size={15} stroke={1.5} />}
+                rightSection={
+                    <IconChevronRight
+                        size={15}
+                        stroke={1.5}
+                        onClick={() => {
+                            setManualOpened(
+                                manualOpened === null ? !opened : !manualOpened,
+                            );
+                        }}
+                    />
+                }
+            >
+                {feedsPerCategory[category.id].map((feed: Feed) => (
+                    <FeedLink
+                        key={feed.id}
+                        feed={feed}
+                        categories={categories}
+                    />
+                ))}
+            </NavLink>
+        </Link>
     );
 };
 
