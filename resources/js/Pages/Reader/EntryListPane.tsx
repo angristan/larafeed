@@ -5,6 +5,7 @@ import {
     Card,
     Divider,
     Flex,
+    Group,
     Image,
     Indicator,
     List,
@@ -174,27 +175,88 @@ export default function EntryListPane({
             </ScrollArea>
             <Divider />
             <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <Pagination
+                <Pagination.Root
                     size="sm"
-                    withEdges
-                    color="dark"
                     total={entries.last_page}
                     value={entries.current_page}
-                    onChange={(page) => {
-                        router.visit(route('feeds.index'), {
-                            only: ['entries'],
-                            data: {
+                    getItemProps={(page: number) => ({
+                        component: Link,
+                        href: route('feeds.index'),
+                        only: ['entries'],
+                        preserveScroll: true,
+                        preserveState: true,
+                        prefetch: true,
+                        data: {
+                            ...Object.fromEntries(
+                                new URLSearchParams(window.location.search),
+                            ),
+                            page,
+                        },
+                    })}
+                >
+                    <Group gap={7} mt="md">
+                        <Pagination.First
+                            component={Link}
+                            href={route('feeds.index')}
+                            only={['entries']}
+                            preserveScroll
+                            preserveState
+                            prefetch
+                            data={{
                                 ...Object.fromEntries(
                                     new URLSearchParams(window.location.search),
                                 ),
-                                page,
-                            },
-                            preserveScroll: true,
-                            preserveState: true,
-                        });
-                    }}
-                    mt="md"
-                />
+                                page: 1,
+                            }}
+                        />
+                        <Pagination.Previous
+                            component={Link}
+                            href={route('feeds.index')}
+                            only={['entries']}
+                            preserveScroll
+                            preserveState
+                            prefetch
+                            data={{
+                                ...Object.fromEntries(
+                                    new URLSearchParams(window.location.search),
+                                ),
+                                page: Math.max(1, entries.current_page - 1),
+                            }}
+                        />
+                        <Pagination.Items />
+                        <Pagination.Next
+                            component={Link}
+                            href={route('feeds.index')}
+                            only={['entries']}
+                            preserveScroll
+                            preserveState
+                            prefetch
+                            data={{
+                                ...Object.fromEntries(
+                                    new URLSearchParams(window.location.search),
+                                ),
+                                page: Math.min(
+                                    entries.last_page,
+                                    entries.current_page + 1,
+                                ),
+                            }}
+                        />
+                        <Pagination.Last
+                            component={Link}
+                            href={route('feeds.index')}
+                            only={['entries']}
+                            preserveScroll
+                            preserveState
+                            prefetch
+                            data={{
+                                ...Object.fromEntries(
+                                    new URLSearchParams(window.location.search),
+                                ),
+                                page: entries.last_page,
+                            }}
+                        />
+                    </Group>
+                </Pagination.Root>
             </div>
         </List>
     );
