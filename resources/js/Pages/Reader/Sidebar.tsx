@@ -28,11 +28,13 @@ import { useDisclosure, useHover } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
     IconBook,
+    IconCategory,
     IconCheck,
     IconCheckbox,
     IconDots,
     IconExclamationCircle,
     IconExternalLink,
+    IconInfoCircle,
     IconPencil,
     IconPlus,
     IconRefresh,
@@ -520,8 +522,23 @@ const AddFeedForm = function AddFeedForm({
         <form onSubmit={submit}>
             <TextInput
                 type="text"
-                label="Site URL"
-                description="You can use the URL of the website or the RSS feed, we will try to find the feed for you"
+                label={
+                    <Group gap={5}>
+                        <IconRss
+                            style={{
+                                width: rem(10),
+                                height: rem(10),
+                            }}
+                        />
+                        <span>Feed URL</span>
+                    </Group>
+                }
+                description={
+                    <Text size="xs" c="dimmed">
+                        You can use the URL of the website or the URL of the RSS
+                        feed, we will try to find the feed for you!
+                    </Text>
+                }
                 placeholder="https://blog.cloudflare.com/rss/"
                 withErrorStyles={false}
                 rightSectionPointerEvents="none"
@@ -542,10 +559,39 @@ const AddFeedForm = function AddFeedForm({
                 error={errors.feed_url}
             />
 
+            <Text size="xs" mt="sm" c="dimmed">
+                <IconInfoCircle
+                    style={{
+                        width: rem(10),
+                        height: rem(10),
+                    }}
+                />{' '}
+                Tip: drag think{' '}
+                <a href="javascript:location.href='http://localhost:8000/feeds?addFeedUrl=%27+encodeURIComponent(window.location.href)">
+                    link
+                </a>{' '}
+                to your bookmark bar. When you are on a website, click on the
+                bookmark and you'll be redirected here with the URL pre-filled!
+            </Text>
+
             <NativeSelect
                 mt={10}
-                label="Category"
-                description="The category where the feed will be added"
+                label={
+                    <Group gap={5}>
+                        <IconCategory
+                            style={{
+                                width: rem(10),
+                                height: rem(10),
+                            }}
+                        />
+                        <span>Category</span>
+                    </Group>
+                }
+                description={
+                    <Text size="xs" c="dimmed">
+                        The category where the feed will be added
+                    </Text>
+                }
                 data={categories.map((category) => ({
                     value: category.id.toString(),
                     label: category.name,
@@ -608,8 +654,22 @@ const AddCategoryForm = function AddCategoryForm({
         <form onSubmit={submit}>
             <TextInput
                 type="text"
-                label="Category name"
-                description="You will then be able to assign feeds to this category"
+                label={
+                    <Group gap={5}>
+                        <IconCategory
+                            style={{
+                                width: rem(10),
+                                height: rem(10),
+                            }}
+                        />
+                        <span>Category name</span>
+                    </Group>
+                }
+                description={
+                    <Text size="xs" c="dimmed">
+                        You will then be able to assign feeds to this category
+                    </Text>
+                }
                 placeholder="Tech"
                 data-autofocus
                 value={data.categoryName}
