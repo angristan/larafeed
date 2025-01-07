@@ -14,6 +14,7 @@ import {
     ScrollArea,
     SegmentedControl,
     Skeleton,
+    Space,
     Text,
     Title,
     Tooltip,
@@ -395,12 +396,15 @@ export default function CurrentEntryPane({
                                     </Tooltip>
                                 </Flex>
                                 {summary ? (
-                                    <div
-                                        className={classes.entryContent}
-                                        dangerouslySetInnerHTML={{
-                                            __html: summary,
-                                        }}
-                                    />
+                                    <>
+                                        <div
+                                            className={classes.entryContent}
+                                            dangerouslySetInnerHTML={{
+                                                __html: summary,
+                                            }}
+                                        />
+                                        <Space mt={20} />
+                                    </>
                                 ) : (
                                     <div className={classes.entryContent}>
                                         {/* First paragraph */}

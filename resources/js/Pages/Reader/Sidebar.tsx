@@ -78,7 +78,12 @@ export default function Sidebar({
         return (
             <Link
                 key={link.label}
-                className={classes.mainLink}
+                className={`${classes.mainLink} ${
+                    link.label.toLowerCase() ===
+                    new URLSearchParams(window.location.search).get('filter')
+                        ? classes.activeFeed
+                        : ''
+                }`}
                 href={route('feeds.index')}
                 only={['entries']}
                 preserveScroll

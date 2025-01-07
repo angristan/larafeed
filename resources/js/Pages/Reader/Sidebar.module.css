@@ -42,7 +42,7 @@
 
     &:hover {
         background-color: light-dark(
-            var(--mantine-color-gray-0),
+            var(--mantine-color-gray-1),
             var(--mantine-color-dark-6)
         );
         color: light-dark(
@@ -83,11 +83,12 @@
     color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-0));
     line-height: 1;
     font-weight: 500;
+    transition: background-color 0.3s;
 
     &:hover {
         background-color: light-dark(
-            var(--mantine-color-gray-2),
-            var(--mantine-color-dark-8)
+            var(--mantine-color-gray-1),
+            var(--mantine-color-dark-6)
         );
         color: light-dark(
             var(--mantine-color-gray-7),
@@ -97,8 +98,9 @@
 }
 
 .activeFeed{
+    transition: background-color 0.3s;
     background-color: light-dark(
         var(--mantine-color-gray-1),
-        var(--mantine-color-dark-7)
+        var(--mantine-color-dark-6)
     );
 }
