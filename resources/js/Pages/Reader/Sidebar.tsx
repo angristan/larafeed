@@ -470,7 +470,7 @@ const AddFeedForm = function AddFeedForm({
 }) {
     const { data, setData, post, errors, processing, transform } = useForm({
         feed_url: initialFeedURL || '',
-        category_id: categories[0].id,
+        category_id: categories.length > 0 ? categories[0].id : 0,
     });
 
     // Transform the feed URL to have a protocol if it doesn't have one
@@ -576,6 +576,7 @@ const AddFeedForm = function AddFeedForm({
 
             <NativeSelect
                 mt={10}
+                disabled={categories.length === 0}
                 label={
                     <Group gap={5}>
                         <IconCategory
@@ -592,10 +593,14 @@ const AddFeedForm = function AddFeedForm({
                         The category where the feed will be added
                     </Text>
                 }
-                data={categories.map((category) => ({
-                    value: category.id.toString(),
-                    label: category.name,
-                }))}
+                data={
+                    categories.length > 0
+                        ? categories.map((category) => ({
+                              value: category.id.toString(),
+                              label: category.name,
+                          }))
+                        : [{ value: '0', label: 'Please add a category' }]
+                }
                 value={data.category_id.toString()}
                 onChange={(e) =>
                     setData('category_id', parseInt(e.target.value))
