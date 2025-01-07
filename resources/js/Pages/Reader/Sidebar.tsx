@@ -735,9 +735,9 @@ const FeedLink = function FeedLink({
                         failedAt &&
                         (!successAt || dayjs(failedAt).isAfter(successAt));
 
-                    return `${showFailed ? 'Last refresh failed' : 'Last refresh successful'} ${dayjs(
-                        showFailed ? failedAt : successAt,
-                    ).fromNow()}`;
+                    return `${showFailed ? 'Last refresh failed' : 'Last refresh successful'} ${dayjs
+                        .utc(showFailed ? failedAt : successAt)
+                        .fromNow()}`;
                 })()}
             >
                 <Link

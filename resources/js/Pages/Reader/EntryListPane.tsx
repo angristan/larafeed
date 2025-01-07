@@ -107,6 +107,8 @@ export default function EntryListPane({
                             ],
                         },
                     );
+
+                    // Mark entry as read in list, we don't refetch the list
                     entry.read_at = dayjs().toISOString();
                 }}
             >
