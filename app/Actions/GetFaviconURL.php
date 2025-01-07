@@ -8,13 +8,22 @@ use AshAllenDesign\FaviconFetcher\Facades\Favicon;
 use Http;
 use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
+use Uri;
 
 class GetFaviconURL
 {
     use AsAction;
 
-    public function handle(string $site_url): ?string
+    public function handle(string $original_site_url): ?string
     {
+        // Extract the site URL from the original URL
+        // Handle edges cases such as  https://blog.laravel.com/feed
+        // not having a link to https://blog.laravel.com/ in the feed,
+        // thus the favicon fetcher cannot extract the favicon URL
+        // from the head section.
+        $site_uri = Uri::of($original_site_url);
+        $site_url = $site_uri->scheme().'://'.$site_uri->host();
+
         try {
             $favicon_url = Favicon::withFallback('unavatar')
                 ->fetch($site_url)
