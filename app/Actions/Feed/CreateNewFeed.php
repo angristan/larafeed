@@ -50,12 +50,13 @@ class CreateNewFeed
         return redirect()->back();
     }
 
-    public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id)
+    public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
     {
+        $error = null;
+
         // TODO fetch limit
         $crawledFeed = \Feeds::make(feedUrl: $requested_feed_url);
         if ($crawledFeed->error()) {
-            $error = '';
             if (is_array($crawledFeed->error())) {
                 $error = implode(', ', $crawledFeed->error());
             } else {
@@ -70,9 +71,12 @@ class CreateNewFeed
             //     'feed_url' => $error,
             // ]);
 
-            return redirect()->back()->withErrors([
-                'feed_url' => 'Failed to fetch feed: '.$error,
-            ]);
+            if (! $force) {
+                return redirect()->back()->withErrors([
+                    'feed_url' => 'Failed to fetch feed: '.$error,
+                ]);
+            }
+
         }
 
         $feed_url = $crawledFeed->feed_url;
@@ -104,10 +108,13 @@ class CreateNewFeed
         $favicon_url = GetFaviconURL::run($site_url);
 
         $feed = Feed::create([
-            'name' => $crawledFeed->get_title() ?? $site_url,
+            'name' => $crawledFeed->get_title() ?? $fallback_name ?? $site_url,
             'feed_url' => $feed_url,
             'site_url' => $site_url,
             'favicon_url' => $favicon_url,
+            'last_successful_refresh_at' => $error ? null : now(),
+            'last_failed_refresh_at' => $error ? now() : null,
+            'last_error_message' => $error,
         ]);
 
         if ($attachedUser) {

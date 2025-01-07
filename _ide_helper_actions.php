@@ -187,15 +187,15 @@ class SummarizeEntryWithLLM
 namespace App\Actions\Feed;
 
 /**
- * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
- * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
- * @method static dispatchSync(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
- * @method static dispatchNow(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
- * @method static dispatchAfterResponse(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
- * @method static mixed run(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id)
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
+ * @method static dispatchSync(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
+ * @method static dispatchNow(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
+ * @method static dispatchAfterResponse(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
+ * @method static mixed run(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
  */
 class CreateNewFeed
 {

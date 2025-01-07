@@ -54,6 +54,9 @@ class Feed extends Model
         'feed_url',
         'site_url',
         'favicon_url',
+        'last_successful_refresh_at',
+        'last_failed_refresh_at',
+        'last_error_message',
     ];
 
     public function entries(): HasMany

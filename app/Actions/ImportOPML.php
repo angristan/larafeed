@@ -38,6 +38,7 @@ class ImportOPML
         foreach ($xml->body->outline as $category_outline) {
             foreach ($category_outline->outline as $feed_outline) {
                 $feed_url = (string) $feed_outline['xmlUrl'];
+                $feed_name = (string) $feed_outline['title'];
 
                 $category = SubscriptionCategory::firstOrCreate([
                     'user_id' => Auth::user()->id,
@@ -46,7 +47,7 @@ class ImportOPML
 
                 Log::info("[OPML] Importing feed: {$feed_url} for user: ".Auth::user()->id);
 
-                CreateNewFeed::dispatch($feed_url, Auth::user(), $category->id);
+                CreateNewFeed::dispatch($feed_url, Auth::user(), $category->id, true, $feed_name);
             }
         }
 
