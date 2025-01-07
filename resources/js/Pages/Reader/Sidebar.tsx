@@ -71,10 +71,17 @@ export default function Sidebar({
     categories: Category[];
 }) {
     const mainLinks = links.map((link) => {
-        const urlParams = new URLSearchParams(window.location.search);
-        urlParams.delete('feed');
-        urlParams.delete('page');
-        urlParams.set('filter', link.label.toLowerCase());
+        const params = new URLSearchParams(window.location.search);
+        params.delete('feed');
+        params.delete('page');
+
+        const currentFilter = params.get('filter');
+        if (currentFilter === link.label.toLowerCase()) {
+            // Clicking again -> remove the filter
+            params.delete('filter');
+        } else {
+            params.set('filter', link.label.toLowerCase());
+        }
 
         return (
             <Link
@@ -90,7 +97,7 @@ export default function Sidebar({
                 preserveScroll
                 preserveState
                 data={{
-                    ...Object.fromEntries(urlParams),
+                    ...Object.fromEntries(params),
                 }}
                 prefetch
                 as="UnstyledButton"
@@ -253,8 +260,14 @@ export const FeedLinksGroup = ({
 
     const params = new URLSearchParams(window.location.search);
     params.delete('feed');
-    params.delete('filter');
-    params.set('category', category.id.toString());
+
+    const currentCategory = params.get('category');
+    if (currentCategory === category.id.toString()) {
+        // Clicking again -> unselect the category
+        params.delete('category');
+    } else {
+        params.set('category', category.id.toString());
+    }
 
     return (
         <NavLink
@@ -299,16 +312,6 @@ export const FeedLinksGroup = ({
                     }}
                 />
             }
-            // onClick={() => {
-            //     router.visit(route('feeds.index'), {
-            //         only: ['entries'],
-            //         data: {
-            //             ...Object.fromEntries(params),
-            //         },
-            //         preserveScroll: true,
-            //         preserveState: true,
-            //     });
-            // }}
         >
             {feedsPerCategory[category.id].map((feed: Feed) => (
                 <FeedLink key={feed.id} feed={feed} categories={categories} />
@@ -845,6 +848,7 @@ const FeedLink = function FeedLink({
     const urlParams = new URLSearchParams(window.location.search);
     urlParams.delete('filter');
     urlParams.delete('page');
+    urlParams.delete('category');
     urlParams.set('feed', feed.id.toString());
 
     return (
