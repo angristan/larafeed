@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\GoogleReaderAPI\ClientLogin;
+use App\Actions\GoogleReaderAPI\EditTag;
 use App\Actions\GoogleReaderAPI\GetStreamContents;
 use App\Actions\GoogleReaderAPI\GetStreamItemIds;
 use App\Actions\GoogleReaderAPI\GetSubscriptionList;
@@ -28,5 +29,6 @@ Route::prefix('/reader')->group(function () {
             Route::get('subscription/list', GetSubscriptionList::class);
             Route::get('stream/items/ids', GetStreamItemIds::class);
             Route::post('stream/items/contents', GetStreamContents::class);
+            Route::post('edit-tag', EditTag::class);
         });
 });
