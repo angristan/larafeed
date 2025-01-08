@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\GoogleReaderAPI\ClientLogin;
+use App\Actions\GoogleReaderAPI\GetToken;
 use App\Actions\GoogleReaderAPI\GetUserInfo;
 use App\Http\Middleware\CheckGoogleReaderToken;
 use Illuminate\Http\Request;
@@ -20,5 +21,6 @@ Route::prefix('/reader')->group(function () {
         ->middleware(CheckGoogleReaderToken::class)
         ->group(function () {
             Route::get('user-info', GetUserInfo::class);
+            Route::get('token', GetToken::class);
         });
 });
