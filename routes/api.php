@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\GoogleReaderAPI\ClientLogin;
+use App\Http\Middleware\CheckGoogleReaderToken;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -14,4 +15,8 @@ Route::get('/user', function (Request $request) {
 Route::prefix('/reader')->group(function () {
     Route::post('accounts/ClientLogin', ClientLogin::class);
 
+    Route::prefix('/reader/api/0')
+        ->middleware(CheckGoogleReaderToken::class)
+        ->group(function () {
+        });
 });
