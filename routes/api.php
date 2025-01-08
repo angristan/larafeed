@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\GoogleReaderAPI\ClientLogin;
+use App\Actions\GoogleReaderAPI\GetStreamContents;
 use App\Actions\GoogleReaderAPI\GetStreamItemIds;
 use App\Actions\GoogleReaderAPI\GetSubscriptionList;
 use App\Actions\GoogleReaderAPI\GetToken;
@@ -26,5 +27,6 @@ Route::prefix('/reader')->group(function () {
             Route::get('token', GetToken::class);
             Route::get('subscription/list', GetSubscriptionList::class);
             Route::get('stream/items/ids', GetStreamItemIds::class);
+            Route::post('stream/items/contents', GetStreamContents::class);
         });
 });
