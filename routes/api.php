@@ -6,6 +6,7 @@ use App\Actions\FeverAPI\BaseFeverAction;
 use App\Actions\FeverAPI\GetFeeds;
 use App\Actions\FeverAPI\GetGroups;
 use App\Actions\FeverAPI\GetItems;
+use App\Actions\FeverAPI\GetUnreadItemIds;
 use App\Actions\GoogleReaderAPI\ClientLogin;
 use App\Actions\GoogleReaderAPI\EditTag;
 use App\Actions\GoogleReaderAPI\GetStreamContents;
@@ -55,6 +56,9 @@ Route::prefix('/fever')
                 return app(GetItems::class)->handle();
             }
 
+            if ($request->has('unread_item_ids')) {
+                return app(GetUnreadItemIds::class)->handle();
+            }
 
             return response()->json((new BaseFeverAction)->getBaseResponse());
         });
