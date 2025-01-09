@@ -623,7 +623,7 @@ const AddFeedForm = function AddFeedForm({
                 />{' '}
                 Tip: drag this{' '}
                 <a
-                    href={`javascript:location.href='${import.meta.env.VITE_APP_URL}/feeds?addFeedUrl='+encodeURIComponent(window.location.href)`}
+                    href={`javascript:location.href='${route('feeds.index')}/?addFeedUrl='+encodeURIComponent(window.location.href)`}
                 >
                     link
                 </a>{' '}
