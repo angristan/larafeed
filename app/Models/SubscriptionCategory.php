@@ -12,8 +12,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $name
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\FeedSubscription> $feeds
- * @property-read int|null $feeds_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\FeedSubscription> $feedsSubscriptions
+ * @property-read int|null $feeds_subscriptions_count
  * @property-read \App\Models\User $user
  *
  * @method static \Illuminate\Database\Eloquent\Builder<static>|SubscriptionCategory newModelQuery()

@@ -256,6 +256,139 @@ class RefreshFeeds
 class RefreshMissingFavicons
 {
 }
+namespace App\Actions\FeverAPI;
+
+/**
+ */
+class BaseFeverAction
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob()
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob()
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch()
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean)
+ * @method static dispatchSync()
+ * @method static dispatchNow()
+ * @method static dispatchAfterResponse()
+ * @method static mixed run()
+ */
+class GetFeeds
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob()
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob()
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch()
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean)
+ * @method static dispatchSync()
+ * @method static dispatchNow()
+ * @method static dispatchAfterResponse()
+ * @method static mixed run()
+ */
+class GetGroups
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\Illuminate\Http\Request $request)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\Illuminate\Http\Request $request)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\Illuminate\Http\Request $request)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \Illuminate\Http\Request $request)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \Illuminate\Http\Request $request)
+ * @method static dispatchSync(\Illuminate\Http\Request $request)
+ * @method static dispatchNow(\Illuminate\Http\Request $request)
+ * @method static dispatchAfterResponse(\Illuminate\Http\Request $request)
+ * @method static mixed run(\Illuminate\Http\Request $request)
+ */
+class GetItems
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob()
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob()
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch()
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean)
+ * @method static dispatchSync()
+ * @method static dispatchNow()
+ * @method static dispatchAfterResponse()
+ * @method static mixed run()
+ */
+class GetSavedItemIds
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob()
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob()
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch()
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean)
+ * @method static dispatchSync()
+ * @method static dispatchNow()
+ * @method static dispatchAfterResponse()
+ * @method static mixed run()
+ */
+class GetUnreadItemIds
+{
+}
+/**
+ */
+class HandleRequest
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\Illuminate\Http\Request $request)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\Illuminate\Http\Request $request)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\Illuminate\Http\Request $request)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \Illuminate\Http\Request $request)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \Illuminate\Http\Request $request)
+ * @method static dispatchSync(\Illuminate\Http\Request $request)
+ * @method static dispatchNow(\Illuminate\Http\Request $request)
+ * @method static dispatchAfterResponse(\Illuminate\Http\Request $request)
+ * @method static mixed run(\Illuminate\Http\Request $request)
+ */
+class UpdateItem
+{
+}
+namespace App\Actions\GoogleReaderAPI;
+
+/**
+ */
+class ClientLogin
+{
+}
+/**
+ */
+class EditTag
+{
+}
+/**
+ */
+class GetStreamContents
+{
+}
+/**
+ */
+class GetStreamItemIds
+{
+}
+/**
+ */
+class GetSubscriptionList
+{
+}
+/**
+ */
+class GetToken
+{
+}
+/**
+ */
+class GetUserInfo
+{
+}
 namespace App\Actions\User;
 
 /**
