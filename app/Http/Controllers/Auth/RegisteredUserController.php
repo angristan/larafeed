@@ -42,6 +42,7 @@ class RegisteredUserController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'fever_api_key' => md5($request->email.':'.$request->password),
         ]);
 
         event(new Registered($user));

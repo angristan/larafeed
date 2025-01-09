@@ -62,6 +62,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'fever_api_key',
     ];
 
     /**

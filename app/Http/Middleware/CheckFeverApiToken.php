@@ -22,8 +22,7 @@ class CheckFeverApiToken
             ]);
         }
 
-        // TODO
-        $user = User::first();
+        $user = User::where('fever_api_key', $apiKey)->first();
 
         if (! $user) {
             return response()->json([
