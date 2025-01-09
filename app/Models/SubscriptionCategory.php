@@ -39,7 +39,7 @@ class SubscriptionCategory extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function feeds()
+    public function feedsSubscriptions()
     {
         return $this->hasMany(FeedSubscription::class, 'category_id');
     }

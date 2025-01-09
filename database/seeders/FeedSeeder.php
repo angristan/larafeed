@@ -18,6 +18,6 @@ class FeedSeeder extends Seeder
     public function run()
     {
         Feed::factory(1)->hasEntries(5)->create();
-        User::first()->feeds()->attach(Feed::first());
+        User::first()->feedsSubscriptions()->attach(Feed::first());
     }
 }
