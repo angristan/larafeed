@@ -7,6 +7,7 @@ namespace App\Actions\GoogleReaderAPI;
 use App\Models\Entry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 class EditTag
@@ -16,8 +17,9 @@ class EditTag
     public function rules(): array
     {
         return [
-            'a' => 'required|string',
-            'i' => 'required|string',
+            'i' => ['required', 'string'],
+            'r' => ['sometimes', 'string', Rule::in(['user/-/state/com.google/read', 'user/-/state/com.google/starred'])],
+            'a' => ['sometimes', 'string', Rule::in(['user/-/state/com.google/read', 'user/-/state/com.google/starred'])],
         ];
     }
 
@@ -35,11 +37,25 @@ class EditTag
             ->get();
 
         foreach ($entries as $entry) {
-            if ($request->input('a') === 'user/-/state/com.google/read') {
-                $entry->markAsRead(Auth::user());
+            switch ($request->input('a')) {
+                case 'user/-/state/com.google/read':
+                    $entry->markAsRead(Auth::user());
+                    break;
+                case 'user/-/state/com.google/starred':
+                    $entry->favorite(Auth::user());
+                    break;
+            }
+
+            switch ($request->input('r')) {
+                case 'user/-/state/com.google/read':
+                    $entry->markAsUnread(Auth::user());
+                    break;
+                case 'user/-/state/com.google/starred':
+                    $entry->unfavorite(Auth::user());
+                    break;
             }
         }
 
-        return response()->json(['success' => true]);
+        return response()->make('OK', 200, ['Content-Type' => 'text/plain']);
     }
 }
