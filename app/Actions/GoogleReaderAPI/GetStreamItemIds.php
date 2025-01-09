@@ -17,7 +17,8 @@ class GetStreamItemIds
     public function asController(Request $request)
     {
         $continuation = $request->input('c');
-        $excludeTargets = explode('|', $request->input('xt', ''));
+        $streamType = $request->input('s');
+        $excludeTargets = $request->input('xt');
         $afterTimestamp = $request->input('ot');
 
         $query = Entry::query()
@@ -33,9 +34,18 @@ class GetStreamItemIds
             ->select(['entries.id', 'entries.published_at'])
             ->orderBy('entries.published_at', 'desc');
 
-        // Handle read state exclusion
-        if (in_array('user/'.Auth::id().'/state/com.google/read', $excludeTargets)) {
+        if ($excludeTargets === 'user/-/state/com.google/read') {
             $query->whereNull('entry_interactions.read_at');
+        }
+
+        // For s=user/-/state/com.google/reading-list, we want to return all entries
+
+        if ($streamType === 'user/-/state/com.google/starred') {
+            $query->whereNotNull('entry_interactions.starred_at');
+        }
+
+        if ($streamType === 'user/-/state/com.google/read') {
+            $query->whereNotNull('entry_interactions.read_at');
         }
 
         if ($afterTimestamp) {
