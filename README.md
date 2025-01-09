@@ -23,6 +23,7 @@ Larafeed is a simple feed reader.
 - OPML import/export
 - Support for Google Reader API and Fever API
   - Support is partial, but works with [Reeder classic](https://reederapp.com/classic/) at least
+- Telegram notications on user registration and login failures
 
 ### Screenshots
 
