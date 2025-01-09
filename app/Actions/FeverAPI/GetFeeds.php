@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions\FeverAPI;
 
+use App\Models\SubscriptionCategory;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 
@@ -23,12 +24,12 @@ class GetFeeds extends BaseFeverAction
             ->get()
             ->map(fn ($feed) => [
                 'id' => $feed->id,
-                'favicon_id' => $feed->favicon_id,
-                'title' => $feed->subscription->custom_feed_name ?? $feed->title,
-                'url' => $feed->url,
+                'favicon_id' => $feed['favicon_id'],
+                'title' => $feed->subscription->custom_feed_name ?? $feed['title'],
+                'url' => $feed['url'],
                 'site_url' => $feed->site_url,
                 'is_spark' => 0,
-                'last_updated_on_time' => $feed->last_updated_on_time ? Carbon::parse($feed->last_updated_on_time)->timestamp : 0,
+                'last_updated_on_time' => $feed['last_updated_on_time'] ? Carbon::parse($feed['last_updated_on_time'])->timestamp : 0,
             ]);
 
         return array_merge($this->getBaseResponse(), [
@@ -39,12 +40,13 @@ class GetFeeds extends BaseFeverAction
 
     private function getFeedsGroups()
     {
-        return Auth::user()->subscriptionCategories()
+        $categories = Auth::user()->subscriptionCategories()
             ->with('feedsSubscriptions')
-            ->get()
-            ->map(fn ($category) => [
-                'group_id' => $category->id,
-                'feed_ids' => $category->feedsSubscriptions->pluck('feed_id')->join(','),
-            ]);
+            ->get();
+
+        return $categories->map(fn (SubscriptionCategory $category): array => [
+            'group_id' => $category->id,
+            'feed_ids' => $category->feedsSubscriptions()->pluck('feed_id')->join(','),
+        ])->all();
     }
 }

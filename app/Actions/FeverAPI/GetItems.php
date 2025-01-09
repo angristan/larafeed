@@ -58,9 +58,9 @@ class GetItems extends BaseFeverAction
                 'author' => $entry->author,
                 'html' => $entry->content,
                 'url' => $entry->url,
-                'is_saved' => ! is_null($entry->is_saved),
-                'is_read' => ! is_null($entry->is_read),
-                'created_on_time' => Carbon::parse($entry->created_on_time)->timestamp,
+                'is_saved' => ! is_null($entry['is_saved']),
+                'is_read' => ! is_null($entry['is_read']),
+                'created_on_time' => Carbon::parse($entry['created_on_time'])->timestamp,
             ]);
 
         return array_merge($this->getBaseResponse(), [

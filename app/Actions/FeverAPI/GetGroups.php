@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions\FeverAPI;
 
+use App\Models\SubscriptionCategory;
 use Illuminate\Support\Facades\Auth;
 
 class GetGroups extends BaseFeverAction
@@ -22,12 +23,13 @@ class GetGroups extends BaseFeverAction
 
     private function getFeedsGroups()
     {
-        return Auth::user()->subscriptionCategories()
+        $categories = Auth::user()->subscriptionCategories()
             ->with('feedsSubscriptions')
-            ->get()
-            ->map(fn ($category) => [
-                'group_id' => $category->id,
-                'feed_ids' => $category->feedsSubscriptions->pluck('feed_id')->join(','),
-            ]);
+            ->get();
+
+        return $categories->map(fn (SubscriptionCategory $category): array => [
+            'group_id' => $category->id,
+            'feed_ids' => $category->feedsSubscriptions()->pluck('feed_id')->join(','),
+        ])->all();
     }
 }
