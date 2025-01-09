@@ -621,8 +621,10 @@ const AddFeedForm = function AddFeedForm({
                         height: rem(10),
                     }}
                 />{' '}
-                Tip: drag think{' '}
-                <a href="javascript:location.href='http://localhost:8000/feeds?addFeedUrl=%27+encodeURIComponent(window.location.href)">
+                Tip: drag this{' '}
+                <a
+                    href={`javascript:location.href='${import.meta.env.VITE_APP_URL}/feeds?addFeedUrl='+encodeURIComponent(window.location.href)`}
+                >
                     link
                 </a>{' '}
                 to your bookmark bar. When you are on a website, click on the
