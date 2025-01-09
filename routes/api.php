@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\FeverAPI\BaseFeverAction;
 use App\Actions\FeverAPI\GetFeeds;
 use App\Actions\FeverAPI\GetGroups;
+use App\Actions\FeverAPI\GetItems;
 use App\Actions\GoogleReaderAPI\ClientLogin;
 use App\Actions\GoogleReaderAPI\EditTag;
 use App\Actions\GoogleReaderAPI\GetStreamContents;
@@ -48,6 +49,10 @@ Route::prefix('/fever')
 
             if ($request->has('feeds')) {
                 return app(GetFeeds::class)->handle();
+            }
+
+            if ($request->has('items')) {
+                return app(GetItems::class)->handle();
             }
 
 
