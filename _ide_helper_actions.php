@@ -89,15 +89,15 @@ class ExportOPML
 {
 }
 /**
- * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(string $site_url)
- * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(string $site_url)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(string $site_url)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, string $site_url)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, string $site_url)
- * @method static dispatchSync(string $site_url)
- * @method static dispatchNow(string $site_url)
- * @method static dispatchAfterResponse(string $site_url)
- * @method static ?string run(string $site_url)
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(string $original_site_url)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(string $original_site_url)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(string $original_site_url)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, string $original_site_url)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, string $original_site_url)
+ * @method static dispatchSync(string $original_site_url)
+ * @method static dispatchNow(string $original_site_url)
+ * @method static dispatchAfterResponse(string $original_site_url)
+ * @method static ?string run(string $original_site_url)
  */
 class GetFaviconURL
 {
@@ -254,6 +254,22 @@ class RefreshFeeds
  * @method static void run()
  */
 class RefreshMissingFavicons
+{
+}
+namespace App\Actions\User;
+
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\Illuminate\Http\Request $request)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\Illuminate\Http\Request $request)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\Illuminate\Http\Request $request)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \Illuminate\Http\Request $request)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \Illuminate\Http\Request $request)
+ * @method static dispatchSync(\Illuminate\Http\Request $request)
+ * @method static dispatchNow(\Illuminate\Http\Request $request)
+ * @method static dispatchAfterResponse(\Illuminate\Http\Request $request)
+ * @method static mixed run(\Illuminate\Http\Request $request)
+ */
+class WipeAccount
 {
 }
 namespace Lorisleiva\Actions\Concerns;
