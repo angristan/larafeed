@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\FeverAPI\BaseFeverAction;
+use App\Actions\FeverAPI\GetFeeds;
 use App\Actions\FeverAPI\GetGroups;
 use App\Actions\GoogleReaderAPI\ClientLogin;
 use App\Actions\GoogleReaderAPI\EditTag;
@@ -44,6 +45,11 @@ Route::prefix('/fever')
             if ($request->has('groups')) {
                 return app(GetGroups::class)->handle();
             }
+
+            if ($request->has('feeds')) {
+                return app(GetFeeds::class)->handle();
+            }
+
 
             return response()->json((new BaseFeverAction)->getBaseResponse());
         });
