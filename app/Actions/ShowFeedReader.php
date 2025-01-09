@@ -93,7 +93,7 @@ class ShowFeedReader
                     'feeds.favicon_url as feed_favicon_url',
                 ])
                 ->orderByDesc('entries.'.$order_by)
-                ->paginate(perPage: 10) // Paginate with 25 items per page
+                ->paginate(perPage: 20)
                 ->through(fn ($entry) => [
                     'id' => $entry->id,
                     'title' => $entry->title,
