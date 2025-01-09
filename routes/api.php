@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\FeverAPI\BaseFeverAction;
+use App\Actions\FeverAPI\GetGroups;
 use App\Actions\GoogleReaderAPI\ClientLogin;
 use App\Actions\GoogleReaderAPI\EditTag;
 use App\Actions\GoogleReaderAPI\GetStreamContents;
@@ -40,6 +41,10 @@ Route::prefix('/fever')
     ->middleware(CheckFeverApiToken::class)
     ->group(function () {
         Route::match(['get', 'post'], '/', function (Request $request) {
+            if ($request->has('groups')) {
+                return app(GetGroups::class)->handle();
+            }
+
             return response()->json((new BaseFeverAction)->getBaseResponse());
         });
     });
