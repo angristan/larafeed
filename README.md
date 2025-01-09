@@ -21,6 +21,8 @@ Larafeed is a simple feed reader.
 - Favicon display (proxified through imgproxy)
 - Spotlight-like go to feed
 - OPML import/export
+- Support for Google Reader API and Fever API
+  - Support is partial, but works with [Reeder classic](https://reederapp.com/classic/) at least
 
 ### Screenshots
 
@@ -56,6 +58,9 @@ Larafeed is a simple feed reader.
 - Background jobs are powered by Laravel queues
 - Favicon fetching is powered by [ash-jc-allen/favicon-fetcher](https://github.com/ash-jc-allen/favicon-fetcher)
   - They are proxified through [imgproxy](https://github.com/imgproxy/imgproxy)
+- Google Reader API and Fever API are implemented from scratch
+  - I relied heavily on the implementations of [FreshRSS](https://github.com/FreshRSS/FreshRSS/tree/edge/p/api) and [Miniflux](https://github.com/miniflux/v2/tree/main/internal)
+  - And in practice, using [Reeder classic](https://reederapp.com/classic/) as a client with Miniflux as a backend, I inspected the API calls with [mitmproxy](https://mitmproxy.org/) to, in a way, *reverse-engineer* the API
 
 ### Database schema
 
