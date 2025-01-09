@@ -2,20 +2,13 @@
 
 declare(strict_types=1);
 
-namespace App\Actions;
+namespace App\Actions\FeverAPI;
 
-use App\Actions\FeverAPI\BaseFeverAction;
-use App\Actions\FeverAPI\GetFeeds;
-use App\Actions\FeverAPI\GetGroups;
-use App\Actions\FeverAPI\GetItems;
-use App\Actions\FeverAPI\GetSavedItemIds;
-use App\Actions\FeverAPI\GetUnreadItemIds;
-use App\Actions\FeverAPI\UpdateItem;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Lorisleiva\Actions\Concerns\AsAction;
 
-class FeverAPIHandleRequest
+class HandleRequest
 {
     use AsAction;
 

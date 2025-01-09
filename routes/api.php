@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Actions\FeverAPIHandleRequest;
+use App\Actions\FeverAPI\HandleRequest;
 use App\Actions\GoogleReaderAPI\ClientLogin;
 use App\Actions\GoogleReaderAPI\EditTag;
 use App\Actions\GoogleReaderAPI\GetStreamContents;
@@ -39,5 +39,5 @@ Route::prefix('/reader')->group(function () {
 Route::prefix('/fever')
     ->middleware(CheckFeverApiToken::class)
     ->group(function () {
-        Route::match(['get', 'post'], '/', FeverAPIHandleRequest::class);
+        Route::match(['get', 'post'], '/', HandleRequest::class);
     });
