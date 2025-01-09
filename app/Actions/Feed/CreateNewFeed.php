@@ -39,7 +39,7 @@ class CreateNewFeed
     public function asController(Request $request)
     {
         // Check if category exists for the user
-        if (! Auth::user()->subscriptionCategories()->where('id', request('category_id'))->exists()) {
+        if (! Auth::user()->subscriptionCategories()->where('id', $request->input('category_id'))->exists()) {
             return redirect()->back()->withErrors([
                 'category_id' => 'Invalid category',
             ]);

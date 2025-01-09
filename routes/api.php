@@ -2,13 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Actions\FeverAPI\BaseFeverAction;
-use App\Actions\FeverAPI\GetFeeds;
-use App\Actions\FeverAPI\GetGroups;
-use App\Actions\FeverAPI\GetItems;
-use App\Actions\FeverAPI\GetSavedItemIds;
-use App\Actions\FeverAPI\GetUnreadItemIds;
-use App\Actions\FeverAPI\UpdateItem;
+use App\Actions\FeverAPIHandleRequest;
 use App\Actions\GoogleReaderAPI\ClientLogin;
 use App\Actions\GoogleReaderAPI\EditTag;
 use App\Actions\GoogleReaderAPI\GetStreamContents;
@@ -45,31 +39,5 @@ Route::prefix('/reader')->group(function () {
 Route::prefix('/fever')
     ->middleware(CheckFeverApiToken::class)
     ->group(function () {
-        Route::match(['get', 'post'], '/', function (Request $request) {
-            if ($request->has('groups')) {
-                return app(GetGroups::class)->handle();
-            }
-
-            if ($request->has('feeds')) {
-                return app(GetFeeds::class)->handle();
-            }
-
-            if ($request->has('items')) {
-                return app(GetItems::class)->handle();
-            }
-
-            if ($request->has('unread_item_ids')) {
-                return app(GetUnreadItemIds::class)->handle();
-            }
-
-            if ($request->has('saved_item_ids')) {
-                return app(GetSavedItemIds::class)->handle();
-            }
-
-            if ($request->has('mark')) {
-                return app(UpdateItem::class)->handle($request);
-            }
-
-            return response()->json((new BaseFeverAction)->getBaseResponse());
-        });
+        Route::match(['get', 'post'], '/', FeverAPIHandleRequest::class);
     });

@@ -6,11 +6,12 @@ namespace App\Actions\FeverAPI;
 
 use App\Models\Entry;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class GetItems extends BaseFeverAction
 {
-    public function handle()
+    public function handle(Request $request)
     {
         $query = Entry::query()
             ->join('feed_subscriptions', function ($join) {
@@ -34,15 +35,15 @@ class GetItems extends BaseFeverAction
             ]);
 
         // Handle pagination
-        if ($sinceId = request('since_id')) {
+        if ($sinceId = $request->input('since_id')) {
             $query->where('entries.id', '>', $sinceId);
         }
 
-        if ($maxId = request('max_id')) {
+        if ($maxId = $request->input('max_id')) {
             $query->where('entries.id', '<', $maxId);
         }
 
-        if ($withIds = request('with_ids')) {
+        if ($withIds = $request->input('with_ids')) {
             $ids = explode(',', $withIds);
             $query->whereIn('entries.id', $ids);
         }
