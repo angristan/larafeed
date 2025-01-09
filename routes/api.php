@@ -8,6 +8,7 @@ use App\Actions\FeverAPI\GetGroups;
 use App\Actions\FeverAPI\GetItems;
 use App\Actions\FeverAPI\GetSavedItemIds;
 use App\Actions\FeverAPI\GetUnreadItemIds;
+use App\Actions\FeverAPI\UpdateItem;
 use App\Actions\GoogleReaderAPI\ClientLogin;
 use App\Actions\GoogleReaderAPI\EditTag;
 use App\Actions\GoogleReaderAPI\GetStreamContents;
@@ -65,6 +66,9 @@ Route::prefix('/fever')
                 return app(GetSavedItemIds::class)->handle();
             }
 
+            if ($request->has('mark')) {
+                return app(UpdateItem::class)->handle($request);
+            }
 
             return response()->json((new BaseFeverAction)->getBaseResponse());
         });
