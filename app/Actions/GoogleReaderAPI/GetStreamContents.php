@@ -112,10 +112,10 @@ class GetStreamContents
             $item = [
                 'id' => 'tag:google.com,2005:reader/item/'.str_pad(base_convert((string) $entry->id, 10, 16), 16, '0', STR_PAD_LEFT),
                 'title' => $entry->title,
-                'published' => Carbon::parse($entry->published_at)->getTimestampMs(),
-                'updated' => Carbon::parse($entry->published_at)->getTimestampMs(),
+                'timestampUsec' => number_format(Carbon::parse($entry->published_at)->getPreciseTimestamp(6), 0, '', ''),
                 'crawlTimeMsec' => (string) $entry->created_at->getTimestampMs(),
-                'timestampUsec' => (string) Carbon::parse($entry->published_at)->getTimestampMs(),
+                'published' => Carbon::parse($entry->published_at)->getTimestamp(),
+                'updated' => Carbon::parse($entry->updated_at)->getTimestamp(),
                 'alternate' => [
                     [
                         'href' => $entry->url,
