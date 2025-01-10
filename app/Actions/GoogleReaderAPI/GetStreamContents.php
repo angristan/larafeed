@@ -161,7 +161,7 @@ class GetStreamContents
         return response()->json([
             'items' => $items,
             // I'm not sure if all of this below is useful
-            'updated' => Carbon::now()->getTimestampMs(),
+            'updated' => Carbon::now()->getTimestamp(),
             'direction' => 'ltr',
             'self' => [
                 [
@@ -171,6 +171,7 @@ class GetStreamContents
             'alternate' => [
                 [
                     'href' => $entries->first()?->feed_url ?? '',
+                    'type' => 'text/html',
                 ],
             ],
             'author' => 'larafeed',
