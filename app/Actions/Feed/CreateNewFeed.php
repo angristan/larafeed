@@ -125,11 +125,30 @@ class CreateNewFeed
         $newFeedEntries = [];
 
         foreach ($entries as $entry) {
+            if (strlen($entry->get_author()?->get_name()) > 255) {
+                // 255 is arbitrary, but if the author is that long, it's probably a bug
+                // example: https://x.com/fuolpit/status/1873790603768553905
+
+                \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($feed, $entry): void {
+                    $scope->setContext('feed', [
+                        'url' => $feed->feed_url,
+                        'id' => $feed->id,
+                    ]);
+                    $scope->setContext('entry', [
+                        'author' => $entry->get_author()?->get_name(),
+                        'title' => $entry->get_title(),
+                        'url' => $entry->get_permalink(),
+                    ]);
+
+                    \Sentry\captureMessage('Author name too long');
+                });
+            }
+
             $newFeedEntries[] = [
                 'title' => str_replace('&amp;', '&', $entry->get_title()),
                 'url' => $entry->get_permalink(),
                 'content' => $entry->get_content(),
-                'author' => $entry->get_author()?->get_name(),
+                'author' => substr($entry->get_author()?->get_name() ?? '', 0, 255),
                 'published_at' => $entry->get_date('Y-m-d H:i:s'),
                 'feed_id' => $feed->id,
                 'created_at' => now(),
