@@ -122,14 +122,23 @@ class CreateNewFeed
         // TODO single insert
         $entries = $crawledFeed->get_items();
 
+        $newFeedEntries = [];
+
         foreach ($entries as $entry) {
-            $feed->entries()->create([
+            $newFeedEntries[] = [
                 'title' => str_replace('&amp;', '&', $entry->get_title()),
                 'url' => $entry->get_permalink(),
                 'content' => $entry->get_content(),
                 'author' => $entry->get_author()?->get_name(),
                 'published_at' => $entry->get_date('Y-m-d H:i:s'),
-            ]);
+                'feed_id' => $feed->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        foreach (array_chunk($newFeedEntries, 100) as $chunk) {
+            $feed->entries()->insert($chunk);
         }
 
         return redirect()->route('feeds.index', ['feed' => $feed->id]);
