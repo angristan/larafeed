@@ -29,7 +29,7 @@ class GetGroups extends BaseFeverAction
 
         return $categories->map(fn (SubscriptionCategory $category): array => [
             'group_id' => $category->id,
-            'feed_ids' => $category->feedsSubscriptions()->pluck('feed_id')->join(','),
+            'feed_ids' => $category->feedsSubscriptions->pluck('feed_id')->join(','),
         ])->all();
     }
 }
