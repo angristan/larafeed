@@ -20,6 +20,8 @@ import {
     Menu,
     Title,
     rem,
+    useMantineColorScheme,
+    useMantineTheme,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { Spotlight, SpotlightActionData } from '@mantine/spotlight';
@@ -236,9 +238,17 @@ const Main = function Main({
     currententry?: Entry;
     summary?: string;
 }) {
+    const { colorScheme } = useMantineColorScheme();
+    const theme = useMantineTheme();
+
     return (
         <AppShell.Main className={classes.main}>
-            <Split size="sm" radius="xs" spacing="md">
+            <Split
+                size="sm"
+                radius="xs"
+                spacing="md"
+                color={colorScheme === 'dark' ? theme.colors.dark[5] : ''}
+            >
                 <Split.Pane initialWidth="40%" minWidth={300}>
                     <EntryListPane
                         entries={entries}
