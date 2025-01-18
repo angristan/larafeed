@@ -873,7 +873,12 @@ const FeedLink = function FeedLink({
     urlParams.set('feed', feed.id.toString());
 
     return (
-        <>
+        <div
+            onClick={(e) => {
+                // Prevent the click from propagating to the category Link
+                e.stopPropagation();
+            }}
+        >
             <DeleteFeedModal
                 feed={feed}
                 opened={deleteFeedModalopened}
@@ -954,135 +959,147 @@ const FeedLink = function FeedLink({
                                 />
                                 <span>{feed.name}</span>
                             </div>
-                            <Menu
-                                shadow="md"
-                                width={200}
-                                opened={opened}
-                                onChange={setOpened}
+                            <div
+                                onClick={(e) => {
+                                    // Prevent the click from propagating to the feed link
+                                    e.stopPropagation();
+                                }}
                             >
-                                <Menu.Target>
-                                    {hovered || opened ? (
-                                        <ActionIcon
-                                            size="xs"
-                                            color="gray"
-                                            className={classes.feedMenuIcon}
+                                <Menu
+                                    shadow="md"
+                                    width={200}
+                                    opened={opened}
+                                    onChange={setOpened}
+                                >
+                                    <Menu.Target>
+                                        {hovered || opened ? (
+                                            <ActionIcon
+                                                size="xs"
+                                                color="gray"
+                                                className={classes.feedMenuIcon}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                }}
+                                            >
+                                                <IconDots
+                                                    size={15}
+                                                    stroke={1.5}
+                                                />
+                                            </ActionIcon>
+                                        ) : (
+                                            <Badge
+                                                size="sm"
+                                                variant="default"
+                                                className={
+                                                    classes.mainLinkBadge
+                                                }
+                                            >
+                                                {feed.entries_count}
+                                            </Badge>
+                                        )}
+                                    </Menu.Target>
+
+                                    <Menu.Dropdown>
+                                        <Menu.Label>Manage feed</Menu.Label>
+
+                                        <Menu.Item
+                                            leftSection={
+                                                <IconExternalLink
+                                                    style={{
+                                                        width: rem(14),
+                                                        height: rem(14),
+                                                    }}
+                                                />
+                                            }
                                             onClick={(e) => {
                                                 e.stopPropagation();
+                                                window.open(
+                                                    feed.site_url,
+                                                    '_blank',
+                                                );
                                             }}
                                         >
-                                            <IconDots size={15} stroke={1.5} />
-                                        </ActionIcon>
-                                    ) : (
-                                        <Badge
-                                            size="sm"
-                                            variant="default"
-                                            className={classes.mainLinkBadge}
+                                            Open website
+                                        </Menu.Item>
+
+                                        <Menu.Item
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                markFeedAsRead();
+                                            }}
+                                            leftSection={
+                                                <IconCheck
+                                                    style={{
+                                                        width: rem(14),
+                                                        height: rem(14),
+                                                    }}
+                                                />
+                                            }
                                         >
-                                            {feed.entries_count}
-                                        </Badge>
-                                    )}
-                                </Menu.Target>
+                                            Mark as read
+                                        </Menu.Item>
 
-                                <Menu.Dropdown>
-                                    <Menu.Label>Manage feed</Menu.Label>
+                                        <Menu.Item
+                                            leftSection={
+                                                <IconRefresh
+                                                    style={{
+                                                        width: rem(14),
+                                                        height: rem(14),
+                                                    }}
+                                                />
+                                            }
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                requestRefresh();
+                                            }}
+                                        >
+                                            Request refresh
+                                        </Menu.Item>
 
-                                    <Menu.Item
-                                        leftSection={
-                                            <IconExternalLink
-                                                style={{
-                                                    width: rem(14),
-                                                    height: rem(14),
-                                                }}
-                                            />
-                                        }
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            window.open(
-                                                feed.site_url,
-                                                '_blank',
-                                            );
-                                        }}
-                                    >
-                                        Open website
-                                    </Menu.Item>
+                                        <Menu.Item
+                                            leftSection={
+                                                <IconPencil
+                                                    style={{
+                                                        width: rem(14),
+                                                        height: rem(14),
+                                                    }}
+                                                />
+                                            }
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openUpdateFeedCategoryModal();
+                                            }}
+                                        >
+                                            Edit feed
+                                        </Menu.Item>
 
-                                    <Menu.Item
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            markFeedAsRead();
-                                        }}
-                                        leftSection={
-                                            <IconCheck
-                                                style={{
-                                                    width: rem(14),
-                                                    height: rem(14),
-                                                }}
-                                            />
-                                        }
-                                    >
-                                        Mark as read
-                                    </Menu.Item>
+                                        <Menu.Divider />
 
-                                    <Menu.Item
-                                        leftSection={
-                                            <IconRefresh
-                                                style={{
-                                                    width: rem(14),
-                                                    height: rem(14),
-                                                }}
-                                            />
-                                        }
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            requestRefresh();
-                                        }}
-                                    >
-                                        Request refresh
-                                    </Menu.Item>
-
-                                    <Menu.Item
-                                        leftSection={
-                                            <IconPencil
-                                                style={{
-                                                    width: rem(14),
-                                                    height: rem(14),
-                                                }}
-                                            />
-                                        }
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            openUpdateFeedCategoryModal();
-                                        }}
-                                    >
-                                        Edit feed
-                                    </Menu.Item>
-
-                                    <Menu.Divider />
-
-                                    <Menu.Item
-                                        color="red"
-                                        leftSection={
-                                            <IconTrash
-                                                style={{
-                                                    width: rem(14),
-                                                    height: rem(14),
-                                                }}
-                                            />
-                                        }
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            openDeleteFeedModal();
-                                        }}
-                                    >
-                                        Unsubscribe
-                                    </Menu.Item>
-                                </Menu.Dropdown>
-                            </Menu>
+                                        <Menu.Item
+                                            color="red"
+                                            leftSection={
+                                                <IconTrash
+                                                    style={{
+                                                        width: rem(14),
+                                                        height: rem(14),
+                                                    }}
+                                                />
+                                            }
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openDeleteFeedModal();
+                                            }}
+                                        >
+                                            Unsubscribe
+                                        </Menu.Item>
+                                    </Menu.Dropdown>
+                                </Menu>
+                            </div>
                         </div>
                     </Indicator>
                 </Link>
             </Tooltip>
-        </>
+        </div>
     );
 };
 
@@ -1214,14 +1231,49 @@ const DeleteFeedModal = ({
                 </Button>
                 <Button
                     onClick={() => {
-                        router.delete(route('feed.unsubscribe', feed.id));
-                        notifications.show({
-                            title: 'Unsubscribed',
-                            message: `You have successfully unsubscribed from ${feed.name}.`,
-                            color: 'blue',
-                            withBorder: true,
+                        router.delete(route('feed.unsubscribe', feed.id), {
+                            onSuccess: () => {
+                                notifications.show({
+                                    title: 'Unsubscribed',
+                                    message: `You have successfully unsubscribed from ${feed.name}.`,
+                                    color: 'blue',
+                                    withBorder: true,
+                                });
+
+                                const params = new URLSearchParams(
+                                    window.location.search,
+                                );
+                                if (params.get('feed') === feed.id.toString()) {
+                                    params.delete('feed');
+                                }
+
+                                router.visit(route('feeds.index'), {
+                                    only: [
+                                        'feeds',
+                                        'entries',
+                                        'currententry',
+                                        'unreadEntriesCount',
+                                        'readEntriesCount',
+                                    ],
+                                    data: {
+                                        ...Object.fromEntries(params),
+                                    },
+                                    preserveScroll: true,
+                                    preserveState: true,
+                                });
+
+                                onClose();
+                            },
+
+                            onError: (error) => {
+                                notifications.show({
+                                    title: 'Failed to unsubscribe from feed',
+                                    message: error.message,
+                                    color: 'red',
+                                    withBorder: true,
+                                });
+                            },
                         });
-                        onClose();
                     }}
                     color="red"
                     variant="outline"

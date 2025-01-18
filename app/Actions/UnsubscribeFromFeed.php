@@ -28,6 +28,6 @@ class UnsubscribeFromFeed
     {
         $this->handle(Auth::user(), $feedId);
 
-        return to_route('feeds.index');
+        return redirect()->back();
     }
 }
