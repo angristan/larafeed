@@ -30,7 +30,6 @@
         "willvincent/feeds": "^2.4"
     },
     "require-dev": {
-        "barryvdh/laravel-debugbar": "^3.7",
         "barryvdh/laravel-ide-helper": "^3.3",
         "fakerphp/faker": "^1.23",
         "larastan/larastan": "^3.0",
