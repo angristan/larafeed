@@ -25,6 +25,7 @@ Larafeed is a simple feed reader.
   - Support is partial, but works with [Reeder classic](https://reederapp.com/classic/) at least
   - Google Reader API is available at `/api/reader` and Fever API at `/api/fever`, both with username+password
 - Telegram notications on user registration and login failures
+- Estimated reading time for each entry
 
 ### Screenshots
 

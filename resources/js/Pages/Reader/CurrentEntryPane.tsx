@@ -36,6 +36,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
 import { useEffect, useRef, useState } from 'react';
+import { readingTime } from 'reading-time-estimator';
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
@@ -351,11 +352,16 @@ export default function CurrentEntryPane({
                         </Title>
                         <Flex justify={'space-between'}>
                             <Text size="sm" c="dimmed">
-                                {currententry.author}
+                                {readingTime(currententry.content ?? '').text}
                             </Text>
-                            <Text size="sm" c="dimmed">
-                                {dayjs.utc(currententry.published_at).fromNow()}
-                            </Text>
+                            <Flex>
+                                <Text size="sm" c="dimmed">
+                                    {currententry.author} {' - '}{' '}
+                                    {dayjs
+                                        .utc(currententry.published_at)
+                                        .fromNow()}
+                                </Text>
+                            </Flex>
                         </Flex>
                         {value === 'content' ? (
                             <div

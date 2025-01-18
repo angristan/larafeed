@@ -47,5 +47,8 @@
         "recharts": "^2.15.0",
         "typescript": "^5.0.2",
         "vite": "^6.0"
+    },
+    "dependencies": {
+        "reading-time-estimator": "^1.11.0"
     }
 }

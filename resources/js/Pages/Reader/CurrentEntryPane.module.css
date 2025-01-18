@@ -4,6 +4,7 @@
 
 .entry h1 {
     margin: 0 !important;
+    margin-bottom: 1rem !important;
 }
 
 .entryContent {
