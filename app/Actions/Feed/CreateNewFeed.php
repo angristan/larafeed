@@ -125,7 +125,7 @@ class CreateNewFeed
         $newFeedEntries = [];
 
         foreach ($entries as $entry) {
-            if (strlen($entry->get_author()?->get_name()) > 255) {
+            if (strlen($entry->get_author()?->get_name() ?? '') > 255) {
                 // 255 is arbitrary, but if the author is that long, it's probably a bug
                 // example: https://x.com/fuolpit/status/1873790603768553905
 
