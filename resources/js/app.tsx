@@ -7,13 +7,21 @@ import '@gfazioli/mantine-split-pane/styles.css';
 import '../css/app.css';
 import './bootstrap';
 import { createInertiaApp } from '@inertiajs/react';
-import { MantineProvider } from '@mantine/core';
+import { MantineProvider, createTheme, rem } from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+
+const theme = createTheme({
+    headings: {
+        sizes: {
+            h1: { fontSize: rem(32) },
+        },
+    },
+});
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
@@ -26,7 +34,7 @@ createInertiaApp({
         const root = createRoot(el);
 
         root.render(
-            <MantineProvider>
+            <MantineProvider theme={theme}>
                 <ModalsProvider>
                     <Notifications />
                     <App {...props} />
