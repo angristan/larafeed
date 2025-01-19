@@ -356,7 +356,9 @@ export default function CurrentEntryPane({
                             </Text>
                             <Flex>
                                 <Text size="sm" c="dimmed">
-                                    {currententry.author} {' - '}{' '}
+                                    {currententry.author
+                                        ? currententry.author + ' • '
+                                        : ''}
                                     {dayjs
                                         .utc(currententry.published_at)
                                         .fromNow()}
