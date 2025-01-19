@@ -72,7 +72,6 @@ export default function Sidebar({
 }) {
     const mainLinks = links.map((link) => {
         const params = new URLSearchParams(window.location.search);
-        params.delete('feed');
         params.delete('page');
 
         const currentFilter = params.get('filter');
