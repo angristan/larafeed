@@ -9,7 +9,7 @@ import KeyboardShortcuts from '@/Components/KeyboardShortcuts/KeyboardShortcuts'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { PageProps } from '@/types';
 import { Split } from '@gfazioli/mantine-split-pane';
-import { router } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import {
     ActionIcon,
     AppShell,
@@ -117,10 +117,18 @@ const Reader = ({
                             hiddenFrom="sm"
                             size="sm"
                         />
-                        <ApplicationLogo width={40} />
-                        <Title order={3} style={{ margin: 0 }}>
-                            Larafeed
-                        </Title>
+                        <Link
+                            href={route('feeds.index')}
+                            as="div"
+                            style={{ cursor: 'pointer' }}
+                        >
+                            <Group>
+                                <ApplicationLogo width={40} />
+                                <Title order={3} style={{ margin: 0 }}>
+                                    Larafeed
+                                </Title>
+                            </Group>
+                        </Link>
                     </Group>
                     <Group style={{ alignItems: 'center' }}>
                         <ActionIcon
