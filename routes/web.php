@@ -39,18 +39,19 @@ Route::middleware('auth')->group(function () {
 
     // TODO: scoped route bindings
     Route::get('/feeds', ShowFeedReader::class)->name('feeds.index');
-    // Route::post('/feed/{feed}/refresh', RefreshFeedEntries::class)->name('feed.refresh')->whereNumber('feed');
-    Route::post('/feed', CreateNewFeed::class)->name('feed.store');
+
+    Route::middleware(['throttle:create_feed'])->group(function () {
+        Route::post('/feed', CreateNewFeed::class)->name('feed.store');
+    });
+    Route::delete('/feed/{feed_id}', UnsubscribeFromFeed::class)->name('feed.unsubscribe');
+    Route::post('/feed/{feed_id}/refresh', RefreshFeedEntries::class)->name('feed.refresh');
+    Route::patch('feed/{feed_id}', UpdateFeed::class)->name('feed.update');
+    Route::post('/feed/{feed_id}/mark-read', MarkEntriesAsRead::class)->name('feed.mark-read');
+
+    Route::patch('/entry/{entry_id}', UpdateEntryInteractions::class)->name('entry.update');
 
     Route::post('category', CreateCategory::class)->name('category.store');
     Route::delete('category/{category_id}', DeleteCategory::class)->name('category.delete')->whereNumber('category_id');
-
-    Route::patch('feed/{feed_id}', UpdateFeed::class)->name('feed.update');
-
-    Route::patch('/entry/{entry_id}', UpdateEntryInteractions::class)->name('entry.update');
-    Route::delete('/feed/{feed_id}', UnsubscribeFromFeed::class)->name('feed.unsubscribe');
-    Route::post('/feed/{feed_id}/refresh', RefreshFeedEntries::class)->name('feed.refresh');
-    Route::post('/feed/{feed_id}/mark-read', MarkEntriesAsRead::class)->name('feed.mark-read');
 
     Route::get('/import', [ImportOPML::class, 'index'])->name('import.index');
     Route::post('/import', [ImportOPML::class, 'store'])->name('import.store');
