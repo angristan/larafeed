@@ -14,7 +14,7 @@
         "@headlessui/react": "^2.0.0",
         "@inertiajs/react": "^2.0.0",
         "@mantine/core": "^7.15.2",
-        "@mantine/hooks": "^7.15.2",
+        "@mantine/hooks": "^7.16.1",
         "@mantine/modals": "^7.15.2",
         "@mantine/notifications": "^7.15.2",
         "@mantine/spotlight": "^7.15.2",
