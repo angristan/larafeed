@@ -12,7 +12,7 @@
     "devDependencies": {
         "@gfazioli/mantine-split-pane": "^1.0.4",
         "@headlessui/react": "^2.0.0",
-        "@inertiajs/react": "^2.0.0",
+        "@inertiajs/react": "^2.0.3",
         "@mantine/core": "^7.15.2",
         "@mantine/hooks": "^7.15.2",
         "@mantine/modals": "^7.15.2",
