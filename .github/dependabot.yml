@@ -13,7 +13,7 @@ updates:
     groups:
       mantine:
         patterns:
-        - "mantine*
+          - "@mantine/*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
