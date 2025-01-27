@@ -14,6 +14,9 @@ updates:
       mantine:
         patterns:
           - "@mantine/*"
+      eslint:
+        patterns:
+          - "*eslint*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
