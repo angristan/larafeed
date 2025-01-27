@@ -90,6 +90,7 @@ class ShowFeedReader
                     'entry_interactions.starred_at',
                     'entry_interactions.archived_at',
                     'feeds.name as feed_name',
+                    'feed_subscriptions.custom_feed_name as feed_custom_name',
                     'feeds.favicon_url as feed_favicon_url',
                 ])
                 ->orderByDesc('entries.'.$order_by)
@@ -106,7 +107,7 @@ class ShowFeedReader
                     'archived_at' => $entry['archived_at'],
                     'feed' => [
                         'id' => $entry->feed_id,
-                        'name' => $entry['feed_name'],
+                        'name' => $entry->feed_custom_name ?? $entry->feed_name,
                         'favicon_url' => BuildProfixedFaviconURL::run($entry['feed_favicon_url']),
                     ],
                 ]);
@@ -141,14 +142,23 @@ class ShowFeedReader
                     $join->on('entries.id', '=', 'entry_interactions.entry_id')
                         ->where('entry_interactions.user_id', '=', Auth::id());
                 })
+                ->leftJoin('feed_subscriptions', function ($join) {
+                    $join->on('entries.feed_id', '=', 'feed_subscriptions.feed_id')
+                        ->where('feed_subscriptions.user_id', '=', Auth::id());
+                })
                 ->where('entries.id', $entry_id)
                 ->select([
                     'entries.*',
                     'entry_interactions.read_at',
                     'entry_interactions.starred_at',
                     'entry_interactions.archived_at',
+                    'feed_subscriptions.custom_feed_name',
                 ])
                 ->first();
+
+            if ($currentEntry && $currentEntry->feed && $currentEntry['custom_feed_name']) {
+                $currentEntry->feed->name = $currentEntry['custom_feed_name'];
+            }
 
             if ($currentEntry && $currentEntry->feed) {
                 $currentEntry->feed->favicon_url = BuildProfixedFaviconURL::run($currentEntry->feed->favicon_url);
