@@ -13,6 +13,13 @@
         */
         height: auto;
     }
+
+    video {
+        /* override the default video size from the website to prevent stretching
+        */
+        width: 100%;
+        height: auto;
+    }
 }
 
 .entrySummary {
