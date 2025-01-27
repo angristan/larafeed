@@ -11,9 +11,10 @@ updates:
     schedule:
       interval: weekly
     groups:
+    groups:
       mantine:
         patterns:
-          - "@mantine/*
+        - "mantine*
 
   - package-ecosystem: "github-actions"
     directory: "/"
