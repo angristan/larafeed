@@ -10,6 +10,10 @@ updates:
     open-pull-requests-limit: 20
     schedule:
       interval: weekly
+    groups:
+      mantine:
+        patterns:
+          - "@mantine/*
 
   - package-ecosystem: "github-actions"
     directory: "/"
