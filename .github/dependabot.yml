@@ -11,7 +11,6 @@ updates:
     schedule:
       interval: weekly
     groups:
-    groups:
       mantine:
         patterns:
         - "mantine*
