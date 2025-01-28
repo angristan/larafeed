@@ -80,7 +80,7 @@ RUN composer install \
     --no-scripts \
     --audit
 
-FROM node:${NODE_VERSION} AS npm_build
+FROM node:${NODE_VERSION}-slim AS npm_build
 
 ENV ROOT=/var/www/html
 
