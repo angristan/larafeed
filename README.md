@@ -31,22 +31,9 @@ Larafeed is a simple feed reader.
 
 ![](.github/readme/reader.png)
 
-<details>
-<summary>New screenshots coming soon, here are the old ones</summary>
+Demo of the LLM summary generation:
 
-### Feed list
-
-![](.github/readme/feeds.png)
-
-### Feed
-
-![](.github/readme/feed.png)
-
-### Entry
-
-![](.github/readme/entry.png)
-
-</details>
+<https://github.com/user-attachments/assets/0553f893-cc5a-4efa-b098-1b1e10545698>
 
 ## Technical overview
 
