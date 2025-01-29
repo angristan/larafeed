@@ -144,8 +144,10 @@ class CreateNewFeed
                 });
             }
 
+            $title = str_replace('&amp;', '&', $entry->get_title());
+            $title = substr($title, 0, 255);
             $newFeedEntries[] = [
-                'title' => str_replace('&amp;', '&', $entry->get_title()),
+                'title' => $title,
                 'url' => $entry->get_permalink(),
                 'content' => $entry->get_content(),
                 'author' => substr($entry->get_author()?->get_name() ?? '', 0, 255),
