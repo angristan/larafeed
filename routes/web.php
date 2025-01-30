@@ -9,6 +9,7 @@ use App\Actions\Feed\CreateNewFeed;
 use App\Actions\Feed\RefreshFeedEntries;
 use App\Actions\ImportOPML;
 use App\Actions\MarkEntriesAsRead;
+use App\Actions\ShowCharts;
 use App\Actions\ShowFeedReader;
 use App\Actions\UnsubscribeFromFeed;
 use App\Actions\UpdateEntryInteractions;
@@ -57,6 +58,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/import', [ImportOPML::class, 'store'])->name('import.store');
     Route::get('/export', ExportOPML::class)->name('export.download');
 
+    Route::get('/charts', ShowCharts::class)->name('charts.index');
 });
 
 require __DIR__.'/auth.php';
