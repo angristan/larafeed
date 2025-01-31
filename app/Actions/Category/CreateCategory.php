@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Actions;
+namespace App\Actions\Category;
 
 use App\Models\SubscriptionCategory;
 use App\Models\User;

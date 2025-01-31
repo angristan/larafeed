@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions\Feed;
 
-use App\Actions\GetFaviconURL;
+use App\Actions\Favicon\GetFaviconURL;
 use App\Models\Feed;
 use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;

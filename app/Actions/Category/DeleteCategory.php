@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Actions;
+namespace App\Actions\Category;
 
 use App\Models\FeedSubscription;
 use App\Models\SubscriptionCategory;

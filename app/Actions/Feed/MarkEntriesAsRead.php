@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Actions;
+namespace App\Actions\Feed;
 
 use App\Models\Entry;
 use App\Models\EntryInteraction;

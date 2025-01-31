@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Actions\Entry\SummarizeEntryWithLLM;
+use App\Actions\Favicon\BuildProfixedFaviconURL;
 use App\Models\Entry;
 use App\Models\Feed;
 use Illuminate\Http\Request;

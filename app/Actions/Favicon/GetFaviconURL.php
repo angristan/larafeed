@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Actions;
+namespace App\Actions\Favicon;
 
 use AshAllenDesign\FaviconFetcher\Facades\Favicon;
 use Http;

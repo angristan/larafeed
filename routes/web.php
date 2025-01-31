@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-use App\Actions\CreateCategory;
-use App\Actions\DeleteCategory;
-use App\Actions\ExportOPML;
+use App\Actions\Category\CreateCategory;
+use App\Actions\Category\DeleteCategory;
+use App\Actions\Entry\UpdateEntryInteractions;
 use App\Actions\Feed\CreateNewFeed;
+use App\Actions\Feed\MarkEntriesAsRead;
 use App\Actions\Feed\RefreshFeedEntries;
-use App\Actions\ImportOPML;
-use App\Actions\MarkEntriesAsRead;
+use App\Actions\Feed\UnsubscribeFromFeed;
+use App\Actions\Feed\UpdateFeed;
+use App\Actions\OPML\ExportOPML;
+use App\Actions\OPML\ImportOPML;
 use App\Actions\ShowCharts;
 use App\Actions\ShowFeedReader;
-use App\Actions\UnsubscribeFromFeed;
-use App\Actions\UpdateEntryInteractions;
-use App\Actions\UpdateFeed;
 use App\Actions\User\WipeAccount;
 use App\Features\Registration;
 use App\Http\Controllers\ProfileController;

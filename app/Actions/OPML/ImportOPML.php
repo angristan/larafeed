@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Actions;
+namespace App\Actions\OPML;
 
 use App\Actions\Feed\CreateNewFeed;
 use App\Models\EntryInteraction;
