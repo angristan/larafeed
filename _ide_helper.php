@@ -5,7 +5,7 @@
 
 /**
  * A helper file for Laravel, to provide autocomplete information to your IDE
- * Generated for Laravel 11.37.0.
+ * Generated for Laravel 11.41.3.
  *
  * This file should not be included in your code, only analyzed by your IDE!
  *
@@ -3523,7 +3523,8 @@ namespace Illuminate\Support\Facades {
          */
         public static function routes($attributes = null)
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             $instance->routes($attributes);
         }
 
@@ -3536,7 +3537,8 @@ namespace Illuminate\Support\Facades {
          */
         public static function userRoutes($attributes = null)
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             $instance->userRoutes($attributes);
         }
 
@@ -3551,7 +3553,8 @@ namespace Illuminate\Support\Facades {
          */
         public static function channelRoutes($attributes = null)
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             $instance->channelRoutes($attributes);
         }
 
@@ -3564,7 +3567,8 @@ namespace Illuminate\Support\Facades {
          */
         public static function socket($request = null)
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             return $instance->socket($request);
         }
 
@@ -3575,7 +3579,8 @@ namespace Illuminate\Support\Facades {
          */
         public static function on($channels)
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             return $instance->on($channels);
         }
 
@@ -3586,7 +3591,8 @@ namespace Illuminate\Support\Facades {
          */
         public static function private($channel)
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             return $instance->private($channel);
         }
 
@@ -3597,7 +3603,8 @@ namespace Illuminate\Support\Facades {
          */
         public static function presence($channel)
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             return $instance->presence($channel);
         }
 
@@ -3610,7 +3617,8 @@ namespace Illuminate\Support\Facades {
          */
         public static function event($event = null)
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             return $instance->event($event);
         }
 
@@ -3623,7 +3631,8 @@ namespace Illuminate\Support\Facades {
          */
         public static function queue($event)
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             $instance->queue($event);
         }
 
@@ -3636,7 +3645,8 @@ namespace Illuminate\Support\Facades {
          */
         public static function connection($driver = null)
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             return $instance->connection($driver);
         }
 
@@ -3649,7 +3659,8 @@ namespace Illuminate\Support\Facades {
          */
         public static function driver($name = null)
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             return $instance->driver($name);
         }
 
@@ -3662,7 +3673,8 @@ namespace Illuminate\Support\Facades {
          */
         public static function pusher($config)
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             return $instance->pusher($config);
         }
 
@@ -3675,7 +3687,8 @@ namespace Illuminate\Support\Facades {
          */
         public static function ably($config)
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             return $instance->ably($config);
         }
 
@@ -3687,7 +3700,8 @@ namespace Illuminate\Support\Facades {
          */
         public static function getDefaultDriver()
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             return $instance->getDefaultDriver();
         }
 
@@ -3700,7 +3714,8 @@ namespace Illuminate\Support\Facades {
          */
         public static function setDefaultDriver($name)
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             $instance->setDefaultDriver($name);
         }
 
@@ -3713,7 +3728,8 @@ namespace Illuminate\Support\Facades {
          */
         public static function purge($name = null)
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             $instance->purge($name);
         }
 
@@ -3722,12 +3738,13 @@ namespace Illuminate\Support\Facades {
          *
          * @param string $driver
          * @param \Closure $callback
-         * @return \Illuminate\Broadcasting\BroadcastManager 
+         * @return \Qruto\Wave\BroadcastManagerExtended 
          * @static 
          */
         public static function extend($driver, $callback)
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             return $instance->extend($driver, $callback);
         }
 
@@ -3739,7 +3756,8 @@ namespace Illuminate\Support\Facades {
          */
         public static function getApplication()
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             return $instance->getApplication();
         }
 
@@ -3747,24 +3765,26 @@ namespace Illuminate\Support\Facades {
          * Set the application instance used by the manager.
          *
          * @param \Illuminate\Contracts\Foundation\Application $app
-         * @return \Illuminate\Broadcasting\BroadcastManager 
+         * @return \Qruto\Wave\BroadcastManagerExtended 
          * @static 
          */
         public static function setApplication($app)
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             return $instance->setApplication($app);
         }
 
         /**
          * Forget all of the resolved driver instances.
          *
-         * @return \Illuminate\Broadcasting\BroadcastManager 
+         * @return \Qruto\Wave\BroadcastManagerExtended 
          * @static 
          */
         public static function forgetDrivers()
         {
-            /** @var \Illuminate\Broadcasting\BroadcastManager $instance */
+            //Method inherited from \Illuminate\Broadcasting\BroadcastManager 
+            /** @var \Qruto\Wave\BroadcastManagerExtended $instance */
             return $instance->forgetDrivers();
         }
 
@@ -4848,6 +4868,18 @@ namespace Illuminate\Support\Facades {
         {
             /** @var \Illuminate\Cache\Repository $instance */
             return $instance->tags($names);
+        }
+
+        /**
+         * Get the name of the cache store.
+         *
+         * @return string|null 
+         * @static 
+         */
+        public static function getName()
+        {
+            /** @var \Illuminate\Cache\Repository $instance */
+            return $instance->getName();
         }
 
         /**
@@ -10404,6 +10436,19 @@ namespace Illuminate\Support\Facades {
         }
 
         /**
+         * Add a new path to the loader.
+         *
+         * @param string $path
+         * @return void 
+         * @static 
+         */
+        public static function addPath($path)
+        {
+            /** @var \Illuminate\Translation\Translator $instance */
+            $instance->addPath($path);
+        }
+
+        /**
          * Add a new JSON path to the loader.
          *
          * @param string $path
@@ -15838,6 +15883,19 @@ namespace Illuminate\Support\Facades {
         {
             /** @var \Illuminate\Http\Request $instance */
             return $instance->enums($key, $enumClass);
+        }
+
+        /**
+         * Retrieve data from the instance as an array.
+         *
+         * @param array|string|null $key
+         * @return array 
+         * @static 
+         */
+        public static function array($key = null)
+        {
+            /** @var \Illuminate\Http\Request $instance */
+            return $instance->array($key);
         }
 
         /**
@@ -24864,6 +24922,23 @@ namespace  {
         }
 
         /**
+         * Create a record matching the attributes, or increment the existing record.
+         *
+         * @param array $attributes
+         * @param string $column
+         * @param int|float $default
+         * @param int|float $step
+         * @param array $extra
+         * @return TModel 
+         * @static 
+         */
+        public static function incrementOrCreate($attributes, $column = 'count', $default = 1, $step = 1, $extra = [])
+        {
+            /** @var \Illuminate\Database\Eloquent\Builder $instance */
+            return $instance->incrementOrCreate($attributes, $column, $default, $step, $extra);
+        }
+
+        /**
          * Execute the query and get the first result or throw an exception.
          *
          * @param array|string $columns
@@ -25232,6 +25307,22 @@ namespace  {
         {
             /** @var \Illuminate\Database\Eloquent\Builder $instance */
             return $instance->newModelInstance($attributes);
+        }
+
+        /**
+         * Specify attributes that should be added to any new models created by this builder.
+         * 
+         * The given key / value pairs will also be added as where conditions to the query.
+         *
+         * @param \Illuminate\Contracts\Database\Query\Expression|array|string $attributes
+         * @param mixed $value
+         * @return \Illuminate\Database\Eloquent\Builder<static> 
+         * @static 
+         */
+        public static function withAttributes($attributes, $value = null)
+        {
+            /** @var \Illuminate\Database\Eloquent\Builder $instance */
+            return $instance->withAttributes($attributes, $value);
         }
 
         /**
@@ -26070,7 +26161,7 @@ namespace  {
          * Add a morph-to relationship condition to the query.
          *
          * @param \Illuminate\Database\Eloquent\Relations\MorphTo<*, *>|string $relation
-         * @param \Illuminate\Database\Eloquent\Model|string|null $model
+         * @param \Illuminate\Database\Eloquent\Model|iterable<int, \Illuminate\Database\Eloquent\Model>|string|null $model
          * @return \Illuminate\Database\Eloquent\Builder<static> 
          * @static 
          */
@@ -26084,7 +26175,7 @@ namespace  {
          * Add a not morph-to relationship condition to the query.
          *
          * @param \Illuminate\Database\Eloquent\Relations\MorphTo<*, *>|string $relation
-         * @param \Illuminate\Database\Eloquent\Model|string $model
+         * @param \Illuminate\Database\Eloquent\Model|iterable<int, \Illuminate\Database\Eloquent\Model>|string $model
          * @return \Illuminate\Database\Eloquent\Builder<static> 
          * @static 
          */
@@ -26098,7 +26189,7 @@ namespace  {
          * Add a morph-to relationship condition to the query with an "or where" clause.
          *
          * @param \Illuminate\Database\Eloquent\Relations\MorphTo<*, *>|string $relation
-         * @param \Illuminate\Database\Eloquent\Model|string|null $model
+         * @param \Illuminate\Database\Eloquent\Model|iterable<int, \Illuminate\Database\Eloquent\Model>|string|null $model
          * @return \Illuminate\Database\Eloquent\Builder<static> 
          * @static 
          */
@@ -26112,7 +26203,7 @@ namespace  {
          * Add a not morph-to relationship condition to the query with an "or where" clause.
          *
          * @param \Illuminate\Database\Eloquent\Relations\MorphTo<*, *>|string $relation
-         * @param \Illuminate\Database\Eloquent\Model|string $model
+         * @param \Illuminate\Database\Eloquent\Model|iterable<int, \Illuminate\Database\Eloquent\Model>|string $model
          * @return \Illuminate\Database\Eloquent\Builder<static> 
          * @static 
          */

@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $published_at
  * @property int $feed_id
  * @property-read \App\Models\Feed $feed
+ * @property-read \App\Models\TFactory|null $use_factory
  * @property-read \App\Models\EntryInteraction|null $interaction
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\User> $users
  * @property-read int|null $users_count

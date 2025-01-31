@@ -24,6 +24,7 @@ import {
     useMantineTheme,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { notifications } from '@mantine/notifications';
 import { Spotlight, SpotlightActionData } from '@mantine/spotlight';
 import {
     IconBrandGithub,
@@ -60,6 +61,17 @@ const Reader = ({
     summary,
     categories,
 }: ReaderProps) => {
+    window.Echo.channel('notification').listen(
+        'MessageNotification',
+        (e: unknown) => {
+            console.log(e);
+            notifications.show({
+                title: 'New message',
+                message: 'You have a new message',
+            });
+        },
+    );
+
     const [opened, { toggle }] = useDisclosure();
 
     const actions: SpotlightActionData[] = feeds.map((feed) => ({

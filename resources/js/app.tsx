@@ -11,7 +11,9 @@ import { createInertiaApp } from '@inertiajs/react';
 import { MantineProvider, createTheme, rem } from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
+import Echo from 'laravel-echo';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
+import { WaveConnector } from 'laravel-wave';
 import { createRoot } from 'react-dom/client';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';

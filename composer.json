@@ -24,6 +24,7 @@
         "laravel/tinker": "^2.9",
         "lorisleiva/laravel-actions": "^2.8",
         "onliner/imgproxy-php": "^0.2",
+        "qruto/laravel-wave": "^0.9.1",
         "sentry/sentry-laravel": "^4.10",
         "spatie/laravel-login-link": "^1.1",
         "tightenco/ziggy": "^2.4",
