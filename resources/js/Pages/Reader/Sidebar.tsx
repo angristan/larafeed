@@ -48,16 +48,10 @@ import axios, { AxiosError } from 'axios';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
-import { FormEventHandler, useEffect, useState } from 'react';
+import { FormEventHandler, ReactNode, useEffect, useState } from 'react';
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
-
-const links = [
-    { icon: IconBook, label: 'Unread' },
-    { icon: IconCheckbox, label: 'Read' },
-    { icon: IconStar, label: 'Favorites' },
-];
 
 export default function Sidebar({
     feeds,
@@ -70,67 +64,6 @@ export default function Sidebar({
     readEntriesCount: number;
     categories: Category[];
 }) {
-    const mainLinks = links.map((link) => {
-        const params = new URLSearchParams(window.location.search);
-        params.delete('page');
-
-        const currentFilter = params.get('filter');
-        if (currentFilter === link.label.toLowerCase()) {
-            // Clicking again -> remove the filter
-            params.delete('filter');
-        } else {
-            params.set('filter', link.label.toLowerCase());
-        }
-
-        return (
-            <Link
-                key={link.label}
-                className={`${classes.mainLink} ${
-                    link.label.toLowerCase() ===
-                    new URLSearchParams(window.location.search).get('filter')
-                        ? classes.activeFeed
-                        : ''
-                }`}
-                href={route('feeds.index')}
-                only={['entries']}
-                preserveScroll
-                preserveState
-                data={{
-                    ...Object.fromEntries(params),
-                }}
-                prefetch
-                as="UnstyledButton"
-            >
-                <div className={classes.mainLinkInner}>
-                    <link.icon
-                        size={20}
-                        className={classes.mainLinkIcon}
-                        stroke={1.5}
-                    />
-                    <span>{link.label}</span>
-                </div>
-                {link.label === 'Unread' && unreadEntriesCount > 0 && (
-                    <Badge
-                        size="sm"
-                        variant="filled"
-                        className={classes.mainLinkBadge}
-                    >
-                        {unreadEntriesCount}
-                    </Badge>
-                )}
-                {link.label === 'Read' && readEntriesCount > 0 && (
-                    <Badge
-                        size="sm"
-                        variant="default"
-                        className={classes.mainLinkBadge}
-                    >
-                        {readEntriesCount}
-                    </Badge>
-                )}
-            </Link>
-        );
-    });
-
     interface FeedsByCategory {
         [key: number]: Feed[];
     }
@@ -198,7 +131,12 @@ export default function Sidebar({
                 </AppShell.Section>
 
                 <AppShell.Section>
-                    <div className={classes.mainLinks}>{mainLinks}</div>
+                    <div className={classes.mainLinks}>
+                        <FilterLinks
+                            unreadEntriesCount={unreadEntriesCount}
+                            readEntriesCount={readEntriesCount}
+                        />
+                    </div>
                 </AppShell.Section>
 
                 <Divider mb="sm" />
@@ -235,6 +173,134 @@ export default function Sidebar({
         </>
     );
 }
+
+const FilterLinks = function FilterLinks({
+    unreadEntriesCount,
+    readEntriesCount,
+}: {
+    unreadEntriesCount: number;
+    readEntriesCount: number;
+}) {
+    const links = [
+        {
+            label: 'Unread',
+            icon: (
+                <IconBook
+                    size={20}
+                    className={classes.mainLinkIcon}
+                    stroke={1.5}
+                />
+            ),
+            readEntriesCount,
+            unreadEntriesCount,
+        },
+        {
+            label: 'Read',
+            icon: (
+                <IconCheckbox
+                    size={20}
+                    className={classes.mainLinkIcon}
+                    stroke={1.5}
+                />
+            ),
+            readEntriesCount,
+            unreadEntriesCount,
+        },
+        {
+            label: 'Favorites',
+            icon: (
+                <IconStar
+                    size={20}
+                    className={classes.mainLinkIcon}
+                    stroke={1.5}
+                />
+            ),
+            readEntriesCount,
+            unreadEntriesCount,
+        },
+    ];
+
+    return (
+        <div className={classes.mainLinks}>
+            {links.map((link) => (
+                <FilterLink
+                    key={link.label}
+                    label={link.label}
+                    icon={link.icon}
+                    readEntriesCount={link.readEntriesCount}
+                    unreadEntriesCount={link.unreadEntriesCount}
+                />
+            ))}
+        </div>
+    );
+};
+
+const FilterLink = function FilterLink({
+    label,
+    icon,
+    readEntriesCount,
+    unreadEntriesCount,
+}: {
+    label: string;
+    icon: ReactNode;
+    readEntriesCount: number;
+    unreadEntriesCount: number;
+}) {
+    const params = new URLSearchParams(window.location.search);
+    params.delete('page');
+
+    const currentFilter = params.get('filter');
+    if (currentFilter === label.toLowerCase()) {
+        // Clicking again -> remove the filter
+        params.delete('filter');
+    } else {
+        params.set('filter', label.toLowerCase());
+    }
+
+    return (
+        <Link
+            key={label}
+            className={`${classes.mainLink} ${
+                label.toLowerCase() ===
+                new URLSearchParams(window.location.search).get('filter')
+                    ? classes.activeFeed
+                    : ''
+            }`}
+            href={route('feeds.index')}
+            only={['entries']}
+            preserveScroll
+            preserveState
+            data={{
+                ...Object.fromEntries(params),
+            }}
+            prefetch
+            as="UnstyledButton"
+        >
+            <div className={classes.mainLinkInner}>
+                {icon}
+                <span>{label}</span>
+            </div>
+            {label === 'Unread' && unreadEntriesCount > 0 && (
+                <Badge
+                    size="sm"
+                    variant="filled"
+                    className={classes.mainLinkBadge}
+                >
+                    {unreadEntriesCount}
+                </Badge>
+            )}
+            {label === 'Read' && readEntriesCount > 0 && (
+                <Badge
+                    size="sm"
+                    variant="default"
+                    className={classes.mainLinkBadge}
+                >
+                    {readEntriesCount}
+                </Badge>
+            )}
+        </Link>
+    );
+};
 
 interface FeedLinksGroupProps {
     category: Category;
