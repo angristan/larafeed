@@ -17,26 +17,6 @@ class ShowCharts
 
     public function asController(Request $request): \Inertia\Response
     {
-        $hourlyData = Entry::query()
-            ->join('feed_subscriptions', function ($join) {
-                $join->on('entries.feed_id', '=', 'feed_subscriptions.feed_id')
-                    ->where('feed_subscriptions.user_id', '=', Auth::id());
-            })
-            ->select([
-                DB::raw('EXTRACT(HOUR FROM published_at) as hour'),
-                DB::raw('COUNT(*) as value'),
-            ])
-            ->groupBy('hour')
-            ->orderBy('hour')
-            ->get()
-            ->map(function ($row) {
-                return [
-                    'hour' => sprintf('%02d:00', $row['hour']),
-                    'index' => 1,
-                    'value' => (int) $row['value'],
-                ];
-            });
-
         $dailyReads = Entry::query()
             ->join('feed_subscriptions', function ($join) {
                 $join->on('entries.feed_id', '=', 'feed_subscriptions.feed_id')
@@ -63,7 +43,6 @@ class ShowCharts
             });
 
         return Inertia::render('Charts', [
-            'data' => $hourlyData,
             'dailyReads' => $dailyReads,
         ]);
     }

@@ -5,7 +5,7 @@ import ApplicationLogo from '@/Components/ApplicationLogo/ApplicationLogo';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { PageProps, User } from '@/types';
 import { usePage } from '@inertiajs/react';
-import { BarChart, BubbleChart } from '@mantine/charts';
+import { BarChart } from '@mantine/charts';
 import {
     AppShell,
     Burger,
@@ -19,24 +19,11 @@ import { useDisclosure } from '@mantine/hooks';
 import { IconSearch } from '@tabler/icons-react';
 import { ReactNode } from 'react';
 
-const Main = function Main({
-    data,
-    dailyReads,
-}: {
-    data: DataPoint[];
-    dailyReads: DailyReads[];
-}) {
+const Main = function Main({ dailyReads }: { dailyReads: DailyReads[] }) {
     return (
         <AppShell.Main>
             <Stack>
-                <BubbleChart
-                    h={300}
-                    data={data}
-                    range={[0, 255]}
-                    label="Entries per hour"
-                    color="lime.6"
-                    dataKey={{ x: 'hour', y: 'index', z: 'value' }}
-                />
+                <Title order={2}>Daily Reads</Title>
                 <BarChart
                     h={300}
                     data={dailyReads}
@@ -73,23 +60,16 @@ const NavBar = function Navbar({ user }: { user: User }) {
     );
 };
 
-interface DataPoint {
-    hour: string;
-    value: number;
-    index: number;
-}
-
 interface DailyReads {
     date: string;
     reads: number;
 }
 
 interface ChartsProps extends PageProps {
-    data: DataPoint[];
     dailyReads: DailyReads[];
 }
 
-const Charts = ({ data, dailyReads }: ChartsProps) => {
+const Charts = ({ dailyReads }: ChartsProps) => {
     const user = usePage().props.auth.user;
 
     const [opened, { toggle }] = useDisclosure();
@@ -121,7 +101,7 @@ const Charts = ({ data, dailyReads }: ChartsProps) => {
 
             <NavBar user={user} />
 
-            <Main data={data} dailyReads={dailyReads} />
+            <Main dailyReads={dailyReads} />
         </AppShell>
     );
 };
