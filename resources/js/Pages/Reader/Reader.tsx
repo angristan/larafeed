@@ -27,6 +27,8 @@ import { useDisclosure } from '@mantine/hooks';
 import { Spotlight, SpotlightActionData } from '@mantine/spotlight';
 import {
     IconBrandGithub,
+    IconChartArcs,
+    IconChartBar,
     IconFileImport,
     IconLogout,
     IconSearch,
@@ -145,6 +147,16 @@ const Reader = ({
                         >
                             <IconBrandGithub stroke={1.5} size={20} />
                         </ActionIcon>
+                        <Link href={route('charts.index')} as="div" prefetch>
+                            <ActionIcon
+                                variant="default"
+                                size="lg"
+                                aria-label="Toggle color scheme"
+                                mt={1}
+                            >
+                                <IconChartBar stroke={1.5} size={20} />
+                            </ActionIcon>
+                        </Link>
                         <KeyboardShortcuts />
                         <ColorSchemeSwitcher />
 
