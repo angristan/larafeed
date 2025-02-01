@@ -17,6 +17,7 @@ ARG APP_DIR=/var/www/html
 ENV DEBIAN_FRONTEND=noninteractive \
     TERM=xterm-color \
     OCTANE_SERVER=frankenphp \
+    APP_ENV=production \
     TZ=${TZ} \
     USER=octane \
     ROOT=${APP_DIR} \
