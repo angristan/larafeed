@@ -1,0 +1,91 @@
+services:
+    web:
+        image: ghcr.io/angristan/larafeed:latest
+        env_file: .env.compose
+        command:
+            [
+                "sh",
+                "-c",
+                "php artisan optimize && php artisan migrate --force && php artisan octane:start --server=frankenphp --host=0.0.0.0 --port=8080 --log-level=info --caddyfile=./deploy/Caddyfile --max-requests=100",
+            ]
+        ports:
+            - "8000:8080"
+        depends_on:
+            - postgres
+            - redis
+        networks:
+            - internal_network
+            - external_network
+
+    queue:
+        image: ghcr.io/angristan/larafeed:latest
+        env_file: .env.compose
+        command:
+            [
+                "php",
+                "artisan",
+                "queue:work",
+                "--max-jobs=100",
+                "--max-time=600",
+                "--memory=64",
+            ]
+        depends_on:
+            - postgres
+            - redis
+        networks:
+            - external_network
+            - internal_network
+
+    scheduler:
+        image: ghcr.io/angristan/larafeed:latest
+        env_file: .env.compose
+        command:
+            [
+                "sh",
+                "-c",
+                "while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done",
+            ]
+        depends_on:
+            - postgres
+            - redis
+        networks:
+            - internal_network
+
+    postgres:
+        image: postgres:17-alpine
+        env_file: .env.compose
+        healthcheck:
+            test: ["CMD", "pg_isready", "-U", "postgres"]
+        environment:
+            - "POSTGRES_HOST_AUTH_METHOD=trust"
+        volumes:
+            - postgres-data:/var/lib/postgresql/data
+        networks:
+            - internal_network
+
+    redis:
+        image: redis:7-alpine
+        env_file: .env.compose
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+        volumes:
+            - redis-data:/data
+        networks:
+            - internal_network
+
+    imgproxy:
+        image: ghcr.io/imgproxy/imgproxy:latest
+        env_file: .env.compose
+        ports:
+            - "127.0.0.1:8080:8080"
+        networks:
+            - external_network
+
+networks:
+    external_network:
+    internal_network:
+        internal: true
+
+volumes:
+    postgres-data:
+    redis-data:

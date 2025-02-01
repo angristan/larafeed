@@ -133,6 +133,17 @@ The project is currently deployed on [Railway](https://railway.com?referralCode=
 
 The web server is powered by Laravel Octane, FrankenPHP and Caddy. ⚡️
 
+#### Docker-compose
+
+You can run Larafeed for yourself with Docker Compose. The `docker-compose.yml` file is provided in the repository. By default it will use the Docker image from the GitHub Container Registry that is built on every push.
+
+Make sure to update the `.env.compose` file with your own values.
+
+- For `APP_KEY`:
+  - `docker-compose exec -it queue bash -c "php artisan key:generate --show"`
+- For `IMGPRPOXY_SALT` and `IMGPROXY_KEY`:
+  - `echo $(xxd -g 2 -l 64 -p /dev/random | tr -d '\n')`
+
 ## Development
 
 ### Run locally
