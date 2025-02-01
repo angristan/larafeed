@@ -64,6 +64,37 @@ export default function Sidebar({
     readEntriesCount: number;
     categories: Category[];
 }) {
+    const [currentFilter, setCurrentFilter] = useState(
+        new URLSearchParams(window.location.search).get('filter'),
+    );
+
+    const [currentCategory, setCurrentCategory] = useState(
+        new URLSearchParams(window.location.search).get('category'),
+    );
+
+    const [currentFeed, setCurrentFeed] = useState(
+        new URLSearchParams(window.location.search).get('feed'),
+    );
+
+    router.on('success', () => {
+        const params = new URLSearchParams(window.location.search);
+
+        const filter = params.get('filter');
+        if (filter !== currentFilter) {
+            setCurrentFilter(filter);
+        }
+
+        const category = params.get('category');
+        if (category !== currentCategory) {
+            setCurrentCategory(category);
+        }
+
+        const feed = params.get('feed');
+        if (feed !== currentFeed) {
+            setCurrentFeed(feed);
+        }
+    });
+
     interface FeedsByCategory {
         [key: number]: Feed[];
     }
@@ -80,7 +111,8 @@ export default function Sidebar({
     });
 
     const feedLinks = categories.map((category) => (
-        <FeedLinksGroup
+        <FeedLinksCategoryGroup
+            active={currentCategory === category.id.toString()}
             key={category.id}
             category={category}
             feedsPerCategory={feedsPerCategory}
@@ -133,6 +165,7 @@ export default function Sidebar({
                 <AppShell.Section>
                     <div className={classes.mainLinks}>
                         <FilterLinks
+                            currentFilter={currentFilter}
                             unreadEntriesCount={unreadEntriesCount}
                             readEntriesCount={readEntriesCount}
                         />
@@ -175,9 +208,11 @@ export default function Sidebar({
 }
 
 const FilterLinks = function FilterLinks({
+    currentFilter,
     unreadEntriesCount,
     readEntriesCount,
 }: {
+    currentFilter: string | null;
     unreadEntriesCount: number;
     readEntriesCount: number;
 }) {
@@ -224,6 +259,7 @@ const FilterLinks = function FilterLinks({
         <div className={classes.mainLinks}>
             {links.map((link) => (
                 <FilterLink
+                    active={currentFilter === link.label.toLowerCase()}
                     key={link.label}
                     label={link.label}
                     icon={link.icon}
@@ -236,11 +272,13 @@ const FilterLinks = function FilterLinks({
 };
 
 const FilterLink = function FilterLink({
+    active,
     label,
     icon,
     readEntriesCount,
     unreadEntriesCount,
 }: {
+    active: boolean;
     label: string;
     icon: ReactNode;
     readEntriesCount: number;
@@ -249,8 +287,7 @@ const FilterLink = function FilterLink({
     const params = new URLSearchParams(window.location.search);
     params.delete('page');
 
-    const currentFilter = params.get('filter');
-    if (currentFilter === label.toLowerCase()) {
+    if (active) {
         // Clicking again -> remove the filter
         params.delete('filter');
     } else {
@@ -261,10 +298,7 @@ const FilterLink = function FilterLink({
         <Link
             key={label}
             className={`${classes.mainLink} ${
-                label.toLowerCase() ===
-                new URLSearchParams(window.location.search).get('filter')
-                    ? classes.activeFeed
-                    : ''
+                active ? classes.activeFeed : ''
             }`}
             href={route('feeds.index')}
             only={['entries']}
@@ -303,12 +337,14 @@ const FilterLink = function FilterLink({
 };
 
 interface FeedLinksGroupProps {
+    active: boolean;
     category: Category;
     feedsPerCategory: Record<number, Feed[]>;
     categories: Category[];
 }
 
-export const FeedLinksGroup = ({
+export const FeedLinksCategoryGroup = ({
+    active,
     category,
     feedsPerCategory,
     categories,
@@ -324,10 +360,10 @@ export const FeedLinksGroup = ({
     }, [category.id, feedsPerCategory]);
 
     const params = new URLSearchParams(window.location.search);
+    console.log(params);
     params.delete('feed');
 
-    const currentCategory = params.get('category');
-    if (currentCategory === category.id.toString()) {
+    if (active) {
         // Clicking again -> unselect the category
         params.delete('category');
     } else {
@@ -361,11 +397,7 @@ export const FeedLinksGroup = ({
                         },
                     });
                 }}
-                active={
-                    new URLSearchParams(window.location.search).get(
-                        'category',
-                    ) === category.id.toString()
-                }
+                active={active}
                 label={
                     <CategoryHeader
                         category={category}
