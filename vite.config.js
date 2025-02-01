@@ -2,9 +2,9 @@ import react from '@vitejs/plugin-react';
 import laravel from 'laravel-vite-plugin';
 import { defineConfig } from 'vite';
 
-const ReactCompilerConfig = {
-    target: '18', // '17' | '18' | '19'
-};
+// const ReactCompilerConfig = {
+//     target: '18', // '17' | '18' | '19'
+// };
 
 export default defineConfig({
     plugins: [
@@ -14,7 +14,7 @@ export default defineConfig({
         }),
         react({
             babel: {
-                plugins: [['babel-plugin-react-compiler', ReactCompilerConfig]],
+                // plugins: [['babel-plugin-react-compiler', ReactCompilerConfig]],
             },
         }),
     ],
