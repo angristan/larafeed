@@ -27,7 +27,6 @@ import { useDisclosure } from '@mantine/hooks';
 import { Spotlight, SpotlightActionData } from '@mantine/spotlight';
 import {
     IconBrandGithub,
-    IconChartArcs,
     IconChartBar,
     IconFileImport,
     IconLogout,
