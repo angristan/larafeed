@@ -32,7 +32,7 @@ class ShowCharts
                 DB::raw('COUNT(*) as count'),
             ])
             ->groupBy('date')
-            ->orderBy('date', 'desc')
+            ->orderBy('date', 'asc')
             ->limit(30)
             ->get()
             ->map(function ($row) {
