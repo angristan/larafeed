@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
             ])
             ->trustProxies(at: [
                 '100.64.0.0/10', // For Railway
+                '10.0.0.0/8', // For k8s
             ])
             ->throttleWithRedis();
         // ->trustHosts(at: ['xzy.com']);
