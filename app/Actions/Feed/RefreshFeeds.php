@@ -32,8 +32,8 @@ class RefreshFeeds
     {
 
         Feed::orderByRaw('LEAST(last_successful_refresh_at, last_failed_refresh_at) ASC')
-            ->where('last_successful_refresh_at', '<', now()->subMinutes(10))
-            ->limit(10)->get()->each(
+            ->where('last_successful_refresh_at', '<', now()->subMinutes(60))
+            ->limit(20)->get()->each(
                 fn (Feed $feed) => RefreshFeedEntries::dispatch($feed)
             );
     }
