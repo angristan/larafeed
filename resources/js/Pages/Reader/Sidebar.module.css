@@ -62,7 +62,7 @@
 }
 
 .mainLinkBadge {
-    min-width: fit-content;
+    min-width: max-content;
     pointer-events: none;
     margin-left: 5px;
 }
