@@ -7,4 +7,4 @@ use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('telescope:prune')->daily();
 
-Schedule::command(RefreshFeeds::class)->hourly();
+Schedule::command(RefreshFeeds::class)->everyFiveMinutes();
