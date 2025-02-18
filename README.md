@@ -27,13 +27,19 @@ Larafeed is a simple feed reader.
 - Telegram notications on user registration and login failures
 - Estimated reading time for each entry
 
-### Screenshots
+### Screenshots & demo
+
+#### Reader view
 
 ![](.github/readme/reader.png)
 
-Demo of the LLM summary generation:
+#### Demo of the LLM summary generation
 
 <https://github.com/user-attachments/assets/0553f893-cc5a-4efa-b098-1b1e10545698>
+
+#### Demo of the feed refreshing UX
+
+<https://github.com/user-attachments/assets/a420f8cd-d306-4a0d-afe3-d391852055ad>
 
 ## Technical overview
 
