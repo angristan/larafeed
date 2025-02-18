@@ -38,7 +38,7 @@ class RefreshFeeds
             ->select('feeds.*', \DB::raw('MAX(entries.published_at) as last_entry_at'))
             ->groupBy('feeds.id')
             // Select feeds that haven't been refreshed in the last two hours
-            ->whereRaw('LEAST(last_successful_refresh_at, last_failed_refresh_at) < ?', [now()->subMinutes(120)])
+            ->whereRaw('GREATEST(last_successful_refresh_at, last_failed_refresh_at) < ?', [now()->subMinutes(120)])
             // Order by the ratio of time since last refresh and time since last entry
             ->orderByRaw(<<<'SQL'
                 CASE
