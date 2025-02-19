@@ -32,7 +32,7 @@ class ShowCharts
                 DB::raw('COUNT(*) as count'),
             ])
             ->groupBy('date')
-            ->orderBy('date', 'asc')
+            ->orderBy('date', 'desc')
             ->limit(30)
             ->get()
             ->map(function ($row) {
@@ -40,7 +40,8 @@ class ShowCharts
                     'date' => $row['date'],
                     'reads' => (int) $row['count'],
                 ];
-            });
+            })->reverse()
+            ->values();
 
         return Inertia::render('Charts', [
             'dailyReads' => $dailyReads,
