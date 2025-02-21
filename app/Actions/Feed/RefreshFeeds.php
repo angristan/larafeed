@@ -42,6 +42,11 @@ class RefreshFeeds
             // Order by the ratio of time since last refresh and time since last entry
             ->orderByRaw(<<<'SQL'
                 CASE
+                -- Refresh feeds at least once a day
+                WHEN GREATEST(last_successful_refresh_at, last_failed_refresh_at) < (NOW() - INTERVAL '24 hour')
+                    THEN 1
+                ELSE (
+                    CASE
                     -- We fetch the entries when we add the feed
                     -- So if there are no entries, the feed has never been working
                     WHEN MAX(entries.published_at) IS NULL THEN (
@@ -50,7 +55,7 @@ class RefreshFeeds
                         -- because we treat them as if their last entry was 10 years ago
                         -- we still want to refresh them from time to time
                         (
-                            EXTRACT(EPOCH FROM NOW()) - EXTRACT(EPOCH FROM LEAST(last_successful_refresh_at, last_failed_refresh_at))
+                            EXTRACT(EPOCH FROM NOW()) - EXTRACT(EPOCH FROM GREATEST(last_successful_refresh_at, last_failed_refresh_at))
                         ) /
                         (
                             EXTRACT(EPOCH FROM NOW()) - (EXTRACT(EPOCH FROM NOW() - INTERVAL '10 year'))
@@ -60,11 +65,13 @@ class RefreshFeeds
                     -- we want to refresh feeds that have not been refreshed in a while
                     -- but we want to prioritize feeds that have recent entries
                     ELSE (
-                        EXTRACT(EPOCH FROM NOW()) - EXTRACT(EPOCH FROM LEAST(last_successful_refresh_at, last_failed_refresh_at))
+                        EXTRACT(EPOCH FROM NOW()) - EXTRACT(EPOCH FROM GREATEST(last_successful_refresh_at, last_failed_refresh_at))
                     ) / NULLIF( -- Avoid division by zero in the very unlikely case where now = the most recent entry
                         EXTRACT(EPOCH FROM NOW()) - EXTRACT(EPOCH FROM MAX(entries.published_at)),
                         0
                     )
+                    END
+                )
                 END DESC
                 SQL
             )
