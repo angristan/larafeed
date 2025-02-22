@@ -42,7 +42,7 @@
         "eslint-plugin-react-hooks": "^5.1.0",
         "globals": "^15.15.0",
         "laravel-vite-plugin": "^1.2",
-        "postcss": "^8.5.1",
+        "postcss": "^8.5.3",
         "postcss-preset-mantine": "^1.17.0",
         "postcss-simple-vars": "^7.0.1",
         "prettier": "^3.3.0",
