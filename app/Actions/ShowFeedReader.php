@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Actions\Entry\ProxifyImagesInHTML;
 use App\Actions\Entry\SummarizeEntryWithLLM;
 use App\Actions\Favicon\BuildProfixedFaviconURL;
 use App\Models\Entry;
@@ -158,6 +159,8 @@ class ShowFeedReader
                     'feed_subscriptions.custom_feed_name',
                 ])
                 ->first();
+
+            $currentEntry->content = ProxifyImagesInHTML::run($currentEntry->content);
 
             if ($currentEntry && $currentEntry->feed && $currentEntry['custom_feed_name']) {
                 $currentEntry->feed->name = $currentEntry['custom_feed_name'];
