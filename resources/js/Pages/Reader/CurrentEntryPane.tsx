@@ -220,8 +220,8 @@ export default function CurrentEntryPane({
 
     return (
         <Flex direction="column" w="100%">
-            <Card pb={10} pt={10} pl={10} pr={10}>
-                <Flex direction="row" justify="space-between">
+            <Card pb={10} pl={10} pr={10}>
+                <Flex direction="row" justify="space-between" align="center">
                     <Image
                         src={currententry.feed.favicon_url}
                         w={20}
