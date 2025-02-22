@@ -27,26 +27,60 @@ class ProxifyImagesInHTML
         libxml_clear_errors();
 
         $xpath = new DOMXPath($doc);
-        $images = $xpath->query('//img');
 
-        foreach ($images as $img) {
+        foreach ($xpath->query('//img') as $img) {
             if (! ($img instanceof \DOMElement)) {
                 continue;
             }
 
+            // Handle src attribute
             $originalUrl = $img->getAttribute('src');
-            if (! $originalUrl) {
-                continue;
+            if ($originalUrl) {
+                $proxiedUrl = $this->getProxiedUrl($originalUrl);
+                $img->setAttribute('src', $proxiedUrl);
             }
 
-            $proxiedUri = app(UrlBuilder::class)
-                ->url($originalUrl, 'webp');
+            // Handle srcset attribute
+            $srcset = $img->getAttribute('srcset');
+            if ($srcset) {
+                $proxiedSrcset = $this->proxifySrcset($srcset);
+                $img->setAttribute('srcset', $proxiedSrcset);
+            }
+        }
 
-            $proxiedUrl = config('services.imgproxy.url').$proxiedUri;
+        foreach ($xpath->query('//picture') as $picture) {
+            foreach ($xpath->query('.//source', $picture) as $source) {
+                if (! ($source instanceof \DOMElement)) {
+                    continue;
+                }
 
-            $img->setAttribute('src', $proxiedUrl);
+                // Handle srcset attribute
+                $srcset = $source->getAttribute('srcset');
+                if ($srcset) {
+                    $proxiedSrcset = $this->proxifySrcset($srcset);
+                    $source->setAttribute('srcset', $proxiedSrcset);
+                }
+            }
         }
 
         return $doc->saveHTML();
+    }
+
+    private function proxifySrcset(string $srcset): string
+    {
+        return implode(', ', array_map(function ($srcsetPart) {
+            [$url, $descriptor] = preg_split('/\s+/', trim($srcsetPart), 2) + [1 => ''];
+            $proxiedUrl = $this->getProxiedUrl($url);
+
+            return $proxiedUrl.($descriptor ? ' '.$descriptor : '');
+        }, explode(',', $srcset)));
+    }
+
+    private function getProxiedUrl(string $originalUrl): string
+    {
+        $proxiedUri = app(UrlBuilder::class)
+            ->url($originalUrl, 'webp');
+
+        return config('services.imgproxy.url').$proxiedUri;
     }
 }
