@@ -105,8 +105,11 @@ class CreateNewFeed
 
         $favicon_url = GetFaviconURL::run($site_url);
 
+        $feed_name = $crawledFeed->get_title() ?? $fallback_name ?? $site_url;
+        $feed_name = str_replace('&amp;', '&', $feed_name);
+
         $feed = Feed::create([
-            'name' => $crawledFeed->get_title() ?? $fallback_name ?? $site_url,
+            'name' => $feed_name,
             'feed_url' => $feed_url,
             'site_url' => $site_url,
             'favicon_url' => $favicon_url,
