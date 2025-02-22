@@ -98,7 +98,7 @@ class ShowFeedReader
                     'feeds.favicon_url as feed_favicon_url',
                 ])
                 ->orderByDesc('entries.'.$order_by)
-                ->paginate(perPage: 20)
+                ->paginate(perPage: 30)
                 ->through(fn ($entry) => [
                     'id' => $entry->id,
                     'title' => $entry->title,
