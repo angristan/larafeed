@@ -1088,6 +1088,26 @@ const FeedLink = function FeedLink({
                                         </Menu.Item>
 
                                         <Menu.Item
+                                            leftSection={
+                                                <IconExternalLink
+                                                    style={{
+                                                        width: rem(14),
+                                                        height: rem(14),
+                                                    }}
+                                                />
+                                            }
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                window.open(
+                                                    feed.feed_url,
+                                                    '_blank',
+                                                );
+                                            }}
+                                        >
+                                            Open feed
+                                        </Menu.Item>
+
+                                        <Menu.Item
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 markFeedAsRead();

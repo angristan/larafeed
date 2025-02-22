@@ -4,6 +4,7 @@ interface Feed {
     original_name: string;
     favicon_url: string;
     site_url: string;
+    feed_url: string;
     entries_count: number;
     last_successful_refresh_at: string | null;
     last_failed_refresh_at: string | null;

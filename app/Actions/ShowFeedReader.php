@@ -38,6 +38,7 @@ class ShowFeedReader
                 ->select([
                     'feeds.id',
                     'feeds.name',
+                    'feeds.feed_url',
                     'feeds.site_url',
                     'feeds.favicon_url',
                     'feeds.last_successful_refresh_at',
@@ -49,6 +50,7 @@ class ShowFeedReader
                     'id' => $feed->id,
                     'name' => $feed->subscription?->custom_feed_name ?? $feed->name,
                     'original_name' => $feed->name,
+                    'feed_url' => $feed->feed_url,
                     'site_url' => $feed->site_url,
                     'favicon_url' => $feed->favicon_url(),
                     'entries_count' => $feed['entries_count'],
