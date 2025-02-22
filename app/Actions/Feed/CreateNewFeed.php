@@ -122,8 +122,9 @@ class CreateNewFeed
             $attachedUser->feeds()->attach($feed, ['category_id' => $category_id]);
         }
 
-        // TODO single insert
-        $entries = $crawledFeed->get_items();
+        // Only get last 20 because $entry->get_content() is very slow
+        // so for feeds with many full-cotent entries, it can take a while
+        $entries = $crawledFeed->get_items(0, 20);
 
         $newFeedEntries = [];
 
@@ -161,9 +162,7 @@ class CreateNewFeed
             ];
         }
 
-        foreach (array_chunk($newFeedEntries, 100) as $chunk) {
-            $feed->entries()->insert($chunk);
-        }
+        $feed->entries()->insert($newFeedEntries);
 
         return redirect()->route('feeds.index', ['feed' => $feed->id]);
     }
