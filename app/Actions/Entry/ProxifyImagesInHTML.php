@@ -21,8 +21,13 @@ class ProxifyImagesInHTML
         // Prevent XML parsing errors from showing
         libxml_use_internal_errors(true);
 
-        // Convert HTML entities and load with proper encoding
-        $content = htmlspecialchars_decode($content, ENT_QUOTES | ENT_HTML5);
+        // Convert input to UTF-8 properly
+        $content = mb_convert_encoding($content, 'UTF-8', mb_detect_encoding($content));
+
+        // Add HTML wrapper with proper charset
+        $content = '<!DOCTYPE html><html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"></head><body>'.$content.'</body></html>';
+
+        // Load with proper encoding flags
         $doc->loadHTML($content, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NOERROR);
         libxml_clear_errors();
 
@@ -63,7 +68,12 @@ class ProxifyImagesInHTML
             }
         }
 
-        return $doc->saveHTML();
+        // Extract only the body content
+        $html = $doc->saveHTML($doc->getElementsByTagName('body')->item(0));
+        // Remove body tags
+        $html = preg_replace('/<\/?body>/', '', $html);
+
+        return trim($html);
     }
 
     private function proxifySrcset(string $srcset): string
