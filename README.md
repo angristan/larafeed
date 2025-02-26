@@ -41,6 +41,10 @@ Larafeed is a simple feed reader.
 
 <https://github.com/user-attachments/assets/a420f8cd-d306-4a0d-afe3-d391852055ad>
 
+#### Demo of the quick add feed from a bookmark
+
+<https://github.com/user-attachments/assets/bb266745-5d16-4d06-9534-653df38212bc>
+
 ## Technical overview
 
 - Backend build with Laravel 11
