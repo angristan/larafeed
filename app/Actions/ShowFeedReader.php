@@ -160,7 +160,9 @@ class ShowFeedReader
                 ])
                 ->first();
 
-            $currentEntry->content = ProxifyImagesInHTML::run($currentEntry->content);
+            if ($currentEntry->content) {
+                $currentEntry->content = ProxifyImagesInHTML::run($currentEntry->content);
+            }
 
             if ($currentEntry && $currentEntry->feed && $currentEntry['custom_feed_name']) {
                 $currentEntry->feed->name = $currentEntry['custom_feed_name'];
