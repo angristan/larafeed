@@ -52,7 +52,7 @@ RUN apt-get update; \
     excimer \
     # for datadog
     && curl -LO https://github.com/DataDog/dd-trace-php/releases/latest/download/datadog-setup.php \
-    && php datadog-setup.php --php-bin=all \
+    && php datadog-setup.php --php-bin=all --enable-profiling \
     && apt-get -y autoremove \
     && apt-get clean \
     && docker-php-source delete \
