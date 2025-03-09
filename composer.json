@@ -15,7 +15,7 @@
         "echolabsdev/prism": "^0.23.0",
         "inertiajs/inertia-laravel": "^2.0",
         "laravel-notification-channels/telegram": "^5.0",
-        "laravel/framework": "^11.31",
+        "laravel/framework": "^11.44.1",
         "laravel/octane": "^2.6",
         "laravel/pennant": "^1.14",
         "laravel/pulse": "^1.3",
