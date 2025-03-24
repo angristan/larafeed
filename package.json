@@ -31,7 +31,7 @@
         "@typescript-eslint/parser": "^8.24.1",
         "@vitejs/plugin-react": "^4.2.0",
         "autoprefixer": "^10.4.12",
-        "axios": "^1.8.1",
+        "axios": "^1.8.4",
         "concurrently": "^9.1.2",
         "dayjs": "^1.11.7",
         "eslint": "^9.20.1",
