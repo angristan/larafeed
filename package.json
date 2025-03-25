@@ -51,7 +51,7 @@
         "react-compiler-runtime": "^19.0.0-beta-714736e-20250131",
         "react-dom": "^18.2.0",
         "recharts": "^2.15.1",
-        "typescript": "^5.7.3",
+        "typescript": "^5.8.2",
         "vite": "^6.2",
         "@mantine/charts": "^7.17.2",
         "babel-plugin-react-compiler": "^19.0.0-beta-27714ef-20250124",
