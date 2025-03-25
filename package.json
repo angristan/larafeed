@@ -22,7 +22,7 @@
         "@mantine/notifications": "^7.17.2",
         "@mantine/spotlight": "^7.17.2",
         "@rushstack/eslint-patch": "^1.10.5",
-        "@tabler/icons-react": "^3.30.0",
+        "@tabler/icons-react": "^3.31.0",
         "@trivago/prettier-plugin-sort-imports": "^5.2.2",
         "@types/node": "^22.13.5",
         "@types/react": "^18.0.28",
