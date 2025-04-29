@@ -2297,16 +2297,16 @@
         },
         {
             "name": "laravel/pulse",
-            "version": "v1.4.0",
+            "version": "v1.4.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/laravel/pulse.git",
-                "reference": "62099ede70df2272544f0c0657eda0c73d25a6b2"
+                "reference": "b3cf86e88fa78ea8e6aeb86a7d9ea25ba2c1d31f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/laravel/pulse/zipball/62099ede70df2272544f0c0657eda0c73d25a6b2",
-                "reference": "62099ede70df2272544f0c0657eda0c73d25a6b2",
+                "url": "https://api.github.com/repos/laravel/pulse/zipball/b3cf86e88fa78ea8e6aeb86a7d9ea25ba2c1d31f",
+                "reference": "b3cf86e88fa78ea8e6aeb86a7d9ea25ba2c1d31f",
                 "shasum": ""
             },
             "require": {
@@ -2339,7 +2339,7 @@
                 "orchestra/testbench": "^8.23.1|^9.0|^10.0",
                 "pestphp/pest": "^2.0",
                 "pestphp/pest-plugin-laravel": "^2.2",
-                "phpstan/phpstan": "^1.11",
+                "phpstan/phpstan": "^1.12.21",
                 "predis/predis": "^1.0|^2.0"
             },
             "type": "library",
@@ -2380,7 +2380,7 @@
                 "issues": "https://github.com/laravel/pulse/issues",
                 "source": "https://github.com/laravel/pulse"
             },
-            "time": "2025-02-11T13:36:44+00:00"
+            "time": "2025-03-30T16:25:37+00:00"
         },
         {
             "name": "laravel/sanctum",
@@ -3195,16 +3195,16 @@
         },
         {
             "name": "livewire/livewire",
-            "version": "v3.6.1",
+            "version": "v3.6.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/livewire/livewire.git",
-                "reference": "0df0a762698176d714e42e2dfed92b6b9e24b8e4"
+                "reference": "8f8914731f5eb43b6bb145d87c8d5a9edfc89313"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/livewire/livewire/zipball/0df0a762698176d714e42e2dfed92b6b9e24b8e4",
-                "reference": "0df0a762698176d714e42e2dfed92b6b9e24b8e4",
+                "url": "https://api.github.com/repos/livewire/livewire/zipball/8f8914731f5eb43b6bb145d87c8d5a9edfc89313",
+                "reference": "8f8914731f5eb43b6bb145d87c8d5a9edfc89313",
                 "shasum": ""
             },
             "require": {
@@ -3259,7 +3259,7 @@
             "description": "A front-end framework for Laravel.",
             "support": {
                 "issues": "https://github.com/livewire/livewire/issues",
-                "source": "https://github.com/livewire/livewire/tree/v3.6.1"
+                "source": "https://github.com/livewire/livewire/tree/v3.6.2"
             },
             "funding": [
                 {
@@ -3267,7 +3267,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-03-04T21:48:52+00:00"
+            "time": "2025-03-12T20:24:15+00:00"
         },
         {
             "name": "lorisleiva/laravel-actions",
