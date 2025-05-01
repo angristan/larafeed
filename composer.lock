@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "0d7c707541c6ae02476d5db99ad57129",
+    "content-hash": "b34dded8fffa1ad5f9ae4abf1ef242fe",
     "packages": [
         {
             "name": "ashallendesign/favicon-fetcher",
@@ -3271,27 +3271,27 @@
         },
         {
             "name": "lorisleiva/laravel-actions",
-            "version": "v2.8.6",
+            "version": "v2.9.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/lorisleiva/laravel-actions.git",
-                "reference": "4647523599bee13cfd6b9bc9acdaf4503d4801ce"
+                "reference": "807f9cbd8fdb60713dfd9b2175861052f933c6e5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/lorisleiva/laravel-actions/zipball/4647523599bee13cfd6b9bc9acdaf4503d4801ce",
-                "reference": "4647523599bee13cfd6b9bc9acdaf4503d4801ce",
+                "url": "https://api.github.com/repos/lorisleiva/laravel-actions/zipball/807f9cbd8fdb60713dfd9b2175861052f933c6e5",
+                "reference": "807f9cbd8fdb60713dfd9b2175861052f933c6e5",
                 "shasum": ""
             },
             "require": {
-                "illuminate/contracts": "^10.0|^11.0",
-                "lorisleiva/lody": "^0.5",
+                "illuminate/contracts": "^10.0|^11.0|^12.0",
+                "lorisleiva/lody": "^0.6",
                 "php": "^8.1"
             },
             "require-dev": {
-                "orchestra/testbench": "^8.0|^9.0",
-                "pestphp/pest": "^1.23|^2.34",
-                "phpunit/phpunit": "^9.6|^10.0"
+                "orchestra/testbench": "^10.0",
+                "pestphp/pest": "^2.34|^3.0",
+                "phpunit/phpunit": "^10.5|^11.5"
             },
             "type": "library",
             "extra": {
@@ -3335,7 +3335,7 @@
             ],
             "support": {
                 "issues": "https://github.com/lorisleiva/laravel-actions/issues",
-                "source": "https://github.com/lorisleiva/laravel-actions/tree/v2.8.6"
+                "source": "https://github.com/lorisleiva/laravel-actions/tree/v2.9.0"
             },
             "funding": [
                 {
@@ -3343,30 +3343,30 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-02-04T08:36:29+00:00"
+            "time": "2025-03-01T19:32:31+00:00"
         },
         {
             "name": "lorisleiva/lody",
-            "version": "v0.5.0",
+            "version": "v0.6.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/lorisleiva/lody.git",
-                "reference": "c2f51b070e99f3a240d66cf68ef1f232036917fe"
+                "reference": "6bada710ebc75f06fdf62db26327be1592c4f014"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/lorisleiva/lody/zipball/c2f51b070e99f3a240d66cf68ef1f232036917fe",
-                "reference": "c2f51b070e99f3a240d66cf68ef1f232036917fe",
+                "url": "https://api.github.com/repos/lorisleiva/lody/zipball/6bada710ebc75f06fdf62db26327be1592c4f014",
+                "reference": "6bada710ebc75f06fdf62db26327be1592c4f014",
                 "shasum": ""
             },
             "require": {
-                "illuminate/contracts": "^9.0|^10.0|^11.0",
-                "php": "^8.0"
+                "illuminate/contracts": "^10.0|^11.0|^12.0",
+                "php": "^8.1"
             },
             "require-dev": {
-                "orchestra/testbench": "^9.0",
-                "pestphp/pest": "^1.20|^2.34",
-                "phpunit/phpunit": "^9.5.10|^10.5"
+                "orchestra/testbench": "^10.0",
+                "pestphp/pest": "^2.34|^3.0",
+                "phpunit/phpunit": "^10.5|^11.5"
             },
             "type": "library",
             "extra": {
@@ -3407,7 +3407,7 @@
             ],
             "support": {
                 "issues": "https://github.com/lorisleiva/lody/issues",
-                "source": "https://github.com/lorisleiva/lody/tree/v0.5.0"
+                "source": "https://github.com/lorisleiva/lody/tree/v0.6.0"
             },
             "funding": [
                 {
@@ -3415,7 +3415,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2024-03-13T12:08:59+00:00"
+            "time": "2025-03-01T19:21:17+00:00"
         },
         {
             "name": "masterminds/html5",
@@ -5207,16 +5207,16 @@
         },
         {
             "name": "spatie/laravel-package-tools",
-            "version": "1.19.0",
+            "version": "1.91.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/spatie/laravel-package-tools.git",
-                "reference": "1c9c30ac6a6576b8d15c6c37b6cf23d748df2faa"
+                "reference": "b0b509b9b01d77caa431ce9af3a706bc678e09c9"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/spatie/laravel-package-tools/zipball/1c9c30ac6a6576b8d15c6c37b6cf23d748df2faa",
-                "reference": "1c9c30ac6a6576b8d15c6c37b6cf23d748df2faa",
+                "url": "https://api.github.com/repos/spatie/laravel-package-tools/zipball/b0b509b9b01d77caa431ce9af3a706bc678e09c9",
+                "reference": "b0b509b9b01d77caa431ce9af3a706bc678e09c9",
                 "shasum": ""
             },
             "require": {
@@ -5255,7 +5255,7 @@
             ],
             "support": {
                 "issues": "https://github.com/spatie/laravel-package-tools/issues",
-                "source": "https://github.com/spatie/laravel-package-tools/tree/1.19.0"
+                "source": "https://github.com/spatie/laravel-package-tools/tree/1.91.1"
             },
             "funding": [
                 {
@@ -5263,7 +5263,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-02-06T14:58:20+00:00"
+            "time": "2025-03-21T09:50:49+00:00"
         },
         {
             "name": "symfony/clock",
@@ -11170,22 +11170,22 @@
         },
         {
             "name": "wulfheart/laravel-actions-ide-helper",
-            "version": "v0.8.0",
+            "version": "v0.10.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Wulfheart/laravel-actions-ide-helper.git",
-                "reference": "48e9d7c89804fcd459a73cc22adee533e7a88deb"
+                "reference": "fe8965069225e6c9674c1763dd897189098526f2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Wulfheart/laravel-actions-ide-helper/zipball/48e9d7c89804fcd459a73cc22adee533e7a88deb",
-                "reference": "48e9d7c89804fcd459a73cc22adee533e7a88deb",
+                "url": "https://api.github.com/repos/Wulfheart/laravel-actions-ide-helper/zipball/fe8965069225e6c9674c1763dd897189098526f2",
+                "reference": "fe8965069225e6c9674c1763dd897189098526f2",
                 "shasum": ""
             },
             "require": {
-                "illuminate/contracts": "^10.0|^11.0",
+                "illuminate/contracts": "^10.0|^11.0|^12.0",
                 "lorisleiva/laravel-actions": "^2.3",
-                "lorisleiva/lody": "^0.5.0",
+                "lorisleiva/lody": "^0.5.0|^0.6.0",
                 "php": "^8.1|^8.2",
                 "phpdocumentor/reflection": "^5.1|^6.0",
                 "riimu/kit-pathjoin": "^1.2",
@@ -11194,13 +11194,13 @@
             "require-dev": {
                 "brianium/paratest": "^6.8|^7.4",
                 "nunomaduro/collision": "^6.1|^8.0",
-                "orchestra/testbench": "^8.0|^9.0",
-                "pestphp/pest": "^1.22|^2.34",
-                "phpunit/phpunit": "^9.5.10|^10.5",
+                "orchestra/testbench": "^8.0|^9.0|^10.0",
+                "pestphp/pest": "^1.22|^2.34|^3.7",
+                "phpunit/phpunit": "^9.5.10|^10.5|^11.5.3",
                 "spatie/invade": "^1.1|^2.0",
                 "spatie/laravel-ray": "^1.32",
                 "spatie/pest-plugin-snapshots": "^1.1|^2.1",
-                "vimeo/psalm": "^5.6"
+                "vimeo/psalm": "^5.6|^6.6"
             },
             "type": "library",
             "extra": {
@@ -11239,9 +11239,9 @@
             ],
             "support": {
                 "issues": "https://github.com/Wulfheart/laravel-actions-ide-helper/issues",
-                "source": "https://github.com/Wulfheart/laravel-actions-ide-helper/tree/v0.8.0"
+                "source": "https://github.com/Wulfheart/laravel-actions-ide-helper/tree/v0.10.0"
             },
-            "time": "2024-08-30T14:32:22+00:00"
+            "time": "2025-03-04T08:42:27+00:00"
         }
     ],
     "aliases": [],
