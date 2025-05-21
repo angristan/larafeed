@@ -55,6 +55,6 @@
         "vite": "^6.3",
         "@mantine/charts": "^7.17.2",
         "babel-plugin-react-compiler": "^19.0.0-beta-27714ef-20250124",
-        "reading-time-estimator": "^1.12.0"
+        "reading-time-estimator": "^1.14.0"
     }
 }
