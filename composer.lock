@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "1564f74f11a3c7239d8a367052a8b462",
+    "content-hash": "43459dd907dbfe52bb5939bbae954c82",
     "packages": [
         {
             "name": "ashallendesign/favicon-fetcher",
@@ -816,26 +816,27 @@
         },
         {
             "name": "echolabsdev/prism",
-            "version": "v0.23.0",
+            "version": "v0.77.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/prism-php/prism.git",
-                "reference": "d8796d86710d1922beefe0a642dab1c9dc9cdb71"
+                "reference": "235fc58064785c6e601d7c6430d3cea88fd44d9f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/prism-php/prism/zipball/d8796d86710d1922beefe0a642dab1c9dc9cdb71",
-                "reference": "d8796d86710d1922beefe0a642dab1c9dc9cdb71",
+                "url": "https://api.github.com/repos/prism-php/prism/zipball/235fc58064785c6e601d7c6430d3cea88fd44d9f",
+                "reference": "235fc58064785c6e601d7c6430d3cea88fd44d9f",
                 "shasum": ""
             },
             "require": {
-                "laravel/framework": "^11.0",
-                "php": "^8.3"
+                "ext-fileinfo": "*",
+                "laravel/framework": "^11.0|^12.0",
+                "php": "^8.2"
             },
             "require-dev": {
                 "laravel/pint": "^1.14",
                 "mockery/mockery": "^1.6",
-                "orchestra/testbench": "^9.4",
+                "orchestra/testbench": "^10",
                 "pestphp/pest": "^3.0",
                 "pestphp/pest-plugin-arch": "^3.0",
                 "pestphp/pest-plugin-laravel": "^3.0",
@@ -845,22 +846,26 @@
                 "phpstan/phpstan-deprecation-rules": "^1.2",
                 "projektgopher/whisky": "^0.7.0",
                 "rector/rector": "^1.1",
+                "spatie/laravel-ray": "^1.39",
                 "symplify/rule-doc-generator-contracts": "^11.2"
             },
             "type": "library",
             "extra": {
                 "laravel": {
                     "aliases": {
-                        "PrismServer": "EchoLabs\\Prism\\Facades\\PrismServer"
+                        "PrismServer": "Prism\\Prism\\Facades\\PrismServer"
                     },
                     "providers": [
-                        "EchoLabs\\Prism\\PrismServiceProvider"
+                        "Prism\\Prism\\PrismServiceProvider"
                     ]
                 }
             },
             "autoload": {
+                "files": [
+                    "src/helpers.php"
+                ],
                 "psr-4": {
-                    "EchoLabs\\Prism\\": "src/"
+                    "Prism\\Prism\\": "src/"
                 }
             },
             "notification-url": "https://packagist.org/downloads/",
@@ -876,7 +881,7 @@
             "description": "A powerful Laravel package for integrating Large Language Models (LLMs) into your applications.",
             "support": {
                 "issues": "https://github.com/prism-php/prism/issues",
-                "source": "https://github.com/prism-php/prism/tree/v0.23.0"
+                "source": "https://github.com/prism-php/prism/tree/v0.77.1"
             },
             "funding": [
                 {
@@ -884,7 +889,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-01-04T21:19:34+00:00"
+            "time": "2025-06-23T17:39:40+00:00"
         },
         {
             "name": "egulias/email-validator",
