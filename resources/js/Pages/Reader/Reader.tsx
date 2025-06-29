@@ -262,18 +262,18 @@ const Main = function Main({
 
     return (
         <AppShell.Main className={classes.main}>
-            <Split
-                size="sm"
-                radius="xs"
-                spacing="md"
-                color={colorScheme === 'dark' ? theme.colors.dark[5] : ''}
-            >
+            <Split spacing="md">
                 <Split.Pane initialWidth="40%" minWidth={300}>
                     <EntryListPane
                         entries={entries}
                         currentEntryID={currententry?.id}
                     />
                 </Split.Pane>
+                <Split.Resizer
+                    size="sm"
+                    radius="xs"
+                    color={colorScheme === 'dark' ? theme.colors.dark[5] : ''}
+                />
                 <Split.Pane grow>
                     {currententry && (
                         <CurrentEntryPane
