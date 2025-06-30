@@ -33,7 +33,7 @@ class ShowCharts
             ])
             ->groupBy('date')
             ->orderBy('date', 'desc')
-            ->limit(30)
+            ->limit(365)
             ->get()
             ->map(function ($row) {
                 return [
