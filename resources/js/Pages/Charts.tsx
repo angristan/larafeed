@@ -5,7 +5,7 @@ import ApplicationLogo from '@/Components/ApplicationLogo/ApplicationLogo';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { PageProps, User } from '@/types';
 import { usePage } from '@inertiajs/react';
-import { BarChart } from '@mantine/charts';
+import { Heatmap } from '@mantine/charts';
 import {
     AppShell,
     Burger,
@@ -20,16 +20,54 @@ import { IconSearch } from '@tabler/icons-react';
 import { ReactNode } from 'react';
 
 const Main = function Main({ dailyReads }: { dailyReads: DailyReads[] }) {
+    // Transform data for heatmap - create an object with date keys and read counts as values
+    const transformDataForHeatmap = (
+        data: DailyReads[],
+    ): Record<string, number> => {
+        const result: Record<string, number> = {};
+
+        data.forEach((item) => {
+            result[item.date] = item.reads;
+        });
+
+        return result;
+    };
+
+    const heatmapData = transformDataForHeatmap(dailyReads);
+
+    // Set date range to show the last year (like GitHub)
+    const today = new Date();
+    const oneYearAgo = new Date(today);
+    oneYearAgo.setFullYear(today.getFullYear() - 1);
+
+    const startDate = oneYearAgo.toISOString().split('T')[0]; // YYYY-MM-DD format
+    const endDate = today.toISOString().split('T')[0]; // YYYY-MM-DD format
+
     return (
         <AppShell.Main>
             <Stack>
-                <Title order={2}>Daily Reads</Title>
-                <BarChart
-                    h={300}
-                    data={dailyReads}
-                    dataKey="date"
-                    series={[{ name: 'reads', color: 'blue.6' }]}
-                    tickLine="y"
+                <Title order={2}>Daily Reads Activity</Title>
+                <Heatmap
+                    data={heatmapData}
+                    startDate={startDate}
+                    endDate={endDate}
+                    withTooltip
+                    withMonthLabels
+                    withWeekdayLabels
+                    getTooltipLabel={({ date, value }) =>
+                        `${new Date(date).toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                        })} – ${value === null || value === 0 ? 'No reads' : `${value} read${value > 1 ? 's' : ''}`}`
+                    }
+                    colors={[
+                        'var(--mantine-color-blue-1)',
+                        'var(--mantine-color-blue-4)',
+                        'var(--mantine-color-blue-6)',
+                        'var(--mantine-color-blue-8)',
+                    ]}
                 />
             </Stack>
         </AppShell.Main>
