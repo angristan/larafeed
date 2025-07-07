@@ -12,7 +12,7 @@
         "php": "^8.3",
         "ashallendesign/favicon-fetcher": "^3.7.0",
         "bensampo/laravel-enum": "^6.2",
-        "echolabsdev/prism": "^0.23.0",
+        "echolabsdev/prism": "^0.79.0",
         "inertiajs/inertia-laravel": "^2.0",
         "laravel-notification-channels/telegram": "^6.0",
         "laravel/framework": "^11.44.1",
