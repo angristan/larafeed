@@ -7,6 +7,7 @@ use App\Actions\Category\DeleteCategory;
 use App\Actions\Entry\UpdateEntryInteractions;
 use App\Actions\Feed\CreateNewFeed;
 use App\Actions\Feed\MarkEntriesAsRead;
+use App\Actions\Feed\RefreshFavicon;
 use App\Actions\Feed\RefreshFeedEntries;
 use App\Actions\Feed\UnsubscribeFromFeed;
 use App\Actions\Feed\UpdateFeed;
@@ -46,6 +47,7 @@ Route::middleware('auth')->group(function () {
     });
     Route::delete('/feed/{feed_id}', UnsubscribeFromFeed::class)->name('feed.unsubscribe');
     Route::post('/feed/{feed_id}/refresh', RefreshFeedEntries::class)->name('feed.refresh');
+    Route::post('/feed/{feed_id}/refresh-favicon', RefreshFavicon::class)->name('feed.refresh-favicon');
     Route::patch('feed/{feed_id}', UpdateFeed::class)->name('feed.update');
     Route::post('/feed/{feed_id}/mark-read', MarkEntriesAsRead::class)->name('feed.mark-read');
 

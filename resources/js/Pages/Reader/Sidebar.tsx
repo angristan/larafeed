@@ -37,6 +37,7 @@ import {
     IconExternalLink,
     IconInfoCircle,
     IconPencil,
+    IconPhoto,
     IconPlus,
     IconRefresh,
     IconRss,
@@ -931,6 +932,48 @@ const FeedLink = function FeedLink({
             });
     };
 
+    const requestFaviconRefresh = () => {
+        axios
+            .post<RefreshResponse>(route('feed.refresh-favicon', feed.id))
+            .then((response) => {
+                const { data } = response;
+                if (data.error) {
+                    notifications.show({
+                        title: 'Failed to refresh favicon',
+                        message: data.error,
+                        color: 'red',
+                        withBorder: true,
+                    });
+                    return;
+                }
+
+                notifications.show({
+                    title: 'Favicon refresh requested',
+                    message: 'The favicon will be updated shortly',
+                    color: 'blue',
+                    withBorder: true,
+                });
+            })
+            .catch((error: AxiosError<RefreshResponse>) => {
+                if (error.response) {
+                    notifications.show({
+                        title: 'Failed to refresh favicon',
+                        message:
+                            error.response.data.error || 'Something went wrong',
+                        color: 'red',
+                        withBorder: true,
+                    });
+                } else {
+                    notifications.show({
+                        title: 'Failed to refresh favicon',
+                        message: 'Network error',
+                        color: 'red',
+                        withBorder: true,
+                    });
+                }
+            });
+    };
+
     const urlParams = new URLSearchParams(window.location.search);
     urlParams.delete('filter');
     urlParams.delete('page');
@@ -1139,6 +1182,23 @@ const FeedLink = function FeedLink({
                                             }}
                                         >
                                             Request refresh
+                                        </Menu.Item>
+
+                                        <Menu.Item
+                                            leftSection={
+                                                <IconPhoto
+                                                    style={{
+                                                        width: rem(14),
+                                                        height: rem(14),
+                                                    }}
+                                                />
+                                            }
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                requestFaviconRefresh();
+                                            }}
+                                        >
+                                            Refresh favicon
                                         </Menu.Item>
 
                                         <Menu.Item

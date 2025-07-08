@@ -113,6 +113,7 @@ class CreateNewFeed
             'feed_url' => $feed_url,
             'site_url' => $site_url,
             'favicon_url' => $favicon_url,
+            'favicon_updated_at' => $favicon_url ? now() : null,
             'last_successful_refresh_at' => $error ? null : now(),
             'last_failed_refresh_at' => $error ? now() : null,
             'last_error_message' => $error,
