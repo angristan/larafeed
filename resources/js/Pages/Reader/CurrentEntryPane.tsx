@@ -1,5 +1,6 @@
 import classes from './CurrentEntryPane.module.css';
 
+import { FeedMenu } from '@/Components/FeedMenu';
 import { router } from '@inertiajs/react';
 import {
     ActionIcon,
@@ -44,9 +45,13 @@ dayjs.extend(utc);
 export default function CurrentEntryPane({
     currententry,
     summary,
+    feeds,
+    categories,
 }: {
     currententry: Entry;
     summary?: string;
+    feeds: Feed[];
+    categories: Category[];
 }) {
     const theme = useMantineTheme();
 
@@ -57,6 +62,9 @@ export default function CurrentEntryPane({
     useEffect(() => {
         scrollToTop();
     }, [currententry.id]);
+
+    // Find the current feed from the feeds array
+    const currentFeed = feeds.find((feed) => feed.id === currententry.feed.id);
 
     const updateFavorite = () => {
         router.patch(
@@ -275,6 +283,7 @@ export default function CurrentEntryPane({
                                 ]}
                             />
                         </Tooltip>
+
                         <Tooltip
                             label={'Open in a new tab'}
                             transitionProps={{
@@ -340,6 +349,13 @@ export default function CurrentEntryPane({
                                 )}
                             </ActionIcon>
                         </Tooltip>
+                        {currentFeed && (
+                            <FeedMenu
+                                feed={currentFeed}
+                                categories={categories}
+                                variant="outline"
+                            />
+                        )}
                     </Group>
                 </Flex>
             </Card>

@@ -1,5 +1,6 @@
 import classes from './Sidebar.module.css';
 
+import { FeedMenu } from '@/Components/FeedMenu';
 import { Link, router, useForm } from '@inertiajs/react';
 import {
     ActionIcon,
@@ -18,7 +19,6 @@ import {
     NavLink,
     ScrollArea,
     SegmentedControl,
-    Space,
     Text,
     TextInput,
     Tooltip,
@@ -34,18 +34,14 @@ import {
     IconChevronRight,
     IconDots,
     IconExclamationCircle,
-    IconExternalLink,
     IconInfoCircle,
     IconPencil,
-    IconPhoto,
     IconPlus,
-    IconRefresh,
     IconRss,
     IconSearch,
     IconStar,
     IconTrash,
 } from '@tabler/icons-react';
-import axios, { AxiosError } from 'axios';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
@@ -830,11 +826,6 @@ const AddCategoryForm = function AddCategoryForm({
     );
 };
 
-interface RefreshResponse {
-    error?: string;
-    message?: string;
-}
-
 const FeedLink = function FeedLink({
     feed,
     categories,
@@ -842,137 +833,7 @@ const FeedLink = function FeedLink({
     feed: Feed;
     categories: Category[];
 }) {
-    const { hovered, ref } = useHover();
-    const [opened, setOpened] = useState(false);
-    const [
-        deleteFeedModalopened,
-        { open: openDeleteFeedModal, close: closeDeleteFeedModal },
-    ] = useDisclosure(false);
-    const [
-        updateFeedCategoryModalOpened,
-        {
-            open: openUpdateFeedCategoryModal,
-            close: closeUpdateFeedCategoryModal,
-        },
-    ] = useDisclosure(false);
-
-    const markFeedAsRead = () => {
-        router.post(
-            route('feed.mark-read', feed.id),
-            {},
-            {
-                only: [
-                    // not yet as there is unread badge per feed on the sidebar
-                    // 'feeds',
-                    'unreadEntriesCount',
-                    'readEntriesCount',
-                    'entries', // unread badge in list
-                    'currententry', // unread badge on entry
-                ],
-                onSuccess: () => {
-                    notifications.show({
-                        title: 'Feed marked as read',
-                        message: `All entries from ${feed.name} have been marked as read.`,
-                        color: 'blue',
-                        withBorder: true,
-                    });
-                },
-                onError: (error) => {
-                    notifications.show({
-                        title: 'Failed to mark feed as read',
-                        message: error.message,
-                        color: 'red',
-                        withBorder: true,
-                    });
-                },
-            },
-        );
-    };
-
-    const requestRefresh = () => {
-        axios
-            .post<RefreshResponse>(route('feed.refresh', feed.id))
-            .then((response) => {
-                const { data } = response;
-                if (data.error) {
-                    notifications.show({
-                        title: 'Failed to refresh feed',
-                        message: data.error,
-                        color: 'red',
-                        withBorder: true,
-                    });
-                    return;
-                }
-
-                notifications.show({
-                    title: data.message,
-                    message: 'Check back in a few minutes',
-                    color: 'blue',
-                    withBorder: true,
-                });
-            })
-            .catch((error: AxiosError<RefreshResponse>) => {
-                if (error.response) {
-                    if (error.response.status === 429) {
-                        notifications.show({
-                            title: 'What an avid reader you are!',
-                            message: error.response.data.message,
-                            color: 'yellow',
-                            withBorder: true,
-                        });
-                        return;
-                    }
-                    notifications.show({
-                        title: 'Failed to refresh feed',
-                        message: error.response.data.error,
-                        color: 'red',
-                        withBorder: true,
-                    });
-                }
-            });
-    };
-
-    const requestFaviconRefresh = () => {
-        axios
-            .post<RefreshResponse>(route('feed.refresh-favicon', feed.id))
-            .then((response) => {
-                const { data } = response;
-                if (data.error) {
-                    notifications.show({
-                        title: 'Failed to refresh favicon',
-                        message: data.error,
-                        color: 'red',
-                        withBorder: true,
-                    });
-                    return;
-                }
-
-                notifications.show({
-                    title: 'Favicon refresh requested',
-                    message: 'The favicon will be updated shortly',
-                    color: 'blue',
-                    withBorder: true,
-                });
-            })
-            .catch((error: AxiosError<RefreshResponse>) => {
-                if (error.response) {
-                    notifications.show({
-                        title: 'Failed to refresh favicon',
-                        message:
-                            error.response.data.error || 'Something went wrong',
-                        color: 'red',
-                        withBorder: true,
-                    });
-                } else {
-                    notifications.show({
-                        title: 'Failed to refresh favicon',
-                        message: 'Network error',
-                        color: 'red',
-                        withBorder: true,
-                    });
-                }
-            });
-    };
+    const { ref } = useHover();
 
     const urlParams = new URLSearchParams(window.location.search);
     urlParams.delete('filter');
@@ -987,17 +848,6 @@ const FeedLink = function FeedLink({
                 e.stopPropagation();
             }}
         >
-            <DeleteFeedModal
-                feed={feed}
-                opened={deleteFeedModalopened}
-                onClose={closeDeleteFeedModal}
-            />
-            <UpdateFeedModal
-                feed={feed}
-                categories={categories}
-                opened={updateFeedCategoryModalOpened}
-                onClose={closeUpdateFeedCategoryModal}
-            />
             <Tooltip
                 withArrow
                 position="right"
@@ -1067,366 +917,26 @@ const FeedLink = function FeedLink({
                                 />
                                 <span>{feed.name}</span>
                             </div>
-                            <div
-                                onClick={(e) => {
-                                    // Prevent the click from propagating to the feed link
-                                    e.stopPropagation();
-                                }}
-                            >
-                                <Menu
-                                    shadow="md"
-                                    width={200}
-                                    opened={opened}
-                                    onChange={setOpened}
-                                >
-                                    <Menu.Target>
-                                        {hovered || opened ? (
-                                            <ActionIcon
-                                                size="xs"
-                                                color="gray"
-                                                className={classes.feedMenuIcon}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                }}
-                                            >
-                                                <IconDots
-                                                    size={15}
-                                                    stroke={1.5}
-                                                />
-                                            </ActionIcon>
-                                        ) : (
-                                            <Badge
-                                                size="sm"
-                                                variant="default"
-                                                className={
-                                                    classes.mainLinkBadge
-                                                }
-                                            >
-                                                {feed.entries_count}
-                                            </Badge>
-                                        )}
-                                    </Menu.Target>
-
-                                    <Menu.Dropdown>
-                                        <Menu.Label>Manage feed</Menu.Label>
-
-                                        <Menu.Item
-                                            leftSection={
-                                                <IconExternalLink
-                                                    style={{
-                                                        width: rem(14),
-                                                        height: rem(14),
-                                                    }}
-                                                />
-                                            }
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                window.open(
-                                                    feed.site_url,
-                                                    '_blank',
-                                                );
-                                            }}
-                                        >
-                                            Open website
-                                        </Menu.Item>
-
-                                        <Menu.Item
-                                            leftSection={
-                                                <IconExternalLink
-                                                    style={{
-                                                        width: rem(14),
-                                                        height: rem(14),
-                                                    }}
-                                                />
-                                            }
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                window.open(
-                                                    feed.feed_url,
-                                                    '_blank',
-                                                );
-                                            }}
-                                        >
-                                            Open feed
-                                        </Menu.Item>
-
-                                        <Menu.Item
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                markFeedAsRead();
-                                            }}
-                                            leftSection={
-                                                <IconCheck
-                                                    style={{
-                                                        width: rem(14),
-                                                        height: rem(14),
-                                                    }}
-                                                />
-                                            }
-                                        >
-                                            Mark as read
-                                        </Menu.Item>
-
-                                        <Menu.Item
-                                            leftSection={
-                                                <IconRefresh
-                                                    style={{
-                                                        width: rem(14),
-                                                        height: rem(14),
-                                                    }}
-                                                />
-                                            }
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                requestRefresh();
-                                            }}
-                                        >
-                                            Request refresh
-                                        </Menu.Item>
-
-                                        <Menu.Item
-                                            leftSection={
-                                                <IconPhoto
-                                                    style={{
-                                                        width: rem(14),
-                                                        height: rem(14),
-                                                    }}
-                                                />
-                                            }
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                requestFaviconRefresh();
-                                            }}
-                                        >
-                                            Refresh favicon
-                                        </Menu.Item>
-
-                                        <Menu.Item
-                                            leftSection={
-                                                <IconPencil
-                                                    style={{
-                                                        width: rem(14),
-                                                        height: rem(14),
-                                                    }}
-                                                />
-                                            }
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                openUpdateFeedCategoryModal();
-                                            }}
-                                        >
-                                            Edit feed
-                                        </Menu.Item>
-
-                                        <Menu.Divider />
-
-                                        <Menu.Item
-                                            color="red"
-                                            leftSection={
-                                                <IconTrash
-                                                    style={{
-                                                        width: rem(14),
-                                                        height: rem(14),
-                                                    }}
-                                                />
-                                            }
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                openDeleteFeedModal();
-                                            }}
-                                        >
-                                            Unsubscribe
-                                        </Menu.Item>
-                                    </Menu.Dropdown>
-                                </Menu>
-                            </div>
+                            <FeedMenu
+                                feed={feed}
+                                categories={categories}
+                                showOnHover={true}
+                                className={classes.feedMenuIcon}
+                                showBadge={true}
+                                badgeContent={
+                                    <Badge
+                                        size="sm"
+                                        variant="default"
+                                        className={classes.mainLinkBadge}
+                                    >
+                                        {feed.entries_count}
+                                    </Badge>
+                                }
+                            />
                         </div>
                     </Indicator>
                 </Link>
             </Tooltip>
         </div>
-    );
-};
-
-const UpdateFeedModal = ({
-    feed,
-    categories,
-    opened,
-    onClose,
-}: {
-    feed: Feed;
-    categories: Category[];
-    opened: boolean;
-    onClose: () => void;
-}) => {
-    const { data, setData, errors, processing } = useForm({
-        category_id: feed.category_id,
-        name: feed.name === feed.original_name ? '' : feed.name,
-    });
-
-    const submit: FormEventHandler = (e) => {
-        e.preventDefault();
-
-        router.patch(
-            route('feed.update', feed.id),
-            {
-                category_id: data.category_id,
-                name: data.name,
-            },
-            {
-                onSuccess: () => {
-                    notifications.show({
-                        title: 'Feed updated',
-                        message: 'The feed has been updated',
-                        color: 'green',
-                        withBorder: true,
-                    });
-
-                    onClose();
-                },
-                onError: (errors) => {
-                    notifications.show({
-                        title: 'Failed to update feed',
-                        message: errors.name,
-                        color: 'red',
-                        withBorder: true,
-                    });
-                },
-            },
-        );
-    };
-
-    return (
-        <Modal title="Update feed" opened={opened} onClose={onClose}>
-            <Fieldset variant="filled">
-                <form onSubmit={submit}>
-                    <TextInput
-                        type="text"
-                        label="Feed name"
-                        placeholder={feed.original_name}
-                        description="Leave empty to keep the original name"
-                        data-autofocus
-                        value={data.name}
-                        onChange={(e) => setData('name', e.target.value)}
-                        withErrorStyles={false}
-                        rightSectionPointerEvents="none"
-                        rightSection={
-                            errors.name && (
-                                <IconExclamationCircle
-                                    style={{
-                                        width: rem(20),
-                                        height: rem(20),
-                                    }}
-                                    color="var(--mantine-color-error)"
-                                />
-                            )
-                        }
-                        error={errors.name}
-                    />
-
-                    <Space mt="md" />
-
-                    <NativeSelect
-                        label="Category"
-                        description="The category where the feed will be moved"
-                        data={categories.map((category) => ({
-                            value: category.id.toString(),
-                            label: category.name,
-                        }))}
-                        value={data.category_id.toString()}
-                        onChange={(e) =>
-                            setData('category_id', parseInt(e.target.value))
-                        }
-                        error={errors.category_id}
-                    />
-
-                    <Button
-                        mt="md"
-                        fullWidth
-                        type="submit"
-                        disabled={processing}
-                        loading={processing}
-                    >
-                        Submit
-                    </Button>
-                </form>
-            </Fieldset>
-        </Modal>
-    );
-};
-
-const DeleteFeedModal = ({
-    feed,
-    opened,
-    onClose,
-}: {
-    feed: { name: string; id: number };
-    opened: boolean;
-    onClose: () => void;
-}) => {
-    return (
-        <Modal title="Unsubscribe from feed" opened={opened} onClose={onClose}>
-            <Text size="sm">
-                Are you sure you want to delete the feed{' '}
-                <strong>{feed.name}</strong>?
-            </Text>
-            <Group justify="center" mt="xl">
-                <Button variant="outline" size="sm" onClick={onClose}>
-                    Cancel
-                </Button>
-                <Button
-                    onClick={() => {
-                        router.delete(route('feed.unsubscribe', feed.id), {
-                            onSuccess: () => {
-                                notifications.show({
-                                    title: 'Unsubscribed',
-                                    message: `You have successfully unsubscribed from ${feed.name}.`,
-                                    color: 'blue',
-                                    withBorder: true,
-                                });
-
-                                const params = new URLSearchParams(
-                                    window.location.search,
-                                );
-                                if (params.get('feed') === feed.id.toString()) {
-                                    params.delete('feed');
-                                }
-
-                                router.visit(route('feeds.index'), {
-                                    only: [
-                                        'feeds',
-                                        'entries',
-                                        'currententry',
-                                        'unreadEntriesCount',
-                                        'readEntriesCount',
-                                    ],
-                                    data: {
-                                        ...Object.fromEntries(params),
-                                    },
-                                    preserveScroll: true,
-                                    preserveState: true,
-                                });
-
-                                onClose();
-                            },
-
-                            onError: (error) => {
-                                notifications.show({
-                                    title: 'Failed to unsubscribe from feed',
-                                    message: error.message,
-                                    color: 'red',
-                                    withBorder: true,
-                                });
-                            },
-                        });
-                    }}
-                    color="red"
-                    variant="outline"
-                    size="sm"
-                >
-                    Delete
-                </Button>
-            </Group>
-        </Modal>
     );
 };

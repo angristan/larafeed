@@ -237,6 +237,8 @@ const Reader = ({
                 entries={entries}
                 currententry={currententry}
                 summary={summary}
+                feeds={feeds}
+                categories={categories}
             />
         </AppShell>
     );
@@ -252,10 +254,14 @@ const Main = function Main({
     entries,
     currententry,
     summary,
+    feeds,
+    categories,
 }: {
     entries: PaginatedEntries;
     currententry?: Entry;
     summary?: string;
+    feeds: Feed[];
+    categories: Category[];
 }) {
     const { colorScheme } = useMantineColorScheme();
     const theme = useMantineTheme();
@@ -279,6 +285,8 @@ const Main = function Main({
                         <CurrentEntryPane
                             currententry={currententry}
                             summary={summary}
+                            feeds={feeds}
+                            categories={categories}
                         />
                     )}
                 </Split.Pane>
