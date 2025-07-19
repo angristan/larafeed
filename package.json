@@ -52,7 +52,7 @@
         "react-dom": "^18.2.0",
         "recharts": "^2.15.4",
         "typescript": "^5.8.3",
-        "vite": "^6.3",
+        "vite": "^7.0",
         "@mantine/charts": "^8.1.3",
         "babel-plugin-react-compiler": "^19.0.0-beta-27714ef-20250124",
         "reading-time-estimator": "^1.14.0"
