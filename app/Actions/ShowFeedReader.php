@@ -25,10 +25,18 @@ class ShowFeedReader
         $entry_id = $request->query('entry');
         $filter = $request->query('filter');
         $order_by = 'published_at';
+        $order_direction = 'desc';
         $category_id = $request->query('category');
 
-        if ($request->query('order_by') === 'created_at') {
-            $order_by = 'created_at';
+        // Handle sorting options
+        $allowed_sort_fields = ['published_at', 'created_at', 'balanced'];
+        if (in_array($request->query('order_by'), $allowed_sort_fields)) {
+            $order_by = $request->query('order_by');
+        }
+
+        // Handle sort direction
+        if (in_array($request->query('order_direction'), ['asc', 'desc'])) {
+            $order_direction = $request->query('order_direction');
         }
 
         $getFeedsFn = function () {
@@ -61,7 +69,7 @@ class ShowFeedReader
                 ]);
         };
 
-        $getEntriesFn = function () use ($feed_id, $filter, $order_by, $category_id) {
+        $getEntriesFn = function () use ($feed_id, $filter, $order_by, $order_direction, $category_id) {
             return Entry::query()
                // Apply optional filters
                 ->when($feed_id, fn ($query) => $query->where('entries.feed_id', $feed_id))
@@ -97,7 +105,19 @@ class ShowFeedReader
                     'feed_subscriptions.custom_feed_name as feed_custom_name',
                     'feeds.favicon_url as feed_favicon_url',
                 ])
-                ->orderByDesc('entries.'.$order_by)
+                ->when($order_by === 'balanced', function ($query) use ($order_direction) {
+                    // Balanced algorithm: boost posts from feeds with fewer recent entries
+                    return $query->orderByRaw('
+                        (EXTRACT(EPOCH FROM entries.published_at) / 86400) -
+                        ((SELECT COUNT(*)
+                          FROM entries as e2
+                          WHERE e2.feed_id = entries.feed_id
+                          AND e2.published_at >= NOW() - INTERVAL \'7 days\') * 2) '.
+                        ($order_direction === 'asc' ? 'ASC' : 'DESC')
+                    );
+                }, function ($query) use ($order_by, $order_direction) {
+                    return $query->orderBy('entries.'.$order_by, $order_direction);
+                })
                 ->paginate(perPage: 30)
                 ->through(fn ($entry) => [
                     'id' => $entry->id,
