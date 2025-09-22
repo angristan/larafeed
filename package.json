@@ -24,7 +24,7 @@
         "@rushstack/eslint-patch": "^1.12.0",
         "@tabler/icons-react": "^3.34.1",
         "@trivago/prettier-plugin-sort-imports": "^5.2.2",
-        "@types/node": "^24.1.0",
+        "@types/node": "^24.5.2",
         "@types/react": "^18.0.28",
         "@types/react-dom": "^18.0.10",
         "@typescript-eslint/eslint-plugin": "^8.37.0",
