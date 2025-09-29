@@ -271,7 +271,7 @@ const FilterLink = function FilterLink({
                 ...Object.fromEntries(params),
             }}
             prefetch
-            as="UnstyledButton"
+            as="div"
         >
             <div className={classes.mainLinkInner}>
                 {icon}
