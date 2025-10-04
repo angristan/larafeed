@@ -235,7 +235,7 @@ class ShowFeedReader
         // TODO https://laravel.com/docs/9.x/eloquent-resources
         return Inertia::render('Reader/Reader', [
             'feeds' => $getFeedsFn,
-            'entries' => $getEntriesFn,
+            'entries' => Inertia::scroll($getEntriesFn),
             'currententry' => $getCurrentEntryFn,
             'unreadEntriesCount' => $unreadEntriesCountFn,
             'readEntriesCount' => $readEntriesCountFn,
