@@ -49,6 +49,7 @@ interface ReaderProps extends PageProps {
     readEntriesCount: number;
     summary?: string;
     categories: Category[];
+    paginationType: string;
 }
 
 const Reader = ({
@@ -60,6 +61,7 @@ const Reader = ({
     readEntriesCount,
     summary,
     categories,
+    paginationType,
 }: ReaderProps) => {
     const [opened, { toggle }] = useDisclosure();
 
@@ -179,6 +181,9 @@ const Reader = ({
                             <Menu.Dropdown>
                                 <Menu.Label>{auth.user.email}</Menu.Label>
                                 <Menu.Item
+                                    onClick={() =>
+                                        router.visit(route('settings.index'))
+                                    }
                                     leftSection={
                                         <IconSettings
                                             style={{
@@ -278,6 +283,7 @@ const Main = function Main({
                     <EntryListPane
                         entries={entries}
                         currentEntryID={currententry?.id}
+                        paginationType={paginationType}
                     />
                 </Split.Pane>
                 <Split.Pane grow>

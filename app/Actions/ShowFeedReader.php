@@ -241,6 +241,7 @@ class ShowFeedReader
             'readEntriesCount' => $readEntriesCountFn,
             'summary' => Inertia::always($getEntrySummaryFn),
             'categories' => $getUserCategoriesFn,
+            'paginationType' => Auth::user()->pagination_type ?? 'infinite',
         ]);
     }
 }

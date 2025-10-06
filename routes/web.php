@@ -15,6 +15,7 @@ use App\Actions\OPML\ExportOPML;
 use App\Actions\OPML\ImportOPML;
 use App\Actions\ShowCharts;
 use App\Actions\ShowFeedReader;
+use App\Actions\User\UpdateUserSettings;
 use App\Actions\User\WipeAccount;
 use App\Features\Registration;
 use App\Http\Controllers\ProfileController;
@@ -38,6 +39,9 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::post('/profile/wipe', WipeAccount::class)->name('profile.wipe');
+
+    Route::get('/settings', [UpdateUserSettings::class, 'index'])->name('settings.index');
+    Route::post('/settings', [UpdateUserSettings::class, 'store'])->name('settings.store');
 
     // TODO: scoped route bindings
     Route::get('/feeds', ShowFeedReader::class)->name('feeds.index');

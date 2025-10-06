@@ -21,6 +21,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property string|null $fever_api_key
+ * @property string $pagination_type
  * @property-read \App\Models\EntryInteraction|null $interaction
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Entry> $entriesInterracted
  * @property-read int|null $entries_interracted_count
@@ -65,6 +66,7 @@ class User extends Authenticatable
         'email',
         'password',
         'fever_api_key',
+        'pagination_type',
     ];
 
     /**
