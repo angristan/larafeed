@@ -244,6 +244,7 @@ const Reader = ({
                 summary={summary}
                 feeds={feeds}
                 categories={categories}
+                paginationType={paginationType}
             />
         </AppShell>
     );
@@ -261,12 +262,14 @@ const Main = function Main({
     summary,
     feeds,
     categories,
+    paginationType,
 }: {
     entries: PaginatedEntries;
     currententry?: Entry;
     summary?: string;
     feeds: Feed[];
     categories: Category[];
+    paginationType: string;
 }) {
     const { colorScheme } = useMantineColorScheme();
     const theme = useMantineTheme();
