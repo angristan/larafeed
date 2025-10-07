@@ -14,7 +14,7 @@
         "@eslint/eslintrc": "^3.3.1",
         "@eslint/js": "^9.31.0",
         "@gfazioli/mantine-split-pane": "^1.1.5",
-        "@headlessui/react": "^2.2.7",
+        "@headlessui/react": "^2.2.9",
         "@inertiajs/react": "^2.2.7",
         "@mantine/core": "^8.2.2",
         "@mantine/hooks": "^8.2.2",
