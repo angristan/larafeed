@@ -21,6 +21,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property string|null $fever_api_key
+ * @property string $pagination_mode
  * @property-read \App\Models\EntryInteraction|null $interaction
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Entry> $entriesInterracted
  * @property-read int|null $entries_interracted_count
@@ -52,6 +53,16 @@ use Laravel\Sanctum\HasApiTokens;
  */
 class User extends Authenticatable
 {
+    public const PAGINATION_MODE_INFINITE = 'infinite';
+
+    public const PAGINATION_MODE_CLASSIC = 'classic';
+
+    /** @var list<string> */
+    public const PAGINATION_MODES = [
+        self::PAGINATION_MODE_INFINITE,
+        self::PAGINATION_MODE_CLASSIC,
+    ];
+
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
@@ -65,6 +76,7 @@ class User extends Authenticatable
         'email',
         'password',
         'fever_api_key',
+        'pagination_mode',
     ];
 
     /**
@@ -87,7 +99,13 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'pagination_mode' => 'string',
         ];
+    }
+
+    public function prefersInfiniteScroll(): bool
+    {
+        return ($this->pagination_mode ?? self::PAGINATION_MODE_INFINITE) === self::PAGINATION_MODE_INFINITE;
     }
 
     public function feeds()

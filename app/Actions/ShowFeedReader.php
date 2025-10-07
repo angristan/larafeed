@@ -9,6 +9,7 @@ use App\Actions\Entry\SummarizeEntryWithLLM;
 use App\Actions\Favicon\BuildProfixedFaviconURL;
 use App\Models\Entry;
 use App\Models\Feed;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -232,15 +233,18 @@ class ShowFeedReader
             return Auth::user()->subscriptionCategories()->get();
         };
 
+        $usesInfiniteScroll = Auth::user()?->prefersInfiniteScroll() ?? true;
+
         // TODO https://laravel.com/docs/9.x/eloquent-resources
         return Inertia::render('Reader/Reader', [
             'feeds' => $getFeedsFn,
-            'entries' => Inertia::scroll($getEntriesFn),
+            'entries' => $usesInfiniteScroll ? Inertia::scroll($getEntriesFn) : $getEntriesFn,
             'currententry' => $getCurrentEntryFn,
             'unreadEntriesCount' => $unreadEntriesCountFn,
             'readEntriesCount' => $readEntriesCountFn,
             'summary' => Inertia::always($getEntrySummaryFn),
             'categories' => $getUserCategoriesFn,
+            'paginationMode' => Auth::user()?->pagination_mode ?? User::PAGINATION_MODE_INFINITE,
         ]);
     }
 }
