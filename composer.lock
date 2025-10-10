@@ -3266,16 +3266,16 @@
         },
         {
             "name": "lorisleiva/laravel-actions",
-            "version": "v2.9.0",
+            "version": "v2.9.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/lorisleiva/laravel-actions.git",
-                "reference": "807f9cbd8fdb60713dfd9b2175861052f933c6e5"
+                "reference": "11c2531366ca8bd5efcd0afc9e8047e7999926ff"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/lorisleiva/laravel-actions/zipball/807f9cbd8fdb60713dfd9b2175861052f933c6e5",
-                "reference": "807f9cbd8fdb60713dfd9b2175861052f933c6e5",
+                "url": "https://api.github.com/repos/lorisleiva/laravel-actions/zipball/11c2531366ca8bd5efcd0afc9e8047e7999926ff",
+                "reference": "11c2531366ca8bd5efcd0afc9e8047e7999926ff",
                 "shasum": ""
             },
             "require": {
@@ -3330,7 +3330,7 @@
             ],
             "support": {
                 "issues": "https://github.com/lorisleiva/laravel-actions/issues",
-                "source": "https://github.com/lorisleiva/laravel-actions/tree/v2.9.0"
+                "source": "https://github.com/lorisleiva/laravel-actions/tree/v2.9.1"
             },
             "funding": [
                 {
@@ -3338,7 +3338,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-03-01T19:32:31+00:00"
+            "time": "2025-08-10T08:58:19+00:00"
         },
         {
             "name": "lorisleiva/lody",
