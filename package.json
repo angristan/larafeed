@@ -32,7 +32,7 @@
         "@vitejs/plugin-react": "^5.0.4",
         "autoprefixer": "^10.4.21",
         "axios": "^1.11.0",
-        "concurrently": "^9.2.0",
+        "concurrently": "^9.2.1",
         "dayjs": "^1.11.7",
         "eslint": "^9.31.0",
         "eslint-config-prettier": "^10.1.8",
