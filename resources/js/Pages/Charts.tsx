@@ -19,21 +19,30 @@ import { useDisclosure } from '@mantine/hooks';
 import { IconSearch } from '@tabler/icons-react';
 import { ReactNode } from 'react';
 
-const Main = function Main({ dailyReads }: { dailyReads: DailyReads[] }) {
-    // Transform data for heatmap - create an object with date keys and read counts as values
-    const transformDataForHeatmap = (
-        data: DailyReads[],
-    ): Record<string, number> => {
-        const result: Record<string, number> = {};
+type HeatmapSeries = Record<string, number>;
 
-        data.forEach((item) => {
-            result[item.date] = item.reads;
-        });
+const transformDataForHeatmap = <Key extends string>(
+    data: Array<{ date: string } & Record<Key, number>>,
+    key: Key,
+): HeatmapSeries => {
+    const result: HeatmapSeries = {};
 
-        return result;
-    };
+    data.forEach((item) => {
+        result[item.date] = item[key];
+    });
 
-    const heatmapData = transformDataForHeatmap(dailyReads);
+    return result;
+};
+
+const Main = function Main({
+    dailyReads,
+    dailyEntries,
+}: {
+    dailyReads: DailyReads[];
+    dailyEntries: DailyEntries[];
+}) {
+    const readsHeatmapData = transformDataForHeatmap(dailyReads, 'reads');
+    const entriesHeatmapData = transformDataForHeatmap(dailyEntries, 'entries');
 
     // Set date range to show the last year (like GitHub)
     const today = new Date();
@@ -48,7 +57,7 @@ const Main = function Main({ dailyReads }: { dailyReads: DailyReads[] }) {
             <Stack>
                 <Title order={2}>Daily Reads Activity</Title>
                 <Heatmap
-                    data={heatmapData}
+                    data={readsHeatmapData}
                     startDate={startDate}
                     endDate={endDate}
                     withTooltip
@@ -67,6 +76,29 @@ const Main = function Main({ dailyReads }: { dailyReads: DailyReads[] }) {
                         'var(--mantine-color-blue-4)',
                         'var(--mantine-color-blue-6)',
                         'var(--mantine-color-blue-8)',
+                    ]}
+                />
+                <Title order={2}>Daily Subscription Entries</Title>
+                <Heatmap
+                    data={entriesHeatmapData}
+                    startDate={startDate}
+                    endDate={endDate}
+                    withTooltip
+                    withMonthLabels
+                    withWeekdayLabels
+                    getTooltipLabel={({ date, value }) =>
+                        `${new Date(date).toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                        })} – ${value === null || value === 0 ? 'No entries' : `${value} entr${value > 1 ? 'ies' : 'y'}`}`
+                    }
+                    colors={[
+                        'var(--mantine-color-green-1)',
+                        'var(--mantine-color-green-4)',
+                        'var(--mantine-color-green-6)',
+                        'var(--mantine-color-green-8)',
                     ]}
                 />
             </Stack>
@@ -103,11 +135,17 @@ interface DailyReads {
     reads: number;
 }
 
-interface ChartsProps extends PageProps {
-    dailyReads: DailyReads[];
+interface DailyEntries {
+    date: string;
+    entries: number;
 }
 
-const Charts = ({ dailyReads }: ChartsProps) => {
+interface ChartsProps extends PageProps {
+    dailyReads: DailyReads[];
+    dailyEntries: DailyEntries[];
+}
+
+const Charts = ({ dailyReads, dailyEntries }: ChartsProps) => {
     const user = usePage().props.auth.user;
 
     const [opened, { toggle }] = useDisclosure();
@@ -139,7 +177,7 @@ const Charts = ({ dailyReads }: ChartsProps) => {
 
             <NavBar user={user} />
 
-            <Main dailyReads={dailyReads} />
+            <Main dailyReads={dailyReads} dailyEntries={dailyEntries} />
         </AppShell>
     );
 };

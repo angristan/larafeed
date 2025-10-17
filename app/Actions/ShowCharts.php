@@ -43,8 +43,30 @@ class ShowCharts
             })->reverse()
             ->values();
 
+        $dailyEntries = Entry::query()
+            ->join('feed_subscriptions', function ($join) {
+                $join->on('entries.feed_id', '=', 'feed_subscriptions.feed_id')
+                    ->where('feed_subscriptions.user_id', '=', Auth::id());
+            })
+            ->select([
+                DB::raw('DATE(entries.published_at) as date'),
+                DB::raw('COUNT(*) as count'),
+            ])
+            ->groupBy('date')
+            ->orderBy('date', 'desc')
+            ->limit(365)
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'date' => $row['date'],
+                    'entries' => (int) $row['count'],
+                ];
+            })->reverse()
+            ->values();
+
         return Inertia::render('Charts', [
             'dailyReads' => $dailyReads,
+            'dailyEntries' => $dailyEntries,
         ]);
     }
 }
