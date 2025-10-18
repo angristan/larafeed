@@ -78,7 +78,7 @@
     border-radius: var(--mantine-radius-sm);
     font-size: var(--mantine-font-size-xs);
     color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-0));
-    line-height: 1;
+    line-height: 1.2;
     font-weight: 500;
     transition: background-color 0.3s;
 
