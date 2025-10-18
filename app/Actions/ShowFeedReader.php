@@ -89,6 +89,8 @@ class ShowFeedReader
                     'entries.url',
                     'entries.author',
                     'entries.content',
+                    'entries.hn_points',
+                    'entries.hn_comments_count',
                     'entries.published_at',
                     'entries.feed_id',
                     'entry_interactions.read_at',
@@ -106,6 +108,8 @@ class ShowFeedReader
                     'url' => $entry->url,
                     'author' => $entry->author,
                     'content' => $entry->content,
+                    'hn_points' => $entry->hn_points,
+                    'hn_comments_count' => $entry->hn_comments_count,
                     'published_at' => $entry->published_at,
                     'read_at' => $entry['read_at'],
                     'starred_at' => $entry['starred_at'],
@@ -245,6 +249,7 @@ class ShowFeedReader
             'summary' => Inertia::always($getEntrySummaryFn),
             'categories' => $getUserCategoriesFn,
             'paginationMode' => Auth::user()?->pagination_mode ?? User::PAGINATION_MODE_INFINITE,
+            'showHnBadges' => Auth::user()?->show_hn_badges ?? true,
         ]);
     }
 }

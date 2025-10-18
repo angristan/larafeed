@@ -18,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $url
  * @property string|null $author
  * @property string|null $content
+ * @property int|null $hn_points
+ * @property int|null $hn_comments_count
  * @property string $published_at
  * @property int $feed_id
  * @property-read \App\Models\Feed $feed
@@ -55,6 +57,8 @@ class Entry extends Model
         'url',
         'author',
         'content',
+        'hn_points',
+        'hn_comments_count',
         'published_at',
         'status',
         'starred',

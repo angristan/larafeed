@@ -22,6 +22,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property string|null $fever_api_key
  * @property string $pagination_mode
+ * @property bool $show_hn_badges
  * @property-read \App\Models\EntryInteraction|null $interaction
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Entry> $entriesInterracted
  * @property-read int|null $entries_interracted_count
@@ -77,6 +78,7 @@ class User extends Authenticatable
         'password',
         'fever_api_key',
         'pagination_mode',
+        'show_hn_badges',
     ];
 
     /**
@@ -100,6 +102,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'pagination_mode' => 'string',
+            'show_hn_badges' => 'boolean',
         ];
     }
 

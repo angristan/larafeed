@@ -3,6 +3,7 @@ import classes from './EntryListPane.module.css';
 import { PaginationMode } from '@/types';
 import { InfiniteScroll, Link, router } from '@inertiajs/react';
 import {
+    Badge,
     Card,
     Divider,
     Flex,
@@ -14,7 +15,11 @@ import {
     Text,
 } from '@mantine/core';
 import { useHotkeys } from '@mantine/hooks';
-import { IconStarFilled } from '@tabler/icons-react';
+import {
+    IconFlame,
+    IconMessageCircle,
+    IconStarFilled,
+} from '@tabler/icons-react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
@@ -27,12 +32,14 @@ interface EntryListPaneProps {
     entries: PaginatedEntries;
     currentEntryID?: number;
     paginationMode: PaginationMode;
+    showHnBadges: boolean;
 }
 
 export default function EntryListPane({
     entries,
     currentEntryID,
     paginationMode,
+    showHnBadges,
 }: EntryListPaneProps) {
     const viewport = useRef<HTMLDivElement>(null);
 
@@ -147,8 +154,12 @@ export default function EntryListPane({
                                             <IconStarFilled size={15} />
                                         )}
                                     </span>
-                                    <Flex justify="space-between" mt={10}>
-                                        <Flex>
+                                    <Flex
+                                        justify="space-between"
+                                        mt={10}
+                                        align="center"
+                                    >
+                                        <Flex align="center">
                                             <Image
                                                 src={entry.feed.favicon_url}
                                                 w={20}
@@ -158,6 +169,87 @@ export default function EntryListPane({
                                             <Text size="xs" c="dimmed">
                                                 <span>{entry.feed.name}</span>
                                             </Text>
+                                            {showHnBadges &&
+                                                (entry.hn_points !== null ||
+                                                    entry.hn_comments_count !==
+                                                        null) && (
+                                                    <Group gap={6} ml={10}>
+                                                        {entry.hn_points !==
+                                                            null && (
+                                                            <Badge
+                                                                size="xs"
+                                                                radius="sm"
+                                                                variant="light"
+                                                                color="orange"
+                                                                styles={{
+                                                                    root: {
+                                                                        display:
+                                                                            'inline-flex',
+                                                                        alignItems:
+                                                                            'center',
+                                                                        padding:
+                                                                            '3px 7px',
+                                                                    },
+                                                                    label: {
+                                                                        fontSize:
+                                                                            '0.72rem',
+                                                                        lineHeight: 1.2,
+                                                                    },
+                                                                    leftSection: {
+                                                                        marginRight:
+                                                                            '2px',
+                                                                    },
+                                                                }}
+                                                                leftSection={
+                                                                    <IconFlame
+                                                                        size={12}
+                                                                    />
+                                                                }
+                                                            >
+                                                                {
+                                                                    entry.hn_points
+                                                                }
+                                                            </Badge>
+                                                        )}
+                                                        {entry.hn_comments_count !==
+                                                            null && (
+                                                            <Badge
+                                                                size="xs"
+                                                                radius="sm"
+                                                                variant="light"
+                                                                color="blue"
+                                                                styles={{
+                                                                    root: {
+                                                                        display:
+                                                                            'inline-flex',
+                                                                        alignItems:
+                                                                            'center',
+                                                                        padding:
+                                                                            '3px 7px',
+                                                                    },
+                                                                    label: {
+                                                                        fontSize:
+                                                                            '0.72rem',
+                                                                        lineHeight: 1.2,
+                                                                    },
+                                                                    leftSection: {
+                                                                        marginRight:
+                                                                            '2px',
+                                                                    },
+                                                                }}
+                                                                leftSection={
+                                                                    <IconMessageCircle
+                                                                        size={12}
+                                                                    />
+                                                                }
+                                                            >
+                                                                {
+                                                                    entry.hn_comments_count
+                                                                }
+                                                            </Badge>
+                                                        )}
+                                                    </Group>
+                                                )}
                                         </Flex>
                                         <Text size="xs" c="dimmed">
                                             {dayjs
@@ -171,7 +263,7 @@ export default function EntryListPane({
                     </Link>
                 );
             }),
-        [entries.data, currentEntryID],
+        [entries.data, currentEntryID, showHnBadges],
     );
 
     if (paginationMode === 'infinite') {

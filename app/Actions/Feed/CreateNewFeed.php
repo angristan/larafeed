@@ -7,6 +7,7 @@ namespace App\Actions\Feed;
 use App\Actions\Favicon\GetFaviconURL;
 use App\Models\Feed;
 use App\Models\User;
+use App\Support\Feed\HackerNewsMetadata;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -108,6 +109,8 @@ class CreateNewFeed
         $feed_name = $crawledFeed->get_title() ?? $fallback_name ?? $site_url;
         $feed_name = str_replace('&amp;', '&', $feed_name);
 
+        $isHnFeed = HackerNewsMetadata::supports($feed_url);
+
         $feed = Feed::create([
             'name' => $feed_name,
             'feed_url' => $feed_url,
@@ -151,12 +154,23 @@ class CreateNewFeed
 
             $title = str_replace('&amp;', '&', $entry->get_title());
             $title = substr($title, 0, 255);
+            $hnMetadata = [
+                'points' => null,
+                'comments' => null,
+            ];
+
+            if ($isHnFeed) {
+                $hnMetadata = HackerNewsMetadata::extract($entry);
+            }
+
             $newFeedEntries[] = [
                 'title' => $title,
                 'url' => $entry->get_permalink(),
                 'content' => $entry->get_content(),
                 'author' => substr($entry->get_author()?->get_name() ?? '', 0, 255),
                 'published_at' => $entry->get_date('Y-m-d H:i:s'),
+                'hn_points' => $hnMetadata['points'],
+                'hn_comments_count' => $hnMetadata['comments'],
                 'feed_id' => $feed->id,
                 'created_at' => now(),
                 'updated_at' => now(),

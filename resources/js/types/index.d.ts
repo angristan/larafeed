@@ -4,6 +4,7 @@ export interface User {
     email: string;
     email_verified_at?: string;
     pagination_mode: PaginationMode;
+    show_hn_badges: boolean;
 }
 
 export type PageProps<

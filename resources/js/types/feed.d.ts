@@ -29,6 +29,8 @@ interface Entry extends Timestamps {
     url: string;
     author: string | null;
     content: string | null;
+    hn_points: number | null;
+    hn_comments_count: number | null;
     published_at: string;
     read_at: string | null;
     starred_at: string | null;

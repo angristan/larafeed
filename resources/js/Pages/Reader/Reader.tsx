@@ -50,6 +50,7 @@ interface ReaderProps extends PageProps {
     summary?: string;
     categories: Category[];
     paginationMode: PaginationMode;
+    showHnBadges: boolean;
 }
 
 const Reader = ({
@@ -62,6 +63,7 @@ const Reader = ({
     summary,
     categories,
     paginationMode,
+    showHnBadges,
 }: ReaderProps) => {
     const [opened, { toggle }] = useDisclosure();
 
@@ -246,6 +248,7 @@ const Reader = ({
                 feeds={feeds}
                 categories={categories}
                 paginationMode={paginationMode}
+                showHnBadges={showHnBadges}
             />
         </AppShell>
     );
@@ -264,6 +267,7 @@ const Main = function Main({
     feeds,
     categories,
     paginationMode,
+    showHnBadges,
 }: {
     entries: PaginatedEntries;
     currententry?: Entry;
@@ -271,6 +275,7 @@ const Main = function Main({
     feeds: Feed[];
     categories: Category[];
     paginationMode: PaginationMode;
+    showHnBadges: boolean;
 }) {
     const { colorScheme } = useMantineColorScheme();
     const theme = useMantineTheme();
@@ -288,6 +293,7 @@ const Main = function Main({
                         entries={entries}
                         currentEntryID={currententry?.id}
                         paginationMode={paginationMode}
+                        showHnBadges={showHnBadges}
                     />
                 </Split.Pane>
                 <Split.Pane grow>

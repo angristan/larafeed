@@ -23,6 +23,8 @@ class EntryFactory extends Factory
             'url' => $this->faker->url,
             'author' => $this->faker->name,
             'content' => $this->faker->paragraph,
+            'hn_points' => null,
+            'hn_comments_count' => null,
             'published_at' => $this->faker->dateTime,
         ];
     }

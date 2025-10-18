@@ -22,6 +22,7 @@ class ShowSettings
         return Inertia::render('Settings/Index', [
             'paginationMode' => $user->pagination_mode ?? User::PAGINATION_MODE_INFINITE,
             'paginationModes' => User::PAGINATION_MODES,
+            'showHnBadges' => (bool) ($user->show_hn_badges ?? true),
         ]);
     }
 }

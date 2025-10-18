@@ -25,10 +25,15 @@ class UpdateSettings
                 'required',
                 Rule::in(User::PAGINATION_MODES),
             ],
+            'show_hn_badges' => [
+                'required',
+                'boolean',
+            ],
         ]);
 
         $user->update([
             'pagination_mode' => $validated['pagination_mode'],
+            'show_hn_badges' => $request->boolean('show_hn_badges'),
         ]);
 
         return Redirect::route('settings.edit');

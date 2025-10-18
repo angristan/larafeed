@@ -6,6 +6,7 @@ namespace App\Actions\Feed;
 
 use App\Exceptions\FeedCrawlFailedException;
 use App\Models\Feed;
+use App\Support\Feed\HackerNewsMetadata;
 use Carbon\Carbon;
 use Feeds;
 use Illuminate\Support\Facades\Auth;
@@ -61,11 +62,22 @@ class RefreshFeedEntries
                 return;
             }
 
+            $hnMetadata = [
+                'points' => null,
+                'comments' => null,
+            ];
+
+            if (HackerNewsMetadata::supports($feed)) {
+                $hnMetadata = HackerNewsMetadata::extract($item);
+            }
+
             $feed->entries()->create([
                 'title' => str_replace('&amp;', '&', $item->get_title()),
                 'url' => $item->get_permalink(),
                 'author' => $item->get_author()?->get_name(),
                 'content' => $item->get_content(),
+                'hn_points' => $hnMetadata['points'],
+                'hn_comments_count' => $hnMetadata['comments'],
                 'published_at' => $item->get_date('Y-m-d H:i:s'),
             ]);
         });

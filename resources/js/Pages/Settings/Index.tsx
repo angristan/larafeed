@@ -8,6 +8,7 @@ import {
     Paper,
     Radio,
     Stack,
+    Switch,
     Text,
     Title,
 } from '@mantine/core';
@@ -17,6 +18,7 @@ import { FormEvent, useMemo } from 'react';
 type SettingsProps = PageProps<{
     paginationMode: PaginationMode;
     paginationModes: PaginationMode[];
+    showHnBadges: boolean;
 }>;
 
 const PAGINATION_LABELS: Record<PaginationMode, string> = {
@@ -27,10 +29,15 @@ const PAGINATION_LABELS: Record<PaginationMode, string> = {
 export default function Settings({
     paginationMode,
     paginationModes,
+    showHnBadges,
 }: SettingsProps) {
     const { data, setData, patch, processing, recentlySuccessful, errors } =
-        useForm({
+        useForm<{
+            pagination_mode: PaginationMode;
+            show_hn_badges: boolean;
+        }>({
             pagination_mode: paginationMode,
+            show_hn_badges: showHnBadges,
         });
 
     const options = useMemo(
@@ -91,6 +98,28 @@ export default function Settings({
                                 </Radio.Group>
                             </div>
 
+                            <div>
+                                <Text fw={500} mb="xs">
+                                    Hacker News badges
+                                </Text>
+                                <Text size="sm" c="dimmed" mb="sm">
+                                    Toggle points and comment badges for
+                                    Hacker News entries in the reader.
+                                </Text>
+                                <Switch
+                                    label="Show badges for Hacker News entries"
+                                    checked={data.show_hn_badges}
+                                    name="show_hn_badges"
+                                    onChange={(event) =>
+                                        setData(
+                                            'show_hn_badges',
+                                            event.currentTarget.checked,
+                                        )
+                                    }
+                                    error={errors.show_hn_badges}
+                                />
+                            </div>
+
                             {recentlySuccessful && (
                                 <Alert
                                     color="green"
@@ -104,7 +133,8 @@ export default function Settings({
                                 type="submit"
                                 loading={processing}
                                 disabled={
-                                    data.pagination_mode === paginationMode
+                                    data.pagination_mode === paginationMode &&
+                                    data.show_hn_badges === showHnBadges
                                 }
                             >
                                 Save changes
