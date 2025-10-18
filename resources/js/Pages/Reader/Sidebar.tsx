@@ -66,25 +66,52 @@ export default function Sidebar({
         [key: number]: Feed[];
     }
 
-    const feedsPerCategory = categories
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .reduce<FeedsByCategory>((acc, category) => {
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+
+    const filteredFeeds = normalizedSearchTerm
+        ? feeds.filter((feed) =>
+              feed.name.toLowerCase().includes(normalizedSearchTerm),
+          )
+        : feeds;
+
+    const sortedCategories = [...categories].sort((a, b) =>
+        a.name.localeCompare(b.name),
+    );
+
+    const feedsPerCategory = sortedCategories.reduce<FeedsByCategory>(
+        (acc, category) => {
             acc[category.id] = [];
             return acc;
-        }, {});
+        },
+        {},
+    );
 
-    feeds.forEach((feed) => {
-        feedsPerCategory[feed.category_id].push(feed);
+    filteredFeeds.forEach((feed) => {
+        if (feedsPerCategory[feed.category_id]) {
+            feedsPerCategory[feed.category_id].push(feed);
+        }
     });
 
-    const feedLinks = categories.map((category) => (
+    const visibleCategories =
+        normalizedSearchTerm.length > 0
+            ? sortedCategories.filter(
+                  (category) => feedsPerCategory[category.id].length > 0,
+              )
+            : sortedCategories;
+
+    const feedLinks = visibleCategories.map((category) => (
         <FeedLinksGroup
             key={category.id}
             category={category}
             feedsPerCategory={feedsPerCategory}
-            categories={categories}
+            categories={sortedCategories}
         />
     ));
+
+    const noResults =
+        normalizedSearchTerm.length > 0 && filteredFeeds.length === 0;
 
     const [opened, { open, close }] = useDisclosure(false);
 
@@ -106,7 +133,7 @@ export default function Sidebar({
             <AddFeedModal
                 opened={opened}
                 close={close}
-                categories={categories}
+                categories={sortedCategories}
                 initialFeedURL={
                     new URLSearchParams(window.location.search).get(
                         'addFeedUrl',
@@ -124,6 +151,15 @@ export default function Sidebar({
                             <Code className={classes.searchCode}>Ctrl + K</Code>
                         }
                         styles={{ section: { pointerEvents: 'none' } }}
+                        value={searchTerm}
+                        onChange={(event) =>
+                            setSearchTerm(event.currentTarget.value)
+                        }
+                        onKeyDown={(event) => {
+                            if (event.key === 'Escape') {
+                                setSearchTerm('');
+                            }
+                        }}
                         mb="sm"
                     />
                 </AppShell.Section>
@@ -151,7 +187,10 @@ export default function Sidebar({
                             label="Create feed or category"
                             withArrow
                             position="right"
-                            opened={feedLinks.length === 0 || hovered}
+                            opened={
+                                (feedLinks.length === 0 && !noResults) ||
+                                hovered
+                            }
                         >
                             <ActionIcon
                                 onClick={open}
@@ -165,7 +204,15 @@ export default function Sidebar({
                     </Group>
                 </AppShell.Section>
                 <AppShell.Section grow component={ScrollArea}>
-                    <div className={classes.collections}>{feedLinks}</div>
+                    <div className={classes.collections}>
+                        {noResults ? (
+                            <Text size="xs" c="dimmed" pl="xs" pr="xs">
+                                No feeds match your search.
+                            </Text>
+                        ) : (
+                            feedLinks
+                        )}
+                    </div>
                 </AppShell.Section>
             </AppShell.Navbar>
         </>
