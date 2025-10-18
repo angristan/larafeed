@@ -46,7 +46,7 @@ import {
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
-import { FormEventHandler, ReactNode, useEffect, useState } from 'react';
+import { FormEventHandler, ReactNode, useState } from 'react';
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
@@ -311,15 +311,9 @@ export const FeedLinksGroup = ({
     feedsPerCategory,
     categories,
 }: FeedLinksGroupProps) => {
-    const [opened, setOpened] = useState(
-        feedsPerCategory[category.id].length > 0,
-    );
-
+    const autoOpened = feedsPerCategory[category.id].length > 0;
     const [manualOpened, setManualOpened] = useState<boolean | null>(null);
-
-    useEffect(() => {
-        setOpened(feedsPerCategory[category.id].length > 0);
-    }, [category.id, feedsPerCategory]);
+    const opened = manualOpened ?? autoOpened;
 
     const params = new URLSearchParams(window.location.search);
     params.delete('feed');
@@ -383,9 +377,13 @@ export const FeedLinksGroup = ({
                         stroke={1.5}
                         onClick={(e) => {
                             e.stopPropagation();
-                            setManualOpened(
-                                manualOpened === null ? !opened : !manualOpened,
-                            );
+                            setManualOpened((current) => {
+                                if (current === null) {
+                                    return !opened;
+                                }
+
+                                return !current;
+                            });
                         }}
                     />
                 }
