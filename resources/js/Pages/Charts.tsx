@@ -23,7 +23,7 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconSearch } from '@tabler/icons-react';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 
 type HeatmapSeries = Record<string, number>;
 
@@ -157,19 +157,11 @@ const Main = function Main({
     feeds,
     categories,
 }: MainProps) {
-    const [localFilters, setLocalFilters] = useState<Filters>(filters);
-    const [customRangeDraft, setCustomRangeDraft] = useState({
+    const [localFilters, setLocalFilters] = useState<Filters>(() => filters);
+    const [customRangeDraft, setCustomRangeDraft] = useState(() => ({
         startDate: filters.startDate,
         endDate: filters.endDate,
-    });
-
-    useEffect(() => {
-        setLocalFilters(filters);
-        setCustomRangeDraft({
-            startDate: filters.startDate,
-            endDate: filters.endDate,
-        });
-    }, [filters]);
+    }));
 
     const feedOptions = useMemo(
         () =>
@@ -676,6 +668,14 @@ const Charts = () => {
     } = props;
 
     const [opened, { toggle }] = useDisclosure();
+    const filtersKey = [
+        filters.range,
+        filters.group,
+        filters.feedId ?? 'null',
+        filters.categoryId ?? 'null',
+        filters.startDate,
+        filters.endDate,
+    ].join('|');
 
     return (
         <AppShell
@@ -705,6 +705,7 @@ const Charts = () => {
             <NavBar user={auth.user} />
 
             <Main
+                key={filtersKey}
                 dailyReads={dailyReads}
                 dailyEntries={dailyEntries}
                 dailySaved={dailySaved}

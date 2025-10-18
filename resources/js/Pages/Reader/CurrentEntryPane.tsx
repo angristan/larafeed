@@ -157,14 +157,6 @@ export default function CurrentEntryPane({
     const [value, setValue] = useState(summary ? 'summary' : 'content');
 
     useEffect(() => {
-        if (summary) {
-            setValue('summary');
-        } else {
-            setValue('content');
-        }
-    }, [summary]);
-
-    useEffect(() => {
         if (
             value === 'summary' &&
             !window.location.search.includes('summarize')

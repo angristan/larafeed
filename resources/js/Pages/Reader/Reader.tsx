@@ -283,6 +283,7 @@ const Main = function Main({
                 <Split.Pane grow>
                     {currententry && (
                         <CurrentEntryPane
+                            key={`${currententry.id}-${summary ? 'summary' : 'no-summary'}`}
                             currententry={currententry}
                             summary={summary}
                             feeds={feeds}
