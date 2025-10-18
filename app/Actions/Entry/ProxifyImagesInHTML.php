@@ -7,6 +7,7 @@ namespace App\Actions\Entry;
 use DOMDocument;
 use DOMXPath;
 use Lorisleiva\Actions\Concerns\AsAction;
+use Onliner\ImgProxy\Options\Dpr;
 use Onliner\ImgProxy\UrlBuilder;
 
 class ProxifyImagesInHTML
@@ -89,6 +90,8 @@ class ProxifyImagesInHTML
     private function getProxiedUrl(string $originalUrl): string
     {
         $proxiedUri = app(UrlBuilder::class)
+            // Add a no-op option so the generated path keeps a dedicated segment and proxies don't collapse the double slash
+            ->with(new Dpr(1))
             ->url($originalUrl, 'webp');
 
         return config('services.imgproxy.url').$proxiedUri;
