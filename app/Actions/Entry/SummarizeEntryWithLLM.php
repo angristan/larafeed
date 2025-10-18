@@ -39,7 +39,7 @@ EOT;
             now()->addDays(30),
             function () use ($prompt) {
                 return Prism::text()
-                    ->using(Provider::Gemini, 'gemini-1.5-flash')
+                    ->using(Provider::Gemini, 'gemini-2.0-flash')
                     ->withPrompt($prompt)
                     ->withMaxTokens(512)
                     ->generate()->text;
