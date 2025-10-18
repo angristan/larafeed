@@ -7,7 +7,7 @@ import ApplicationLogo from '@/Components/ApplicationLogo/ApplicationLogo';
 import ColorSchemeSwitcher from '@/Components/ColorSchemeSwitcher/ColorSchemeSwitcher';
 import KeyboardShortcuts from '@/Components/KeyboardShortcuts/KeyboardShortcuts';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { PageProps, PaginationMode } from '@/types';
+import { PageProps } from '@/types';
 import { Split } from '@gfazioli/mantine-split-pane';
 import { Link, router } from '@inertiajs/react';
 import {
@@ -49,7 +49,6 @@ interface ReaderProps extends PageProps {
     readEntriesCount: number;
     summary?: string;
     categories: Category[];
-    paginationMode: PaginationMode;
 }
 
 const Reader = ({
@@ -61,7 +60,6 @@ const Reader = ({
     readEntriesCount,
     summary,
     categories,
-    paginationMode,
 }: ReaderProps) => {
     const [opened, { toggle }] = useDisclosure();
 
@@ -126,7 +124,6 @@ const Reader = ({
                             style={{ cursor: 'pointer' }}
                         >
                             <Group>
-                                {/* paginationMode={paginationMode} */}
                                 <ApplicationLogo width={40} />
                                 <Title order={3} style={{ margin: 0 }}>
                                     Larafeed
@@ -182,9 +179,6 @@ const Reader = ({
                             <Menu.Dropdown>
                                 <Menu.Label>{auth.user.email}</Menu.Label>
                                 <Menu.Item
-                                    onClick={() =>
-                                        router.visit(route('settings.edit'))
-                                    }
                                     leftSection={
                                         <IconSettings
                                             style={{
@@ -245,7 +239,6 @@ const Reader = ({
                 summary={summary}
                 feeds={feeds}
                 categories={categories}
-                paginationMode={paginationMode}
             />
         </AppShell>
     );
@@ -263,14 +256,12 @@ const Main = function Main({
     summary,
     feeds,
     categories,
-    paginationMode,
 }: {
     entries: PaginatedEntries;
     currententry?: Entry;
     summary?: string;
     feeds: Feed[];
     categories: Category[];
-    paginationMode: PaginationMode;
 }) {
     const { colorScheme } = useMantineColorScheme();
     const theme = useMantineTheme();
@@ -287,7 +278,6 @@ const Main = function Main({
                     <EntryListPane
                         entries={entries}
                         currentEntryID={currententry?.id}
-                        paginationMode={paginationMode}
                     />
                 </Split.Pane>
                 <Split.Pane grow>

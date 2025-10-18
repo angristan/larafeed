@@ -15,18 +15,15 @@ use App\Actions\OPML\ExportOPML;
 use App\Actions\OPML\ImportOPML;
 use App\Actions\ShowCharts;
 use App\Actions\ShowFeedReader;
-use App\Actions\User\ShowSettings;
-use App\Actions\User\UpdateSettings;
 use App\Actions\User\WipeAccount;
 use App\Features\Registration;
 use App\Http\Controllers\ProfileController;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Pennant\Feature;
 
 Route::get('/', function () {
-    if (Auth::check()) {
+    if (auth()->check()) {
         return redirect()->route('feeds.index');
     }
 
@@ -41,9 +38,6 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::post('/profile/wipe', WipeAccount::class)->name('profile.wipe');
-
-    Route::get('/settings', ShowSettings::class)->name('settings.edit');
-    Route::patch('/settings', UpdateSettings::class)->name('settings.update');
 
     // TODO: scoped route bindings
     Route::get('/feeds', ShowFeedReader::class)->name('feeds.index');
