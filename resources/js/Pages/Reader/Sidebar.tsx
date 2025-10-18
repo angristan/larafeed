@@ -19,6 +19,7 @@ import {
     NavLink,
     ScrollArea,
     SegmentedControl,
+    Stack,
     Text,
     TextInput,
     Tooltip,
@@ -835,6 +836,23 @@ const FeedLink = function FeedLink({
 }) {
     const { ref } = useHover();
 
+    const failedAt = feed.last_failed_refresh_at;
+    const successAt = feed.last_successful_refresh_at;
+    const showFailed =
+        failedAt && (!successAt || dayjs(failedAt).isAfter(successAt));
+
+    const refreshStatus = (() => {
+        const referenceDate = showFailed ? failedAt : successAt;
+
+        if (!referenceDate) {
+            return 'Feed has not refreshed yet';
+        }
+
+        return `${showFailed ? 'Last refresh failed' : 'Last refresh successful'} ${dayjs
+            .utc(referenceDate)
+            .fromNow()}`;
+    })();
+
     const urlParams = new URLSearchParams(window.location.search);
     urlParams.delete('filter');
     urlParams.delete('page');
@@ -852,18 +870,28 @@ const FeedLink = function FeedLink({
                 withArrow
                 position="right"
                 openDelay={1000}
-                label={(() => {
-                    const failedAt = feed.last_failed_refresh_at;
-                    const successAt = feed.last_successful_refresh_at;
-
-                    const showFailed =
-                        failedAt &&
-                        (!successAt || dayjs(failedAt).isAfter(successAt));
-
-                    return `${showFailed ? 'Last refresh failed' : 'Last refresh successful'} ${dayjs
-                        .utc(showFailed ? failedAt : successAt)
-                        .fromNow()}`;
-                })()}
+                multiline
+                styles={{
+                    tooltip: {
+                        whiteSpace: 'normal',
+                        width: 'max-content',
+                        maxWidth: 'none',
+                    },
+                }}
+                label={
+                    <Stack gap={2}>
+                        <Text
+                            size="sm"
+                            fw={500}
+                            style={{ wordBreak: 'break-word' }}
+                        >
+                            {feed.name}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                            {refreshStatus}
+                        </Text>
+                    </Stack>
+                }
             >
                 <Link
                     ref={ref}
@@ -895,27 +923,12 @@ const FeedLink = function FeedLink({
                                 : true
                         }
                     >
-                        <div
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                width: '100%',
-                                justifyContent: 'space-between',
-                            }}
-                        >
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                }}
-                            >
-                                <Image
-                                    src={feed.favicon_url}
-                                    w={15}
-                                    h={15}
-                                    mr={9}
-                                />
-                                <span>{feed.name}</span>
+                        <div className={classes.feedRow}>
+                            <div className={classes.feedRowLeft}>
+                                <Image src={feed.favicon_url} w={15} h={15} />
+                                <span className={classes.feedName}>
+                                    {feed.name}
+                                </span>
                             </div>
                             <FeedMenu
                                 feed={feed}

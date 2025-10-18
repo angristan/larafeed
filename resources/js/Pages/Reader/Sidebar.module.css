@@ -101,3 +101,25 @@
         var(--mantine-color-dark-6)
     );
 }
+
+.feedRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: var(--mantine-spacing-xs);
+}
+
+.feedRowLeft {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    flex: 1;
+    min-width: 0;
+}
+
+.feedName {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
