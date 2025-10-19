@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Actions\Feed;
 
+use App\Actions\Category\CreateCategory;
 use App\Actions\Favicon\GetFaviconURL;
 use App\Models\Feed;
 use App\Models\FeedRefresh;
+use App\Models\SubscriptionCategory;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,7 +24,8 @@ class CreateNewFeed
     {
         return [
             'feed_url' => ['required', 'max:255', 'url', 'active_url'],
-            'category_id' => ['required', 'exists:subscription_categories,id'],
+            'category_id' => ['nullable', 'integer', 'exists:subscription_categories,id', 'required_without:category_name'],
+            'category_name' => ['nullable', 'string', 'max:20', 'required_without:category_id'],
         ];
     }
 
@@ -33,21 +36,57 @@ class CreateNewFeed
             'feed_url.url' => 'Please enter a valid URL',
             'feed_url.active_url' => 'Please ensure the URL is reachable',
             'feed_url.max' => 'Please enter a URL that is less than 255 characters',
-            'category_id.required' => 'Please select a category',
+            'category_id.required_without' => 'Please select a category',
             'category_id.exists' => 'Please select a valid category',
+            'category_name.required_without' => 'Please enter a category name',
+            'category_name.max' => 'Please enter a category name that is less than 20 characters',
         ];
     }
 
     public function asController(Request $request)
     {
-        // Check if category exists for the user
-        if (! Auth::user()->subscriptionCategories()->where('id', $request->input('category_id'))->exists()) {
+        $categoryIdInput = $request->input('category_id');
+        $categoryName = trim((string) $request->input('category_name', ''));
+        $resolvedCategoryId = null;
+
+        if ($categoryName !== '') {
+            if (
+                SubscriptionCategory::query()
+                    ->where('user_id', Auth::id())
+                    ->where('name', $categoryName)
+                    ->exists()
+            ) {
+                return redirect()->back()->withErrors([
+                    'category_name' => 'You already have a category with that name',
+                ]);
+            }
+
+            $newCategory = CreateCategory::run(
+                $request->user(),
+                $categoryName
+            );
+
+            $resolvedCategoryId = $newCategory->id;
+        } elseif ($categoryIdInput !== null) {
+            $resolvedCategoryId = (int) $categoryIdInput;
+
+            if (
+                ! Auth::user()
+                    ->subscriptionCategories()
+                    ->where('id', $resolvedCategoryId)
+                    ->exists()
+            ) {
+                return redirect()->back()->withErrors([
+                    'category_id' => 'Invalid category',
+                ]);
+            }
+        } else {
             return redirect()->back()->withErrors([
-                'category_id' => 'Invalid category',
+                'category_id' => 'Please select a category',
             ]);
         }
 
-        return $this->handle($request->feed_url, $request->user(), $request->category_id);
+        return $this->handle($request->feed_url, $request->user(), $resolvedCategoryId);
     }
 
     public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
