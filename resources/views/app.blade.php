@@ -12,8 +12,10 @@
 
         <!-- Scripts -->
         @routes
-        @viteReactRefresh
-        @vite(['resources/js/app.tsx', "resources/js/Pages/{$page['component']}.tsx"])
+        @unless (app()->environment('testing'))
+            @viteReactRefresh
+            @vite(['resources/js/app.tsx', "resources/js/Pages/{$page['component']}.tsx"])
+        @endunless
         @inertiaHead
     </head>
     <body class="font-sans antialiased">
