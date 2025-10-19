@@ -7,6 +7,29 @@ on:
 jobs:
   phpunit:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: larafeed_test
+          POSTGRES_USER: larafeed
+          POSTGRES_PASSWORD: larafeed
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U larafeed"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: larafeed_test
+      DB_USERNAME: larafeed
+      DB_PASSWORD: larafeed
 
     steps:
       - name: Checkout
@@ -36,10 +59,6 @@ jobs:
         run: |
           if [ ! -f .env ]; then cp .env.example .env; fi
           php artisan key:generate
-          touch database/database.sqlite
 
       - name: Run tests
-        env:
-          DB_CONNECTION: sqlite
-          DB_DATABASE: database/database.sqlite
         run: vendor/bin/phpunit --testdox
