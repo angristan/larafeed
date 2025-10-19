@@ -172,17 +172,25 @@ class ShowCharts
             ->orderBy('date')
             ->get()
             ->map(static function ($row) {
-                $rowArray = (array) $row;
-                $successes = (int) $rowArray['successes'];
-                $failures = (int) $rowArray['failures'];
+                $rowData = $row instanceof \Illuminate\Database\Eloquent\Model
+                    ? $row->getAttributes()
+                    : (array) $row;
+
+                $successes = (int) ($rowData['successes'] ?? 0);
+                $failures = (int) ($rowData['failures'] ?? 0);
                 $totalAttempts = $successes + $failures;
+                $dateValue = $rowData['date'] ?? null;
+
+                if ($dateValue instanceof \DateTimeInterface) {
+                    $dateValue = $dateValue->format('Y-m-d');
+                }
 
                 return [
-                    'date' => $rowArray['date'],
+                    'date' => $dateValue,
                     'successes' => $successes,
                     'failures' => $failures,
                     'totalAttempts' => $totalAttempts,
-                    'entriesCreated' => (int) $rowArray['entries_created'],
+                    'entriesCreated' => (int) ($rowData['entries_created'] ?? 0),
                 ];
             });
 
