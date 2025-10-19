@@ -63,22 +63,8 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --ansi
 
-      - name: Ensure environment file exists
-        run: php -r "file_exists('.env') || touch('.env');"
-
-      - name: Wait for database
-        run: >
-          php -r "
-          for ($i = 0; $i < 30; $i++) {
-              try {
-                  new PDO('pgsql:host=127.0.0.1;port=5432;dbname=larafeed_test', 'larafeed', 'password');
-                  exit(0);
-              } catch (PDOException $e) {
-                  sleep(1);
-              }
-          }
-          exit(1);
-          "
+      - name: Copy env file
+        run: cp .env.example .env
 
       - name: Run test suite
         run: php artisan test
