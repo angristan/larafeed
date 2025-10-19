@@ -637,9 +637,13 @@ const AddFeedForm = function AddFeedForm({
     close: () => void;
     initialFeedURL?: string;
 }) {
+    const initialCategorySelection =
+        categories.length > 0 ? categories[0].id.toString() : 'new';
+
     const { data, setData, post, errors, processing, transform } = useForm({
         feed_url: initialFeedURL || '',
-        category_id: categories.length > 0 ? categories[0].id : 0,
+        category_selection: initialCategorySelection,
+        category_name: '',
     });
 
     // Transform the feed URL to have a protocol if it doesn't have one
@@ -650,9 +654,16 @@ const AddFeedForm = function AddFeedForm({
 
         setData('feed_url', feedUrl);
 
+        if (data.category_selection === 'new') {
+            return {
+                feed_url: feedUrl,
+                category_name: data.category_name.trim(),
+            };
+        }
+
         return {
-            ...data,
             feed_url: feedUrl,
+            category_id: parseInt(data.category_selection, 10),
         };
     });
 
@@ -741,7 +752,6 @@ const AddFeedForm = function AddFeedForm({
 
             <NativeSelect
                 mt={10}
-                disabled={categories.length === 0}
                 label={
                     <Group gap={5}>
                         <IconCategory
@@ -758,26 +768,72 @@ const AddFeedForm = function AddFeedForm({
                         The category where the feed will be added
                     </Text>
                 }
-                data={
-                    categories.length > 0
-                        ? categories.map((category) => ({
-                              value: category.id.toString(),
-                              label: category.name,
-                          }))
-                        : [{ value: '0', label: 'Please add a category' }]
-                }
-                value={data.category_id.toString()}
-                onChange={(e) =>
-                    setData('category_id', parseInt(e.target.value))
-                }
-                error={errors.category_id}
+                data={[
+                    ...categories.map((category) => ({
+                        value: category.id.toString(),
+                        label: category.name,
+                    })),
+                    {
+                        value: 'new',
+                        label: 'Create new category',
+                    },
+                ]}
+                value={data.category_selection}
+                onChange={(e) => setData('category_selection', e.target.value)}
+                error={errors.category_selection}
             />
+
+            {data.category_selection === 'new' && (
+                <TextInput
+                    mt="sm"
+                    type="text"
+                    label={
+                        <Group gap={5}>
+                            <IconCategory
+                                style={{
+                                    width: rem(10),
+                                    height: rem(10),
+                                }}
+                            />
+                            <span>New category name</span>
+                        </Group>
+                    }
+                    description={
+                        <Text size="xs" c="dimmed">
+                            We will create this category and add the feed to it
+                            automatically
+                        </Text>
+                    }
+                    placeholder="Tech"
+                    withErrorStyles={false}
+                    rightSectionPointerEvents="none"
+                    rightSection={
+                        errors.category_name && (
+                            <IconExclamationCircle
+                                style={{
+                                    width: rem(20),
+                                    height: rem(20),
+                                }}
+                                color="var(--mantine-color-error)"
+                            />
+                        )
+                    }
+                    value={data.category_name}
+                    onChange={(e) => setData('category_name', e.target.value)}
+                    error={errors.category_name}
+                    data-autofocus={categories.length === 0}
+                />
+            )}
 
             <Button
                 mt="md"
                 fullWidth
                 type="submit"
-                disabled={processing}
+                disabled={
+                    processing ||
+                    (data.category_selection === 'new' &&
+                        data.category_name.trim().length === 0)
+                }
                 loading={processing}
             >
                 Submit

@@ -42,9 +42,9 @@ class CreateCategory
         return redirect()->route('feeds.index');
     }
 
-    public function handle(User $user, string $name)
+    public function handle(User $user, string $name): SubscriptionCategory
     {
-        SubscriptionCategory::query()->create([
+        return SubscriptionCategory::query()->create([
             'user_id' => $user->id,
             'name' => $name,
         ]);
