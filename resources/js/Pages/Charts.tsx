@@ -23,6 +23,7 @@ import {
     IconAdjustments,
     IconChartHistogram,
     IconListDetails,
+    IconRefresh,
 } from '@tabler/icons-react';
 import { ReactNode, useMemo, useState } from 'react';
 
@@ -88,6 +89,15 @@ interface DailySaved {
     saved: number;
 }
 
+interface DailyRefreshAttempt {
+    date: string;
+    successes: number;
+    failures: number;
+    totalAttempts: number;
+    successRate: number | null;
+    entriesCreated: number;
+}
+
 interface MetricPoint {
     date: string;
     value: number;
@@ -104,6 +114,14 @@ interface SummaryMetrics {
     totalSaved: number;
     readThroughRate: number;
     currentBacklog: number;
+}
+
+interface RefreshSummary {
+    totalAttempts: number;
+    successes: number;
+    failures: number;
+    successRate: number;
+    entriesCreated: number;
 }
 
 type RangeFilter = '30' | '90' | '365' | 'custom';
@@ -129,6 +147,8 @@ type ChartsPageProps = PageProps<{
     dailySaved: DailySaved[];
     backlogTrend: MetricPoint[];
     readThrough: RatePoint[];
+    dailyRefreshes: DailyRefreshAttempt[];
+    refreshSummary: RefreshSummary;
     summary: SummaryMetrics;
     filters: Filters;
     feeds: SelectEntity[];
@@ -141,6 +161,8 @@ interface MainProps {
     dailySaved: DailySaved[];
     backlogTrend: MetricPoint[];
     readThrough: RatePoint[];
+    dailyRefreshes: DailyRefreshAttempt[];
+    refreshSummary: RefreshSummary;
     summary: SummaryMetrics;
     filters: Filters;
     feeds: SelectEntity[];
@@ -153,6 +175,8 @@ const Main = function Main({
     dailySaved,
     backlogTrend,
     readThrough,
+    dailyRefreshes,
+    refreshSummary,
     summary,
     filters,
     feeds,
@@ -212,6 +236,28 @@ const Main = function Main({
             })),
         [readThrough],
     );
+
+    const refreshActivityChartData = useMemo(
+        () =>
+            dailyRefreshes.map((point) => ({
+                date: point.date,
+                successes: point.successes,
+                failures: point.failures,
+                totalAttempts: point.totalAttempts,
+            })),
+        [dailyRefreshes],
+    );
+
+    const refreshSuccessRateChartData = useMemo(
+        () =>
+            dailyRefreshes.map((point) => ({
+                date: point.date,
+                successRate: point.successRate,
+            })),
+        [dailyRefreshes],
+    );
+
+    const hasRefreshData = refreshSummary.totalAttempts > 0;
 
     const submitFilters = (
         next: Filters,
@@ -575,6 +621,106 @@ const Main = function Main({
                     </Stack>
                 </Stack>
 
+                <Stack gap="xl" id="refreshes">
+                    <Stack gap="sm">
+                        <Title order={2}>Refresh Activity</Title>
+                        <SimpleGrid
+                            cols={{ base: 1, sm: 2, md: 3, lg: 5 }}
+                            spacing="lg"
+                        >
+                            <SummaryCard
+                                label="Refresh attempts"
+                                value={refreshSummary.totalAttempts.toLocaleString()}
+                            />
+                            <SummaryCard
+                                label="Success rate"
+                                value={`${refreshSummary.successRate.toFixed(1)}%`}
+                            />
+                            <SummaryCard
+                                label="Successful refreshes"
+                                value={refreshSummary.successes.toLocaleString()}
+                            />
+                            <SummaryCard
+                                label="Failed refreshes"
+                                value={refreshSummary.failures.toLocaleString()}
+                            />
+                            <SummaryCard
+                                label="Entries created"
+                                value={refreshSummary.entriesCreated.toLocaleString()}
+                                description="Entries gathered during refreshes"
+                            />
+                        </SimpleGrid>
+                    </Stack>
+
+                    {hasRefreshData ? (
+                        <Stack gap="xl">
+                            <Stack gap="sm">
+                                <Title order={3}>Daily attempts</Title>
+                                <LineChart
+                                    h={300}
+                                    data={refreshActivityChartData}
+                                    dataKey="date"
+                                    series={[
+                                        {
+                                            name: 'successes',
+                                            label: 'Successful',
+                                            color: 'teal.6',
+                                        },
+                                        {
+                                            name: 'failures',
+                                            label: 'Failed',
+                                            color: 'red.6',
+                                        },
+                                        {
+                                            name: 'totalAttempts',
+                                            label: 'Total attempts',
+                                            color: 'blue.6',
+                                        },
+                                    ]}
+                                    withLegend
+                                    valueFormatter={(value) =>
+                                        Number.isFinite(value)
+                                            ? Number(value).toLocaleString()
+                                            : '–'
+                                    }
+                                    xAxisLabel="Date"
+                                    yAxisLabel="Attempts"
+                                />
+                            </Stack>
+
+                            <Stack gap="sm">
+                                <Title order={3}>Success rate</Title>
+                                <LineChart
+                                    h={300}
+                                    data={refreshSuccessRateChartData}
+                                    dataKey="date"
+                                    series={[
+                                        {
+                                            name: 'successRate',
+                                            label: 'Success rate %',
+                                            color: 'teal.6',
+                                        },
+                                    ]}
+                                    unit="%"
+                                    withLegend={false}
+                                    valueFormatter={(value) =>
+                                        Number.isFinite(value)
+                                            ? `${Number(value).toFixed(1)}%`
+                                            : '–'
+                                    }
+                                    xAxisLabel="Date"
+                                    yAxisLabel="%"
+                                    connectNulls={false}
+                                />
+                            </Stack>
+                        </Stack>
+                    ) : (
+                        <Text size="sm" c="dimmed">
+                            No refresh activity recorded for this period.
+                        </Text>
+                    )}
+                </Stack>
+
                 <Stack gap="xl" id="trends">
                     <Stack gap="sm">
                         <Title order={2}>Unread Backlog Trend</Title>
@@ -667,6 +813,13 @@ const ChartsSidebar = () => (
                 />
                 <NavLink
                     component="a"
+                    href="#refreshes"
+                    label="Refresh activity"
+                    description="Attempts & success"
+                    leftSection={<IconRefresh size={16} stroke={1.5} />}
+                />
+                <NavLink
+                    component="a"
                     href="#trends"
                     label="Trends"
                     description="Backlog & read-through"
@@ -685,6 +838,8 @@ const Charts = () => {
         dailySaved,
         backlogTrend,
         readThrough,
+        dailyRefreshes,
+        refreshSummary,
         summary,
         filters,
         feeds,
@@ -708,6 +863,8 @@ const Charts = () => {
                 dailySaved={dailySaved}
                 backlogTrend={backlogTrend}
                 readThrough={readThrough}
+                dailyRefreshes={dailyRefreshes}
+                refreshSummary={refreshSummary}
                 summary={summary}
                 filters={filters}
                 feeds={feeds}

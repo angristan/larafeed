@@ -2,7 +2,7 @@
 
 <!-- badges -->
 
-![](.github/readme/logo.png)
+![Larafeed logo](.github/readme/logo.png)
 
 Larafeed is a simple feed reader.
 
@@ -31,7 +31,7 @@ Larafeed is a simple feed reader.
 
 #### Reader view
 
-![](.github/readme/reader.png)
+![Reader view screenshot](.github/readme/reader.png)
 
 #### Demo of the LLM summary generation
 
@@ -84,6 +84,8 @@ erDiagram
         varchar site_url
         varchar favicon_url
         timestamp last_successful_refresh_at
+        timestamp last_failed_refresh_at
+        text last_error_message
         timestamp created_at
         timestamp updated_at
     }
@@ -96,6 +98,17 @@ erDiagram
         text content
         timestamp published_at
         int8 feed_id FK
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    feed_refreshes {
+        int8 id PK
+        int8 feed_id FK
+        timestamp refreshed_at
+        boolean was_successful
+        int4 entries_created
+        text error_message
         timestamp created_at
         timestamp updated_at
     }
@@ -132,6 +145,7 @@ erDiagram
     users ||--o{ subscription_categories : "has"
     feeds ||--o{ entries : "contains"
     feeds ||--o{ feed_subscriptions : "has"
+    feeds ||--o{ feed_refreshes : "refreshes"
     entries ||--o{ entry_interactions : "has"
     subscription_categories ||--o{ feed_subscriptions : "organizes"
 ```
@@ -140,7 +154,7 @@ erDiagram
 
 The project is currently deployed on [Railway](https://railway.com?referralCode=XPWq2Z):
 
-![](.github/readme/railway.png)
+![Railway deployment diagram](.github/readme/railway.png)
 
 The web server is powered by Laravel Octane, FrankenPHP and Caddy. ⚡️
 

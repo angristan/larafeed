@@ -27,6 +27,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read \App\Models\FeedSubscription|null $subscription
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\User> $users
  * @property-read int|null $users_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\FeedRefresh> $refreshes
+ * @property-read int|null $refreshes_count
  *
  * @method static \Database\Factories\FeedFactory factory($count = null, $state = [])
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed newModelQuery()
@@ -65,13 +67,18 @@ class Feed extends Model
         return $this->hasMany(Entry::class);
     }
 
+    public function refreshes(): HasMany
+    {
+        return $this->hasMany(FeedRefresh::class);
+    }
+
     public function users()
     {
         return $this->belongsToMany(User::class, 'feed_subscriptions', 'feed_id', 'user_id')
             ->as('subscription')
             ->using(FeedSubscription::class)
             ->withTimestamps()
-            ->withPivot('custom_feed_name');
+            ->withPivot(['custom_feed_name', 'category_id']);
     }
 
     public function favicon_url()

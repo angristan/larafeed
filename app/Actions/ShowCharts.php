@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\Entry;
+use App\Models\FeedRefresh;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
@@ -147,11 +148,67 @@ class ShowCharts
             })
             ->values();
 
+        $refreshesBaseQuery = FeedRefresh::query()
+            ->join('feed_subscriptions', function ($join) use ($userId) {
+                $join->on('feed_refreshes.feed_id', '=', 'feed_subscriptions.feed_id')
+                    ->where('feed_subscriptions.user_id', '=', $userId);
+            })
+            ->when($group === 'feed' && $feedId !== null, function ($query) use ($feedId) {
+                $query->where('feed_refreshes.feed_id', '=', $feedId);
+            })
+            ->when($group === 'category' && $categoryId !== null, function ($query) use ($categoryId) {
+                $query->where('feed_subscriptions.category_id', '=', $categoryId);
+            });
+
+        $dailyRefreshesCollection = (clone $refreshesBaseQuery)
+            ->whereBetween('feed_refreshes.refreshed_at', [$startDate, $endDate])
+            ->select([
+                DB::raw('DATE(feed_refreshes.refreshed_at) as date'),
+                DB::raw('SUM(CASE WHEN feed_refreshes.was_successful THEN 1 ELSE 0 END) as successes'),
+                DB::raw('SUM(CASE WHEN feed_refreshes.was_successful = false THEN 1 ELSE 0 END) as failures'),
+                DB::raw('SUM(COALESCE(feed_refreshes.entries_created, 0)) as entries_created'),
+            ])
+            ->groupBy('date')
+            ->orderBy('date')
+            ->get()
+            ->map(static function ($row) {
+                $rowArray = (array) $row;
+                $successes = (int) $rowArray['successes'];
+                $failures = (int) $rowArray['failures'];
+                $totalAttempts = $successes + $failures;
+
+                return [
+                    'date' => $rowArray['date'],
+                    'successes' => $successes,
+                    'failures' => $failures,
+                    'totalAttempts' => $totalAttempts,
+                    'entriesCreated' => (int) $rowArray['entries_created'],
+                ];
+            });
+
+        $refreshesByDate = $dailyRefreshesCollection->keyBy('date');
+
+        $totalRefreshAttempts = $dailyRefreshesCollection->sum('totalAttempts');
+        $totalSuccessfulRefreshes = $dailyRefreshesCollection->sum('successes');
+        $totalFailedRefreshes = $dailyRefreshesCollection->sum('failures');
+        $totalEntriesCreatedByRefresh = $dailyRefreshesCollection->sum('entriesCreated');
+
+        $refreshSummary = [
+            'totalAttempts' => $totalRefreshAttempts,
+            'successes' => $totalSuccessfulRefreshes,
+            'failures' => $totalFailedRefreshes,
+            'successRate' => $totalRefreshAttempts > 0
+                ? round(($totalSuccessfulRefreshes / $totalRefreshAttempts) * 100, 2)
+                : 0,
+            'entriesCreated' => $totalEntriesCreatedByRefresh,
+        ];
+
         $entriesPerDay = $dailyEntries->pluck('entries', 'date');
         $readsPerDay = $dailyReads->pluck('reads', 'date');
 
         $backlogTrend = [];
         $readThrough = [];
+        $refreshDailySeries = [];
         $runningBacklog = 0;
 
         $period = CarbonPeriod::create(
@@ -175,6 +232,21 @@ class ShowCharts
             $readThrough[] = [
                 'date' => $dateKey,
                 'value' => $entries > 0 ? round(($reads / $entries) * 100, 2) : null,
+            ];
+
+            $refreshForDay = $refreshesByDate->get($dateKey);
+            $successes = $refreshForDay['successes'] ?? 0;
+            $failures = $refreshForDay['failures'] ?? 0;
+            $totalAttempts = $refreshForDay['totalAttempts'] ?? 0;
+            $entriesCreatedFromRefresh = $refreshForDay['entriesCreated'] ?? 0;
+
+            $refreshDailySeries[] = [
+                'date' => $dateKey,
+                'successes' => $successes,
+                'failures' => $failures,
+                'totalAttempts' => $totalAttempts,
+                'successRate' => $totalAttempts > 0 ? round(($successes / $totalAttempts) * 100, 2) : null,
+                'entriesCreated' => $entriesCreatedFromRefresh,
             ];
         }
 
@@ -205,6 +277,8 @@ class ShowCharts
             'dailySaved' => $dailySaved,
             'backlogTrend' => $backlogTrend,
             'readThrough' => $readThrough,
+            'dailyRefreshes' => $refreshDailySeries,
+            'refreshSummary' => $refreshSummary,
             'summary' => $summary,
             'filters' => $filters,
             'feeds' => $feeds,

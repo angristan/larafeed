@@ -22,6 +22,7 @@ import {
     IconBook2,
     IconBrandGithub,
     IconChartBar,
+    IconList,
     IconLogout,
     IconSearch,
     IconSettings,
@@ -38,13 +39,13 @@ interface SpotlightConfig {
 interface AppShellLayoutProps {
     children: ReactNode;
     sidebar?: ReactNode;
-    activePage: 'reader' | 'charts' | 'settings';
+    activePage: 'reader' | 'subscriptions' | 'charts' | 'settings';
     spotlight?: SpotlightConfig;
     navbarWidth?: number;
 }
 
 const NAV_ITEMS: Array<{
-    key: 'reader' | 'charts' | 'settings';
+    key: 'reader' | 'subscriptions' | 'charts' | 'settings';
     label: string;
     icon: React.ElementType;
     routeName: string;
@@ -54,6 +55,12 @@ const NAV_ITEMS: Array<{
         label: 'Reader',
         icon: IconBook2,
         routeName: 'feeds.index',
+    },
+    {
+        key: 'subscriptions',
+        label: 'Subscriptions',
+        icon: IconList,
+        routeName: 'subscriptions.index',
     },
     {
         key: 'charts',
