@@ -780,7 +780,7 @@ const AddFeedForm = function AddFeedForm({
                 ]}
                 value={data.category_selection}
                 onChange={(e) => setData('category_selection', e.target.value)}
-                error={errors.category_id}
+                error={errors.category_selection}
             />
 
             {data.category_selection === 'new' && (
