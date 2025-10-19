@@ -24,7 +24,6 @@ import {
     IconChartBar,
     IconList,
     IconLogout,
-    IconRss,
     IconSearch,
     IconSettings,
 } from '@tabler/icons-react';

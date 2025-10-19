@@ -67,9 +67,6 @@ class Feed extends Model
         return $this->hasMany(Entry::class);
     }
 
-    /**
-     * @return HasMany<FeedRefresh>
-     */
     public function refreshes(): HasMany
     {
         return $this->hasMany(FeedRefresh::class);

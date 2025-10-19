@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Actions\Favicon\BuildProfixedFaviconURL;
 use App\Models\Feed;
 use App\Models\FeedRefresh;
+use App\Models\SubscriptionCategory;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -73,7 +74,7 @@ class ShowSubscriptions
         return Inertia::render('Subscriptions', [
             'feeds' => $feeds,
             'categories' => $categories
-                ->map(fn ($category) => [
+                ->map(fn (SubscriptionCategory $category) => [
                     'id' => $category->id,
                     'name' => $category->name,
                 ])
