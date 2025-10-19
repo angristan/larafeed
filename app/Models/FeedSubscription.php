@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property int $category_id
  * @property-read \App\Models\SubscriptionCategory $category
+ * @property-read \App\Models\Feed $feed
  *
  * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedSubscription newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedSubscription newQuery()
@@ -44,5 +45,10 @@ class FeedSubscription extends Pivot
     public function category()
     {
         return $this->belongsTo(SubscriptionCategory::class);
+    }
+
+    public function feed()
+    {
+        return $this->belongsTo(Feed::class);
     }
 }
