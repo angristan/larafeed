@@ -6,19 +6,23 @@ namespace Tests\Feature\Auth;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
+use App\Features\Registration;
+use Laravel\Pennant\Feature;
 
 class RegistrationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_registration_screen_can_be_rendered(): void
+    public function test_registration_screen_is_not_available(): void
     {
-        $response = $this->get('/register');
+        $this->assertFalse(Feature::active(Registration::class));
 
-        $response->assertStatus(200);
+    $response = $this->get('/register');
+
+    $response->assertStatus(400);
     }
 
-    public function test_new_users_can_register(): void
+    public function test_registration_attempts_are_rejected(): void
     {
         $response = $this->post('/register', [
             'name' => 'Test User',
@@ -27,7 +31,7 @@ class RegistrationTest extends TestCase
             'password_confirmation' => 'password',
         ]);
 
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $response->assertStatus(400);
+        $this->assertGuest();
     }
 }

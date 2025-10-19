@@ -29,7 +29,7 @@ class PasswordConfirmationTest extends TestCase
             'password' => 'password',
         ]);
 
-        $response->assertRedirect();
+        $response->assertRedirect(route('feeds.index', absolute: false));
         $response->assertSessionHasNoErrors();
     }
 
