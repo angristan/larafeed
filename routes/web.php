@@ -15,15 +15,18 @@ use App\Actions\OPML\ExportOPML;
 use App\Actions\OPML\ImportOPML;
 use App\Actions\ShowCharts;
 use App\Actions\ShowFeedReader;
+use App\Actions\User\DeleteAccount;
+use App\Actions\User\ShowSettings;
+use App\Actions\User\UpdateProfile;
 use App\Actions\User\WipeAccount;
 use App\Features\Registration;
-use App\Http\Controllers\ProfileController;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Pennant\Feature;
 
 Route::get('/', function () {
-    if (auth()->check()) {
+    if (Auth::check()) {
         return redirect()->route('feeds.index');
     }
 
@@ -33,9 +36,9 @@ Route::get('/', function () {
 });
 
 Route::middleware('auth')->group(function () {
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::get('/profile', ShowSettings::class)->name('profile.edit');
+    Route::patch('/profile', UpdateProfile::class)->name('profile.update');
+    Route::delete('/profile', DeleteAccount::class)->name('profile.destroy');
 
     Route::post('/profile/wipe', WipeAccount::class)->name('profile.wipe');
 

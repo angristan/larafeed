@@ -1,18 +1,15 @@
-import classes from './Import.module.css';
-
-import UserButton from '../Components/UserButton/UserButton';
-import ApplicationLogo from '@/Components/ApplicationLogo/ApplicationLogo';
+import AppShellLayout from '@/Layouts/AppShellLayout/AppShellLayout';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { PageProps, User } from '@/types';
+import { PageProps } from '@/types';
 import { router, usePage } from '@inertiajs/react';
 import { Heatmap, LineChart } from '@mantine/charts';
 import {
     AppShell,
-    Burger,
     Button,
     Card,
-    Code,
     Group,
+    NavLink,
+    ScrollArea,
     SegmentedControl,
     Select,
     SimpleGrid,
@@ -21,8 +18,12 @@ import {
     TextInput,
     Title,
 } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
-import { IconSearch } from '@tabler/icons-react';
+import {
+    IconActivity,
+    IconAdjustments,
+    IconChartHistogram,
+    IconListDetails,
+} from '@tabler/icons-react';
 import { ReactNode, useMemo, useState } from 'react';
 
 type HeatmapSeries = Record<string, number>;
@@ -362,7 +363,7 @@ const Main = function Main({
     return (
         <AppShell.Main>
             <Stack gap="xl">
-                <Stack gap="md">
+                <Stack gap="md" id="filters">
                     <Title order={2}>Filters</Title>
                     <Stack gap="sm">
                         <Group gap="sm" wrap="wrap">
@@ -467,7 +468,7 @@ const Main = function Main({
                     </Stack>
                 </Stack>
 
-                <Stack gap="md">
+                <Stack gap="md" id="key-metrics">
                     <Title order={2}>Key Metrics</Title>
                     <SimpleGrid
                         cols={{ base: 1, sm: 2, md: 3, lg: 5 }}
@@ -497,7 +498,7 @@ const Main = function Main({
                     </SimpleGrid>
                 </Stack>
 
-                <Stack gap="xl">
+                <Stack gap="xl" id="activity">
                     <Stack gap="sm">
                         <Title order={2}>Daily Reads Activity</Title>
                         <Heatmap
@@ -572,7 +573,9 @@ const Main = function Main({
                             ]}
                         />
                     </Stack>
+                </Stack>
 
+                <Stack gap="xl" id="trends">
                     <Stack gap="sm">
                         <Title order={2}>Unread Backlog Trend</Title>
                         <LineChart
@@ -628,34 +631,55 @@ const Main = function Main({
     );
 };
 
-const NavBar = function Navbar({ user }: { user: User }) {
-    return (
-        <AppShell.Navbar>
-            <AppShell.Section pr="md" pl="md" pt="md">
-                <TextInput
-                    placeholder="Search"
-                    size="xs"
-                    leftSection={<IconSearch size={12} stroke={1.5} />}
-                    rightSectionWidth={70}
-                    rightSection={
-                        <Code className={classes.searchCode}>Ctrl + K</Code>
-                    }
-                    styles={{ section: { pointerEvents: 'none' } }}
-                    mb="sm"
+const ChartsSidebar = () => (
+    <AppShell.Navbar>
+        <AppShell.Section p="md" pb="xs">
+            <Text size="xs" c="dimmed" fw={500} tt="uppercase">
+                Sections
+            </Text>
+        </AppShell.Section>
+        <AppShell.Section component={ScrollArea} px="md" pb="md" grow>
+            <Stack
+                gap={4}
+                component="nav"
+                aria-label="Charts sections navigation"
+            >
+                <NavLink
+                    component="a"
+                    href="#filters"
+                    label="Filters"
+                    description="Range & grouping"
+                    leftSection={<IconAdjustments size={16} stroke={1.5} />}
                 />
-            </AppShell.Section>
-
-            <AppShell.Section>
-                <UserButton user={user} />
-            </AppShell.Section>
-        </AppShell.Navbar>
-    );
-};
+                <NavLink
+                    component="a"
+                    href="#key-metrics"
+                    label="Key metrics"
+                    description="Overall totals"
+                    leftSection={<IconListDetails size={16} stroke={1.5} />}
+                />
+                <NavLink
+                    component="a"
+                    href="#activity"
+                    label="Daily activity"
+                    description="Reads, entries, saves"
+                    leftSection={<IconActivity size={16} stroke={1.5} />}
+                />
+                <NavLink
+                    component="a"
+                    href="#trends"
+                    label="Trends"
+                    description="Backlog & read-through"
+                    leftSection={<IconChartHistogram size={16} stroke={1.5} />}
+                />
+            </Stack>
+        </AppShell.Section>
+    </AppShell.Navbar>
+);
 
 const Charts = () => {
     const { props } = usePage<ChartsPageProps>();
     const {
-        auth,
         dailyReads,
         dailyEntries,
         dailySaved,
@@ -666,8 +690,6 @@ const Charts = () => {
         feeds,
         categories,
     } = props;
-
-    const [opened, { toggle }] = useDisclosure();
     const filtersKey = [
         filters.range,
         filters.group,
@@ -678,32 +700,7 @@ const Charts = () => {
     ].join('|');
 
     return (
-        <AppShell
-            header={{ height: 60 }}
-            navbar={{
-                width: 300,
-                breakpoint: 'sm',
-                collapsed: { mobile: !opened },
-            }}
-            padding="md"
-        >
-            <AppShell.Header>
-                <Group h="100%" px="md">
-                    <Burger
-                        opened={opened}
-                        onClick={toggle}
-                        hiddenFrom="sm"
-                        size="sm"
-                    />
-                    <ApplicationLogo width={50} />
-                    <Title order={3} style={{ margin: 0 }}>
-                        Larafeed
-                    </Title>
-                </Group>
-            </AppShell.Header>
-
-            <NavBar user={auth.user} />
-
+        <AppShellLayout activePage="charts" sidebar={<ChartsSidebar />}>
             <Main
                 key={filtersKey}
                 dailyReads={dailyReads}
@@ -716,7 +713,7 @@ const Charts = () => {
                 feeds={feeds}
                 categories={categories}
             />
-        </AppShell>
+        </AppShellLayout>
     );
 };
 

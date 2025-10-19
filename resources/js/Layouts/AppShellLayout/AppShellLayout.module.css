@@ -1,0 +1,17 @@
+.user {
+    color: light-dark(var(--mantine-color-black), var(--mantine-color-dark-0));
+    cursor: pointer;
+
+    @mixin hover {
+        background-color: light-dark(
+            var(--mantine-color-gray-0),
+            var(--mantine-color-dark-8)
+        );
+    }
+}
+
+.logoLink {
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}

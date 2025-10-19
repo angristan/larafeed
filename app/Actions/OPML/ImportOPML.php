@@ -11,16 +11,15 @@ use App\Models\SubscriptionCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Inertia\Inertia;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 class ImportOPML
 {
     use AsAction;
 
-    public function index(): \Inertia\Response
+    public function index(): \Illuminate\Http\RedirectResponse
     {
-        return Inertia::render('OPMLImportExport');
+        return redirect()->route('profile.edit', ['section' => 'opml']);
     }
 
     public function store(Request $request): \Illuminate\Http\RedirectResponse
@@ -51,6 +50,6 @@ class ImportOPML
             }
         }
 
-        return redirect()->route('import.index');
+        return redirect()->route('profile.edit', ['section' => 'opml']);
     }
 }
