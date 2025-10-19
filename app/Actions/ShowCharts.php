@@ -172,16 +172,17 @@ class ShowCharts
             ->orderBy('date')
             ->get()
             ->map(static function ($row) {
-                $successes = (int) $row->successes;
-                $failures = (int) $row->failures;
+                $rowArray = (array) $row;
+                $successes = (int) $rowArray['successes'];
+                $failures = (int) $rowArray['failures'];
                 $totalAttempts = $successes + $failures;
 
                 return [
-                    'date' => $row->date,
+                    'date' => $rowArray['date'],
                     'successes' => $successes,
                     'failures' => $failures,
                     'totalAttempts' => $totalAttempts,
-                    'entriesCreated' => (int) $row->entries_created,
+                    'entriesCreated' => (int) $rowArray['entries_created'],
                 ];
             });
 
