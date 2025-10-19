@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Auth;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\TestCase;
 use App\Features\Registration;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Pennant\Feature;
+use Tests\TestCase;
 
 class RegistrationTest extends TestCase
 {
@@ -17,9 +17,9 @@ class RegistrationTest extends TestCase
     {
         $this->assertFalse(Feature::active(Registration::class));
 
-    $response = $this->get('/register');
+        $response = $this->get('/register');
 
-    $response->assertStatus(400);
+        $response->assertStatus(400);
     }
 
     public function test_registration_attempts_are_rejected(): void
