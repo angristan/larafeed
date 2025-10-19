@@ -15,6 +15,7 @@ use App\Actions\OPML\ExportOPML;
 use App\Actions\OPML\ImportOPML;
 use App\Actions\ShowCharts;
 use App\Actions\ShowFeedReader;
+use App\Actions\ShowSubscriptions;
 use App\Actions\User\DeleteAccount;
 use App\Actions\User\ShowSettings;
 use App\Actions\User\UpdateProfile;
@@ -64,6 +65,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/export', ExportOPML::class)->name('export.download');
 
     Route::get('/charts', ShowCharts::class)->name('charts.index');
+    Route::get('/subscriptions', ShowSubscriptions::class)->name('subscriptions.index');
 });
 
 require __DIR__.'/auth.php';

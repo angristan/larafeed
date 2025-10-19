@@ -6,10 +6,12 @@ namespace App\Actions\Feed;
 
 use App\Actions\Favicon\GetFaviconURL;
 use App\Models\Feed;
+use App\Models\FeedRefresh;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 class CreateNewFeed
@@ -108,15 +110,19 @@ class CreateNewFeed
         $feed_name = $crawledFeed->get_title() ?? $fallback_name ?? $site_url;
         $feed_name = str_replace('&amp;', '&', $feed_name);
 
+        $refreshTimestamp = now();
+
+        $trimmedError = $error ? Str::limit($error, 255, '') : null;
+
         $feed = Feed::create([
             'name' => $feed_name,
             'feed_url' => $feed_url,
             'site_url' => $site_url,
             'favicon_url' => $favicon_url,
             'favicon_updated_at' => $favicon_url ? now() : null,
-            'last_successful_refresh_at' => $error ? null : now(),
-            'last_failed_refresh_at' => $error ? now() : null,
-            'last_error_message' => $error,
+            'last_successful_refresh_at' => $error ? null : $refreshTimestamp,
+            'last_failed_refresh_at' => $error ? $refreshTimestamp : null,
+            'last_error_message' => $trimmedError,
         ]);
 
         if ($attachedUser) {
@@ -164,6 +170,14 @@ class CreateNewFeed
         }
 
         $feed->entries()->insert($newFeedEntries);
+
+        FeedRefresh::create([
+            'feed_id' => $feed->id,
+            'refreshed_at' => $refreshTimestamp,
+            'was_successful' => ! $error,
+            'entries_created' => count($newFeedEntries),
+            'error_message' => $error,
+        ]);
 
         return redirect()->route('feeds.index', ['feed' => $feed->id]);
     }
