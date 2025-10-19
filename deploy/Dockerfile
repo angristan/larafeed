@@ -1,6 +1,6 @@
 # Adapted from https://github.com/exaco/laravel-octane-dockerfile
 
-ARG PHP_VERSION=8.3
+ARG PHP_VERSION=8.4
 ARG FRANKENPHP_VERSION=1.9
 ARG COMPOSER_VERSION=2.8
 ARG NODE_VERSION=22
@@ -52,7 +52,7 @@ RUN apt-get update; \
     # excimer \
     # for datadog
     && curl -LO https://github.com/DataDog/dd-trace-php/releases/latest/download/datadog-setup.php \
-    && php datadog-setup.php --php-bin=all --enable-appsec --enable-profiling \
+    && php datadog-setup.php --php-bin=all \
     && apt-get -y autoremove \
     && apt-get clean \
     && docker-php-source delete \
