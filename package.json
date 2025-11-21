@@ -29,7 +29,7 @@
         "@types/react-dom": "^18.0.10",
         "@typescript-eslint/eslint-plugin": "^8.46.2",
         "@typescript-eslint/parser": "^8.32.1",
-        "@vitejs/plugin-react": "^5.0.4",
+        "@vitejs/plugin-react": "^5.1.1",
         "autoprefixer": "^10.4.21",
         "axios": "^1.13.2",
         "concurrently": "^9.2.1",
@@ -52,7 +52,7 @@
         "react-dom": "^18.2.0",
         "recharts": "^2.15.4",
         "typescript": "^5.9.3",
-        "vite": "^7.1",
+        "vite": "^7.2",
         "@mantine/charts": "^8.3.5",
         "babel-plugin-react-compiler": "^19.0.0-beta-27714ef-20250124",
         "reading-time-estimator": "^1.14.0"
