@@ -28,10 +28,7 @@ import {
     IconSearch,
 } from '@tabler/icons-react';
 import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
 import { ReactNode, useMemo, useState } from 'react';
-
-dayjs.extend(relativeTime);
 
 type FeedRefreshDto = {
     id: number;

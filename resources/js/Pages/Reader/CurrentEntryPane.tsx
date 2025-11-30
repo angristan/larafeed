@@ -34,13 +34,7 @@ import {
     IconStarFilled,
 } from '@tabler/icons-react';
 import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import utc from 'dayjs/plugin/utc';
 import { useEffect, useRef, useState } from 'react';
-import { readingTime } from 'reading-time-estimator';
-
-dayjs.extend(relativeTime);
-dayjs.extend(utc);
 
 export default function CurrentEntryPane({
     currententry,

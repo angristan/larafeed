@@ -16,12 +16,7 @@ import {
 import { useHotkeys } from '@mantine/hooks';
 import { IconStarFilled } from '@tabler/icons-react';
 import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import utc from 'dayjs/plugin/utc';
 import { useEffect, useRef } from 'react';
-
-dayjs.extend(relativeTime);
-dayjs.extend(utc);
 
 export default function EntryListPane({
     entries,

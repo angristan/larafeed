@@ -44,12 +44,7 @@ import {
     IconTrash,
 } from '@tabler/icons-react';
 import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import utc from 'dayjs/plugin/utc';
 import { FormEventHandler, ReactNode, useState } from 'react';
-
-dayjs.extend(relativeTime);
-dayjs.extend(utc);
 
 export default function Sidebar({
     feeds,

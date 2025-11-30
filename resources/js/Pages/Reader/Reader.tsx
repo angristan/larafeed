@@ -16,12 +16,7 @@ import {
 } from '@mantine/core';
 import { SpotlightActionData } from '@mantine/spotlight';
 import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import utc from 'dayjs/plugin/utc';
 import { ReactNode } from 'react';
-
-dayjs.extend(relativeTime);
-dayjs.extend(utc);
 
 interface ReaderProps extends PageProps {
     feeds: Feed[];
