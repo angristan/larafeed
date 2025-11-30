@@ -211,7 +211,7 @@ class GoogleReaderAPITest extends TestCase
             'entry_id' => $entry->id,
         ]);
 
-        $interaction = $this->user->entriesInterracted()
+        $interaction = $this->user->entriesInteracted()
             ->where('entry_id', $entry->id)
             ->first();
         $this->assertNotNull($interaction->interaction->read_at);
@@ -231,7 +231,7 @@ class GoogleReaderAPITest extends TestCase
 
         $response->assertOk();
 
-        $interaction = $this->user->entriesInterracted()
+        $interaction = $this->user->entriesInteracted()
             ->where('entry_id', $entry->id)
             ->first();
         $this->assertNull($interaction->interaction->read_at);
@@ -250,7 +250,7 @@ class GoogleReaderAPITest extends TestCase
 
         $response->assertOk();
 
-        $interaction = $this->user->entriesInterracted()
+        $interaction = $this->user->entriesInteracted()
             ->where('entry_id', $entry->id)
             ->first();
         $this->assertNotNull($interaction->interaction->starred_at);
@@ -270,7 +270,7 @@ class GoogleReaderAPITest extends TestCase
 
         $response->assertOk();
 
-        $interaction = $this->user->entriesInterracted()
+        $interaction = $this->user->entriesInteracted()
             ->where('entry_id', $entry->id)
             ->first();
         $this->assertNull($interaction->interaction->starred_at);

@@ -23,8 +23,8 @@ use Laravel\Sanctum\HasApiTokens;
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property string|null $fever_api_key
  * @property-read \App\Models\EntryInteraction|null $interaction
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Entry> $entriesInterracted
- * @property-read int|null $entries_interracted_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Entry> $entriesInteracted
+ * @property-read int|null $entries_interacted_count
  * @property-read \App\Models\FeedSubscription|null $subscription
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Feed> $feeds
  * @property-read int|null $feeds_count
@@ -106,7 +106,7 @@ class User extends Authenticatable implements MustVerifyEmail
     /**
      * @return BelongsToMany<Entry, $this, EntryInteraction, 'interaction'>
      */
-    public function entriesInterracted(): BelongsToMany
+    public function entriesInteracted(): BelongsToMany
     {
         return $this->belongsToMany(Entry::class, 'entry_interactions', 'user_id', 'entry_id')
             ->as('interaction')

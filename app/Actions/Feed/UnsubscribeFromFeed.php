@@ -15,7 +15,7 @@ class UnsubscribeFromFeed
 
     public function handle(User $user, int $feedId): void
     {
-        $user->entriesInterracted()->where('feed_id', $feedId)->delete();
+        $user->entriesInteracted()->where('feed_id', $feedId)->delete();
         $user->feeds()->detach($feedId);
 
         // Delete feed if no more users are subscribed to it
