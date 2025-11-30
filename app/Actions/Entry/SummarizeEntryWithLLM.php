@@ -6,10 +6,12 @@ namespace App\Actions\Entry;
 
 use App\Models\Entry;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Lorisleiva\Actions\Concerns\AsAction;
 use Prism\Prism\Enums\Provider;
 use Prism\Prism\Facades\Prism;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class SummarizeEntryWithLLM
 {
@@ -51,6 +53,16 @@ EOT;
 
     public function asController(Entry $entry): JsonResponse
     {
+        // Verify the authenticated user has access to this entry's feed
+        $userHasAccess = Auth::user()
+            ->feeds()
+            ->where('feeds.id', $entry->feed_id)
+            ->exists();
+
+        if (! $userHasAccess) {
+            throw new NotFoundHttpException('Entry not found');
+        }
+
         $summary = $this->handle($entry);
 
         return response()->json([
