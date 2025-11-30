@@ -167,7 +167,7 @@ class GetStreamContents
             'direction' => 'ltr',
             'self' => [
                 [
-                    'href' => 'http://localhost:8000/api/reader/reader/api/0/stream/items/contents',
+                    'href' => url('/api/reader/reader/api/0/stream/items/contents'),
                 ],
             ],
             'alternate' => [
