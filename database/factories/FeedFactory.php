@@ -19,10 +19,10 @@ class FeedFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => 'The Cloudflare Blog',
-            'feed_url' => 'https://blog.cloudflare.com/rss/',
-            'site_url' => 'https://blog.cloudflare.com/',
-            'favicon_url' => 'https://blog.cloudflare.com/favicon.png',
+            'name' => $this->faker->company . ' Blog',
+            'feed_url' => $this->faker->unique()->url . '/rss',
+            'site_url' => $this->faker->url,
+            'favicon_url' => $this->faker->imageUrl(32, 32),
         ];
     }
 }

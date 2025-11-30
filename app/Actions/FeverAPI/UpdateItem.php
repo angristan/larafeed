@@ -28,7 +28,7 @@ class UpdateItem extends BaseFeverAction
             ]);
         }
 
-        if ($request->input('as') === 'saved') {
+        if ($request->input('as') === 'save') {
             $entry->favorite(Auth::user());
         }
 
