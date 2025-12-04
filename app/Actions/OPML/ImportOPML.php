@@ -26,8 +26,29 @@ class ImportOPML
     {
         $file = $request->file('opml_file');
 
-        if (! $file || ! ($xml = simplexml_load_file($file->getPathname()))) {
-            throw new \Exception('Unable to parse OPML file');
+        if (! $file) {
+            throw new \Exception('No OPML file provided');
+        }
+
+        $content = file_get_contents($file->getPathname());
+
+        if ($content === false) {
+            throw new \Exception('Unable to read OPML file');
+        }
+
+        // Disable network access to prevent XXE attacks (SSRF, external entity loading)
+        // Use internal error handling to capture libxml errors
+        $previousUseErrors = libxml_use_internal_errors(true);
+
+        $xml = simplexml_load_string($content, 'SimpleXMLElement', LIBXML_NONET);
+
+        $errors = libxml_get_errors();
+        libxml_clear_errors();
+        libxml_use_internal_errors($previousUseErrors);
+
+        if ($xml === false) {
+            $errorMessage = ! empty($errors) ? $errors[0]->message : 'Unknown XML error';
+            throw new \Exception('Unable to parse OPML file: '.trim($errorMessage));
         }
 
         // TODO: make this optional
