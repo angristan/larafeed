@@ -13,7 +13,10 @@ class UpdateItem extends BaseFeverAction
 {
     use AsAction;
 
-    public function handle(Request $request)
+    /**
+     * @return array<string, mixed>
+     */
+    public function handle(Request $request): array
     {
         $entry = Entry::whereId($request->input('id'))->first();
         if (! $entry) {

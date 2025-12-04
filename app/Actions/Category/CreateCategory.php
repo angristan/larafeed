@@ -6,6 +6,7 @@ namespace App\Actions\Category;
 
 use App\Models\SubscriptionCategory;
 use App\Models\User;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Lorisleiva\Actions\Concerns\AsAction;
@@ -14,6 +15,9 @@ class CreateCategory
 {
     use AsAction;
 
+    /**
+     * @return array<string, mixed>
+     */
     public function rules(): array
     {
         return [
@@ -21,6 +25,9 @@ class CreateCategory
         ];
     }
 
+    /**
+     * @return array<string, string>
+     */
     public function getValidationMessages(): array
     {
         return [
@@ -29,7 +36,7 @@ class CreateCategory
         ];
     }
 
-    public function asController(Request $request)
+    public function asController(Request $request): RedirectResponse
     {
         if (SubscriptionCategory::query()->where('user_id', Auth::id())->where('name', $request->categoryName)->exists()) {
             return redirect()->back()->withErrors([

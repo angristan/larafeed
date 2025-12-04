@@ -11,7 +11,7 @@ class GetUserInfo
 {
     use AsAction;
 
-    public function asController()
+    public function asController(): \Illuminate\Http\JsonResponse
     {
         $user = Auth::user();
 

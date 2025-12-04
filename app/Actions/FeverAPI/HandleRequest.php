@@ -12,7 +12,10 @@ class HandleRequest
 {
     use AsAction;
 
-    public function rules()
+    /**
+     * @return array<string, mixed>
+     */
+    public function rules(): array
     {
         return [
             'groups' => ['sometimes'],
@@ -29,7 +32,10 @@ class HandleRequest
         ];
     }
 
-    public function asController(Request $request)
+    /**
+     * @return array<string, mixed>|\Illuminate\Http\JsonResponse
+     */
+    public function asController(Request $request): array|\Illuminate\Http\JsonResponse
     {
         if ($request->has('groups')) {
             return app(GetGroups::class)->handle();

@@ -24,7 +24,7 @@ class UnsubscribeFromFeed
         }
     }
 
-    public function asController(int $feedId)
+    public function asController(int $feedId): \Illuminate\Http\RedirectResponse
     {
         $this->handle(Auth::user(), $feedId);
 

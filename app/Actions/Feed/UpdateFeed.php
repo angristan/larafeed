@@ -13,6 +13,9 @@ class UpdateFeed
 {
     use AsAction;
 
+    /**
+     * @return array<string, mixed>
+     */
     public function rules(): array
     {
         return [
@@ -21,7 +24,7 @@ class UpdateFeed
         ];
     }
 
-    public function handle(Request $request, string $feed_id)
+    public function handle(Request $request, string $feed_id): \Illuminate\Http\RedirectResponse
     {
         $subscription = FeedSubscription::where('feed_id', $feed_id)->where('user_id', Auth::id())->first();
 

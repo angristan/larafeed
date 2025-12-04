@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Entry;
 
 use App\Models\Entry;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Lorisleiva\Actions\Concerns\AsAction;
@@ -13,6 +14,9 @@ class UpdateEntryInteractions
 {
     use AsAction;
 
+    /**
+     * @return array<string, mixed>
+     */
     public function rules(): array
     {
         return [
@@ -22,7 +26,7 @@ class UpdateEntryInteractions
         ];
     }
 
-    public function handle(Request $request, string $entry_id)
+    public function handle(Request $request, string $entry_id): RedirectResponse
     {
         if (! $entry_id) {
             return redirect()->back()->withErrors('Missing entry id');

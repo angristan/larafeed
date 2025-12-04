@@ -16,7 +16,7 @@ class WipeAccount
 {
     use AsAction;
 
-    public function handle(Request $request)
+    public function handle(Request $request): \Illuminate\Http\RedirectResponse
     {
         EntryInteraction::where('user_id', Auth::user()->id)->delete();
 

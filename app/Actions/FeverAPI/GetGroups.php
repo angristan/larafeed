@@ -9,7 +9,10 @@ use Illuminate\Support\Facades\Auth;
 
 class GetGroups extends BaseFeverAction
 {
-    public function handle()
+    /**
+     * @return array<string, mixed>
+     */
+    public function handle(): array
     {
         $groups = Auth::user()->subscriptionCategories()
             ->select(['id', 'name as title'])

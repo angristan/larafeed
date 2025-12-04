@@ -59,7 +59,7 @@ class MarkEntriesAsRead
     /**
      * Create new read interactions for entries without interactions
      */
-    private function createNewInteractions(int $feedId)
+    private function createNewInteractions(int $feedId): void
     {
         $entriesWithoutInteraction = Entry::query()
             ->select('id')

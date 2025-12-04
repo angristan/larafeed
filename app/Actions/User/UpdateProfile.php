@@ -15,6 +15,9 @@ class UpdateProfile
 {
     use AsAction;
 
+    /**
+     * @param array<string, mixed> $attributes
+     */
     public function handle(User $user, array $attributes): void
     {
         $user->fill($attributes);

@@ -12,7 +12,7 @@ class GetSubscriptionList
 {
     use AsAction;
 
-    public function asController()
+    public function asController(): \Illuminate\Http\JsonResponse
     {
         $feeds = Auth::user()->feeds()
             ->join('subscription_categories', 'feed_subscriptions.category_id', '=', 'subscription_categories.id')

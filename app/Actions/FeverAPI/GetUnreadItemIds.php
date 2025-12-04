@@ -9,7 +9,10 @@ use Illuminate\Support\Facades\Auth;
 
 class GetUnreadItemIds extends BaseFeverAction
 {
-    public function handle()
+    /**
+     * @return array<string, mixed>
+     */
+    public function handle(): array
     {
         $unreadIds = Entry::query()
             ->join('feed_subscriptions', function ($join) {

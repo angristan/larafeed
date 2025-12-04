@@ -14,7 +14,7 @@ class BuildProfixedFaviconURL
 {
     use AsAction;
 
-    public function handle(?string $favicon_url)
+    public function handle(?string $favicon_url): string
     {
         if (is_null($favicon_url)) {
             return config('app.url').'/rss.svg';

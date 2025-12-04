@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Database\Factories\EntryFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 /**
  * App\Models\Entry
@@ -43,6 +45,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class Entry extends Model
 {
+    /** @use HasFactory<EntryFactory> */
     use HasFactory;
 
     /**
@@ -62,13 +65,18 @@ class Entry extends Model
 
     /**
      * Get the feed that owns the entry.
+     *
+     * @return BelongsTo<Feed, $this>
      */
     public function feed(): BelongsTo
     {
         return $this->belongsTo(Feed::class);
     }
 
-    public function users()
+    /**
+     * @return BelongsToMany<User, $this, EntryInteraction, 'interaction'>
+     */
+    public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'entry_interactions', 'entry_id', 'user_id')
             ->as('interaction')
@@ -77,7 +85,7 @@ class Entry extends Model
             ->withPivot(['read_at', 'starred_at', 'archived_at']);
     }
 
-    private function updateOrCreateInteractionWithAttribute(User $user, string $column, mixed $value)
+    private function updateOrCreateInteractionWithAttribute(User $user, string $column, mixed $value): void
     {
         if ($this->users->contains($user)) {
             $this->users()->updateExistingPivot($user, [$column => $value]);
@@ -86,32 +94,32 @@ class Entry extends Model
         }
     }
 
-    public function markAsRead(User $user)
+    public function markAsRead(User $user): void
     {
         $this->updateOrCreateInteractionWithAttribute($user, 'read_at', now());
     }
 
-    public function markAsUnread(User $user)
+    public function markAsUnread(User $user): void
     {
         $this->updateOrCreateInteractionWithAttribute($user, 'read_at', null);
     }
 
-    public function favorite(User $user)
+    public function favorite(User $user): void
     {
         $this->updateOrCreateInteractionWithAttribute($user, 'starred_at', now());
     }
 
-    public function unfavorite(User $user)
+    public function unfavorite(User $user): void
     {
         $this->updateOrCreateInteractionWithAttribute($user, 'starred_at', null);
     }
 
-    public function archive(User $user)
+    public function archive(User $user): void
     {
         $this->updateOrCreateInteractionWithAttribute($user, 'archived_at', now());
     }
 
-    public function unarchive(User $user)
+    public function unarchive(User $user): void
     {
         $this->updateOrCreateInteractionWithAttribute($user, 'archived_at', null);
     }

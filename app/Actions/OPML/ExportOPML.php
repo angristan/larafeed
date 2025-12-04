@@ -69,7 +69,7 @@ class ExportOPML
         return $xml->asXML();
     }
 
-    public function asController()
+    public function asController(): \Illuminate\Http\Response
     {
         $xml = $this->handle();
 

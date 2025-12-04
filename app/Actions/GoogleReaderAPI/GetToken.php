@@ -11,7 +11,7 @@ class GetToken
 {
     use AsAction;
 
-    public function asController(Request $request)
+    public function asController(Request $request): \Illuminate\Http\Response
     {
         // Since the tokens don't expire, we can just return the token as is
 

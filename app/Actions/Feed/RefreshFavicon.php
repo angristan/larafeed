@@ -19,7 +19,7 @@ class RefreshFavicon
         $this->handle($feed);
     }
 
-    public function asController(string $feed_id)
+    public function asController(string $feed_id): \Illuminate\Http\JsonResponse
     {
         if (! $feed_id) {
             return response()->json(['error' => 'Missing feed id'], 400);

@@ -10,7 +10,10 @@ use Illuminate\Support\Facades\Auth;
 
 class GetFeeds extends BaseFeverAction
 {
-    public function handle()
+    /**
+     * @return array<string, mixed>
+     */
+    public function handle(): array
     {
         $feeds = Auth::user()->feeds()
             ->select([

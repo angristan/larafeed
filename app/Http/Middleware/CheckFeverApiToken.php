@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Auth;
 
 class CheckFeverApiToken
 {
-    public function handle(Request $request, Closure $next)
+    public function handle(Request $request, Closure $next): \Illuminate\Http\JsonResponse|\Symfony\Component\HttpFoundation\Response
     {
         $apiKey = $request->input('api_key');
 

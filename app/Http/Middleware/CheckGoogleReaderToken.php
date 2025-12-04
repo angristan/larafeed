@@ -12,7 +12,7 @@ use Laravel\Sanctum\PersonalAccessToken;
 
 class CheckGoogleReaderToken
 {
-    public function handle(Request $request, Closure $next)
+    public function handle(Request $request, Closure $next): \Illuminate\Http\Response|\Symfony\Component\HttpFoundation\Response
     {
         $authHeader = $request->header('Authorization');
 

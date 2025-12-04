@@ -14,6 +14,9 @@ class ClientLogin
 {
     use AsAction;
 
+    /**
+     * @return array<string, mixed>
+     */
     public function rules(): array
     {
         return [
@@ -22,7 +25,7 @@ class ClientLogin
         ];
     }
 
-    public function asController(Request $request)
+    public function asController(Request $request): \Illuminate\Http\Response|\Illuminate\Http\JsonResponse
     {
         $user = User::where('email', $request->input('Email'))->first();
         if (! $user || ! Hash::check($request->input('Passwd'), $user->password)) {

@@ -14,7 +14,7 @@ class GetStreamItemIds
 {
     use AsAction;
 
-    public function asController(Request $request)
+    public function asController(Request $request): \Illuminate\Http\JsonResponse
     {
         $continuation = $request->input('c');
         $streamType = $request->input('s');

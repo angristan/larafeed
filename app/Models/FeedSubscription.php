@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
 /**
@@ -42,12 +43,18 @@ class FeedSubscription extends Pivot
             ->where('feed_id', $this->getAttribute('feed_id'));
     }
 
-    public function category()
+    /**
+     * @return BelongsTo<SubscriptionCategory, $this>
+     */
+    public function category(): BelongsTo
     {
         return $this->belongsTo(SubscriptionCategory::class);
     }
 
-    public function feed()
+    /**
+     * @return BelongsTo<Feed, $this>
+     */
+    public function feed(): BelongsTo
     {
         return $this->belongsTo(Feed::class);
     }

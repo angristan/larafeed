@@ -12,7 +12,7 @@ class NotifyLoginFailureOnTelegram
 {
     use AsAction;
 
-    public function handle(LoginFailed $event)
+    public function handle(LoginFailed $event): void
     {
         TelegramMessage::create()
             ->to(config('services.telegram-bot-api.chat_id'))

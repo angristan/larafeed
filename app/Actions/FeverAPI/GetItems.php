@@ -11,7 +11,10 @@ use Illuminate\Support\Facades\Auth;
 
 class GetItems extends BaseFeverAction
 {
-    public function handle(Request $request)
+    /**
+     * @return array<string, mixed>
+     */
+    public function handle(Request $request): array
     {
         $query = Entry::query()
             ->join('feed_subscriptions', function ($join) {

@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Actions\Favicon\BuildProfixedFaviconURL;
+use Database\Factories\FeedFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -51,6 +53,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Feed extends Model
 {
+    /** @use HasFactory<FeedFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -70,17 +73,26 @@ class Feed extends Model
         'favicon_updated_at' => 'datetime',
     ];
 
+    /**
+     * @return HasMany<Entry, $this>
+     */
     public function entries(): HasMany
     {
         return $this->hasMany(Entry::class);
     }
 
+    /**
+     * @return HasMany<FeedRefresh, $this>
+     */
     public function refreshes(): HasMany
     {
         return $this->hasMany(FeedRefresh::class);
     }
 
-    public function users()
+    /**
+     * @return BelongsToMany<User, $this, FeedSubscription, 'subscription'>
+     */
+    public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'feed_subscriptions', 'feed_id', 'user_id')
             ->as('subscription')
@@ -89,7 +101,7 @@ class Feed extends Model
             ->withPivot(['custom_feed_name', 'category_id']);
     }
 
-    public function favicon_url()
+    public function favicon_url(): ?string
     {
         return BuildProfixedFaviconURL::run($this->favicon_url);
     }

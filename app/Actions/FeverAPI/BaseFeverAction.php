@@ -12,6 +12,9 @@ class BaseFeverAction
 {
     use AsAction;
 
+    /**
+     * @return array{api_version: int, auth: int, last_refreshed_on_time: int}
+     */
     public function getBaseResponse(): array
     {
         $lastRefresh = Feed::query()->max('last_successful_refresh_at');

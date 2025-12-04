@@ -14,6 +14,9 @@ class EditTag
 {
     use AsAction;
 
+    /**
+     * @return array<string, mixed>
+     */
     public function rules(): array
     {
         return [
@@ -23,7 +26,7 @@ class EditTag
         ];
     }
 
-    public function asController(Request $request)
+    public function asController(Request $request): \Illuminate\Http\Response
     {
         $entryId = base_convert($request->input('i'), 16, 10);
 

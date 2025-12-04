@@ -20,12 +20,12 @@ class RefreshFeedEntries
 {
     use AsAction;
 
-    public function asJob(Feed $feed)
+    public function asJob(Feed $feed): void
     {
         RefreshFeedEntries::run($feed);
     }
 
-    public function handle(Feed $feed)
+    public function handle(Feed $feed): void
     {
         $startedAt = now();
 
@@ -136,7 +136,7 @@ class RefreshFeedEntries
         }
     }
 
-    public function asController(string $feed_id)
+    public function asController(string $feed_id): \Illuminate\Http\JsonResponse
     {
         if (! $feed_id) {
             return response()->json(['error' => 'Missing feed id'], 400);

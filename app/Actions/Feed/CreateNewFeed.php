@@ -20,6 +20,9 @@ class CreateNewFeed
 {
     use AsAction;
 
+    /**
+     * @return array<string, mixed>
+     */
     public function rules(): array
     {
         return [
@@ -29,6 +32,9 @@ class CreateNewFeed
         ];
     }
 
+    /**
+     * @return array<string, string>
+     */
     public function getValidationMessages(): array
     {
         return [
@@ -43,7 +49,7 @@ class CreateNewFeed
         ];
     }
 
-    public function asController(Request $request)
+    public function asController(Request $request): \Illuminate\Http\RedirectResponse
     {
         $categoryIdInput = $request->input('category_id');
         $categoryName = trim((string) $request->input('category_name', ''));
@@ -89,7 +95,7 @@ class CreateNewFeed
         return $this->handle($request->feed_url, $request->user(), $resolvedCategoryId);
     }
 
-    public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
+    public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null): \Illuminate\Http\RedirectResponse
     {
         $error = null;
 
