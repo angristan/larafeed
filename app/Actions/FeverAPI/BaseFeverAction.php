@@ -14,10 +14,13 @@ class BaseFeverAction
 
     public function getBaseResponse(): array
     {
+        $lastRefresh = Feed::query()->max('last_successful_refresh_at');
+        $timestamp = $lastRefresh ? Carbon::parse($lastRefresh)->timestamp : Carbon::now()->timestamp;
+
         return [
             'api_version' => 3,
             'auth' => 1,
-            'last_refreshed_on_time' => Feed::max('last_successful_refresh_at')?->timestamp ?? Carbon::now()->timestamp,
+            'last_refreshed_on_time' => $timestamp,
         ];
     }
 }

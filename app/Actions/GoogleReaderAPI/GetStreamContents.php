@@ -158,6 +158,8 @@ class GetStreamContents
             return $item;
         });
 
+        $firstEntry = $entries->first();
+
         return response()->json([
             'items' => $items,
             // I'm not sure if all of this below is useful
@@ -170,13 +172,13 @@ class GetStreamContents
             ],
             'alternate' => [
                 [
-                    'href' => $entries->first()?->feed_url ?? '',
+                    'href' => $firstEntry->feed_url ?? '',
                     'type' => 'text/html',
                 ],
             ],
             'author' => 'larafeed',
-            'id' => 'feed/'.$entries->first()?->feed_id ?? '',
-            'title' => $entries->first()?->feed_name ?? '',
+            'id' => 'feed/'.($firstEntry->feed_id ?? ''),
+            'title' => $firstEntry->feed_name ?? '',
             // 'continuation' => $entries->last()?->published_at ?
             // Carbon::parse($entries->last()->published_at)->getTimestampMs() : null,
         ]);

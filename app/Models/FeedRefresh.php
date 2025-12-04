@@ -51,7 +51,7 @@ class FeedRefresh extends Model
     ];
 
     /**
-     * @return BelongsTo<Feed, self>
+     * @return BelongsTo<Feed, $this>
      */
     public function feed(): BelongsTo
     {

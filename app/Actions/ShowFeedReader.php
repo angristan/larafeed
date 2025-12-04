@@ -49,7 +49,7 @@ class ShowFeedReader
                 ])
                 ->get()->map(fn (Feed $feed) => [
                     'id' => $feed->id,
-                    'name' => $feed->subscription?->custom_feed_name ?? $feed->name,
+                    'name' => $feed->subscription->custom_feed_name ?? $feed->name,
                     'original_name' => $feed->name,
                     'feed_url' => $feed->feed_url,
                     'site_url' => $feed->site_url,
@@ -111,7 +111,7 @@ class ShowFeedReader
                     'archived_at' => $entry['archived_at'],
                     'feed' => [
                         'id' => $entry->feed_id,
-                        'name' => $entry->feed_custom_name ?? $entry->feed_name,
+                        'name' => $entry['feed_custom_name'] ?? $entry['feed_name'],
                         'favicon_url' => BuildProfixedFaviconURL::run($entry['feed_favicon_url']),
                     ],
                 ]);
@@ -164,13 +164,11 @@ class ShowFeedReader
                 $currentEntry->content = ProxifyImagesInHTML::run($currentEntry->content);
             }
 
-            if ($currentEntry && $currentEntry->feed && $currentEntry['custom_feed_name']) {
+            if ($currentEntry['custom_feed_name']) {
                 $currentEntry->feed->name = $currentEntry['custom_feed_name'];
             }
 
-            if ($currentEntry && $currentEntry->feed) {
-                $currentEntry->feed->favicon_url = BuildProfixedFaviconURL::run($currentEntry->feed->favicon_url);
-            }
+            $currentEntry->feed->favicon_url = BuildProfixedFaviconURL::run($currentEntry->feed->favicon_url);
 
             return $currentEntry;
         };

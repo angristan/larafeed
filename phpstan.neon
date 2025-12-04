@@ -8,10 +8,13 @@ parameters:
         - app/
 
     # Level 10 is the highest level
-    level: 2
+    level: 4
 
-#    ignoreErrors:
-#        - '#PHPDoc tag @var#'
-#
+    ignoreErrors:
+        # LengthAwarePaginator template covariance is a known issue with Larastan
+        -
+            message: '#Anonymous function should return Illuminate\\Pagination\\LengthAwarePaginator.* but returns Illuminate\\Pagination\\LengthAwarePaginator.*#'
+            path: app/Actions/ShowFeedReader.php
+
 #    excludePaths:
 #        - ./*/*/FileToBeExcluded.php

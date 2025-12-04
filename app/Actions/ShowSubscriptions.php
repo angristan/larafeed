@@ -43,16 +43,17 @@ class ShowSubscriptions
                 $refreshes = $feed->refreshes
                     ->map(fn (FeedRefresh $refresh) => [
                         'id' => $refresh->id,
-                        'refreshed_at' => $refresh->refreshed_at?->toIso8601String(),
+                        'refreshed_at' => $refresh->refreshed_at->toIso8601String(),
                         'was_successful' => $refresh->was_successful,
                         'entries_created' => $refresh->entries_created,
                         'error_message' => $refresh->error_message,
                     ])
-                    ->values();
+                    ->values()
+                    ->all();
 
                 return [
                     'id' => $feed->id,
-                    'name' => $feed->subscription?->custom_feed_name ?? $feed->name,
+                    'name' => $feed->subscription->custom_feed_name ?? $feed->name,
                     'original_name' => $feed->name,
                     'feed_url' => $feed->feed_url,
                     'site_url' => $feed->site_url,

@@ -172,9 +172,7 @@ class ShowCharts
             ->orderBy('date')
             ->get()
             ->map(static function ($row) {
-                $rowData = $row instanceof \Illuminate\Database\Eloquent\Model
-                    ? $row->getAttributes()
-                    : (array) $row;
+                $rowData = $row->getAttributes();
 
                 $successes = (int) ($rowData['successes'] ?? 0);
                 $failures = (int) ($rowData['failures'] ?? 0);

@@ -19,10 +19,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $feed_url
  * @property string $site_url
  * @property string|null $favicon_url
- * @property string|null $last_successful_refresh_at
- * @property string|null $last_failed_refresh_at
+ * @property \Illuminate\Support\Carbon|null $last_successful_refresh_at
+ * @property \Illuminate\Support\Carbon|null $last_failed_refresh_at
  * @property string|null $last_error_message
- * @property string|null $favicon_updated_at
+ * @property \Illuminate\Support\Carbon|null $favicon_updated_at
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Entry> $entries
  * @property-read int|null $entries_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\FeedRefresh> $refreshes
@@ -62,6 +62,12 @@ class Feed extends Model
         'last_successful_refresh_at',
         'last_failed_refresh_at',
         'last_error_message',
+    ];
+
+    protected $casts = [
+        'last_successful_refresh_at' => 'datetime',
+        'last_failed_refresh_at' => 'datetime',
+        'favicon_updated_at' => 'datetime',
     ];
 
     public function entries(): HasMany

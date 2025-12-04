@@ -41,7 +41,7 @@ class ExportOPML
 
             $subscriptions = $category->feedsSubscriptions
                 ->sortBy(function ($subscription) {
-                    $feedName = $subscription->custom_feed_name ?? $subscription->feed?->name ?? '';
+                    $feedName = $subscription->custom_feed_name ?? $subscription->feed->name;
 
                     return Str::lower($feedName);
                 })
@@ -49,10 +49,6 @@ class ExportOPML
 
             foreach ($subscriptions as $subscription) {
                 $feed = $subscription->feed;
-
-                if (! $feed) {
-                    continue;
-                }
 
                 $displayName = $subscription->custom_feed_name ?? $feed->name;
 
