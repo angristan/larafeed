@@ -19,8 +19,8 @@ class FeedFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => $this->faker->company . ' Blog',
-            'feed_url' => $this->faker->unique()->url . '/rss',
+            'name' => $this->faker->company.' Blog',
+            'feed_url' => $this->faker->unique()->url.'/rss',
             'site_url' => $this->faker->url,
             'favicon_url' => $this->faker->imageUrl(32, 32),
         ];

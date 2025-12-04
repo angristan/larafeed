@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Actions\Feed;
 
 use App\Models\Feed;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
-use Carbon\Carbon;
 
 class RefreshOutdatedFavicons
 {
@@ -28,12 +28,12 @@ class RefreshOutdatedFavicons
         // 3. Last successful refresh was more than X days ago
         $feeds = Feed::where(function ($query) use ($cutoffDate) {
             $query->whereNull('favicon_url')
-                  ->orWhere('updated_at', '<', $cutoffDate)
-                  ->orWhere('last_successful_refresh_at', '<', $cutoffDate);
+                ->orWhere('updated_at', '<', $cutoffDate)
+                ->orWhere('last_successful_refresh_at', '<', $cutoffDate);
         })
-        ->orderByRaw('CASE WHEN favicon_url IS NULL THEN 0 ELSE 1 END') // Prioritize feeds without favicons
-        ->orderBy('updated_at', 'asc') // Then by oldest updated
-        ->get();
+            ->orderByRaw('CASE WHEN favicon_url IS NULL THEN 0 ELSE 1 END') // Prioritize feeds without favicons
+            ->orderBy('updated_at', 'asc') // Then by oldest updated
+            ->get();
 
         Log::info('Starting favicon refresh for outdated feeds', [
             'total_feeds' => $feeds->count(),
@@ -48,7 +48,7 @@ class RefreshOutdatedFavicons
                 'feed_id' => $feed->id,
                 'feed_name' => $feed->name,
                 'site_url' => $feed->site_url,
-                'has_favicon' => !is_null($feed->favicon_url),
+                'has_favicon' => ! is_null($feed->favicon_url),
                 'last_updated' => $feed->updated_at?->toDateTimeString(),
                 'last_refresh' => $feed->last_successful_refresh_at,
             ]);

@@ -22,6 +22,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedRefresh newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedRefresh newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedRefresh query()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedRefresh whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedRefresh whereEntriesCreated($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedRefresh whereErrorMessage($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedRefresh whereFeedId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedRefresh whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedRefresh whereRefreshedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedRefresh whereUpdatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedRefresh whereWasSuccessful($value)
+ *
+ * @mixin \Eloquent
  */
 class FeedRefresh extends Model
 {

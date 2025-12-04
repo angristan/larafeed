@@ -9,7 +9,6 @@ use App\Models\Feed;
 use App\Models\SubscriptionCategory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\PersonalAccessToken;
 use Tests\TestCase;
 
 class GoogleReaderAPITest extends TestCase
