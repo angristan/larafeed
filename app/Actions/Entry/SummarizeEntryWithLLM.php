@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace App\Actions\Entry;
 
 use App\Models\Entry;
-use EchoLabs\Prism\Enums\Provider;
-use EchoLabs\Prism\Prism;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Lorisleiva\Actions\Concerns\AsAction;
+use Prism\Prism\Enums\Provider;
+use Prism\Prism\Facades\Prism;
 
 class SummarizeEntryWithLLM
 {
