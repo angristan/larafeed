@@ -94,7 +94,7 @@ class CreateNewFeed
         $error = null;
 
         // TODO fetch limit
-        $crawledFeed = \Feeds::make(feedUrl: $requested_feed_url);
+        $crawledFeed = \Feeds::make(feedUrl: [$requested_feed_url]);
         if ($crawledFeed->error()) {
             if (is_array($crawledFeed->error())) {
                 $error = implode(', ', $crawledFeed->error());

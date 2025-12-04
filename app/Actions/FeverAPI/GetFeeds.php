@@ -38,7 +38,10 @@ class GetFeeds extends BaseFeverAction
         ]);
     }
 
-    private function getFeedsGroups()
+    /**
+     * @return list<array{group_id: int, feed_ids: string}>
+     */
+    private function getFeedsGroups(): array
     {
         $categories = Auth::user()->subscriptionCategories()
             ->with('feedsSubscriptions')

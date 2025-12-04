@@ -47,7 +47,7 @@ class LoginRequest extends FormRequest
         if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
 
-            LoginFailed::dispatch($this->string('email'), $this->ip());
+            LoginFailed::dispatch((string) $this->string('email'), $this->ip());
 
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
@@ -85,6 +85,6 @@ class LoginRequest extends FormRequest
      */
     public function throttleKey(): string
     {
-        return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+        return Str::transliterate(Str::lower((string) $this->string('email')).'|'.$this->ip());
     }
 }

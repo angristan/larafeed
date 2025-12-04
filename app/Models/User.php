@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -50,7 +51,7 @@ use Laravel\Sanctum\HasApiTokens;
  *
  * @mixin \Eloquent
  */
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
@@ -90,7 +91,10 @@ class User extends Authenticatable
         ];
     }
 
-    public function feeds()
+    /**
+     * @return BelongsToMany<Feed, $this, FeedSubscription, 'subscription'>
+     */
+    public function feeds(): BelongsToMany
     {
         return $this->belongsToMany(Feed::class, 'feed_subscriptions', 'user_id', 'feed_id')
             ->as('subscription')
@@ -99,7 +103,10 @@ class User extends Authenticatable
             ->withPivot('custom_feed_name');
     }
 
-    public function entriesInterracted()
+    /**
+     * @return BelongsToMany<Entry, $this, EntryInteraction, 'interaction'>
+     */
+    public function entriesInterracted(): BelongsToMany
     {
         return $this->belongsToMany(Entry::class, 'entry_interactions', 'user_id', 'entry_id')
             ->as('interaction')
@@ -108,6 +115,9 @@ class User extends Authenticatable
             ->withPivot(['read_at', 'starred_at', 'archived_at']);
     }
 
+    /**
+     * @return HasMany<SubscriptionCategory, $this>
+     */
     public function subscriptionCategories(): HasMany
     {
         return $this->hasMany(SubscriptionCategory::class);

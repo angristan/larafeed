@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -30,12 +31,15 @@ class CheckGoogleReaderToken
                 ->header('Content-Type', 'text/plain');
         }
 
+        /** @var User $user */
+        $user = $token->tokenable;
+
         // Set the authenticated user on the request
-        $request->setUserResolver(function () use ($token) {
-            return $token->tokenable;
+        $request->setUserResolver(function () use ($user) {
+            return $user;
         });
 
-        Auth::setUser($token->tokenable);
+        Auth::setUser($user);
 
         return $next($request);
     }
