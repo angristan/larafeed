@@ -23,7 +23,7 @@ class BaseFeverAction
         return [
             'api_version' => 3,
             'auth' => 1,
-            'last_refreshed_on_time' => $timestamp,
+            'last_refreshed_on_time' => (int) $timestamp,
         ];
     }
 }

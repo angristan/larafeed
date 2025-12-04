@@ -36,6 +36,7 @@ class GetFaviconURL
             }
 
             // Check the favicon URL is valid
+            /** @var \Illuminate\Http\Client\Response $response */
             $response = Http::get($favicon_url);
 
             if (! $response->ok()) {

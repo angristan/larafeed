@@ -35,7 +35,7 @@ class GetStreamContents
         // However laravel only keeps a single value of `i` in $request->input
         // So we need to get the raw body and extract the entry IDs from it
 
-        $rawForm = file_get_contents('php://input'); // Get the raw POST body
+        $rawForm = file_get_contents('php://input') ?: ''; // Get the raw POST body
         $parsedData = [];
         foreach (explode('&', $rawForm) as $pair) {
             $parts = explode('=', $pair);

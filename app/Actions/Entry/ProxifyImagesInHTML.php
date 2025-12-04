@@ -23,7 +23,8 @@ class ProxifyImagesInHTML
         libxml_use_internal_errors(true);
 
         // Convert input to UTF-8 properly
-        $content = mb_convert_encoding($content, 'UTF-8', mb_detect_encoding($content));
+        $detectedEncoding = mb_detect_encoding($content);
+        $content = mb_convert_encoding($content, 'UTF-8', $detectedEncoding ?: 'UTF-8');
 
         // Add HTML wrapper with proper charset
         $content = '<!DOCTYPE html><html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"></head><body>'.$content.'</body></html>';
@@ -34,45 +35,61 @@ class ProxifyImagesInHTML
 
         $xpath = new DOMXPath($doc);
 
-        foreach ($xpath->query('//img') as $img) {
-            if (! ($img instanceof \DOMElement)) {
-                continue;
-            }
-
-            // Handle src attribute
-            $originalUrl = $img->getAttribute('src');
-            if ($originalUrl) {
-                $proxiedUrl = $this->getProxiedUrl($originalUrl);
-                $img->setAttribute('src', $proxiedUrl);
-            }
-
-            // Handle srcset attribute
-            $srcset = $img->getAttribute('srcset');
-            if ($srcset) {
-                $proxiedSrcset = $this->proxifySrcset($srcset);
-                $img->setAttribute('srcset', $proxiedSrcset);
-            }
-        }
-
-        foreach ($xpath->query('//picture') as $picture) {
-            foreach ($xpath->query('.//source', $picture) as $source) {
-                if (! ($source instanceof \DOMElement)) {
+        $images = $xpath->query('//img');
+        if ($images !== false) {
+            foreach ($images as $img) {
+                if (! ($img instanceof \DOMElement)) {
                     continue;
                 }
 
+                // Handle src attribute
+                $originalUrl = $img->getAttribute('src');
+                if ($originalUrl) {
+                    $proxiedUrl = $this->getProxiedUrl($originalUrl);
+                    $img->setAttribute('src', $proxiedUrl);
+                }
+
                 // Handle srcset attribute
-                $srcset = $source->getAttribute('srcset');
+                $srcset = $img->getAttribute('srcset');
                 if ($srcset) {
                     $proxiedSrcset = $this->proxifySrcset($srcset);
-                    $source->setAttribute('srcset', $proxiedSrcset);
+                    $img->setAttribute('srcset', $proxiedSrcset);
+                }
+            }
+        }
+
+        $pictures = $xpath->query('//picture');
+        if ($pictures !== false) {
+            foreach ($pictures as $picture) {
+                if (! ($picture instanceof \DOMElement)) {
+                    continue;
+                }
+
+                $sources = $xpath->query('.//source', $picture);
+                if ($sources !== false) {
+                    foreach ($sources as $source) {
+                        if (! ($source instanceof \DOMElement)) {
+                            continue;
+                        }
+
+                        // Handle srcset attribute
+                        $srcset = $source->getAttribute('srcset');
+                        if ($srcset) {
+                            $proxiedSrcset = $this->proxifySrcset($srcset);
+                            $source->setAttribute('srcset', $proxiedSrcset);
+                        }
+                    }
                 }
             }
         }
 
         // Extract only the body content
         $html = $doc->saveHTML($doc->getElementsByTagName('body')->item(0));
+        if ($html === false) {
+            return '';
+        }
         // Remove body tags
-        $html = preg_replace('/<\/?body>/', '', $html);
+        $html = preg_replace('/<\/?body>/', '', $html) ?? '';
 
         return trim($html);
     }

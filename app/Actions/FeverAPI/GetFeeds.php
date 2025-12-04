@@ -42,7 +42,7 @@ class GetFeeds extends BaseFeverAction
     }
 
     /**
-     * @return list<array{group_id: int, feed_ids: string}>
+     * @return array<int, array{group_id: int, feed_ids: string}>
      */
     private function getFeedsGroups(): array
     {
@@ -52,7 +52,7 @@ class GetFeeds extends BaseFeverAction
 
         return $categories->map(fn (SubscriptionCategory $category): array => [
             'group_id' => $category->id,
-            'feed_ids' => $category->feedsSubscriptions()->pluck('feed_id')->join(','),
-        ])->all();
+            'feed_ids' => (string) $category->feedsSubscriptions()->pluck('feed_id')->join(','),
+        ])->values()->all();
     }
 }

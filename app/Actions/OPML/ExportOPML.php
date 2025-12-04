@@ -66,7 +66,12 @@ class ExportOPML
             }
         }
 
-        return $xml->asXML();
+        $xmlOutput = $xml->asXML();
+        if ($xmlOutput === false) {
+            throw new \RuntimeException('Failed to generate OPML XML.');
+        }
+
+        return $xmlOutput;
     }
 
     public function asController(): \Illuminate\Http\Response
