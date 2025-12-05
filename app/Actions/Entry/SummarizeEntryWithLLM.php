@@ -53,8 +53,11 @@ EOT;
 
     public function asController(Entry $entry): JsonResponse
     {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
         // Verify the authenticated user has access to this entry's feed
-        $userHasAccess = Auth::user()
+        $userHasAccess = $user
             ->feeds()
             ->where('feeds.id', $entry->feed_id)
             ->exists();

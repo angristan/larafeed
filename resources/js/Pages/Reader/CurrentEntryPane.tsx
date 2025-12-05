@@ -35,6 +35,7 @@ import {
 } from '@tabler/icons-react';
 import dayjs from 'dayjs';
 import { useEffect, useRef, useState } from 'react';
+import { readingTime } from 'reading-time-estimator';
 
 export default function CurrentEntryPane({
     currententry,

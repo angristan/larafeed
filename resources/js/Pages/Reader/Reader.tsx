@@ -15,7 +15,6 @@ import {
     useMantineTheme,
 } from '@mantine/core';
 import { SpotlightActionData } from '@mantine/spotlight';
-import dayjs from 'dayjs';
 import { ReactNode } from 'react';
 
 interface ReaderProps extends PageProps {
