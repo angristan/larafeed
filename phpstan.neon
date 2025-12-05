@@ -8,14 +8,7 @@ parameters:
         - app/
 
     # Level 10 is the highest level
-    level: 7
-
-    ignoreErrors:
-        # Collection/Paginator template covariance is a known issue with Larastan
-        -
-            message: '#Anonymous function should return Illuminate\\(Pagination\\LengthAwarePaginator|Support\\Collection).* but returns Illuminate\\(Pagination\\LengthAwarePaginator|Support\\Collection).*#'
-            paths:
-                - app/Actions/ShowFeedReader.php
+    level: 8
 
 #    excludePaths:
 #        - ./*/*/FileToBeExcluded.php

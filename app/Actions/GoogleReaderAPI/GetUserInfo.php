@@ -13,6 +13,7 @@ class GetUserInfo
 
     public function asController(): \Illuminate\Http\JsonResponse
     {
+        /** @var \App\Models\User $user */
         $user = Auth::user();
 
         return response()->json([

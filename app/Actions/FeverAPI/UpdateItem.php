@@ -18,6 +18,9 @@ class UpdateItem extends BaseFeverAction
      */
     public function handle(Request $request): array
     {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
         $entry = Entry::whereId($request->input('id'))->first();
         if (! $entry) {
             return array_merge($this->getBaseResponse(), [
@@ -25,26 +28,26 @@ class UpdateItem extends BaseFeverAction
             ]);
         }
 
-        if (! Auth::user()->feeds()->where('id', $entry->feed_id)->exists()) {
+        if (! $user->feeds()->where('id', $entry->feed_id)->exists()) {
             return array_merge($this->getBaseResponse(), [
                 'error' => 'Entry not found',
             ]);
         }
 
         if ($request->input('as') === 'save') {
-            $entry->favorite(Auth::user());
+            $entry->favorite($user);
         }
 
         if ($request->input('as') === 'unsaved') {
-            $entry->unfavorite(Auth::user());
+            $entry->unfavorite($user);
         }
 
         if ($request->input('as') === 'read') {
-            $entry->markAsRead(Auth::user());
+            $entry->markAsRead($user);
         }
 
         if ($request->input('as') === 'unread') {
-            $entry->markAsUnread(Auth::user());
+            $entry->markAsUnread($user);
         }
 
         return $this->getBaseResponse();

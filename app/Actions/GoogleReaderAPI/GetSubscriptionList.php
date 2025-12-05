@@ -14,7 +14,10 @@ class GetSubscriptionList
 
     public function asController(): \Illuminate\Http\JsonResponse
     {
-        $feeds = Auth::user()->feeds()
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        $feeds = $user->feeds()
             ->join('subscription_categories', 'feed_subscriptions.category_id', '=', 'subscription_categories.id')
             ->select([
                 'feeds.id',
@@ -31,7 +34,7 @@ class GetSubscriptionList
                 'title' => $feed->name,
                 'categories' => [
                     [
-                        'id' => 'user/'.Auth::id().'/label/'.$feed['category_name'],
+                        'id' => 'user/'.$user->id.'/label/'.$feed['category_name'],
                         'label' => $feed['category_name'],
                         'type' => 'folder',
                     ],

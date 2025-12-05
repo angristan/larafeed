@@ -18,11 +18,14 @@ class WipeAccount
 
     public function handle(Request $request): \Illuminate\Http\RedirectResponse
     {
-        EntryInteraction::where('user_id', Auth::user()->id)->delete();
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
 
-        $feeds = Auth::user()->feeds()->select('feeds.id')->get();
+        EntryInteraction::where('user_id', $user->id)->delete();
 
-        FeedSubscription::where('user_id', Auth::user()->id)->delete();
+        $feeds = $user->feeds()->select('feeds.id')->get();
+
+        FeedSubscription::where('user_id', $user->id)->delete();
 
         // Delete feed if no other user is subscribed to it
         foreach ($feeds as $feed) {
@@ -31,7 +34,7 @@ class WipeAccount
             }
         }
 
-        SubscriptionCategory::where('user_id', Auth::user()->id)->delete();
+        SubscriptionCategory::where('user_id', $user->id)->delete();
 
         return redirect()->back();
 

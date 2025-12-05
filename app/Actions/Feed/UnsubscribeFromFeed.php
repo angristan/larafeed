@@ -19,14 +19,18 @@ class UnsubscribeFromFeed
         $user->feeds()->detach($feedId);
 
         // Delete feed if no more users are subscribed to it
-        if (Feed::find($feedId)->users->isEmpty()) {
-            Feed::find($feedId)->delete();
+        $feed = Feed::find($feedId);
+        if ($feed && $feed->users->isEmpty()) {
+            $feed->delete();
         }
     }
 
     public function asController(int $feedId): \Illuminate\Http\RedirectResponse
     {
-        $this->handle(Auth::user(), $feedId);
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        $this->handle($user, $feedId);
 
         return redirect()->back();
     }

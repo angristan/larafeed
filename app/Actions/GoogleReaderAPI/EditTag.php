@@ -28,33 +28,36 @@ class EditTag
 
     public function asController(Request $request): \Illuminate\Http\Response
     {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
         $entryId = base_convert($request->input('i'), 16, 10);
 
         $entries = Entry::where('id', $entryId)
-            ->whereExists(function ($query) {
+            ->whereExists(function ($query) use ($user) {
                 $query->select('id')
                     ->from('feed_subscriptions')
                     ->whereColumn('feed_subscriptions.feed_id', 'entries.feed_id')
-                    ->where('feed_subscriptions.user_id', Auth::id());
+                    ->where('feed_subscriptions.user_id', $user->id);
             })
             ->get();
 
         foreach ($entries as $entry) {
             switch ($request->input('a')) {
                 case 'user/-/state/com.google/read':
-                    $entry->markAsRead(Auth::user());
+                    $entry->markAsRead($user);
                     break;
                 case 'user/-/state/com.google/starred':
-                    $entry->favorite(Auth::user());
+                    $entry->favorite($user);
                     break;
             }
 
             switch ($request->input('r')) {
                 case 'user/-/state/com.google/read':
-                    $entry->markAsUnread(Auth::user());
+                    $entry->markAsUnread($user);
                     break;
                 case 'user/-/state/com.google/starred':
-                    $entry->unfavorite(Auth::user());
+                    $entry->unfavorite($user);
                     break;
             }
         }

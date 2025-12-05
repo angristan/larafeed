@@ -24,6 +24,9 @@ class ImportOPML
 
     public function store(Request $request): \Illuminate\Http\RedirectResponse
     {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
         $file = $request->file('opml_file');
 
         if (! $file) {
@@ -52,8 +55,8 @@ class ImportOPML
         }
 
         // TODO: make this optional
-        EntryInteraction::where('user_id', Auth::user()->id)->delete();
-        FeedSubscription::where('user_id', Auth::user()->id)->delete();
+        EntryInteraction::where('user_id', $user->id)->delete();
+        FeedSubscription::where('user_id', $user->id)->delete();
 
         foreach ($xml->body->outline as $category_outline) {
             foreach ($category_outline->outline as $feed_outline) {
@@ -61,13 +64,13 @@ class ImportOPML
                 $feed_name = (string) $feed_outline['title'];
 
                 $category = SubscriptionCategory::firstOrCreate([
-                    'user_id' => Auth::user()->id,
+                    'user_id' => $user->id,
                     'name' => (string) $category_outline['text'],
                 ]);
 
-                Log::info("[OPML] Importing feed: {$feed_url} for user: ".Auth::user()->id);
+                Log::info("[OPML] Importing feed: {$feed_url} for user: ".$user->id);
 
-                CreateNewFeed::dispatch($feed_url, Auth::user(), $category->id, true, $feed_name);
+                CreateNewFeed::dispatch($feed_url, $user, $category->id, true, $feed_name);
             }
         }
 

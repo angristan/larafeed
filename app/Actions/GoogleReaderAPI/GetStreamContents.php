@@ -51,7 +51,7 @@ class GetStreamContents
         $entryIDs = collect($parsedData['i'] ?? []);
         $entryIDs = $entryIDs->map(function ($item) {
             // Convert hex ID to decimal
-            return base_convert($item, 16, 10);
+            return base_convert($item ?? '', 16, 10);
         });
 
         $query = Entry::query()
@@ -113,7 +113,7 @@ class GetStreamContents
                 'id' => 'tag:google.com,2005:reader/item/'.str_pad(base_convert((string) $entry->id, 10, 16), 16, '0', STR_PAD_LEFT),
                 'title' => $entry->title,
                 'timestampUsec' => number_format(Carbon::parse($entry->published_at)->getPreciseTimestamp(6), 0, '', ''),
-                'crawlTimeMsec' => (string) $entry->created_at->getTimestampMs(),
+                'crawlTimeMsec' => (string) ($entry->created_at?->getTimestampMs() ?? 0),
                 'published' => Carbon::parse($entry->published_at)->getTimestamp(),
                 'updated' => Carbon::parse($entry->updated_at)->getTimestamp(),
                 'alternate' => [

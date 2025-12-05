@@ -14,7 +14,10 @@ class GetGroups extends BaseFeverAction
      */
     public function handle(): array
     {
-        $groups = Auth::user()->subscriptionCategories()
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        $groups = $user->subscriptionCategories()
             ->select(['id', 'name as title'])
             ->get();
 
@@ -29,7 +32,10 @@ class GetGroups extends BaseFeverAction
      */
     private function getFeedsGroups(): array
     {
-        $categories = Auth::user()->subscriptionCategories()
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        $categories = $user->subscriptionCategories()
             ->with('feedsSubscriptions')
             ->get();
 

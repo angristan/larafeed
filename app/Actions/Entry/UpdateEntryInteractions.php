@@ -28,6 +28,9 @@ class UpdateEntryInteractions
 
     public function handle(Request $request, string $entry_id): RedirectResponse
     {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
         if (! $entry_id) {
             return redirect()->back()->withErrors('Missing entry id');
         }
@@ -37,17 +40,17 @@ class UpdateEntryInteractions
             return redirect()->back()->withErrors('Entry not found');
         }
 
-        if (! Auth::user()->feeds()->where('id', $entry->feed_id)->exists()) {
+        if (! $user->feeds()->where('id', $entry->feed_id)->exists()) {
             return redirect()->back()->withErrors('You\'re not subscribed to this feed');
         }
 
         if ($request->has('read')) {
             if ($request->input('read')) {
-                $entry->markAsRead(Auth::user());
+                $entry->markAsRead($user);
 
                 return redirect()->back();
             } else {
-                $entry->markAsUnread(Auth::user());
+                $entry->markAsUnread($user);
 
                 return redirect()->back();
             }
@@ -55,11 +58,11 @@ class UpdateEntryInteractions
 
         if ($request->has('starred')) {
             if ($request->input('starred')) {
-                $entry->favorite(Auth::user());
+                $entry->favorite($user);
 
                 return redirect()->back();
             } else {
-                $entry->unfavorite(Auth::user());
+                $entry->unfavorite($user);
 
                 return redirect()->back();
             }
@@ -67,12 +70,12 @@ class UpdateEntryInteractions
 
         if ($request->has('archived')) {
             if ($request->input('archived')) {
-                $entry->archive(Auth::user());
+                $entry->archive($user);
 
                 return redirect()->back();
 
             } else {
-                $entry->unarchive(Auth::user());
+                $entry->unarchive($user);
 
                 return redirect()->back();
             }

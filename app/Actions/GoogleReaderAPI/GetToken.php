@@ -15,7 +15,7 @@ class GetToken
     {
         // Since the tokens don't expire, we can just return the token as is
 
-        $authorization_header = $request->header('Authorization');
+        $authorization_header = $request->header('Authorization') ?? '';
         $token = substr($authorization_header, strlen('GoogleLogin auth='));
 
         return response()->make(

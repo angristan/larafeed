@@ -74,7 +74,7 @@ class RefreshFeedEntries
                 }
 
                 $feed->entries()->create([
-                    'title' => str_replace('&amp;', '&', $item->get_title()),
+                    'title' => str_replace('&amp;', '&', $item->get_title() ?? ''),
                     'url' => $item->get_permalink(),
                     'author' => $item->get_author()?->get_name(),
                     'content' => $item->get_content(),
@@ -138,16 +138,23 @@ class RefreshFeedEntries
 
     public function asController(string $feed_id): \Illuminate\Http\JsonResponse
     {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
         if (! $feed_id) {
             return response()->json(['error' => 'Missing feed id'], 400);
         }
 
         // Check if the user has access to the feed
-        if (! Auth::user()->feeds()->where('id', $feed_id)->exists()) {
+        if (! $user->feeds()->where('id', $feed_id)->exists()) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
         $feed = Feed::whereId($feed_id)->first();
+
+        if (! $feed) {
+            return response()->json(['error' => 'Feed not found'], 404);
+        }
 
         if ($feed->last_successful_refresh_at && Carbon::parse($feed->last_successful_refresh_at)->diffInMinutes(now()) < 5) {
             return response()->json(['message' => 'Feed has already been refreshed less than 5min ago'], 429);

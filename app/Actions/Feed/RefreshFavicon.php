@@ -21,12 +21,15 @@ class RefreshFavicon
 
     public function asController(string $feed_id): \Illuminate\Http\JsonResponse
     {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
         if (! $feed_id) {
             return response()->json(['error' => 'Missing feed id'], 400);
         }
 
         // Check if the user has access to the feed
-        if (! Auth::user()->feeds()->where('id', $feed_id)->exists()) {
+        if (! $user->feeds()->where('id', $feed_id)->exists()) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 

@@ -21,6 +21,9 @@ class ShowFeedReader
     /* This action is only a controller for the main user facing view */
     public function handle(Request $request): \Inertia\Response
     {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
         $feed_id = $request->query('feed');
         $entry_id = $request->query('entry');
         $filter = $request->query('filter');
@@ -31,8 +34,8 @@ class ShowFeedReader
             $order_by = 'created_at';
         }
 
-        $getFeedsFn = function () {
-            return Auth::user()
+        $getFeedsFn = function () use ($user) {
+            return $user
                 ->feeds()
                 ->orderBy('name')
                 ->join('subscription_categories', 'feed_subscriptions.category_id', '=', 'subscription_categories.id')
@@ -117,7 +120,7 @@ class ShowFeedReader
                 ]);
         };
 
-        $getCurrentEntryFn = function () use ($request, $entry_id): Entry|null {
+        $getCurrentEntryFn = function () use ($request, $entry_id, $user): Entry|null {
             if (! $entry_id) {
                 return null;
             }
@@ -128,15 +131,15 @@ class ShowFeedReader
             }
 
             // Check if the user has access to the feed
-            if (! Auth::user()->feeds()->where('id', $requestedEntry->feed_id)->exists()) {
+            if (! $user->feeds()->where('id', $requestedEntry->feed_id)->exists()) {
                 return null;
             }
 
             if ($request->query('read') === 'false') {
-                $requestedEntry->markAsUnread(Auth::user());
+                $requestedEntry->markAsUnread($user);
             }
             if ($request->query('read') === 'true') {
-                $requestedEntry->markAsRead(Auth::user());
+                $requestedEntry->markAsRead($user);
             }
 
             // Merge entry with feed data and user interactions
@@ -160,6 +163,10 @@ class ShowFeedReader
                 ])
                 ->first();
 
+            if (! $currentEntry) {
+                return null;
+            }
+
             if ($currentEntry->content) {
                 $currentEntry->content = ProxifyImagesInHTML::run($currentEntry->content);
             }
@@ -173,7 +180,7 @@ class ShowFeedReader
             return $currentEntry;
         };
 
-        $getEntrySummaryFn = function () use ($request, $entry_id): string|null {
+        $getEntrySummaryFn = function () use ($request, $entry_id, $user): string|null {
             // Only summarize if requested
             if ($request->query('summarize') !== 'true') {
                 return null;
@@ -189,7 +196,7 @@ class ShowFeedReader
             }
 
             // Check if the user has access to the feed
-            if (! Auth::user()->feeds()->where('id', $requestedEntry->feed_id)->exists()) {
+            if (! $user->feeds()->where('id', $requestedEntry->feed_id)->exists()) {
                 return null;
             }
 
@@ -226,8 +233,8 @@ class ShowFeedReader
                 ->count();
         };
 
-        $getUserCategoriesFn = function () {
-            return Auth::user()->subscriptionCategories()->get();
+        $getUserCategoriesFn = function () use ($user) {
+            return $user->subscriptionCategories()->get();
         };
 
         // TODO https://laravel.com/docs/9.x/eloquent-resources

@@ -15,7 +15,10 @@ class GetFeeds extends BaseFeverAction
      */
     public function handle(): array
     {
-        $feeds = Auth::user()->feeds()
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        $feeds = $user->feeds()
             ->select([
                 'feeds.id',
                 'feeds.favicon_url as favicon_id',
@@ -46,7 +49,10 @@ class GetFeeds extends BaseFeverAction
      */
     private function getFeedsGroups(): array
     {
-        $categories = Auth::user()->subscriptionCategories()
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        $categories = $user->subscriptionCategories()
             ->with('feedsSubscriptions')
             ->get();
 

@@ -26,7 +26,10 @@ class UpdateFeed
 
     public function handle(Request $request, string $feed_id): \Illuminate\Http\RedirectResponse
     {
-        $subscription = FeedSubscription::where('feed_id', $feed_id)->where('user_id', Auth::id())->first();
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        $subscription = FeedSubscription::where('feed_id', $feed_id)->where('user_id', $user->id)->first();
 
         if (! $subscription) {
             return redirect()->back()->withErrors('Subscription not found');
@@ -42,7 +45,7 @@ class UpdateFeed
         }
 
         if ($request->has('category_id')) {
-            $currentCategory = Auth::user()->subscriptionCategories()->where('id', $request->input('category_id'))->first();
+            $currentCategory = $user->subscriptionCategories()->where('id', $request->input('category_id'))->first();
             if (! $currentCategory) {
                 return redirect()->back()->withErrors('Category not found');
             }

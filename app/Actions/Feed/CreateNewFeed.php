@@ -51,6 +51,9 @@ class CreateNewFeed
 
     public function asController(Request $request): \Illuminate\Http\RedirectResponse
     {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
         $categoryIdInput = $request->input('category_id');
         $categoryName = trim((string) $request->input('category_name', ''));
         $resolvedCategoryId = null;
@@ -58,7 +61,7 @@ class CreateNewFeed
         if ($categoryName !== '') {
             if (
                 SubscriptionCategory::query()
-                    ->where('user_id', Auth::id())
+                    ->where('user_id', $user->id)
                     ->where('name', $categoryName)
                     ->exists()
             ) {
@@ -68,7 +71,7 @@ class CreateNewFeed
             }
 
             $newCategory = CreateCategory::run(
-                $request->user(),
+                $user,
                 $categoryName
             );
 
@@ -77,7 +80,7 @@ class CreateNewFeed
             $resolvedCategoryId = (int) $categoryIdInput;
 
             if (
-                ! Auth::user()
+                ! $user
                     ->subscriptionCategories()
                     ->where('id', $resolvedCategoryId)
                     ->exists()
@@ -92,7 +95,7 @@ class CreateNewFeed
             ]);
         }
 
-        return $this->handle($request->feed_url, $request->user(), $resolvedCategoryId);
+        return $this->handle($request->feed_url, $user, $resolvedCategoryId);
     }
 
     public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null): \Illuminate\Http\RedirectResponse
@@ -200,7 +203,7 @@ class CreateNewFeed
                 });
             }
 
-            $title = str_replace('&amp;', '&', $entry->get_title());
+            $title = str_replace('&amp;', '&', $entry->get_title() ?? '');
             $title = substr($title, 0, 255);
             $newFeedEntries[] = [
                 'title' => $title,
