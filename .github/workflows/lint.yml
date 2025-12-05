@@ -43,7 +43,7 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist
       - name: "run pint"
-        run: composer pint
+        run: composer pint -- --test
 
   eslint:
     runs-on: ubuntu-latest
