@@ -1,10 +1,10 @@
+import { Head, useForm } from '@inertiajs/react';
+import type { FormEventHandler } from 'react';
 import InputError from '@/Components/Breeze/InputError';
 import InputLabel from '@/Components/Breeze/InputLabel';
 import PrimaryButton from '@/Components/Breeze/PrimaryButton';
 import TextInput from '@/Components/Breeze/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
-import { Head, useForm } from '@inertiajs/react';
-import { FormEventHandler } from 'react';
 
 export default function ConfirmPassword() {
     const { data, setData, post, processing, errors, reset } = useForm({

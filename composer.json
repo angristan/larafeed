@@ -86,8 +86,7 @@
         "check": [
             "vendor/bin/pint --test",
             "vendor/bin/phpstan analyse --memory-limit=512M",
-            "npm run lint-check",
-            "npm run format-check",
+            "npx biome check",
             "npx tsc --noEmit"
         ],
         "setup-hooks": [

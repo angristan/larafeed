@@ -1,4 +1,3 @@
-import type { PageProps } from '@/types';
 import { Link, useForm, usePage } from '@inertiajs/react';
 import {
     Alert,
@@ -14,7 +13,8 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { IconAlertCircle, IconMail, IconTrash } from '@tabler/icons-react';
-import { FormEventHandler, useRef } from 'react';
+import { type FormEventHandler, useRef } from 'react';
+import type { PageProps } from '@/types';
 
 interface ProfileSettingsProps {
     mustVerifyEmail: boolean;

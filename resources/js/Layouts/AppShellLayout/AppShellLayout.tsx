@@ -1,9 +1,3 @@
-import classes from './AppShellLayout.module.css';
-
-import ApplicationLogo from '@/Components/ApplicationLogo/ApplicationLogo';
-import ColorSchemeSwitcher from '@/Components/ColorSchemeSwitcher/ColorSchemeSwitcher';
-import KeyboardShortcuts from '@/Components/KeyboardShortcuts/KeyboardShortcuts';
-import { PageProps } from '@/types';
 import { Link, router, usePage } from '@inertiajs/react';
 import {
     ActionIcon,
@@ -12,12 +6,12 @@ import {
     Burger,
     Group,
     Menu,
+    rem,
     Title,
     Tooltip,
-    rem,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { Spotlight, SpotlightActionData } from '@mantine/spotlight';
+import { Spotlight, type SpotlightActionData } from '@mantine/spotlight';
 import {
     IconBook2,
     IconBrandGithub,
@@ -27,7 +21,12 @@ import {
     IconSearch,
     IconSettings,
 } from '@tabler/icons-react';
-import { ReactNode, useMemo } from 'react';
+import { type ReactNode, useMemo } from 'react';
+import ApplicationLogo from '@/Components/ApplicationLogo/ApplicationLogo';
+import ColorSchemeSwitcher from '@/Components/ColorSchemeSwitcher/ColorSchemeSwitcher';
+import KeyboardShortcuts from '@/Components/KeyboardShortcuts/KeyboardShortcuts';
+import type { PageProps } from '@/types';
+import classes from './AppShellLayout.module.css';
 
 interface SpotlightConfig {
     actions: SpotlightActionData[];

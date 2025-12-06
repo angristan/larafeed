@@ -7,9 +7,12 @@
         "lint": "eslint resources/js --fix",
         "lint-check": "eslint resources/js",
         "format": "prettier --write .",
-        "format-check": "prettier --check ."
+        "format-check": "prettier --check .",
+        "biome": "biome check --write",
+        "biome-check": "biome check"
     },
     "devDependencies": {
+        "@biomejs/biome": "^2.3.8",
         "@eslint/compat": "^1.4.0",
         "@eslint/eslintrc": "^3.3.1",
         "@eslint/js": "^9.38.0",

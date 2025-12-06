@@ -1,10 +1,10 @@
+import { Transition } from '@headlessui/react';
+import { Link, useForm, usePage } from '@inertiajs/react';
+import type { FormEventHandler } from 'react';
 import InputError from '@/Components/Breeze/InputError';
 import InputLabel from '@/Components/Breeze/InputLabel';
 import PrimaryButton from '@/Components/Breeze/PrimaryButton';
 import TextInput from '@/Components/Breeze/TextInput';
-import { Transition } from '@headlessui/react';
-import { Link, useForm, usePage } from '@inertiajs/react';
-import { FormEventHandler } from 'react';
 
 export default function UpdateProfileInformation({
     mustVerifyEmail,
