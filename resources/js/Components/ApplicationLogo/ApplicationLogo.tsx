@@ -1,5 +1,5 @@
 import { useMantineColorScheme } from '@mantine/core';
-import { SVGAttributes } from 'react';
+import type { SVGAttributes } from 'react';
 
 export default function ApplicationLogo(props: SVGAttributes<SVGElement>) {
     const { colorScheme } = useMantineColorScheme();

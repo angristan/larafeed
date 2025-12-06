@@ -1,5 +1,3 @@
-import classes from './EntryListPane.module.css';
-
 import { Link, router } from '@inertiajs/react';
 import {
     Card,
@@ -18,7 +16,8 @@ import { IconStarFilled } from '@tabler/icons-react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import classes from './EntryListPane.module.css';
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
@@ -32,13 +31,14 @@ export default function EntryListPane({
 }) {
     const viewport = useRef<HTMLDivElement>(null);
 
-    const scrollToTop = () => {
+    const scrollToTop = useCallback(() => {
         viewport.current?.scrollTo({ top: 0, behavior: 'instant' });
-    };
+    }, []);
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: intentional trigger on entries change
     useEffect(() => {
         scrollToTop();
-    }, [entries]);
+    }, [entries, scrollToTop]);
 
     const navigateToEntry = (offset: number) => {
         const index = entries.data.findIndex(

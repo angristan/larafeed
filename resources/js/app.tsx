@@ -8,7 +8,7 @@ import '@gfazioli/mantine-split-pane/styles.css';
 import '../css/app.css';
 import './bootstrap';
 import { createInertiaApp } from '@inertiajs/react';
-import { MantineProvider, createTheme, rem } from '@mantine/core';
+import { createTheme, MantineProvider, rem } from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';

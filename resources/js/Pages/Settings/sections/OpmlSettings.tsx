@@ -16,7 +16,7 @@ import {
     IconFileImport,
     IconTrash,
 } from '@tabler/icons-react';
-import { FormEventHandler, useState } from 'react';
+import { type FormEventHandler, useState } from 'react';
 
 const OpmlSettings = () => {
     const { data, setData, post, processing, errors, reset } = useForm({

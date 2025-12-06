@@ -1,6 +1,3 @@
-import classes from './CurrentEntryPane.module.css';
-
-import { FeedMenu } from '@/Components/FeedMenu';
 import { router } from '@inertiajs/react';
 import {
     ActionIcon,
@@ -36,8 +33,10 @@ import {
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { readingTime } from 'reading-time-estimator';
+import { FeedMenu } from '@/Components/FeedMenu';
+import classes from './CurrentEntryPane.module.css';
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
@@ -56,12 +55,15 @@ export default function CurrentEntryPane({
     const theme = useMantineTheme();
 
     const viewport = useRef<HTMLDivElement>(null);
-    const scrollToTop = () =>
-        viewport.current?.scrollTo({ top: 0, behavior: 'instant' });
+    const scrollToTop = useCallback(
+        () => viewport.current?.scrollTo({ top: 0, behavior: 'instant' }),
+        [],
+    );
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: intentional trigger on entry change
     useEffect(() => {
         scrollToTop();
-    }, [currententry.id]);
+    }, [currententry.id, scrollToTop]);
 
     // Find the current feed from the feeds array
     const currentFeed = feeds.find((feed) => feed.id === currententry.feed.id);
@@ -70,7 +72,7 @@ export default function CurrentEntryPane({
         router.patch(
             route('entry.update', currententry.id),
             {
-                starred: currententry.starred_at ? false : true,
+                starred: !currententry.starred_at,
             },
             {
                 preserveScroll: true,
@@ -194,6 +196,7 @@ export default function CurrentEntryPane({
     const typographyProviderRef = useRef<HTMLDivElement>(null);
 
     // Update entry content anchor targets to open in a new tab
+    // biome-ignore lint/correctness/useExhaustiveDependencies: intentional trigger on entry change
     useEffect(() => {
         const updateAnchorsTarget = () => {
             try {
@@ -365,7 +368,7 @@ export default function CurrentEntryPane({
                             <Flex>
                                 <Text size="sm" c="dimmed">
                                     {currententry.author
-                                        ? currententry.author + ' • '
+                                        ? `${currententry.author} • `
                                         : ''}
                                     {dayjs
                                         .utc(currententry.published_at)

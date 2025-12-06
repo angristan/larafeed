@@ -1,6 +1,6 @@
-import type { SettingsSection } from '../types';
 import { AppShell, NavLink, Stack, Text } from '@mantine/core';
 import { IconFileImport, IconUserCircle } from '@tabler/icons-react';
+import type { SettingsSection } from '../types';
 
 interface SettingsSidebarProps {
     activeSection: SettingsSection;
