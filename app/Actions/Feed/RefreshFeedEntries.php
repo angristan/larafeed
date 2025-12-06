@@ -30,7 +30,8 @@ class RefreshFeedEntries
         $startedAt = now();
 
         try {
-            $crawledFeed = Feeds::make(feedUrl: [$feed->feed_url]);
+            // @phpstan-ignore argument.type (SimplePie accepts string, array triggers deprecated multi-feed mode)
+            $crawledFeed = Feeds::make(feedUrl: $feed->feed_url);
             if ($crawledFeed->error()) {
                 $error = '';
                 if (is_array($crawledFeed->error())) {

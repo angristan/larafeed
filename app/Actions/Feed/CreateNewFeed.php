@@ -100,7 +100,8 @@ class CreateNewFeed
         $error = null;
 
         // TODO fetch limit
-        $crawledFeed = \Feeds::make(feedUrl: [$requested_feed_url]);
+        // @phpstan-ignore argument.type (SimplePie accepts string, array triggers deprecated multi-feed mode)
+        $crawledFeed = \Feeds::make(feedUrl: $requested_feed_url);
         if ($crawledFeed->error()) {
             if (is_array($crawledFeed->error())) {
                 $error = implode(', ', $crawledFeed->error());
