@@ -1,5 +1,3 @@
-import classes from './Register.module.css';
-
 import { Head, router, useForm } from '@inertiajs/react';
 import {
     Anchor,
@@ -11,6 +9,7 @@ import {
     TextInput,
     Title,
 } from '@mantine/core';
+import classes from './Register.module.css';
 
 export default function Register() {
     const { data, setData, post, processing, errors, reset } = useForm({

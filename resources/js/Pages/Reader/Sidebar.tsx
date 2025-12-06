@@ -1,6 +1,3 @@
-import classes from './Sidebar.module.css';
-
-import { FeedMenu } from '@/Components/FeedMenu';
 import { Link, router, useForm } from '@inertiajs/react';
 import {
     ActionIcon,
@@ -17,13 +14,13 @@ import {
     Modal,
     NativeSelect,
     NavLink,
+    rem,
     ScrollArea,
     SegmentedControl,
     Stack,
     Text,
     TextInput,
     Tooltip,
-    rem,
 } from '@mantine/core';
 import { useDisclosure, useHover } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
@@ -46,7 +43,9 @@ import {
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
-import { FormEventHandler, ReactNode, useState } from 'react';
+import { type FormEventHandler, type ReactNode, useState } from 'react';
+import { FeedMenu } from '@/Components/FeedMenu';
+import classes from './Sidebar.module.css';
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
@@ -580,51 +579,49 @@ const AddFeedModal = function AddFeedModal({
     const [value, setValue] = useState('new_feed');
 
     return (
-        <>
-            <Modal.Root
-                opened={opened}
-                onClose={() => {
-                    close();
-                }}
-            >
-                <Modal.Overlay />
-                <Modal.Content>
-                    <Modal.Header>
-                        <Modal.Title>
-                            <SegmentedControl
-                                value={value}
-                                onChange={setValue}
-                                radius="sm"
-                                size="sm"
-                                data={[
-                                    { value: 'new_feed', label: 'New feed' },
-                                    {
-                                        value: 'new_category',
-                                        label: 'New category',
-                                    },
-                                ]}
+        <Modal.Root
+            opened={opened}
+            onClose={() => {
+                close();
+            }}
+        >
+            <Modal.Overlay />
+            <Modal.Content>
+                <Modal.Header>
+                    <Modal.Title>
+                        <SegmentedControl
+                            value={value}
+                            onChange={setValue}
+                            radius="sm"
+                            size="sm"
+                            data={[
+                                { value: 'new_feed', label: 'New feed' },
+                                {
+                                    value: 'new_category',
+                                    label: 'New category',
+                                },
+                            ]}
+                        />
+                    </Modal.Title>
+                    <Modal.CloseButton />
+                </Modal.Header>
+                <Modal.Body>
+                    <Fieldset variant="filled">
+                        {value === 'new_feed' && (
+                            <AddFeedForm
+                                categories={categories}
+                                close={close}
+                                initialFeedURL={initialFeedURL}
                             />
-                        </Modal.Title>
-                        <Modal.CloseButton />
-                    </Modal.Header>
-                    <Modal.Body>
-                        <Fieldset variant="filled">
-                            {value === 'new_feed' && (
-                                <AddFeedForm
-                                    categories={categories}
-                                    close={close}
-                                    initialFeedURL={initialFeedURL}
-                                />
-                            )}
+                        )}
 
-                            {value === 'new_category' && (
-                                <AddCategoryForm close={close} />
-                            )}
-                        </Fieldset>
-                    </Modal.Body>
-                </Modal.Content>
-            </Modal.Root>
-        </>
+                        {value === 'new_category' && (
+                            <AddCategoryForm close={close} />
+                        )}
+                    </Fieldset>
+                </Modal.Body>
+            </Modal.Content>
+        </Modal.Root>
     );
 };
 
@@ -648,7 +645,7 @@ const AddFeedForm = function AddFeedForm({
 
     // Transform the feed URL to have a protocol if it doesn't have one
     transform((data) => {
-        const feedUrl = RegExp('^(http|https)://').test(data.feed_url)
+        const feedUrl = /^(http|https):\/\//.test(data.feed_url)
             ? data.feed_url
             : `https://${data.feed_url}`;
 

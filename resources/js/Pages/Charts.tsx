@@ -1,6 +1,3 @@
-import AppShellLayout from '@/Layouts/AppShellLayout/AppShellLayout';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { PageProps } from '@/types';
 import { router, usePage } from '@inertiajs/react';
 import { Heatmap, LineChart } from '@mantine/charts';
 import {
@@ -25,7 +22,10 @@ import {
     IconListDetails,
     IconRefresh,
 } from '@tabler/icons-react';
-import { ReactNode, useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
+import AppShellLayout from '@/Layouts/AppShellLayout/AppShellLayout';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import type { PageProps } from '@/types';
 
 type HeatmapSeries = Record<string, number>;
 

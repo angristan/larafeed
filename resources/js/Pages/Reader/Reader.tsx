@@ -1,11 +1,3 @@
-import classes from './Reader.module.css';
-
-import CurrentEntryPane from './CurrentEntryPane';
-import EntryListPane from './EntryListPane';
-import Sidebar from './Sidebar';
-import AppShellLayout from '@/Layouts/AppShellLayout/AppShellLayout';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { PageProps } from '@/types';
 import { Split } from '@gfazioli/mantine-split-pane';
 import { router } from '@inertiajs/react';
 import {
@@ -14,11 +6,18 @@ import {
     useMantineColorScheme,
     useMantineTheme,
 } from '@mantine/core';
-import { SpotlightActionData } from '@mantine/spotlight';
+import type { SpotlightActionData } from '@mantine/spotlight';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import AppShellLayout from '@/Layouts/AppShellLayout/AppShellLayout';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import type { PageProps } from '@/types';
+import CurrentEntryPane from './CurrentEntryPane';
+import EntryListPane from './EntryListPane';
+import classes from './Reader.module.css';
+import Sidebar from './Sidebar';
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);

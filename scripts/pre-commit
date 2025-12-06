@@ -34,20 +34,12 @@ else
 fi
 
 # JS checks
-echo -e "\n${YELLOW}[JS] Running ESLint...${NC}"
-if ! npm run lint-check --silent; then
-    echo -e "${RED}ESLint found issues. Run 'npm run lint' to fix.${NC}"
+echo -e "\n${YELLOW}[JS] Running Biome (lint + format)...${NC}"
+if ! npx biome check; then
+    echo -e "${RED}Biome found issues. Run 'npm run biome' to fix.${NC}"
     FAILED=1
 else
-    echo -e "${GREEN}ESLint: OK${NC}"
-fi
-
-echo -e "\n${YELLOW}[JS] Running Prettier...${NC}"
-if ! npm run format-check --silent; then
-    echo -e "${RED}Prettier found formatting issues. Run 'npm run format' to fix.${NC}"
-    FAILED=1
-else
-    echo -e "${GREEN}Prettier: OK${NC}"
+    echo -e "${GREEN}Biome: OK${NC}"
 fi
 
 echo -e "\n${YELLOW}[JS] Running TypeScript...${NC}"

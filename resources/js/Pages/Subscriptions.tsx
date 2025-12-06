@@ -1,6 +1,3 @@
-import AppShellLayout from '@/Layouts/AppShellLayout/AppShellLayout';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { PageProps } from '@/types';
 import { router } from '@inertiajs/react';
 import {
     ActionIcon,
@@ -29,7 +26,10 @@ import {
 } from '@tabler/icons-react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { ReactNode, useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
+import AppShellLayout from '@/Layouts/AppShellLayout/AppShellLayout';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import type { PageProps } from '@/types';
 
 dayjs.extend(relativeTime);
 

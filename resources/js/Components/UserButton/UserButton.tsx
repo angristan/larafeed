@@ -1,9 +1,8 @@
-import classes from './UserButton.module.css';
-
-import { User } from '@/types';
 import { Avatar, Group, Text, UnstyledButton } from '@mantine/core';
 import { IconChevronUp } from '@tabler/icons-react';
 import { forwardRef } from 'react';
+import type { User } from '@/types';
+import classes from './UserButton.module.css';
 
 interface UserButtonProps {
     user: User;
