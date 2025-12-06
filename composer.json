@@ -31,7 +31,6 @@
     },
     "require-dev": {
         "barryvdh/laravel-ide-helper": "^3.3",
-        "brianium/paratest": "^7.4 <7.12",
         "fakerphp/faker": "^1.23",
         "larastan/larastan": "^3.0",
         "laravel/breeze": "^2.2",

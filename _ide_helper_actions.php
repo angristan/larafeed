@@ -11,7 +11,7 @@ namespace App\Actions\Auth;
  * @method static dispatchSync(\App\Events\LoginFailed $event)
  * @method static dispatchNow(\App\Events\LoginFailed $event)
  * @method static dispatchAfterResponse(\App\Events\LoginFailed $event)
- * @method static void run(\App\Events\LoginFailed $event)
+ * @method static mixed run(\App\Events\LoginFailed $event)
  */
 class NotifyLoginFailureOnTelegram
 {
@@ -55,7 +55,7 @@ class CreateCategory
  * @method static dispatchSync(\Request $request, string $category_id)
  * @method static dispatchNow(\Request $request, string $category_id)
  * @method static dispatchAfterResponse(\Request $request, string $category_id)
- * @method static \Illuminate\Http\RedirectResponse run(\Request $request, string $category_id)
+ * @method static mixed run(\Request $request, string $category_id)
  */
 class DeleteCategory
 {
@@ -99,7 +99,7 @@ class SummarizeEntryWithLLM
  * @method static dispatchSync(\Illuminate\Http\Request $request, string $entry_id)
  * @method static dispatchNow(\Illuminate\Http\Request $request, string $entry_id)
  * @method static dispatchAfterResponse(\Illuminate\Http\Request $request, string $entry_id)
- * @method static \Illuminate\Http\RedirectResponse run(\Illuminate\Http\Request $request, string $entry_id)
+ * @method static mixed run(\Illuminate\Http\Request $request, string $entry_id)
  */
 class UpdateEntryInteractions
 {
@@ -115,7 +115,7 @@ namespace App\Actions\Favicon;
  * @method static dispatchSync(?string $favicon_url)
  * @method static dispatchNow(?string $favicon_url)
  * @method static dispatchAfterResponse(?string $favicon_url)
- * @method static string run(?string $favicon_url)
+ * @method static mixed run(?string $favicon_url)
  */
 class BuildProfixedFaviconURL
 {
@@ -145,7 +145,7 @@ namespace App\Actions\Feed;
  * @method static dispatchSync(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
  * @method static dispatchNow(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
  * @method static dispatchAfterResponse(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
- * @method static \Illuminate\Http\RedirectResponse run(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
+ * @method static mixed run(string $requested_feed_url, ?\App\Models\User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null)
  */
 class CreateNewFeed
 {
@@ -206,7 +206,7 @@ class RefreshFavicons
  * @method static dispatchSync(\App\Models\Feed $feed)
  * @method static dispatchNow(\App\Models\Feed $feed)
  * @method static dispatchAfterResponse(\App\Models\Feed $feed)
- * @method static void run(\App\Models\Feed $feed)
+ * @method static mixed run(\App\Models\Feed $feed)
  */
 class RefreshFeedEntries
 {
@@ -276,7 +276,7 @@ class UnsubscribeFromFeed
  * @method static dispatchSync(\Illuminate\Http\Request $request, string $feed_id)
  * @method static dispatchNow(\Illuminate\Http\Request $request, string $feed_id)
  * @method static dispatchAfterResponse(\Illuminate\Http\Request $request, string $feed_id)
- * @method static \Illuminate\Http\RedirectResponse run(\Illuminate\Http\Request $request, string $feed_id)
+ * @method static mixed run(\Illuminate\Http\Request $request, string $feed_id)
  */
 class UpdateFeed
 {
@@ -297,7 +297,7 @@ class BaseFeverAction
  * @method static dispatchSync()
  * @method static dispatchNow()
  * @method static dispatchAfterResponse()
- * @method static array run()
+ * @method static mixed run()
  */
 class GetFeeds
 {
@@ -311,7 +311,7 @@ class GetFeeds
  * @method static dispatchSync()
  * @method static dispatchNow()
  * @method static dispatchAfterResponse()
- * @method static array run()
+ * @method static mixed run()
  */
 class GetGroups
 {
@@ -325,7 +325,7 @@ class GetGroups
  * @method static dispatchSync(\Illuminate\Http\Request $request)
  * @method static dispatchNow(\Illuminate\Http\Request $request)
  * @method static dispatchAfterResponse(\Illuminate\Http\Request $request)
- * @method static array run(\Illuminate\Http\Request $request)
+ * @method static mixed run(\Illuminate\Http\Request $request)
  */
 class GetItems
 {
@@ -339,7 +339,7 @@ class GetItems
  * @method static dispatchSync()
  * @method static dispatchNow()
  * @method static dispatchAfterResponse()
- * @method static array run()
+ * @method static mixed run()
  */
 class GetSavedItemIds
 {
@@ -353,7 +353,7 @@ class GetSavedItemIds
  * @method static dispatchSync()
  * @method static dispatchNow()
  * @method static dispatchAfterResponse()
- * @method static array run()
+ * @method static mixed run()
  */
 class GetUnreadItemIds
 {
@@ -372,7 +372,7 @@ class HandleRequest
  * @method static dispatchSync(\Illuminate\Http\Request $request)
  * @method static dispatchNow(\Illuminate\Http\Request $request)
  * @method static dispatchAfterResponse(\Illuminate\Http\Request $request)
- * @method static array run(\Illuminate\Http\Request $request)
+ * @method static mixed run(\Illuminate\Http\Request $request)
  */
 class UpdateItem
 {
@@ -505,7 +505,7 @@ class UpdateProfile
  * @method static dispatchSync(\Illuminate\Http\Request $request)
  * @method static dispatchNow(\Illuminate\Http\Request $request)
  * @method static dispatchAfterResponse(\Illuminate\Http\Request $request)
- * @method static \Illuminate\Http\RedirectResponse run(\Illuminate\Http\Request $request)
+ * @method static mixed run(\Illuminate\Http\Request $request)
  */
 class WipeAccount
 {
