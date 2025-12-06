@@ -1,5 +1,3 @@
-import classes from './ColorSchemeSwitcher.module.css';
-
 import {
     ActionIcon,
     useComputedColorScheme,
@@ -8,6 +6,7 @@ import {
 import { useHotkeys } from '@mantine/hooks';
 import { IconMoon, IconSun } from '@tabler/icons-react';
 import cx from 'clsx';
+import classes from './ColorSchemeSwitcher.module.css';
 
 export default function ColorSchemeSwitcher() {
     const { setColorScheme } = useMantineColorScheme();

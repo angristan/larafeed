@@ -4,13 +4,13 @@ import {
     Fieldset,
     Modal,
     NativeSelect,
+    rem,
     Space,
     TextInput,
-    rem,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconExclamationCircle } from '@tabler/icons-react';
-import { FormEventHandler } from 'react';
+import type { FormEventHandler } from 'react';
 
 interface UpdateFeedModalProps {
     feed: Feed;
@@ -104,7 +104,7 @@ export const UpdateFeedModal = ({
                         }))}
                         value={data.category_id.toString()}
                         onChange={(e) =>
-                            setData('category_id', parseInt(e.target.value))
+                            setData('category_id', parseInt(e.target.value, 10))
                         }
                         error={errors.category_id}
                     />

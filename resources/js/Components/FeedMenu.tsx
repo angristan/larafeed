@@ -1,5 +1,3 @@
-import { DeleteFeedModal } from '@/Pages/Reader/Components/DeleteFeedModal';
-import { UpdateFeedModal } from '@/Pages/Reader/Components/UpdateFeedModal';
 import { router } from '@inertiajs/react';
 import { ActionIcon, Menu, rem } from '@mantine/core';
 import { useHover } from '@mantine/hooks';
@@ -13,8 +11,10 @@ import {
     IconRefresh,
     IconTrash,
 } from '@tabler/icons-react';
-import axios, { AxiosError } from 'axios';
+import axios, { type AxiosError } from 'axios';
 import { useState } from 'react';
+import { DeleteFeedModal } from '@/Pages/Reader/Components/DeleteFeedModal';
+import { UpdateFeedModal } from '@/Pages/Reader/Components/UpdateFeedModal';
 
 interface RefreshResponse {
     error?: string;

@@ -1,7 +1,4 @@
-import classes from './Login.module.css';
-
-import { router, useForm } from '@inertiajs/react';
-import { Head } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import {
     Alert,
     Anchor,
@@ -15,6 +12,7 @@ import {
     TextInput,
     Title,
 } from '@mantine/core';
+import classes from './Login.module.css';
 
 interface Props {
     status?: string;
