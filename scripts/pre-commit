@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# Pre-commit hook for larafeed
+# Runs PHP and JS linting/formatting checks
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Track if any check fails
+FAILED=0
+
+# PHP checks
+echo -e "\n${YELLOW}[PHP] Running Pint (format check)...${NC}"
+if ! vendor/bin/pint --test; then
+    echo -e "${RED}Pint found formatting issues. Run 'composer pint' to fix.${NC}"
+    FAILED=1
+else
+    echo -e "${GREEN}Pint: OK${NC}"
+fi
+
+echo -e "\n${YELLOW}[PHP] Running PHPStan...${NC}"
+if ! vendor/bin/phpstan analyse --memory-limit=512M --no-progress; then
+    echo -e "${RED}PHPStan found issues.${NC}"
+    FAILED=1
+else
+    echo -e "${GREEN}PHPStan: OK${NC}"
+fi
+
+# JS checks
+echo -e "\n${YELLOW}[JS] Running ESLint...${NC}"
+if ! npm run lint-check --silent; then
+    echo -e "${RED}ESLint found issues. Run 'npm run lint' to fix.${NC}"
+    FAILED=1
+else
+    echo -e "${GREEN}ESLint: OK${NC}"
+fi
+
+echo -e "\n${YELLOW}[JS] Running Prettier...${NC}"
+if ! npm run format-check --silent; then
+    echo -e "${RED}Prettier found formatting issues. Run 'npm run format' to fix.${NC}"
+    FAILED=1
+else
+    echo -e "${GREEN}Prettier: OK${NC}"
+fi
+
+echo -e "\n${YELLOW}[JS] Running TypeScript...${NC}"
+if ! npx tsc --noEmit; then
+    echo -e "${RED}TypeScript found type errors.${NC}"
+    FAILED=1
+else
+    echo -e "${GREEN}TypeScript: OK${NC}"
+fi
+
+# Summary
+echo ""
+if [ $FAILED -eq 1 ]; then
+    echo -e "${RED}Pre-commit checks failed. Please fix the issues above.${NC}"
+    exit 1
+else
+    echo -e "${GREEN}All pre-commit checks passed!${NC}"
+fi

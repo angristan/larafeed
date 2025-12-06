@@ -80,6 +80,21 @@
             "@pint",
             "@phpstan"
         ],
+        "test": [
+            "php artisan test"
+        ],
+        "check": [
+            "vendor/bin/pint --test",
+            "vendor/bin/phpstan analyse --memory-limit=512M",
+            "npm run lint-check",
+            "npm run format-check",
+            "npx tsc --noEmit"
+        ],
+        "setup-hooks": [
+            "cp scripts/pre-commit .git/hooks/pre-commit",
+            "chmod +x .git/hooks/pre-commit",
+            "@php -r \"echo 'Pre-commit hook installed!\\n';\""
+        ],
         "post-root-package-install": [
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
         ],
