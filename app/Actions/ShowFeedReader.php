@@ -6,7 +6,7 @@ namespace App\Actions;
 
 use App\Actions\Entry\ProxifyImagesInHTML;
 use App\Actions\Entry\SummarizeEntryWithLLM;
-use App\Actions\Favicon\BuildProfixedFaviconURL;
+use App\Actions\Favicon\BuildProxifiedFaviconURL;
 use App\Models\Entry;
 use App\Models\Feed;
 use Illuminate\Http\Request;
@@ -112,7 +112,7 @@ class ShowFeedReader
                     'feed' => [
                         'id' => $entry->feed_id,
                         'name' => $entry['feed_custom_name'] ?? $entry['feed_name'],
-                        'favicon_url' => BuildProfixedFaviconURL::run($entry['feed_favicon_url']),
+                        'favicon_url' => BuildProxifiedFaviconURL::run($entry['feed_favicon_url']),
                     ],
                 ]);
         };
@@ -168,7 +168,7 @@ class ShowFeedReader
                 $currentEntry->feed->name = $currentEntry['custom_feed_name'];
             }
 
-            $currentEntry->feed->favicon_url = BuildProfixedFaviconURL::run($currentEntry->feed->favicon_url);
+            $currentEntry->feed->favicon_url = BuildProxifiedFaviconURL::run($currentEntry->feed->favicon_url);
 
             return $currentEntry;
         };

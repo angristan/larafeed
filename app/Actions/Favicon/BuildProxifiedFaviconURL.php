@@ -10,7 +10,7 @@ use Onliner\ImgProxy\Options\Height;
 use Onliner\ImgProxy\Options\Width;
 use Onliner\ImgProxy\UrlBuilder;
 
-class BuildProfixedFaviconURL
+class BuildProxifiedFaviconURL
 {
     use AsAction;
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Actions\Favicon\BuildProfixedFaviconURL;
+use App\Actions\Favicon\BuildProxifiedFaviconURL;
 use Database\Factories\FeedFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -103,6 +103,6 @@ class Feed extends Model
 
     public function favicon_url(): ?string
     {
-        return BuildProfixedFaviconURL::run($this->favicon_url);
+        return BuildProxifiedFaviconURL::run($this->favicon_url);
     }
 }

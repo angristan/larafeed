@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use App\Actions\Favicon\BuildProfixedFaviconURL;
+use App\Actions\Favicon\BuildProxifiedFaviconURL;
 use App\Models\Feed;
 use App\Models\FeedRefresh;
 use App\Models\SubscriptionCategory;
@@ -57,7 +57,7 @@ class ShowSubscriptions
                     'original_name' => $feed->name,
                     'feed_url' => $feed->feed_url,
                     'site_url' => $feed->site_url,
-                    'favicon_url' => BuildProfixedFaviconURL::run($feed->favicon_url),
+                    'favicon_url' => BuildProxifiedFaviconURL::run($feed->favicon_url),
                     'entries_count' => $feed->entries_count,
                     'last_successful_refresh_at' => $feed->last_successful_refresh_at,
                     'last_failed_refresh_at' => $feed->last_failed_refresh_at,
