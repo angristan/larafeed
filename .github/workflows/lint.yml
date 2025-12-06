@@ -56,4 +56,4 @@ jobs:
         run: npm ci
 
       - name: biome
-        run: npm run biome-check
+        run: npm run lint-check
