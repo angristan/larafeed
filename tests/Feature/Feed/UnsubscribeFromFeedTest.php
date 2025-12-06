@@ -131,4 +131,54 @@ class UnsubscribeFromFeedTest extends TestCase
 
         $response->assertRedirect(route('login'));
     }
+
+    public function test_user_cannot_unsubscribe_from_feed_they_are_not_subscribed_to(): void
+    {
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
+
+        $category = SubscriptionCategory::create([
+            'user_id' => $otherUser->id,
+            'name' => 'Tech',
+        ]);
+
+        // Feed belongs to another user
+        $feed = Feed::factory()->create();
+        $otherUser->feeds()->attach($feed->id, ['category_id' => $category->id]);
+
+        $this->actingAs($user);
+
+        $response = $this->delete(route('feed.unsubscribe', ['feed_id' => $feed->id]));
+
+        $response->assertSessionHasErrors();
+
+        // Feed should still exist and other user should still be subscribed
+        $this->assertDatabaseHas('feeds', [
+            'id' => $feed->id,
+        ]);
+
+        $this->assertDatabaseHas('feed_subscriptions', [
+            'user_id' => $otherUser->id,
+            'feed_id' => $feed->id,
+        ]);
+    }
+
+    public function test_user_cannot_delete_feed_by_unsubscribing_from_nonexistent_subscription(): void
+    {
+        $user = User::factory()->create();
+
+        // Create a feed with no subscriptions initially
+        $feed = Feed::factory()->create();
+
+        $this->actingAs($user);
+
+        $response = $this->delete(route('feed.unsubscribe', ['feed_id' => $feed->id]));
+
+        $response->assertSessionHasErrors();
+
+        // Feed should still exist
+        $this->assertDatabaseHas('feeds', [
+            'id' => $feed->id,
+        ]);
+    }
 }

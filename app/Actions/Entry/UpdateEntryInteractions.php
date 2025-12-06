@@ -32,13 +32,12 @@ class UpdateEntryInteractions
             return redirect()->back()->withErrors('Missing entry id');
         }
 
-        $entry = Entry::whereId($entry_id)->first();
+        $entry = Entry::whereId($entry_id)
+            ->whereIn('feed_id', Auth::user()->feeds()->select('id'))
+            ->first();
+
         if (! $entry) {
             return redirect()->back()->withErrors('Entry not found');
-        }
-
-        if (! Auth::user()->feeds()->where('id', $entry->feed_id)->exists()) {
-            return redirect()->back()->withErrors('You\'re not subscribed to this feed');
         }
 
         if ($request->has('read')) {

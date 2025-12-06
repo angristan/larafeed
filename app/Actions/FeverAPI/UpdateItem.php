@@ -18,14 +18,11 @@ class UpdateItem extends BaseFeverAction
      */
     public function handle(Request $request): array
     {
-        $entry = Entry::whereId($request->input('id'))->first();
-        if (! $entry) {
-            return array_merge($this->getBaseResponse(), [
-                'error' => 'Entry not found',
-            ]);
-        }
+        $entry = Entry::whereId($request->input('id'))
+            ->whereIn('feed_id', Auth::user()->feeds()->select('id'))
+            ->first();
 
-        if (! Auth::user()->feeds()->where('id', $entry->feed_id)->exists()) {
+        if (! $entry) {
             return array_merge($this->getBaseResponse(), [
                 'error' => 'Entry not found',
             ]);

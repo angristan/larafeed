@@ -245,4 +245,67 @@ class FeverAPITest extends TestCase
             ->first();
         $this->assertNull($interaction->interaction->starred_at);
     }
+
+    public function test_user_cannot_mark_entry_from_unsubscribed_feed_as_read(): void
+    {
+        // Create a feed and entry that the user is NOT subscribed to
+        $otherFeed = Feed::factory()->create();
+        $otherEntry = Entry::factory()->create(['feed_id' => $otherFeed->id]);
+
+        $response = $this->post('/api/fever?mark=item&as=read&id='.$otherEntry->id, [
+            'api_key' => 'test-api-key',
+        ]);
+
+        $response->assertOk();
+        $response->assertJson([
+            'error' => 'Entry not found',
+        ]);
+
+        // No interaction should be created
+        $this->assertDatabaseMissing('entry_interactions', [
+            'user_id' => $this->user->id,
+            'entry_id' => $otherEntry->id,
+        ]);
+    }
+
+    public function test_user_cannot_save_entry_from_unsubscribed_feed(): void
+    {
+        // Create a feed and entry that the user is NOT subscribed to
+        $otherFeed = Feed::factory()->create();
+        $otherEntry = Entry::factory()->create(['feed_id' => $otherFeed->id]);
+
+        $response = $this->post('/api/fever?mark=item&as=save&id='.$otherEntry->id, [
+            'api_key' => 'test-api-key',
+        ]);
+
+        $response->assertOk();
+        $response->assertJson([
+            'error' => 'Entry not found',
+        ]);
+
+        // No interaction should be created
+        $this->assertDatabaseMissing('entry_interactions', [
+            'user_id' => $this->user->id,
+            'entry_id' => $otherEntry->id,
+        ]);
+    }
+
+    public function test_user_cannot_access_items_from_unsubscribed_feed(): void
+    {
+        // Create a feed and entry that the user is NOT subscribed to
+        $otherFeed = Feed::factory()->create();
+        $otherEntry = Entry::factory()->create(['feed_id' => $otherFeed->id]);
+
+        // Request items with the other entry's ID
+        $response = $this->post('/api/fever?items', [
+            'api_key' => 'test-api-key',
+            'with_ids' => (string) $otherEntry->id,
+        ]);
+
+        $response->assertOk();
+
+        // The entry should not be returned
+        $items = $response->json('items');
+        $this->assertCount(0, $items);
+    }
 }
