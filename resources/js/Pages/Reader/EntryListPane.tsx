@@ -126,9 +126,14 @@ export default function EntryListPane({
                         withBorder
                         pt={10}
                         pb={10}
+                        pl={12}
                         mb={10}
                         className={`${classes.entryCard}
-                        ${entry.id === currentEntryID ? classes.activeEntry : ''}
+                        ${
+                            entry.id === currentEntryID
+                                ? classes.activeEntry
+                                : ''
+                        }
                         ${entry.read_at ? classes.readEntry : ''}`}
                     >
                         <div>
