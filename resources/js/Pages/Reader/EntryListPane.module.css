@@ -23,7 +23,7 @@
 }
 
 .readEntry {
-    color: var(--mantine-color-gray-6);
+    color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-3));
 }
 
 .entryTitle {

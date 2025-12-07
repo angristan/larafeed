@@ -20,11 +20,105 @@
         width: 100%;
         height: auto;
     }
+
+    /* Dark mode improvements for entry content */
+    a {
+        color: light-dark(var(--mantine-color-blue-6), var(--mantine-color-blue-4));
+    }
+
+    a:hover {
+        color: light-dark(var(--mantine-color-blue-7), var(--mantine-color-blue-3));
+    }
+
+    pre,
+    code {
+        background-color: light-dark(
+            var(--mantine-color-gray-1),
+            var(--mantine-color-dark-8)
+        );
+        border-radius: var(--mantine-radius-sm);
+    }
+
+    code {
+        padding: 2px 6px;
+        font-size: 0.9em;
+    }
+
+    pre {
+        padding: var(--mantine-spacing-md);
+        overflow-x: auto;
+    }
+
+    pre code {
+        padding: 0;
+        background-color: transparent;
+    }
+
+    blockquote {
+        margin: var(--mantine-spacing-md) 0;
+        padding: var(--mantine-spacing-sm) var(--mantine-spacing-md);
+        border-left: 4px solid light-dark(
+            var(--mantine-color-gray-4),
+            var(--mantine-color-dark-4)
+        );
+        background-color: light-dark(
+            var(--mantine-color-gray-0),
+            var(--mantine-color-dark-8)
+        );
+        border-radius: 0 var(--mantine-radius-sm) var(--mantine-radius-sm) 0;
+    }
+
+    table {
+        border-collapse: collapse;
+        width: 100%;
+    }
+
+    th,
+    td {
+        border: 1px solid light-dark(
+            var(--mantine-color-gray-3),
+            var(--mantine-color-dark-4)
+        );
+        padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+    }
+
+    th {
+        background-color: light-dark(
+            var(--mantine-color-gray-1),
+            var(--mantine-color-dark-6)
+        );
+    }
+
+    tr:nth-child(even) {
+        background-color: light-dark(
+            var(--mantine-color-gray-0),
+            var(--mantine-color-dark-7)
+        );
+    }
+
+    hr {
+        border: none;
+        border-top: 1px solid light-dark(
+            var(--mantine-color-gray-3),
+            var(--mantine-color-dark-5)
+        );
+        margin: var(--mantine-spacing-lg) 0;
+    }
+}
+
+/* Subtle image dimming in dark mode to reduce eye strain */
+[data-mantine-color-scheme='dark'] .entryContent img {
+    filter: brightness(0.92) contrast(1.02);
+    transition: filter 0.2s ease;
+}
+
+[data-mantine-color-scheme='dark'] .entryContent img:hover {
+    filter: brightness(1) contrast(1);
 }
 
 .entrySummary {
     background-color: light-dark(
         var(--mantine-color-gray-1),
-        var(--mantine-color-dark-9)
+        var(--mantine-color-dark-8)
     );
 }

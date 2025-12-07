@@ -17,6 +17,21 @@ import { createRoot } from 'react-dom/client';
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 const theme = createTheme({
+    colors: {
+        // Warm dark mode colors with neutral/slightly warm undertones
+        dark: [
+            '#C9C5C1', // 0 - primary text (warm gray)
+            '#ADA9A5', // 1 - secondary text
+            '#918D89', // 2 - dimmed text/icons
+            '#666360', // 3 - borders
+            '#403D3A', // 4 - hover states
+            '#33302D', // 5 - active backgrounds
+            '#2A2725', // 6 - card backgrounds
+            '#1F1D1B', // 7 - main background
+            '#171514', // 8 - deeper background
+            '#110F0E', // 9 - darkest
+        ],
+    },
     headings: {
         sizes: {
             h1: { fontSize: rem(32) },

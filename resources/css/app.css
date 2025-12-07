@@ -1,3 +1,34 @@
+/* Unified color system for consistent theming */
+:root {
+    --app-bg-primary: var(--mantine-color-white);
+    --app-bg-secondary: var(--mantine-color-gray-0);
+    --app-bg-tertiary: var(--mantine-color-gray-1);
+    --app-text-primary: var(--mantine-color-black);
+    --app-text-secondary: var(--mantine-color-gray-7);
+    --app-text-dimmed: var(--mantine-color-gray-6);
+    --app-border: var(--mantine-color-gray-3);
+    --app-border-subtle: var(--mantine-color-gray-2);
+    --app-hover: var(--mantine-color-gray-1);
+    --app-active: var(--mantine-color-gray-2);
+    --app-link: var(--mantine-color-blue-6);
+    --app-code-bg: var(--mantine-color-gray-1);
+}
+
+[data-mantine-color-scheme='dark'] {
+    --app-bg-primary: var(--mantine-color-dark-7);
+    --app-bg-secondary: var(--mantine-color-dark-6);
+    --app-bg-tertiary: var(--mantine-color-dark-5);
+    --app-text-primary: var(--mantine-color-dark-0);
+    --app-text-secondary: var(--mantine-color-dark-1);
+    --app-text-dimmed: var(--mantine-color-dark-2);
+    --app-border: var(--mantine-color-dark-4);
+    --app-border-subtle: var(--mantine-color-dark-5);
+    --app-hover: var(--mantine-color-dark-5);
+    --app-active: var(--mantine-color-dark-4);
+    --app-link: var(--mantine-color-blue-4);
+    --app-code-bg: var(--mantine-color-dark-8);
+}
+
 body {
     overscroll-behavior: none;
 }
