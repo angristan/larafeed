@@ -70,9 +70,11 @@ erDiagram
     users {
         int8 id PK
         varchar name
-        varchar email
+        varchar email UK
         timestamp email_verified_at
         varchar password
+        varchar remember_token
+        text fever_api_key
         timestamp created_at
         timestamp updated_at
     }
@@ -80,12 +82,13 @@ erDiagram
     feeds {
         int8 id PK
         varchar name
-        varchar feed_url
+        varchar feed_url UK
         varchar site_url
         varchar favicon_url
+        timestamp favicon_updated_at
         timestamp last_successful_refresh_at
         timestamp last_failed_refresh_at
-        text last_error_message
+        varchar last_error_message
         timestamp created_at
         timestamp updated_at
     }
@@ -114,8 +117,8 @@ erDiagram
     }
 
     feed_subscriptions {
-        int8 user_id FK
-        int8 feed_id FK
+        int8 user_id PK,FK
+        int8 feed_id PK,FK
         int8 category_id FK
         varchar custom_feed_name
         timestamp created_at
@@ -131,8 +134,8 @@ erDiagram
     }
 
     entry_interactions {
-        int8 user_id FK
-        int8 entry_id FK
+        int8 user_id PK,FK
+        int8 entry_id PK,FK
         timestamp read_at
         timestamp starred_at
         timestamp archived_at
