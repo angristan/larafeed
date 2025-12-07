@@ -69,7 +69,7 @@ class ImportOPML
 
                     Log::info("[OPML] Importing feed: {$feed_url} for user: ".Auth::user()->id);
 
-                    CreateNewFeed::dispatch($feed_url, Auth::user(), $category->id, true, $feed_name);
+                    CreateNewFeed::dispatch($feed_url, Auth::user(), $category->id, true, $feed_name)->afterCommit();
                 }
             }
         });
