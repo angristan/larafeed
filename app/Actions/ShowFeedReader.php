@@ -18,8 +18,7 @@ class ShowFeedReader
 {
     use AsAction;
 
-    /* This action is only a controller for the main user facing view */
-    public function handle(Request $request): \Inertia\Response
+    public function asController(Request $request): \Inertia\Response
     {
         $feed_id = $request->query('feed');
         $entry_id = $request->query('entry');

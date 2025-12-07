@@ -60,8 +60,8 @@ Route::middleware('auth')->group(function () {
     Route::post('category', CreateCategory::class)->name('category.store');
     Route::delete('category/{category_id}', DeleteCategory::class)->name('category.delete')->whereNumber('category_id');
 
-    Route::get('/import', [ImportOPML::class, 'index'])->name('import.index');
-    Route::post('/import', [ImportOPML::class, 'store'])->name('import.store');
+    Route::get('/import', ImportOPML::class)->name('import.index');
+    Route::post('/import', ImportOPML::class)->name('import.store');
     Route::get('/export', ExportOPML::class)->name('export.download');
 
     Route::get('/charts', ShowCharts::class)->name('charts.index');

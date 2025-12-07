@@ -21,17 +21,12 @@ class RefreshFavicon
 
     public function asController(string $feed_id): \Illuminate\Http\JsonResponse
     {
-        if (! $feed_id) {
-            return response()->json(['error' => 'Missing feed id'], 400);
-        }
-
         $feed = Feed::forUser(Auth::user())->find($feed_id);
 
         if (! $feed) {
-            return response()->json(['error' => 'Unauthorized'], 401);
+            return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        // Dispatch the favicon refresh job
         $this->dispatch($feed);
 
         return response()->json(['message' => 'Favicon refresh requested'], 200);

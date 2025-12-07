@@ -124,10 +124,9 @@ XML;
 
         $this->actingAs($user);
 
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('No OPML file provided');
+        $response = $this->post(route('import.store'), []);
 
-        $this->withoutExceptionHandling()->post(route('import.store'), []);
+        $response->assertSessionHasErrors(['opml_file']);
     }
 
     public function test_import_fails_with_invalid_xml(): void
@@ -146,5 +145,20 @@ XML;
         $this->withoutExceptionHandling()->post(route('import.store'), [
             'opml_file' => $file,
         ]);
+    }
+
+    public function test_import_fails_with_invalid_file_type(): void
+    {
+        $user = User::factory()->create();
+
+        $file = UploadedFile::fake()->image('photo.jpg');
+
+        $this->actingAs($user);
+
+        $response = $this->post(route('import.store'), [
+            'opml_file' => $file,
+        ]);
+
+        $response->assertSessionHasErrors(['opml_file']);
     }
 }

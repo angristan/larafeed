@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 class CreateCategory
@@ -21,7 +22,12 @@ class CreateCategory
     public function rules(): array
     {
         return [
-            'categoryName' => ['required', 'max:20'],
+            'categoryName' => [
+                'required',
+                'max:20',
+                Rule::unique('subscription_categories', 'name')
+                    ->where(fn ($query) => $query->where('user_id', Auth::id())),
+            ],
         ];
     }
 
@@ -33,18 +39,13 @@ class CreateCategory
         return [
             'categoryName.required' => 'Please enter a category name',
             'categoryName.max' => 'Please enter a category name that is less than 20 characters',
+            'categoryName.unique' => 'You already have a category with that name',
         ];
     }
 
     public function asController(Request $request): RedirectResponse
     {
-        if (SubscriptionCategory::forUser(Auth::user())->where('name', $request->categoryName)->exists()) {
-            return redirect()->back()->withErrors([
-                'categoryName' => 'You already have a category with that name',
-            ]);
-        }
-
-        $this->handle(Auth::user(), $request->categoryName);
+        $this->handle(Auth::user(), $request->input('categoryName'));
 
         return redirect()->route('feeds.index');
     }
