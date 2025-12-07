@@ -98,9 +98,10 @@ class CreateNewFeed
 
     public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null): \Illuminate\Http\RedirectResponse
     {
-        // Defense-in-depth: Validate URL at fetch time to prevent SSRF attacks
+        // Defense-in-depth: Validate URL at fetch time to prevent SSRF attacks.
         // This catches cases where the URL wasn't validated before dispatch (e.g., direct handle() calls)
-        // and protects against DNS rebinding attacks by validating right before the request
+        // and reduces the DNS rebinding attack window by validating as close to fetch time as possible.
+        // Note: A small TOCTOU window remains between this check and Feeds::make() - see UrlSecurityValidator docs.
         $urlValidation = UrlSecurityValidator::validate($requested_feed_url);
         if (! $urlValidation['valid']) {
             Log::warning("[CreateNewFeed] Blocked unsafe URL: {$requested_feed_url}");
