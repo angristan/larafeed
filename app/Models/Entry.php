@@ -99,11 +99,22 @@ class Entry extends Model
 
     private function updateOrCreateInteractionWithAttribute(User $user, string $column, mixed $value): void
     {
-        if ($this->users->contains($user)) {
-            $this->users()->updateExistingPivot($user, [$column => $value]);
-        } else {
-            $this->users()->attach($user, [$column => $value]);
-        }
+        // The upsert() method:
+        // - Performs a single atomic INSERT ... ON CONFLICT DO UPDATE query
+        // - First array: the data to insert
+        // - Second array: the columns that define uniqueness (composite key)
+        // - Third array: columns to update if the record already exists
+        EntryInteraction::upsert(
+            [
+                'user_id' => $user->id,
+                'entry_id' => $this->id,
+                $column => $value,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            ['user_id', 'entry_id'],
+            [$column, 'updated_at']
+        );
     }
 
     public function markAsRead(User $user): void
