@@ -40,11 +40,7 @@ class ExportOPML
             $categoryOutline->addAttribute('text', $category->name);
 
             $subscriptions = $category->feedsSubscriptions
-                ->sortBy(function ($subscription) {
-                    $feedName = $subscription->custom_feed_name ?? $subscription->feed->name;
-
-                    return Str::lower($feedName);
-                })
+                ->sortBy(fn ($subscription) => ($subscription->custom_feed_name ?? $subscription->feed->name) |> Str::lower(...))
                 ->values();
 
             foreach ($subscriptions as $subscription) {
