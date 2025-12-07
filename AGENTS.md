@@ -1,2 +1,2 @@
-- Make sure to use the laravel actions arcitecture for backend in app/Actions.
+- Make sure to use the laravel actions architecture for backend in app/Actions.
 - Run `composer run check` after changes to run tests/lint/format checks for both backend and frontend.
