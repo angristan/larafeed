@@ -98,10 +98,10 @@ class CreateNewFeed
 
     public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null): \Illuminate\Http\RedirectResponse
     {
-        // Defense-in-depth: Validate URL at fetch time to prevent SSRF attacks.
-        // This catches cases where the URL wasn't validated before dispatch (e.g., direct handle() calls)
-        // and reduces the DNS rebinding attack window by validating as close to fetch time as possible.
-        // Note: A small TOCTOU window remains between this check and Feeds::make() - see UrlSecurityValidator docs.
+        // Validate URL and resolve DNS to prevent SSRF attacks.
+        // The resolved IPs are passed to curl via CURLOPT_RESOLVE to prevent DNS rebinding attacks
+        // (where an attacker's DNS server returns a safe IP during validation, then switches to an
+        // internal IP before the actual request).
         $urlValidation = UrlSecurityValidator::validate($requested_feed_url);
         if (! $urlValidation['valid']) {
             Log::warning("[CreateNewFeed] Blocked unsafe URL: {$requested_feed_url}");
@@ -111,11 +111,21 @@ class CreateNewFeed
             ]);
         }
 
+        // Pin DNS resolution to the IPs we validated, preventing DNS rebinding
+        $curlOptions = [];
+        if (! empty($urlValidation['curl_resolve'])) {
+            $curlOptions[CURLOPT_RESOLVE] = $urlValidation['curl_resolve'];
+        }
+
         $error = null;
 
         // TODO fetch limit
-        // @phpstan-ignore argument.type (SimplePie accepts string, array triggers deprecated multi-feed mode)
-        $crawledFeed = \Feeds::make(feedUrl: $requested_feed_url);
+        $crawledFeed = \Feeds::make(
+            $requested_feed_url, // @phpstan-ignore argument.type (SimplePie accepts string; array triggers deprecated multi-feed mode)
+            0, // limit
+            false, // forceFeed
+            ! empty($curlOptions) ? ['curl.options' => $curlOptions] : null // @phpstan-ignore argument.type
+        );
         if ($crawledFeed->error()) {
             if (is_array($crawledFeed->error())) {
                 $error = implode(', ', $crawledFeed->error());

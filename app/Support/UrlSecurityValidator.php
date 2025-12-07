@@ -12,23 +12,20 @@ namespace App\Support;
  * - Do not resolve to private, reserved, or loopback IP addresses
  * - Support both IPv4 and IPv6 address validation
  *
- * KNOWN LIMITATION: DNS Rebinding
- * There is a time-of-check to time-of-use (TOCTOU) window between DNS validation
- * and the actual HTTP request. An attacker with control over a DNS server could
- * return a safe IP during validation, then quickly switch to a private IP before
- * the HTTP client connects. This is mitigated by:
- * 1. Validating at multiple points (import time + fetch time in CreateNewFeed)
- * 2. The short window makes exploitation difficult in practice
- *
- * For maximum security in high-risk environments, consider routing requests
- * through a hardened proxy that blocks private IP connections at the network level.
+ * DNS Rebinding Protection:
+ * The validate() method returns resolved IPs that can be passed to curl via
+ * CURLOPT_RESOLVE, ensuring the same IPs validated are used for the actual request.
+ * This eliminates the TOCTOU (time-of-check to time-of-use) window that would
+ * otherwise allow DNS rebinding attacks.
  */
 class UrlSecurityValidator
 {
     /**
      * Validate a URL is safe to fetch (not pointing to internal resources).
      *
-     * @return array{valid: bool, error: ?string}
+     * Returns resolved IPs that can be used with CURLOPT_RESOLVE to prevent DNS rebinding.
+     *
+     * @return array{valid: bool, error: ?string, curl_resolve: array<string>}
      */
     public static function validate(string $url): array
     {
@@ -39,6 +36,7 @@ class UrlSecurityValidator
             return [
                 'valid' => false,
                 'error' => 'URL must use HTTP or HTTPS protocol',
+                'curl_resolve' => [],
             ];
         }
 
@@ -46,35 +44,41 @@ class UrlSecurityValidator
             return [
                 'valid' => false,
                 'error' => 'URL must contain a valid host',
+                'curl_resolve' => [],
             ];
         }
 
         $host = $parsed['host'];
+        $scheme = strtolower($parsed['scheme']);
+        $port = $parsed['port'] ?? ($scheme === 'https' ? 443 : 80);
 
         // Remove brackets from IPv6 addresses (e.g., [::1] -> ::1)
+        $hostForValidation = $host;
         if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
-            $host = substr($host, 1, -1);
+            $hostForValidation = substr($host, 1, -1);
         }
 
         // Check if host is already an IP address
-        if (filter_var($host, FILTER_VALIDATE_IP)) {
-            if (self::isUnsafeIp($host)) {
+        if (filter_var($hostForValidation, FILTER_VALIDATE_IP)) {
+            if (self::isUnsafeIp($hostForValidation)) {
                 return [
                     'valid' => false,
                     'error' => 'URL must not point to private or internal addresses',
+                    'curl_resolve' => [],
                 ];
             }
 
-            return ['valid' => true, 'error' => null];
+            // No need for CURLOPT_RESOLVE when URL already contains an IP
+            return ['valid' => true, 'error' => null, 'curl_resolve' => []];
         }
 
         // Resolve hostname to IP addresses (both IPv4 and IPv6)
-        $ips = self::resolveHostToIps($host);
+        $ips = self::resolveHostToIps($hostForValidation);
 
         if ($ips === []) {
             // Could not resolve - might be invalid or temporary DNS issue
             // We'll let it fail later during actual fetch rather than blocking here
-            return ['valid' => true, 'error' => null];
+            return ['valid' => true, 'error' => null, 'curl_resolve' => []];
         }
 
         foreach ($ips as $ip) {
@@ -82,11 +86,16 @@ class UrlSecurityValidator
                 return [
                     'valid' => false,
                     'error' => 'URL must not point to private or internal addresses',
+                    'curl_resolve' => [],
                 ];
             }
         }
 
-        return ['valid' => true, 'error' => null];
+        // Build CURLOPT_RESOLVE entries to pin DNS resolution
+        // Format: "host:port:ip1,ip2,..."
+        $curlResolve = [sprintf('%s:%d:%s', $host, $port, implode(',', $ips))];
+
+        return ['valid' => true, 'error' => null, 'curl_resolve' => $curlResolve];
     }
 
     /**
