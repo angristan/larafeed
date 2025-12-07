@@ -10,6 +10,7 @@ use App\Models\FeedSubscription;
 use App\Models\SubscriptionCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
 
@@ -52,24 +53,26 @@ class ImportOPML
         }
 
         // TODO: make this optional
-        EntryInteraction::where('user_id', Auth::user()->id)->delete();
-        FeedSubscription::where('user_id', Auth::user()->id)->delete();
+        DB::transaction(function () use ($xml) {
+            EntryInteraction::where('user_id', Auth::user()->id)->delete();
+            FeedSubscription::where('user_id', Auth::user()->id)->delete();
 
-        foreach ($xml->body->outline as $category_outline) {
-            foreach ($category_outline->outline as $feed_outline) {
-                $feed_url = (string) $feed_outline['xmlUrl'];
-                $feed_name = (string) $feed_outline['title'];
+            foreach ($xml->body->outline as $category_outline) {
+                foreach ($category_outline->outline as $feed_outline) {
+                    $feed_url = (string) $feed_outline['xmlUrl'];
+                    $feed_name = (string) $feed_outline['title'];
 
-                $category = SubscriptionCategory::firstOrCreate([
-                    'user_id' => Auth::user()->id,
-                    'name' => (string) $category_outline['text'],
-                ]);
+                    $category = SubscriptionCategory::firstOrCreate([
+                        'user_id' => Auth::user()->id,
+                        'name' => (string) $category_outline['text'],
+                    ]);
 
-                Log::info("[OPML] Importing feed: {$feed_url} for user: ".Auth::user()->id);
+                    Log::info("[OPML] Importing feed: {$feed_url} for user: ".Auth::user()->id);
 
-                CreateNewFeed::dispatch($feed_url, Auth::user(), $category->id, true, $feed_name);
+                    CreateNewFeed::dispatch($feed_url, Auth::user(), $category->id, true, $feed_name);
+                }
             }
-        }
+        });
 
         return redirect()->route('profile.edit', ['section' => 'opml']);
     }

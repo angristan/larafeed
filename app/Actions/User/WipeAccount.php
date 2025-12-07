@@ -10,6 +10,7 @@ use App\Models\SubscriptionCategory;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 class WipeAccount
@@ -18,22 +19,23 @@ class WipeAccount
 
     public function handle(Request $request): \Illuminate\Http\RedirectResponse
     {
-        EntryInteraction::where('user_id', Auth::user()->id)->delete();
+        DB::transaction(function () {
+            EntryInteraction::where('user_id', Auth::user()->id)->delete();
 
-        $feeds = Auth::user()->feeds()->select('feeds.id')->get();
+            $feeds = Auth::user()->feeds()->select('feeds.id')->get();
 
-        FeedSubscription::where('user_id', Auth::user()->id)->delete();
+            FeedSubscription::where('user_id', Auth::user()->id)->delete();
 
-        // Delete feed if no other user is subscribed to it
-        foreach ($feeds as $feed) {
-            if (FeedSubscription::where('feed_id', $feed->id)->count() === 0) {
-                $feed->delete();
+            // Delete feed if no other user is subscribed to it
+            foreach ($feeds as $feed) {
+                if (FeedSubscription::where('feed_id', $feed->id)->count() === 0) {
+                    $feed->delete();
+                }
             }
-        }
 
-        SubscriptionCategory::where('user_id', Auth::user()->id)->delete();
+            SubscriptionCategory::where('user_id', Auth::user()->id)->delete();
+        });
 
         return redirect()->back();
-
     }
 }

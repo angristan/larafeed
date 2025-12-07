@@ -10,6 +10,7 @@ use App\Models\FeedRefresh;
 use Carbon\Carbon;
 use Feeds;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Lorisleiva\Actions\Concerns\AsAction;
@@ -68,34 +69,36 @@ class RefreshFeedEntries
 
             $entriesCreated = 0;
 
-            collect($crawledFeed->get_items())->each(function (Item $item) use ($feed, &$entriesCreated) {
-                if ($feed->entries()->where('url', $item->get_permalink())->exists()) {
-                    // TODO: should we update the entry?
-                    return;
-                }
+            DB::transaction(function () use ($crawledFeed, $feed, $startedAt, &$entriesCreated) {
+                collect($crawledFeed->get_items())->each(function (Item $item) use ($feed, &$entriesCreated) {
+                    if ($feed->entries()->where('url', $item->get_permalink())->exists()) {
+                        // TODO: should we update the entry?
+                        return;
+                    }
 
-                $feed->entries()->create([
-                    'title' => str_replace('&amp;', '&', $item->get_title()),
-                    'url' => $item->get_permalink(),
-                    'author' => $item->get_author()?->get_name(),
-                    'content' => $item->get_content(),
-                    'published_at' => $item->get_date('Y-m-d H:i:s'),
+                    $feed->entries()->create([
+                        'title' => str_replace('&amp;', '&', $item->get_title()),
+                        'url' => $item->get_permalink(),
+                        'author' => $item->get_author()?->get_name(),
+                        'content' => $item->get_content(),
+                        'published_at' => $item->get_date('Y-m-d H:i:s'),
+                    ]);
+
+                    $entriesCreated++;
+                });
+
+                $feed->last_successful_refresh_at = $startedAt;
+                $feed->last_error_message = null;
+                $feed->save();
+
+                FeedRefresh::create([
+                    'feed_id' => $feed->id,
+                    'refreshed_at' => $startedAt,
+                    'was_successful' => true,
+                    'entries_created' => $entriesCreated,
+                    'error_message' => null,
                 ]);
-
-                $entriesCreated++;
             });
-
-            $feed->last_successful_refresh_at = $startedAt;
-            $feed->last_error_message = null;
-            $feed->save();
-
-            FeedRefresh::create([
-                'feed_id' => $feed->id,
-                'refreshed_at' => $startedAt,
-                'was_successful' => true,
-                'entries_created' => $entriesCreated,
-                'error_message' => null,
-            ]);
 
             Log::withContext([
                 'feed_id' => $feed->id,

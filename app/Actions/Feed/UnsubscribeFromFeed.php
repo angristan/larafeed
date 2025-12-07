@@ -7,6 +7,7 @@ namespace App\Actions\Feed;
 use App\Models\Feed;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 class UnsubscribeFromFeed
@@ -15,14 +16,16 @@ class UnsubscribeFromFeed
 
     public function handle(User $user, Feed $feed): void
     {
-        $user->entriesInterracted()->where('feed_id', $feed->id)->delete();
-        $user->feeds()->detach($feed->id);
+        DB::transaction(function () use ($user, $feed) {
+            $user->entriesInterracted()->where('feed_id', $feed->id)->delete();
+            $user->feeds()->detach($feed->id);
 
-        // Delete feed if no more users are subscribed to it
-        $feed->refresh();
-        if ($feed->users->isEmpty()) {
-            $feed->delete();
-        }
+            // Delete feed if no more users are subscribed to it
+            $feed->refresh();
+            if ($feed->users->isEmpty()) {
+                $feed->delete();
+            }
+        });
     }
 
     public function asController(int $feedId): \Illuminate\Http\RedirectResponse

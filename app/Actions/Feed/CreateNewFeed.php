@@ -12,6 +12,7 @@ use App\Models\SubscriptionCategory;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Lorisleiva\Actions\Concerns\AsAction;
@@ -158,70 +159,74 @@ class CreateNewFeed
 
         $trimmedError = $error ? Str::limit($error, 255, '') : null;
 
-        $feed = Feed::create([
-            'name' => $feed_name,
-            'feed_url' => $feed_url,
-            'site_url' => $site_url,
-            'favicon_url' => $favicon_url,
-            'favicon_updated_at' => $favicon_url ? now() : null,
-            'last_successful_refresh_at' => $error ? null : $refreshTimestamp,
-            'last_failed_refresh_at' => $error ? $refreshTimestamp : null,
-            'last_error_message' => $trimmedError,
-        ]);
-
-        if ($attachedUser) {
-            $attachedUser->feeds()->attach($feed, ['category_id' => $category_id]);
-        }
-
         // Only get last 20 because $entry->get_content() is very slow
         // so for feeds with many full-cotent entries, it can take a while
         $entries = $crawledFeed->get_items(0, 20);
 
-        $newFeedEntries = [];
+        $feed = DB::transaction(function () use ($feed_name, $feed_url, $site_url, $favicon_url, $error, $refreshTimestamp, $trimmedError, $attachedUser, $category_id, $entries) {
+            $feed = Feed::create([
+                'name' => $feed_name,
+                'feed_url' => $feed_url,
+                'site_url' => $site_url,
+                'favicon_url' => $favicon_url,
+                'favicon_updated_at' => $favicon_url ? now() : null,
+                'last_successful_refresh_at' => $error ? null : $refreshTimestamp,
+                'last_failed_refresh_at' => $error ? $refreshTimestamp : null,
+                'last_error_message' => $trimmedError,
+            ]);
 
-        foreach ($entries as $entry) {
-            if (strlen($entry->get_author()?->get_name() ?? '') > 255) {
-                // 255 is arbitrary, but if the author is that long, it's probably a bug
-                // example: https://x.com/fuolpit/status/1873790603768553905
-
-                \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($feed, $entry): void {
-                    $scope->setContext('feed', [
-                        'url' => $feed->feed_url,
-                        'id' => $feed->id,
-                    ]);
-                    $scope->setContext('entry', [
-                        'author' => $entry->get_author()?->get_name(),
-                        'title' => $entry->get_title(),
-                        'url' => $entry->get_permalink(),
-                    ]);
-
-                    \Sentry\captureMessage('Author name too long');
-                });
+            if ($attachedUser) {
+                $attachedUser->feeds()->attach($feed, ['category_id' => $category_id]);
             }
 
-            $title = str_replace('&amp;', '&', $entry->get_title());
-            $title = substr($title, 0, 255);
-            $newFeedEntries[] = [
-                'title' => $title,
-                'url' => $entry->get_permalink(),
-                'content' => $entry->get_content(),
-                'author' => substr($entry->get_author()?->get_name() ?? '', 0, 255),
-                'published_at' => $entry->get_date('Y-m-d H:i:s'),
+            $newFeedEntries = [];
+
+            foreach ($entries as $entry) {
+                if (strlen($entry->get_author()?->get_name() ?? '') > 255) {
+                    // 255 is arbitrary, but if the author is that long, it's probably a bug
+                    // example: https://x.com/fuolpit/status/1873790603768553905
+
+                    \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($feed, $entry): void {
+                        $scope->setContext('feed', [
+                            'url' => $feed->feed_url,
+                            'id' => $feed->id,
+                        ]);
+                        $scope->setContext('entry', [
+                            'author' => $entry->get_author()?->get_name(),
+                            'title' => $entry->get_title(),
+                            'url' => $entry->get_permalink(),
+                        ]);
+
+                        \Sentry\captureMessage('Author name too long');
+                    });
+                }
+
+                $title = str_replace('&amp;', '&', $entry->get_title());
+                $title = substr($title, 0, 255);
+                $newFeedEntries[] = [
+                    'title' => $title,
+                    'url' => $entry->get_permalink(),
+                    'content' => $entry->get_content(),
+                    'author' => substr($entry->get_author()?->get_name() ?? '', 0, 255),
+                    'published_at' => $entry->get_date('Y-m-d H:i:s'),
+                    'feed_id' => $feed->id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+
+            $feed->entries()->insert($newFeedEntries);
+
+            FeedRefresh::create([
                 'feed_id' => $feed->id,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ];
-        }
+                'refreshed_at' => $refreshTimestamp,
+                'was_successful' => ! $error,
+                'entries_created' => count($newFeedEntries),
+                'error_message' => $error,
+            ]);
 
-        $feed->entries()->insert($newFeedEntries);
-
-        FeedRefresh::create([
-            'feed_id' => $feed->id,
-            'refreshed_at' => $refreshTimestamp,
-            'was_successful' => ! $error,
-            'entries_created' => count($newFeedEntries),
-            'error_message' => $error,
-        ]);
+            return $feed;
+        });
 
         return redirect()->route('feeds.index', ['feed' => $feed->id]);
     }
