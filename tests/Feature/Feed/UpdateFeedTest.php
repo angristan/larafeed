@@ -181,4 +181,41 @@ class UpdateFeedTest extends TestCase
 
         $response->assertRedirect(route('login'));
     }
+
+    public function test_name_not_persisted_when_category_validation_fails(): void
+    {
+        $user1 = User::factory()->create();
+        $user2 = User::factory()->create();
+
+        $category1 = SubscriptionCategory::create([
+            'user_id' => $user1->id,
+            'name' => 'Tech',
+        ]);
+
+        $category2 = SubscriptionCategory::create([
+            'user_id' => $user2->id,
+            'name' => 'News',
+        ]);
+
+        $feed = Feed::factory()->create();
+        $user1->feeds()->attach($feed->id, ['category_id' => $category1->id]);
+
+        $this->actingAs($user1);
+
+        // Send both name and invalid category_id
+        $response = $this->patch(route('feed.update', ['feed_id' => $feed->id]), [
+            'name' => 'New Custom Name',
+            'category_id' => $category2->id,
+        ]);
+
+        $response->assertSessionHasErrors();
+
+        // Verify name was NOT changed (atomic - all or nothing)
+        $this->assertDatabaseHas('feed_subscriptions', [
+            'user_id' => $user1->id,
+            'feed_id' => $feed->id,
+            'category_id' => $category1->id,
+            'custom_feed_name' => null,
+        ]);
+    }
 }
