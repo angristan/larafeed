@@ -37,28 +37,27 @@ class UpdateFeed
 
         $subscription = FeedSubscription::where('feed_id', $feed_id)->where('user_id', Auth::id())->first();
 
-        return DB::transaction(function () use ($request, $subscription) {
+        // Validate category before transaction to ensure rollback on failure
+        if ($request->has('category_id')) {
+            $category = SubscriptionCategory::forUser(Auth::user())->find($request->input('category_id'));
+
+            if (! $category) {
+                return redirect()->back()->withErrors('Category not found');
+            }
+        }
+
+        DB::transaction(function () use ($request, $subscription) {
             if ($request->has('name')) {
-                if ($request->input('name') === '') {
-                    $subscription->custom_feed_name = null;
-                } else {
-                    $subscription->custom_feed_name = $request->input('name');
-                }
+                $subscription->custom_feed_name = $request->input('name') === '' ? null : $request->input('name');
                 $subscription->save();
             }
 
             if ($request->has('category_id')) {
-                $category = SubscriptionCategory::forUser(Auth::user())->find($request->input('category_id'));
-
-                if (! $category) {
-                    return redirect()->back()->withErrors('Category not found');
-                }
-
                 $subscription->category_id = $request->input('category_id');
                 $subscription->save();
             }
-
-            return redirect()->back();
         });
+
+        return redirect()->back();
     }
 }
