@@ -29,7 +29,7 @@ class UrlSecurityValidatorTest extends TestCase
             'ftp scheme' => ['ftp://example.com/feed.xml', 'URL must use HTTP or HTTPS protocol'],
             'file scheme' => ['file:///etc/passwd', 'URL must use HTTP or HTTPS protocol'],
             'javascript scheme' => ['javascript:alert(1)', 'URL must use HTTP or HTTPS protocol'],
-            'data scheme' => ['data:text/html,<script>alert(1)</script>', 'URL must use HTTP or HTTPS protocol'],
+            'data scheme' => ['data:text/html,<script>alert(1)</script>', 'Invalid URL format'],
             'gopher scheme' => ['gopher://localhost:70/', 'URL must use HTTP or HTTPS protocol'],
 
             // IPv4 private/reserved addresses
@@ -56,7 +56,7 @@ class UrlSecurityValidatorTest extends TestCase
 
             // Missing scheme or host
             'no scheme' => ['example.com/feed.xml', 'URL must use HTTP or HTTPS protocol'],
-            'empty host' => ['http:///feed.xml', 'URL must use HTTP or HTTPS protocol'], // parse_url returns false for malformed URLs
+            'empty host' => ['http:///feed.xml', 'URL must contain a valid host'], // URI extension parses this with empty host
         ];
     }
 

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use Uri\Rfc3986\Uri;
+
 /**
  * Validates URLs against SSRF (Server-Side Request Forgery) attacks.
  *
@@ -29,10 +31,21 @@ class UrlSecurityValidator
      */
     public static function validate(string $url): array
     {
-        $parsed = parse_url($url);
+        $uri = Uri::parse($url);
 
-        // Require http/https scheme
-        if (! isset($parsed['scheme']) || ! in_array(strtolower($parsed['scheme']), ['http', 'https'], true)) {
+        // Invalid URL format
+        if ($uri === null) {
+            return [
+                'valid' => false,
+                'error' => 'Invalid URL format',
+                'curl_resolve' => [],
+            ];
+        }
+
+        $scheme = $uri->getScheme();
+        $host = $uri->getHost();
+
+        if ($scheme === null || ! in_array($scheme, ['http', 'https'], true)) {
             return [
                 'valid' => false,
                 'error' => 'URL must use HTTP or HTTPS protocol',
@@ -40,7 +53,7 @@ class UrlSecurityValidator
             ];
         }
 
-        if (! isset($parsed['host'])) {
+        if ($host === null || $host === '') {
             return [
                 'valid' => false,
                 'error' => 'URL must contain a valid host',
@@ -48,9 +61,7 @@ class UrlSecurityValidator
             ];
         }
 
-        $host = $parsed['host'];
-        $scheme = strtolower($parsed['scheme']);
-        $port = $parsed['port'] ?? ($scheme === 'https' ? 443 : 80);
+        $port = $uri->getPort() ?? ($scheme === 'https' ? 443 : 80);
 
         // Remove brackets from IPv6 addresses (e.g., [::1] -> ::1)
         $hostForValidation = $host;

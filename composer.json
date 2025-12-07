@@ -9,7 +9,7 @@
     ],
     "license": "MIT",
     "require": {
-        "php": "^8.3",
+        "php": "^8.5",
         "ashallendesign/favicon-fetcher": "^3.7.0",
         "bensampo/laravel-enum": "^6.2",
         "echolabsdev/prism": "^0.98",
