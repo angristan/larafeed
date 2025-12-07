@@ -25,15 +25,10 @@ class RefreshFavicon
             return response()->json(['error' => 'Missing feed id'], 400);
         }
 
-        // Check if the user has access to the feed
-        if (! Auth::user()->feeds()->where('id', $feed_id)->exists()) {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
-
-        $feed = Feed::whereId($feed_id)->first();
+        $feed = Feed::forUser(Auth::user())->find($feed_id);
 
         if (! $feed) {
-            return response()->json(['error' => 'Feed not found'], 404);
+            return response()->json(['error' => 'Unauthorized'], 401);
         }
 
         // Dispatch the favicon refresh job

@@ -6,7 +6,7 @@ namespace App\Actions\Feed;
 
 use App\Models\Entry;
 use App\Models\EntryInteraction;
-use App\Models\FeedSubscription;
+use App\Models\Feed;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +18,9 @@ class MarkEntriesAsRead
 
     public function asController(int $feedId): RedirectResponse
     {
-        if (! $this->isCurrentUserSubscribed($feedId)) {
+        $feed = Feed::forUser(Auth::user())->find($feedId);
+
+        if (! $feed) {
             return redirect()
                 ->back()
                 ->withErrors('You are not subscribed to this feed.');
@@ -30,17 +32,6 @@ class MarkEntriesAsRead
         });
 
         return redirect()->back();
-    }
-
-    /**
-     * Verify user is subscribed to the feed
-     */
-    private function isCurrentUserSubscribed(int $feedId): bool
-    {
-        return FeedSubscription::query()
-            ->where('feed_id', $feedId)
-            ->where('user_id', Auth::id())
-            ->exists();
     }
 
     /**

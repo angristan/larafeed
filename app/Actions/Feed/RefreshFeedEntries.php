@@ -143,12 +143,11 @@ class RefreshFeedEntries
             return response()->json(['error' => 'Missing feed id'], 400);
         }
 
-        // Check if the user has access to the feed
-        if (! Auth::user()->feeds()->where('id', $feed_id)->exists()) {
+        $feed = Feed::forUser(Auth::user())->find($feed_id);
+
+        if (! $feed) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
-
-        $feed = Feed::whereId($feed_id)->first();
 
         if ($feed->last_successful_refresh_at && Carbon::parse($feed->last_successful_refresh_at)->diffInMinutes(now()) < 5) {
             return response()->json(['message' => 'Feed has already been refreshed less than 5min ago'], 429);

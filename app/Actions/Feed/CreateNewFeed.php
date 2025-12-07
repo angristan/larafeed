@@ -57,8 +57,7 @@ class CreateNewFeed
 
         if ($categoryName !== '') {
             if (
-                SubscriptionCategory::query()
-                    ->where('user_id', Auth::id())
+                SubscriptionCategory::forUser(Auth::user())
                     ->where('name', $categoryName)
                     ->exists()
             ) {
@@ -77,8 +76,7 @@ class CreateNewFeed
             $resolvedCategoryId = (int) $categoryIdInput;
 
             if (
-                ! Auth::user()
-                    ->subscriptionCategories()
+                ! SubscriptionCategory::forUser(Auth::user())
                     ->where('id', $resolvedCategoryId)
                     ->exists()
             ) {

@@ -30,14 +30,7 @@ class EditTag
     {
         $entryId = base_convert($request->input('i'), 16, 10);
 
-        $entries = Entry::where('id', $entryId)
-            ->whereExists(function ($query) {
-                $query->select('id')
-                    ->from('feed_subscriptions')
-                    ->whereColumn('feed_subscriptions.feed_id', 'entries.feed_id')
-                    ->where('feed_subscriptions.user_id', Auth::id());
-            })
-            ->get();
+        $entries = Entry::forUser(Auth::user())->where('id', $entryId)->get();
 
         foreach ($entries as $entry) {
             switch ($request->input('a')) {

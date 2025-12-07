@@ -38,7 +38,7 @@ class CreateCategory
 
     public function asController(Request $request): RedirectResponse
     {
-        if (SubscriptionCategory::query()->where('user_id', Auth::id())->where('name', $request->categoryName)->exists()) {
+        if (SubscriptionCategory::forUser(Auth::user())->where('name', $request->categoryName)->exists()) {
             return redirect()->back()->withErrors([
                 'categoryName' => 'You already have a category with that name',
             ]);

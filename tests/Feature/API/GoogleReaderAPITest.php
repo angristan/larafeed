@@ -275,4 +275,48 @@ class GoogleReaderAPITest extends TestCase
             ->first();
         $this->assertNull($interaction->interaction->starred_at);
     }
+
+    public function test_user_cannot_edit_tag_on_entry_from_unsubscribed_feed(): void
+    {
+        // Create a feed and entry that the user is NOT subscribed to
+        $otherFeed = Feed::factory()->create();
+        $otherEntry = Entry::factory()->create(['feed_id' => $otherFeed->id]);
+
+        $response = $this->post('/api/reader/reader/api/0/edit-tag', [
+            'i' => dechex($otherEntry->id),
+            'a' => 'user/-/state/com.google/read',
+        ], [
+            'Authorization' => 'GoogleLogin auth='.$this->authToken,
+        ]);
+
+        $response->assertOk();
+
+        // No interaction should be created
+        $this->assertDatabaseMissing('entry_interactions', [
+            'user_id' => $this->user->id,
+            'entry_id' => $otherEntry->id,
+        ]);
+    }
+
+    public function test_user_cannot_star_entry_from_unsubscribed_feed(): void
+    {
+        // Create a feed and entry that the user is NOT subscribed to
+        $otherFeed = Feed::factory()->create();
+        $otherEntry = Entry::factory()->create(['feed_id' => $otherFeed->id]);
+
+        $response = $this->post('/api/reader/reader/api/0/edit-tag', [
+            'i' => dechex($otherEntry->id),
+            'a' => 'user/-/state/com.google/starred',
+        ], [
+            'Authorization' => 'GoogleLogin auth='.$this->authToken,
+        ]);
+
+        $response->assertOk();
+
+        // No interaction should be created
+        $this->assertDatabaseMissing('entry_interactions', [
+            'user_id' => $this->user->id,
+            'entry_id' => $otherEntry->id,
+        ]);
+    }
 }

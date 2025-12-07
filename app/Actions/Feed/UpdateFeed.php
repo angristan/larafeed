@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Actions\Feed;
 
+use App\Models\Feed;
 use App\Models\FeedSubscription;
+use App\Models\SubscriptionCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Lorisleiva\Actions\Concerns\AsAction;
@@ -26,11 +28,13 @@ class UpdateFeed
 
     public function handle(Request $request, string $feed_id): \Illuminate\Http\RedirectResponse
     {
-        $subscription = FeedSubscription::where('feed_id', $feed_id)->where('user_id', Auth::id())->first();
+        $feed = Feed::forUser(Auth::user())->find($feed_id);
 
-        if (! $subscription) {
+        if (! $feed) {
             return redirect()->back()->withErrors('Subscription not found');
         }
+
+        $subscription = FeedSubscription::where('feed_id', $feed_id)->where('user_id', Auth::id())->first();
 
         if ($request->has('name')) {
             if ($request->input('name') === '') {
@@ -42,8 +46,9 @@ class UpdateFeed
         }
 
         if ($request->has('category_id')) {
-            $currentCategory = Auth::user()->subscriptionCategories()->where('id', $request->input('category_id'))->first();
-            if (! $currentCategory) {
+            $category = SubscriptionCategory::forUser(Auth::user())->find($request->input('category_id'));
+
+            if (! $category) {
                 return redirect()->back()->withErrors('Category not found');
             }
 
