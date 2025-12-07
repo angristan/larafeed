@@ -29,6 +29,16 @@
     --app-code-bg: var(--mantine-color-dark-8);
 }
 
+/* Soften outline variant buttons (entry actions) in dark mode */
+[data-mantine-color-scheme='dark'] .mantine-ActionIcon-root[data-variant='outline'] {
+    color: var(--mantine-color-dark-2);
+    border-color: var(--mantine-color-dark-4);
+}
+
+[data-mantine-color-scheme='dark'] .mantine-ActionIcon-root[data-variant='outline']:hover {
+    color: var(--mantine-color-dark-1);
+}
+
 body {
     overscroll-behavior: none;
 }
