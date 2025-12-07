@@ -47,7 +47,7 @@ Larafeed is a simple feed reader.
 
 ## Technical overview
 
-- Backend build with Laravel 11
+- Backend build with Laravel 12
   - Architectured around [Actions](https://laravelactions.com/)
 - React for the frontend with the amazing [Mantine](https://mantine.dev/) components and hooks
 - [Inertia.js](https://inertiajs.com/) that does the magic glue between Laravel and React
@@ -61,7 +61,7 @@ Larafeed is a simple feed reader.
 - Images from articles are also proxified and optimized through `imgproxy`, for better privacy and performance
 - Google Reader API and Fever API are implemented from scratch
   - I relied heavily on the implementations of [FreshRSS](https://github.com/FreshRSS/FreshRSS/tree/edge/p/api) and [Miniflux](https://github.com/miniflux/v2/tree/main/internal)
-  - And in practice, using [Reeder classic](https://reederapp.com/classic/) as a client with Miniflux as a backend, I inspected the API calls with [mitmproxy](https://mitmproxy.org/) to, in a way, *reverse-engineer* the API
+  - And in practice, using [Reeder classic](https://reederapp.com/classic/) as a client with Miniflux as a backend, I inspected the API calls with [mitmproxy](https://mitmproxy.org/) to, in a way, _reverse-engineer_ the API
 
 ### Database schema
 
