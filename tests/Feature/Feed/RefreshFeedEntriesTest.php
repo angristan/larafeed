@@ -107,7 +107,7 @@ class RefreshFeedEntriesTest extends TestCase
 
         $response = $this->post(route('feed.refresh', ['feed_id' => $otherFeed->id]));
 
-        $response->assertStatus(401);
+        $response->assertStatus(403);
         $response->assertJson(['error' => 'Unauthorized']);
     }
 

@@ -142,14 +142,10 @@ class RefreshFeedEntries
 
     public function asController(string $feed_id): \Illuminate\Http\JsonResponse
     {
-        if (! $feed_id) {
-            return response()->json(['error' => 'Missing feed id'], 400);
-        }
-
         $feed = Feed::forUser(Auth::user())->find($feed_id);
 
         if (! $feed) {
-            return response()->json(['error' => 'Unauthorized'], 401);
+            return response()->json(['error' => 'Unauthorized'], 403);
         }
 
         if ($feed->last_successful_refresh_at && Carbon::parse($feed->last_successful_refresh_at)->diffInMinutes(now()) < 5) {
