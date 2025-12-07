@@ -10,6 +10,8 @@ use App\Models\Feed;
 use App\Models\FeedRefresh;
 use App\Models\SubscriptionCategory;
 use App\Models\User;
+use App\Rules\SafeFeedUrl;
+use App\Support\UrlSecurityValidator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -27,7 +29,7 @@ class CreateNewFeed
     public function rules(): array
     {
         return [
-            'feed_url' => ['required', 'max:255', 'url', 'active_url'],
+            'feed_url' => ['required', 'max:255', 'url', 'active_url', new SafeFeedUrl],
             'category_id' => ['nullable', 'integer', 'exists:subscription_categories,id', 'required_without:category_name'],
             'category_name' => ['nullable', 'string', 'max:20', 'required_without:category_id'],
         ];
@@ -96,6 +98,18 @@ class CreateNewFeed
 
     public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null): \Illuminate\Http\RedirectResponse
     {
+        // Defense-in-depth: Validate URL at fetch time to prevent SSRF attacks
+        // This catches cases where the URL wasn't validated before dispatch (e.g., direct handle() calls)
+        // and protects against DNS rebinding attacks by validating right before the request
+        $urlValidation = UrlSecurityValidator::validate($requested_feed_url);
+        if (! $urlValidation['valid']) {
+            Log::warning("[CreateNewFeed] Blocked unsafe URL: {$requested_feed_url}");
+
+            return redirect()->back()->withErrors([
+                'feed_url' => $urlValidation['error'] ?? 'Invalid feed URL',
+            ]);
+        }
+
         $error = null;
 
         // TODO fetch limit
