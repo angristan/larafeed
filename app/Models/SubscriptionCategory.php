@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -50,5 +51,16 @@ class SubscriptionCategory extends Model
     public function feedsSubscriptions(): HasMany
     {
         return $this->hasMany(FeedSubscription::class, 'category_id');
+    }
+
+    /**
+     * Scope categories to those owned by the user.
+     *
+     * @param  Builder<SubscriptionCategory>  $query
+     * @return Builder<SubscriptionCategory>
+     */
+    public function scopeForUser(Builder $query, User $user): Builder
+    {
+        return $query->where('user_id', $user->id);
     }
 }

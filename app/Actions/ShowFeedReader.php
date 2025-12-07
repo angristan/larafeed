@@ -122,13 +122,8 @@ class ShowFeedReader
                 return null;
             }
 
-            $requestedEntry = Entry::whereId($entry_id)->first();
+            $requestedEntry = Entry::forUser(Auth::user())->firstWhere('id', $entry_id);
             if (! $requestedEntry) {
-                return null;
-            }
-
-            // Check if the user has access to the feed
-            if (! Auth::user()->feeds()->where('id', $requestedEntry->feed_id)->exists()) {
                 return null;
             }
 
@@ -183,17 +178,10 @@ class ShowFeedReader
                 return null;
             }
 
-            $requestedEntry = Entry::whereId($entry_id)->first();
-            if (! $requestedEntry) {
+            $entry = Entry::forUser(Auth::user())->firstWhere('id', $entry_id);
+            if (! $entry) {
                 return null;
             }
-
-            // Check if the user has access to the feed
-            if (! Auth::user()->feeds()->where('id', $requestedEntry->feed_id)->exists()) {
-                return null;
-            }
-
-            $entry = Entry::whereId($entry_id)->first();
 
             return SummarizeEntryWithLLM::run($entry);
         };

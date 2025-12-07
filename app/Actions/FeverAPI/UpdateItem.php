@@ -18,9 +18,7 @@ class UpdateItem extends BaseFeverAction
      */
     public function handle(Request $request): array
     {
-        $entry = Entry::whereId($request->input('id'))
-            ->whereIn('feed_id', Auth::user()->feeds()->select('id'))
-            ->first();
+        $entry = Entry::forUser(Auth::user())->firstWhere('id', $request->input('id'));
 
         if (! $entry) {
             return array_merge($this->getBaseResponse(), [

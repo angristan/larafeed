@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Actions\Favicon\BuildProxifiedFaviconURL;
 use Database\Factories\FeedFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -99,6 +100,17 @@ class Feed extends Model
             ->using(FeedSubscription::class)
             ->withTimestamps()
             ->withPivot(['custom_feed_name', 'category_id']);
+    }
+
+    /**
+     * Scope feeds to those the user is subscribed to.
+     *
+     * @param  Builder<Feed>  $query
+     * @return Builder<Feed>
+     */
+    public function scopeForUser(Builder $query, User $user): Builder
+    {
+        return $query->whereHas('users', fn ($q) => $q->where('users.id', $user->id));
     }
 
     public function favicon_url(): ?string

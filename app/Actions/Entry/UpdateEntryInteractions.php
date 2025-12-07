@@ -32,9 +32,7 @@ class UpdateEntryInteractions
             return redirect()->back()->withErrors('Missing entry id');
         }
 
-        $entry = Entry::whereId($entry_id)
-            ->whereIn('feed_id', Auth::user()->feeds()->select('id'))
-            ->first();
+        $entry = Entry::forUser(Auth::user())->find($entry_id);
 
         if (! $entry) {
             return redirect()->back()->withErrors('Entry not found');

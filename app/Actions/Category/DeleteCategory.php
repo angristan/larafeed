@@ -16,9 +16,7 @@ class DeleteCategory
 
     public function handle(\Request $request, string $category_id): RedirectResponse
     {
-        $category = SubscriptionCategory::where('id', $category_id)
-            ->where('user_id', Auth::id())
-            ->first();
+        $category = SubscriptionCategory::forUser(Auth::user())->find($category_id);
 
         if (! $category) {
             return redirect()->back()->withErrors([

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Database\Factories\EntryFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -71,6 +72,17 @@ class Entry extends Model
     public function feed(): BelongsTo
     {
         return $this->belongsTo(Feed::class);
+    }
+
+    /**
+     * Scope entries to those from feeds the user is subscribed to.
+     *
+     * @param  Builder<Entry>  $query
+     * @return Builder<Entry>
+     */
+    public function scopeForUser(Builder $query, User $user): Builder
+    {
+        return $query->whereIn('feed_id', $user->feeds()->select('feeds.id'));
     }
 
     /**
