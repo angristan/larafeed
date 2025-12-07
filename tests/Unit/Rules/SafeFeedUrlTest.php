@@ -34,6 +34,7 @@ class SafeFeedUrlTest extends TestCase
         );
 
         $this->assertTrue($failed, 'Validation should fail for: '.var_export($url, true));
+        $this->assertNotEmpty($errorMessage, 'Error message should not be empty');
     }
 
     /**

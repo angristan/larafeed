@@ -122,6 +122,11 @@ class UrlSecurityValidator
         }
 
         // Get IPv6 addresses (AAAA records)
+        // Suppress warnings because dns_get_record() emits E_WARNING for common non-error cases:
+        // - Host has no AAAA records (only A records)
+        // - Temporary DNS server issues
+        // - Non-existent domains
+        // We handle all these cases gracefully by checking for false below.
         $dnsRecords = @dns_get_record($host, DNS_AAAA);
         if ($dnsRecords !== false) {
             foreach ($dnsRecords as $record) {

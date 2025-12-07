@@ -16,7 +16,7 @@ class UrlSecurityValidatorTest extends TestCase
         $result = UrlSecurityValidator::validate($url);
 
         $this->assertFalse($result['valid'], "URL should be blocked: {$url}");
-        $this->assertNotNull($result['error']);
+        $this->assertSame($expectedError, $result['error']);
     }
 
     /**
@@ -47,9 +47,16 @@ class UrlSecurityValidatorTest extends TestCase
             'ipv6 private fd00' => ['http://[fd00::1]/feed.xml', 'URL must not point to private or internal addresses'],
             'ipv6 link-local' => ['http://[fe80::1]/feed.xml', 'URL must not point to private or internal addresses'],
 
+            // Hostnames that resolve to private IPs
+            'localhost hostname' => ['http://localhost/feed.xml', 'URL must not point to private or internal addresses'],
+
+            // URLs with credentials pointing to private IPs
+            'credentials with private ip' => ['http://user:pass@127.0.0.1/feed.xml', 'URL must not point to private or internal addresses'],
+            'credentials with localhost' => ['http://user:pass@localhost/feed.xml', 'URL must not point to private or internal addresses'],
+
             // Missing scheme or host
             'no scheme' => ['example.com/feed.xml', 'URL must use HTTP or HTTPS protocol'],
-            'empty host' => ['http:///feed.xml', 'URL must contain a valid host'],
+            'empty host' => ['http:///feed.xml', 'URL must use HTTP or HTTPS protocol'], // parse_url returns false for malformed URLs
         ];
     }
 
