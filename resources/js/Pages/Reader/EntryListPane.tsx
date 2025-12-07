@@ -163,11 +163,13 @@ export default function EntryListPane({
 
     return (
         <List
+            listStyleType="none"
             style={{
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100%',
                 width: '100%',
+                paddingLeft: 0,
             }}
         >
             <ScrollArea style={{ flex: 1 }} viewportRef={viewport}>
