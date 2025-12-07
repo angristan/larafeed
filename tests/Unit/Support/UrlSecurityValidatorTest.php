@@ -190,4 +190,64 @@ class UrlSecurityValidatorTest extends TestCase
         $this->assertTrue(UrlSecurityValidator::isUnsafeIp(''));
         $this->assertTrue(UrlSecurityValidator::isUnsafeIp('999.999.999.999'));
     }
+
+    public function test_returns_curl_resolve_for_hostname_urls(): void
+    {
+        // Use google.com as it reliably resolves in most environments
+        $result = UrlSecurityValidator::validate('https://google.com/feed.xml');
+
+        $this->assertTrue($result['valid']);
+        $this->assertArrayHasKey('curl_resolve', $result);
+        $this->assertNotEmpty($result['curl_resolve'], 'curl_resolve should contain entries for resolvable hostnames');
+        $this->assertIsArray($result['curl_resolve']);
+
+        // Format should be "host:port:ip1,ip2,..." (may contain IPv4 and/or IPv6)
+        $this->assertStringStartsWith(
+            'google.com:443:',
+            $result['curl_resolve'][0],
+            'curl_resolve entry should start with host:port:'
+        );
+
+        // Verify at least one IP address is present after host:port:
+        $ipsString = substr($result['curl_resolve'][0], strlen('google.com:443:'));
+        $this->assertNotEmpty($ipsString, 'curl_resolve should contain at least one IP address');
+
+        // Check that it contains a valid IPv4 or IPv6 address
+        $ips = explode(',', $ipsString);
+        $hasValidIp = false;
+        foreach ($ips as $ip) {
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                $hasValidIp = true;
+                break;
+            }
+        }
+        $this->assertTrue($hasValidIp, 'curl_resolve should contain a valid IPv4 or IPv6 address');
+    }
+
+    public function test_returns_empty_curl_resolve_for_ip_urls(): void
+    {
+        $result = UrlSecurityValidator::validate('http://8.8.8.8/feed.xml');
+
+        $this->assertTrue($result['valid']);
+        $this->assertArrayHasKey('curl_resolve', $result);
+        $this->assertEmpty($result['curl_resolve']);
+    }
+
+    public function test_curl_resolve_uses_correct_port(): void
+    {
+        // HTTP defaults to port 80
+        $httpResult = UrlSecurityValidator::validate('http://google.com/feed.xml');
+        $this->assertNotEmpty($httpResult['curl_resolve']);
+        $this->assertStringContainsString(':80:', $httpResult['curl_resolve'][0]);
+
+        // HTTPS defaults to port 443
+        $httpsResult = UrlSecurityValidator::validate('https://google.com/feed.xml');
+        $this->assertNotEmpty($httpsResult['curl_resolve']);
+        $this->assertStringContainsString(':443:', $httpsResult['curl_resolve'][0]);
+
+        // Custom port should be used
+        $customPortResult = UrlSecurityValidator::validate('https://google.com:8443/feed.xml');
+        $this->assertNotEmpty($customPortResult['curl_resolve']);
+        $this->assertStringContainsString(':8443:', $customPortResult['curl_resolve'][0]);
+    }
 }
