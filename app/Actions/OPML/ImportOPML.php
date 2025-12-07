@@ -9,6 +9,7 @@ use App\Models\EntryInteraction;
 use App\Models\FeedSubscription;
 use App\Models\SubscriptionCategory;
 use App\Models\User;
+use App\Support\UrlSecurityValidator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -66,6 +67,13 @@ class ImportOPML
                 foreach ($category_outline->outline as $feed_outline) {
                     $feed_url = (string) $feed_outline['xmlUrl'];
                     $feed_name = (string) $feed_outline['title'];
+
+                    // Validate URL against SSRF attacks before dispatching
+                    if (! UrlSecurityValidator::isSafe($feed_url)) {
+                        Log::warning("[OPML] Skipping unsafe URL: {$feed_url} for user: ".$user->id);
+
+                        continue;
+                    }
 
                     $category = SubscriptionCategory::firstOrCreate([
                         'user_id' => $user->id,
