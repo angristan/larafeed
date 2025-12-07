@@ -11,6 +11,17 @@ namespace App\Support;
  * - Use only http/https schemes
  * - Do not resolve to private, reserved, or loopback IP addresses
  * - Support both IPv4 and IPv6 address validation
+ *
+ * KNOWN LIMITATION: DNS Rebinding
+ * There is a time-of-check to time-of-use (TOCTOU) window between DNS validation
+ * and the actual HTTP request. An attacker with control over a DNS server could
+ * return a safe IP during validation, then quickly switch to a private IP before
+ * the HTTP client connects. This is mitigated by:
+ * 1. Validating at multiple points (import time + fetch time in CreateNewFeed)
+ * 2. The short window makes exploitation difficult in practice
+ *
+ * For maximum security in high-risk environments, consider routing requests
+ * through a hardened proxy that blocks private IP connections at the network level.
  */
 class UrlSecurityValidator
 {
