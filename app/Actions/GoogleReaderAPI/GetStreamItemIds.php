@@ -31,6 +31,7 @@ class GetStreamItemIds
                 $join->on('entries.id', '=', 'entry_interactions.entry_id')
                     ->where('entry_interactions.user_id', '=', Auth::id());
             })
+            ->whereNull('entry_interactions.filtered_at')
             ->select(['entries.id', 'entries.published_at'])
             ->orderBy('entries.published_at', 'desc');
 

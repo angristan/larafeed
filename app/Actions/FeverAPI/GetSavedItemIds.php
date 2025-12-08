@@ -24,6 +24,7 @@ class GetSavedItemIds extends BaseFeverAction
                     ->where('entry_interactions.user_id', '=', Auth::id());
             })
             ->whereNotNull('entry_interactions.starred_at')
+            ->whereNull('entry_interactions.filtered_at')
             ->pluck('entries.id')
             ->join(',');
 

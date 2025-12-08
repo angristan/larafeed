@@ -55,6 +55,9 @@ class ApplySubscriptionFilters
                     'user_id' => $userId,
                     'entry_id' => $entry->id,
                     'filtered_at' => $now,
+                    'read_at' => null,
+                    'starred_at' => null,
+                    'archived_at' => null,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];
@@ -64,12 +67,12 @@ class ApplySubscriptionFilters
         }
 
         DB::transaction(function () use ($toFilter, $toUnfilter, $userId) {
-            // Mark entries as filtered (upsert to handle existing interactions)
+            // Mark entries as filtered and clear other interactions
             if (! empty($toFilter)) {
                 EntryInteraction::upsert(
                     $toFilter,
                     ['user_id', 'entry_id'],
-                    ['filtered_at', 'updated_at']
+                    ['filtered_at', 'read_at', 'starred_at', 'archived_at', 'updated_at']
                 );
             }
 

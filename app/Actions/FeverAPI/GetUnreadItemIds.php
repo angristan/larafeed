@@ -24,6 +24,7 @@ class GetUnreadItemIds extends BaseFeverAction
                     ->where('entry_interactions.user_id', '=', Auth::id());
             })
             ->whereNull('entry_interactions.read_at')
+            ->whereNull('entry_interactions.filtered_at')
             ->pluck('entries.id')
             ->join(',');
 
