@@ -78,7 +78,7 @@ class UpdateFeed
                     }
                 }
 
-                $filterRulesChanged = $subscription->filter_rules !== $newFilterRules;
+                $filterRulesChanged = json_encode($subscription->filter_rules) !== json_encode($newFilterRules);
                 $subscription->filter_rules = $newFilterRules;
                 $subscription->save();
             }

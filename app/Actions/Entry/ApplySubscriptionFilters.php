@@ -65,9 +65,9 @@ class ApplySubscriptionFilters
 
         DB::transaction(function () use ($toFilter, $toUnfilter, $userId) {
             // Mark entries as filtered (upsert to handle existing interactions)
-            foreach ($toFilter as $data) {
+            if (! empty($toFilter)) {
                 EntryInteraction::upsert(
-                    [$data],
+                    $toFilter,
                     ['user_id', 'entry_id'],
                     ['filtered_at', 'updated_at']
                 );
