@@ -1,2 +1,4 @@
 - Make sure to use the laravel actions architecture for backend in app/Actions.
 - Run `composer run check` after changes to run tests/lint/format checks for both backend and frontend.
+- Use subagents when possible to save context, especially for exploration.
+- Check the README and update it if necessary when making changes to the project such as adding new features or changing setup instructions.
