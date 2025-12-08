@@ -70,8 +70,8 @@ class EvaluateEntryFilter
             return false;
         }
 
-        // Try to use the pattern as a regex first (use # delimiter to allow / in patterns)
-        $regexPattern = '#'.$pattern.'#i';
+        // Try to use the pattern as a regex first (use ~ delimiter to allow / and # in patterns)
+        $regexPattern = '~'.$pattern.'~i';
 
         // Suppress warnings for invalid regex patterns
         if (@preg_match($regexPattern, '') === false) {

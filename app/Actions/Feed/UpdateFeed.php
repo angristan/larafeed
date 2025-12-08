@@ -8,6 +8,7 @@ use App\Actions\Entry\ApplySubscriptionFilters;
 use App\Models\Feed;
 use App\Models\FeedSubscription;
 use App\Models\SubscriptionCategory;
+use App\Rules\SafeFilterPattern;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -27,11 +28,11 @@ class UpdateFeed
             'name' => ['nullable', 'string', 'max:255'],
             'filter_rules' => ['nullable', 'array'],
             'filter_rules.exclude_title' => ['nullable', 'array'],
-            'filter_rules.exclude_title.*' => ['string', 'max:255'],
+            'filter_rules.exclude_title.*' => ['string', 'max:255', new SafeFilterPattern],
             'filter_rules.exclude_content' => ['nullable', 'array'],
-            'filter_rules.exclude_content.*' => ['string', 'max:255'],
+            'filter_rules.exclude_content.*' => ['string', 'max:255', new SafeFilterPattern],
             'filter_rules.exclude_author' => ['nullable', 'array'],
-            'filter_rules.exclude_author.*' => ['string', 'max:255'],
+            'filter_rules.exclude_author.*' => ['string', 'max:255', new SafeFilterPattern],
         ];
     }
 

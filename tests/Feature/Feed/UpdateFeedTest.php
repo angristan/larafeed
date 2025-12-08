@@ -434,4 +434,81 @@ class UpdateFeedTest extends TestCase
         $this->assertNotNull($betaInteraction);
         $this->assertNotNull($betaInteraction->filtered_at);
     }
+
+    public function test_rejects_redos_prone_patterns(): void
+    {
+        $user = User::factory()->create();
+
+        $category = SubscriptionCategory::create([
+            'user_id' => $user->id,
+            'name' => 'Tech',
+        ]);
+
+        $feed = Feed::factory()->create();
+        $user->feeds()->attach($feed->id, ['category_id' => $category->id]);
+
+        $this->actingAs($user);
+
+        $response = $this->patch(route('feed.update', ['feed_id' => $feed->id]), [
+            'filter_rules' => [
+                'exclude_title' => ['(a+)+'], // ReDoS pattern
+            ],
+        ]);
+
+        $response->assertSessionHasErrors('filter_rules.exclude_title.0');
+    }
+
+    public function test_rejects_invalid_regex_patterns(): void
+    {
+        $user = User::factory()->create();
+
+        $category = SubscriptionCategory::create([
+            'user_id' => $user->id,
+            'name' => 'Tech',
+        ]);
+
+        $feed = Feed::factory()->create();
+        $user->feeds()->attach($feed->id, ['category_id' => $category->id]);
+
+        $this->actingAs($user);
+
+        $response = $this->patch(route('feed.update', ['feed_id' => $feed->id]), [
+            'filter_rules' => [
+                'exclude_title' => ['[unclosed'], // Invalid regex
+            ],
+        ]);
+
+        $response->assertSessionHasErrors('filter_rules.exclude_title.0');
+    }
+
+    public function test_accepts_valid_regex_patterns(): void
+    {
+        $user = User::factory()->create();
+
+        $category = SubscriptionCategory::create([
+            'user_id' => $user->id,
+            'name' => 'Tech',
+        ]);
+
+        $feed = Feed::factory()->create();
+        $user->feeds()->attach($feed->id, ['category_id' => $category->id]);
+
+        $this->actingAs($user);
+
+        $response = $this->patch(route('feed.update', ['feed_id' => $feed->id]), [
+            'filter_rules' => [
+                'exclude_title' => ['alpha|beta', 'rc\d+'],
+                'exclude_content' => ['#sponsored'],
+            ],
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasNoErrors();
+
+        $subscription = $user->feeds()->where('feeds.id', $feed->id)->first()->subscription;
+        $this->assertEquals([
+            'exclude_title' => ['alpha|beta', 'rc\d+'],
+            'exclude_content' => ['#sponsored'],
+        ], $subscription->filter_rules);
+    }
 }
