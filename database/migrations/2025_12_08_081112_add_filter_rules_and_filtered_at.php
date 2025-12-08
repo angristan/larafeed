@@ -16,8 +16,6 @@ return new class extends Migration
 
         Schema::table('entry_interactions', function (Blueprint $table) {
             $table->timestamp('filtered_at')->nullable()->after('archived_at');
-            // Composite index for queries filtering by user_id + filtered_at
-            // (all real queries combine both conditions)
             $table->index(['user_id', 'filtered_at']);
         });
     }
