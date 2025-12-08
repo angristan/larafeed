@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property int $category_id
+ * @property array<string, array<string>>|null $filter_rules
  * @property-read \App\Models\SubscriptionCategory $category
  * @property-read \App\Models\Feed $feed
  *
@@ -36,6 +37,13 @@ class FeedSubscription extends Pivot
     public $incrementing = false;
 
     protected $primaryKey = null;
+
+    /**
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'filter_rules' => 'array',
+    ];
 
     protected function setKeysForSaveQuery($query)
     {

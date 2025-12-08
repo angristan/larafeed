@@ -218,4 +218,220 @@ class UpdateFeedTest extends TestCase
             'custom_feed_name' => null,
         ]);
     }
+
+    public function test_user_can_set_filter_rules(): void
+    {
+        $user = User::factory()->create();
+
+        $category = SubscriptionCategory::create([
+            'user_id' => $user->id,
+            'name' => 'Tech',
+        ]);
+
+        $feed = Feed::factory()->create();
+        $user->feeds()->attach($feed->id, ['category_id' => $category->id]);
+
+        $this->actingAs($user);
+
+        $response = $this->patch(route('feed.update', ['feed_id' => $feed->id]), [
+            'filter_rules' => [
+                'exclude_title' => ['alpha', 'beta'],
+            ],
+        ]);
+
+        $response->assertRedirect();
+
+        $subscription = $user->feeds()->where('feeds.id', $feed->id)->first()->subscription;
+        $this->assertEquals(['exclude_title' => ['alpha', 'beta']], $subscription->filter_rules);
+    }
+
+    public function test_user_can_clear_filter_rules(): void
+    {
+        $user = User::factory()->create();
+
+        $category = SubscriptionCategory::create([
+            'user_id' => $user->id,
+            'name' => 'Tech',
+        ]);
+
+        $feed = Feed::factory()->create();
+        $user->feeds()->attach($feed->id, [
+            'category_id' => $category->id,
+            'filter_rules' => json_encode(['exclude_title' => ['alpha']]),
+        ]);
+
+        $this->actingAs($user);
+
+        $response = $this->patch(route('feed.update', ['feed_id' => $feed->id]), [
+            'filter_rules' => [
+                'exclude_title' => [],
+            ],
+        ]);
+
+        $response->assertRedirect();
+
+        $subscription = $user->feeds()->where('feeds.id', $feed->id)->first()->subscription;
+        $this->assertNull($subscription->filter_rules);
+    }
+
+    public function test_filter_rules_are_applied_to_existing_entries(): void
+    {
+        $user = User::factory()->create();
+
+        $category = SubscriptionCategory::create([
+            'user_id' => $user->id,
+            'name' => 'Tech',
+        ]);
+
+        $feed = Feed::factory()->create();
+        $user->feeds()->attach($feed->id, ['category_id' => $category->id]);
+
+        // Create entries
+        $alphaEntry = $feed->entries()->create([
+            'title' => 'v1.0.0-alpha.1',
+            'url' => 'https://example.com/alpha',
+            'published_at' => now(),
+        ]);
+
+        $stableEntry = $feed->entries()->create([
+            'title' => 'v1.0.0 Stable',
+            'url' => 'https://example.com/stable',
+            'published_at' => now(),
+        ]);
+
+        $this->actingAs($user);
+
+        // Set filter to exclude alpha releases
+        $response = $this->patch(route('feed.update', ['feed_id' => $feed->id]), [
+            'filter_rules' => [
+                'exclude_title' => ['alpha'],
+            ],
+        ]);
+
+        $response->assertRedirect();
+
+        // Alpha entry should be filtered
+        $this->assertDatabaseHas('entry_interactions', [
+            'user_id' => $user->id,
+            'entry_id' => $alphaEntry->id,
+        ]);
+
+        $alphaInteraction = \App\Models\EntryInteraction::where('user_id', $user->id)
+            ->where('entry_id', $alphaEntry->id)
+            ->first();
+        $this->assertNotNull($alphaInteraction->filtered_at);
+
+        // Stable entry should NOT be filtered
+        $stableInteraction = \App\Models\EntryInteraction::where('user_id', $user->id)
+            ->where('entry_id', $stableEntry->id)
+            ->first();
+        $this->assertTrue($stableInteraction === null || $stableInteraction->filtered_at === null);
+    }
+
+    public function test_removing_filter_rules_unfilters_entries(): void
+    {
+        $user = User::factory()->create();
+
+        $category = SubscriptionCategory::create([
+            'user_id' => $user->id,
+            'name' => 'Tech',
+        ]);
+
+        $feed = Feed::factory()->create();
+        $user->feeds()->attach($feed->id, [
+            'category_id' => $category->id,
+            'filter_rules' => json_encode(['exclude_title' => ['alpha']]),
+        ]);
+
+        // Create an entry that matches the filter
+        $alphaEntry = $feed->entries()->create([
+            'title' => 'v1.0.0-alpha.1',
+            'url' => 'https://example.com/alpha',
+            'published_at' => now(),
+        ]);
+
+        // Mark it as filtered
+        \App\Models\EntryInteraction::create([
+            'user_id' => $user->id,
+            'entry_id' => $alphaEntry->id,
+            'filtered_at' => now(),
+        ]);
+
+        $this->actingAs($user);
+
+        // Remove the filter rules
+        $response = $this->patch(route('feed.update', ['feed_id' => $feed->id]), [
+            'filter_rules' => [
+                'exclude_title' => [],
+            ],
+        ]);
+
+        $response->assertRedirect();
+
+        // The entry should now be unfiltered
+        $alphaInteraction = \App\Models\EntryInteraction::where('user_id', $user->id)
+            ->where('entry_id', $alphaEntry->id)
+            ->first();
+        $this->assertNull($alphaInteraction->filtered_at);
+    }
+
+    public function test_changing_filter_rules_re_evaluates_entries(): void
+    {
+        $user = User::factory()->create();
+
+        $category = SubscriptionCategory::create([
+            'user_id' => $user->id,
+            'name' => 'Tech',
+        ]);
+
+        $feed = Feed::factory()->create();
+        $user->feeds()->attach($feed->id, [
+            'category_id' => $category->id,
+            'filter_rules' => json_encode(['exclude_title' => ['alpha']]),
+        ]);
+
+        // Create entries
+        $alphaEntry = $feed->entries()->create([
+            'title' => 'v1.0.0-alpha.1',
+            'url' => 'https://example.com/alpha',
+            'published_at' => now(),
+        ]);
+
+        $betaEntry = $feed->entries()->create([
+            'title' => 'v1.0.0-beta.1',
+            'url' => 'https://example.com/beta',
+            'published_at' => now(),
+        ]);
+
+        // Mark alpha as filtered (simulating previous filter application)
+        \App\Models\EntryInteraction::create([
+            'user_id' => $user->id,
+            'entry_id' => $alphaEntry->id,
+            'filtered_at' => now(),
+        ]);
+
+        $this->actingAs($user);
+
+        // Change filter from alpha to beta
+        $response = $this->patch(route('feed.update', ['feed_id' => $feed->id]), [
+            'filter_rules' => [
+                'exclude_title' => ['beta'],
+            ],
+        ]);
+
+        $response->assertRedirect();
+
+        // Alpha should now be unfiltered
+        $alphaInteraction = \App\Models\EntryInteraction::where('user_id', $user->id)
+            ->where('entry_id', $alphaEntry->id)
+            ->first();
+        $this->assertNull($alphaInteraction->filtered_at);
+
+        // Beta should now be filtered
+        $betaInteraction = \App\Models\EntryInteraction::where('user_id', $user->id)
+            ->where('entry_id', $betaEntry->id)
+            ->first();
+        $this->assertNotNull($betaInteraction);
+        $this->assertNotNull($betaInteraction->filtered_at);
+    }
 }

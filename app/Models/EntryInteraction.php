@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
  * @property string|null $read_at
  * @property string|null $starred_at
  * @property string|null $archived_at
+ * @property string|null $filtered_at
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  *
@@ -21,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
  * @method static \Illuminate\Database\Eloquent\Builder<static>|EntryInteraction whereArchivedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|EntryInteraction whereCreatedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|EntryInteraction whereEntryId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|EntryInteraction whereFilteredAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|EntryInteraction whereReadAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|EntryInteraction whereStarredAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|EntryInteraction whereUpdatedAt($value)

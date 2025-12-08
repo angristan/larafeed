@@ -1,3 +1,10 @@
+interface FilterRules {
+    [key: string]: string[] | undefined;
+    exclude_title?: string[];
+    exclude_content?: string[];
+    exclude_author?: string[];
+}
+
 interface Feed {
     id: number;
     name: string;
@@ -9,6 +16,7 @@ interface Feed {
     last_successful_refresh_at: string | null;
     last_failed_refresh_at: string | null;
     category_id: number;
+    filter_rules: FilterRules | null;
 }
 
 interface Timestamps {

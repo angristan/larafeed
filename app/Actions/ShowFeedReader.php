@@ -31,6 +31,8 @@ class ShowFeedReader
         }
 
         $getFeedsFn = function () {
+            $userId = Auth::id();
+
             return Auth::user()
                 ->feeds()
                 ->orderBy('name')
@@ -44,7 +46,15 @@ class ShowFeedReader
                     'feeds.last_successful_refresh_at',
                     'feeds.last_failed_refresh_at',
                     'subscription_categories.id as category_id',
-                    \DB::raw('(SELECT COUNT(*) FROM entries WHERE entries.feed_id = feeds.id) as entries_count'),
+                    'feed_subscriptions.filter_rules',
+                    \DB::raw("(
+                        SELECT COUNT(*)
+                        FROM entries
+                        LEFT JOIN entry_interactions ON entries.id = entry_interactions.entry_id
+                            AND entry_interactions.user_id = {$userId}
+                        WHERE entries.feed_id = feeds.id
+                            AND entry_interactions.filtered_at IS NULL
+                    ) as entries_count"),
                 ])
                 ->get()->map(fn (Feed $feed) => [
                     'id' => $feed->id,
@@ -57,6 +67,7 @@ class ShowFeedReader
                     'last_successful_refresh_at' => $feed->last_successful_refresh_at,
                     'last_failed_refresh_at' => $feed->last_failed_refresh_at,
                     'category_id' => $feed['category_id'],
+                    'filter_rules' => $feed->subscription->filter_rules,
                 ]);
         };
 
@@ -67,6 +78,8 @@ class ShowFeedReader
                 ->when($filter === 'unread', fn ($query) => $query->whereNull('entry_interactions.read_at'))
                 ->when($filter === 'read', fn ($query) => $query->whereNotNull('entry_interactions.read_at'))
                 ->when($filter === 'favorites', fn ($query) => $query->whereNotNull('entry_interactions.starred_at'))
+               // Exclude filtered entries
+                ->whereNull('entry_interactions.filtered_at')
                // Only show entries from feeds the user is subscribed to
                 ->join('feed_subscriptions', function ($join) {
                     $join->on('entries.feed_id', '=', 'feed_subscriptions.feed_id')
@@ -92,6 +105,7 @@ class ShowFeedReader
                     'entry_interactions.read_at',
                     'entry_interactions.starred_at',
                     'entry_interactions.archived_at',
+                    'entry_interactions.filtered_at',
                     'feeds.name as feed_name',
                     'feed_subscriptions.custom_feed_name as feed_custom_name',
                     'feeds.favicon_url as feed_favicon_url',
@@ -196,6 +210,7 @@ class ShowFeedReader
                         ->where('entry_interactions.user_id', '=', Auth::id());
                 })
                 ->whereNull('entry_interactions.read_at')
+                ->whereNull('entry_interactions.filtered_at')
                 ->count();
         };
 
@@ -210,6 +225,7 @@ class ShowFeedReader
                         ->where('entry_interactions.user_id', '=', Auth::id());
                 })
                 ->whereNotNull('entry_interactions.read_at')
+                ->whereNull('entry_interactions.filtered_at')
                 ->count();
         };
 

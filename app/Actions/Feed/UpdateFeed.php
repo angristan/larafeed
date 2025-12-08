@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions\Feed;
 
+use App\Actions\Entry\ApplySubscriptionFilters;
 use App\Models\Feed;
 use App\Models\FeedSubscription;
 use App\Models\SubscriptionCategory;
@@ -24,6 +25,13 @@ class UpdateFeed
         return [
             'category_id' => ['exists:subscription_categories,id'],
             'name' => ['nullable', 'string', 'max:255'],
+            'filter_rules' => ['nullable', 'array'],
+            'filter_rules.exclude_title' => ['nullable', 'array'],
+            'filter_rules.exclude_title.*' => ['string', 'max:255'],
+            'filter_rules.exclude_content' => ['nullable', 'array'],
+            'filter_rules.exclude_content.*' => ['string', 'max:255'],
+            'filter_rules.exclude_author' => ['nullable', 'array'],
+            'filter_rules.exclude_author.*' => ['string', 'max:255'],
         ];
     }
 
@@ -46,7 +54,9 @@ class UpdateFeed
             }
         }
 
-        DB::transaction(function () use ($request, $subscription) {
+        $filterRulesChanged = false;
+
+        DB::transaction(function () use ($request, $subscription, &$filterRulesChanged) {
             if ($request->has('name')) {
                 $subscription->custom_feed_name = $request->input('name') === '' ? null : $request->input('name');
                 $subscription->save();
@@ -56,7 +66,33 @@ class UpdateFeed
                 $subscription->category_id = $request->input('category_id');
                 $subscription->save();
             }
+
+            if ($request->has('filter_rules')) {
+                $newFilterRules = $request->input('filter_rules');
+
+                // Clean up empty arrays in filter rules
+                if (is_array($newFilterRules)) {
+                    $newFilterRules = array_filter($newFilterRules, fn ($rules) => ! empty($rules));
+                    if (empty($newFilterRules)) {
+                        $newFilterRules = null;
+                    }
+                }
+
+                $filterRulesChanged = $subscription->filter_rules !== $newFilterRules;
+                $subscription->filter_rules = $newFilterRules;
+                $subscription->save();
+            }
         });
+
+        // Re-evaluate filters if rules changed
+        if ($filterRulesChanged) {
+            // Reload subscription to get fresh data
+            $subscription = FeedSubscription::where('feed_id', $feed_id)
+                ->where('user_id', Auth::id())
+                ->first();
+
+            ApplySubscriptionFilters::run($subscription);
+        }
 
         return redirect()->back();
     }
