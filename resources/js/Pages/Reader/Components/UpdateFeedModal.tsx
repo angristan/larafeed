@@ -67,7 +67,6 @@ const FilterSection = ({
                         onClick={() => onRemove(index)}
                         size="sm"
                         aria-label={`Remove ${label.toLowerCase()} pattern ${index + 1}`}
-                        mt={error ? 0 : undefined}
                     >
                         <IconTrash size={14} />
                     </ActionIcon>
@@ -113,6 +112,22 @@ export const UpdateFeedModal = ({
         },
     });
 
+    // Clean up empty filter values before submitting
+    transform((data) => ({
+        ...data,
+        filter_rules: {
+            exclude_title: (data.filter_rules.exclude_title ?? []).filter(
+                (v) => v.trim() !== '',
+            ),
+            exclude_content: (data.filter_rules.exclude_content ?? []).filter(
+                (v) => v.trim() !== '',
+            ),
+            exclude_author: (data.filter_rules.exclude_author ?? []).filter(
+                (v) => v.trim() !== '',
+            ),
+        },
+    }));
+
     const addFilter = (field: keyof FilterRules) => {
         setData('filter_rules', {
             ...data.filter_rules,
@@ -144,22 +159,6 @@ export const UpdateFeedModal = ({
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-
-        // Clean up empty filter values before submitting
-        transform((data) => ({
-            ...data,
-            filter_rules: {
-                exclude_title: (data.filter_rules.exclude_title ?? []).filter(
-                    (v) => v.trim() !== '',
-                ),
-                exclude_content: (
-                    data.filter_rules.exclude_content ?? []
-                ).filter((v) => v.trim() !== ''),
-                exclude_author: (data.filter_rules.exclude_author ?? []).filter(
-                    (v) => v.trim() !== '',
-                ),
-            },
-        }));
 
         patch(route('feed.update', feed.id), {
             onSuccess: () => {
