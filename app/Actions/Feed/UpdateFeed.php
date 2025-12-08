@@ -55,9 +55,7 @@ class UpdateFeed
             }
         }
 
-        $filterRulesChanged = false;
-
-        DB::transaction(function () use ($request, $subscription, &$filterRulesChanged) {
+        DB::transaction(function () use ($request, $subscription) {
             if ($request->has('name')) {
                 $subscription->custom_feed_name = $request->input('name') === '' ? null : $request->input('name');
                 $subscription->save();
@@ -82,18 +80,13 @@ class UpdateFeed
                 $filterRulesChanged = json_encode($subscription->filter_rules) !== json_encode($newFilterRules);
                 $subscription->filter_rules = $newFilterRules;
                 $subscription->save();
+
+                // Re-evaluate filters if rules changed (inside transaction for atomicity)
+                if ($filterRulesChanged) {
+                    ApplySubscriptionFilters::run($subscription);
+                }
             }
         });
-
-        // Re-evaluate filters if rules changed
-        if ($filterRulesChanged) {
-            // Reload subscription to get fresh data
-            $subscription = FeedSubscription::where('feed_id', $feed_id)
-                ->where('user_id', Auth::id())
-                ->first();
-
-            ApplySubscriptionFilters::run($subscription);
-        }
 
         return redirect()->back();
     }
