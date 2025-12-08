@@ -50,8 +50,13 @@ const FilterSection = ({
             const errorKey = `${errorKeyPrefix}.${index}`;
             const error = errors?.[errorKey];
             return (
-                // biome-ignore lint/suspicious/noArrayIndexKey: Filter rules are simple strings without stable IDs
-                <Group key={index} gap="xs" mt="xs" align="flex-start">
+                <Group
+                    // biome-ignore lint/suspicious/noArrayIndexKey: Filter rules are simple strings without stable IDs
+                    key={index}
+                    gap="xs"
+                    mt="xs"
+                    align={error ? 'flex-start' : 'center'}
+                >
                     <TextInput
                         placeholder={placeholder}
                         value={filter}
