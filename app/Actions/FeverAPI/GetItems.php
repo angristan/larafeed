@@ -25,6 +25,7 @@ class GetItems extends BaseFeverAction
                 $join->on('entries.id', '=', 'entry_interactions.entry_id')
                     ->where('entry_interactions.user_id', '=', Auth::id());
             })
+            ->whereNull('entry_interactions.filtered_at')
             ->select([
                 'entries.id',
                 'entries.feed_id',
@@ -72,7 +73,13 @@ class GetItems extends BaseFeverAction
                 ->join('feed_subscriptions', function ($join) {
                     $join->on('entries.feed_id', '=', 'feed_subscriptions.feed_id')
                         ->where('feed_subscriptions.user_id', '=', Auth::id());
-                })->count(),
+                })
+                ->leftJoin('entry_interactions', function ($join) {
+                    $join->on('entries.id', '=', 'entry_interactions.entry_id')
+                        ->where('entry_interactions.user_id', '=', Auth::id());
+                })
+                ->whereNull('entry_interactions.filtered_at')
+                ->count(),
         ]);
     }
 }

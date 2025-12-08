@@ -16,6 +16,7 @@ Larafeed is a simple feed reader.
 - Background feed updates
   - Failures are stored and displayed in the UI
 - Custom feed names and categories
+- Entry filtering per subscription (hide entries matching patterns by title, content, or author)
 - Read and starred entries
 - AI-generated summary of entries
 - Favicon display (proxified through imgproxy)
@@ -121,6 +122,7 @@ erDiagram
         int8 feed_id PK,FK
         int8 category_id FK
         varchar custom_feed_name
+        json filter_rules
         timestamp created_at
         timestamp updated_at
     }
@@ -139,6 +141,7 @@ erDiagram
         timestamp read_at
         timestamp starred_at
         timestamp archived_at
+        timestamp filtered_at
         timestamp created_at
         timestamp updated_at
     }

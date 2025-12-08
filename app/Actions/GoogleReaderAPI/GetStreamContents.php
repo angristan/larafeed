@@ -66,6 +66,7 @@ class GetStreamContents
                 $join->on('entries.id', '=', 'entry_interactions.entry_id')
                     ->where('entry_interactions.user_id', '=', Auth::id());
             })
+            ->whereNull('entry_interactions.filtered_at')
             ->select([
                 'entries.id',
                 'entries.title',

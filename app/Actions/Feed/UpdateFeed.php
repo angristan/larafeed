@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Actions\Feed;
 
+use App\Actions\Entry\ApplySubscriptionFilters;
 use App\Models\Feed;
 use App\Models\FeedSubscription;
 use App\Models\SubscriptionCategory;
+use App\Rules\SafeFilterPattern;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +26,13 @@ class UpdateFeed
         return [
             'category_id' => ['exists:subscription_categories,id'],
             'name' => ['nullable', 'string', 'max:255'],
+            'filter_rules' => ['nullable', 'array'],
+            'filter_rules.exclude_title' => ['nullable', 'array'],
+            'filter_rules.exclude_title.*' => ['string', 'max:255', new SafeFilterPattern],
+            'filter_rules.exclude_content' => ['nullable', 'array'],
+            'filter_rules.exclude_content.*' => ['string', 'max:255', new SafeFilterPattern],
+            'filter_rules.exclude_author' => ['nullable', 'array'],
+            'filter_rules.exclude_author.*' => ['string', 'max:255', new SafeFilterPattern],
         ];
     }
 
@@ -55,6 +64,27 @@ class UpdateFeed
             if ($request->has('category_id')) {
                 $subscription->category_id = $request->input('category_id');
                 $subscription->save();
+            }
+
+            if ($request->has('filter_rules')) {
+                $newFilterRules = $request->input('filter_rules');
+
+                // Clean up empty arrays in filter rules
+                if (is_array($newFilterRules)) {
+                    $newFilterRules = array_filter($newFilterRules, fn ($rules) => ! empty($rules));
+                    if (empty($newFilterRules)) {
+                        $newFilterRules = null;
+                    }
+                }
+
+                $filterRulesChanged = json_encode($subscription->filter_rules) !== json_encode($newFilterRules);
+                $subscription->filter_rules = $newFilterRules;
+                $subscription->save();
+
+                // Re-evaluate filters if rules changed (inside transaction for atomicity)
+                if ($filterRulesChanged) {
+                    ApplySubscriptionFilters::run($subscription);
+                }
             }
         });
 

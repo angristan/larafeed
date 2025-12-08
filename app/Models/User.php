@@ -100,7 +100,7 @@ class User extends Authenticatable implements MustVerifyEmail
             ->as('subscription')
             ->using(FeedSubscription::class)
             ->withTimestamps()
-            ->withPivot('custom_feed_name');
+            ->withPivot(['custom_feed_name', 'filter_rules']);
     }
 
     /**

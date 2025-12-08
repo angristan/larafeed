@@ -1,16 +1,94 @@
-import { router, useForm } from '@inertiajs/react';
+import { useForm } from '@inertiajs/react';
 import {
+    ActionIcon,
     Button,
     Fieldset,
+    Group,
     Modal,
     NativeSelect,
     rem,
     Space,
+    Text,
     TextInput,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconExclamationCircle } from '@tabler/icons-react';
+import {
+    IconExclamationCircle,
+    IconPlus,
+    IconTrash,
+} from '@tabler/icons-react';
 import type { FormEventHandler } from 'react';
+
+interface FilterSectionProps {
+    label: string;
+    placeholder: string;
+    buttonText: string;
+    filters: string[];
+    errors?: Record<string, string>;
+    errorKeyPrefix: string;
+    onAdd: () => void;
+    onRemove: (index: number) => void;
+    onUpdate: (index: number, value: string) => void;
+}
+
+const FilterSection = ({
+    label,
+    placeholder,
+    buttonText,
+    filters,
+    errors,
+    errorKeyPrefix,
+    onAdd,
+    onRemove,
+    onUpdate,
+}: FilterSectionProps) => (
+    <>
+        <Text size="xs" fw={500} mt="sm">
+            {label}
+        </Text>
+        {filters.map((filter, index) => {
+            const errorKey = `${errorKeyPrefix}.${index}`;
+            const error = errors?.[errorKey];
+            return (
+                <Group
+                    // biome-ignore lint/suspicious/noArrayIndexKey: Filter rules are simple strings without stable IDs
+                    key={index}
+                    gap="xs"
+                    mt="xs"
+                    align={error ? 'flex-start' : 'center'}
+                >
+                    <TextInput
+                        placeholder={placeholder}
+                        value={filter}
+                        onChange={(e) => onUpdate(index, e.target.value)}
+                        style={{ flex: 1 }}
+                        size="xs"
+                        aria-label={`${label} pattern ${index + 1}`}
+                        error={error}
+                    />
+                    <ActionIcon
+                        color="red"
+                        variant="subtle"
+                        onClick={() => onRemove(index)}
+                        size="sm"
+                        aria-label={`Remove ${label.toLowerCase()} pattern ${index + 1}`}
+                    >
+                        <IconTrash size={14} />
+                    </ActionIcon>
+                </Group>
+            );
+        })}
+        <Button
+            variant="subtle"
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={onAdd}
+            mt="xs"
+        >
+            {buttonText}
+        </Button>
+    </>
+);
 
 interface UpdateFeedModalProps {
     feed: Feed;
@@ -25,44 +103,97 @@ export const UpdateFeedModal = ({
     opened,
     onClose,
 }: UpdateFeedModalProps) => {
-    const { data, setData, errors, processing } = useForm<{
+    const { data, setData, errors, processing, patch, transform } = useForm<{
         category_id: number;
         name: string;
+        filter_rules: FilterRules;
     }>({
         category_id: feed.category_id,
         name: feed.name === feed.original_name ? '' : feed.name,
+        filter_rules: {
+            exclude_title: feed.filter_rules?.exclude_title ?? [],
+            exclude_content: feed.filter_rules?.exclude_content ?? [],
+            exclude_author: feed.filter_rules?.exclude_author ?? [],
+        },
     });
+
+    // Clean up empty filter values before submitting
+    transform((data) => ({
+        ...data,
+        filter_rules: {
+            exclude_title: (data.filter_rules.exclude_title ?? []).filter(
+                (v) => v.trim() !== '',
+            ),
+            exclude_content: (data.filter_rules.exclude_content ?? []).filter(
+                (v) => v.trim() !== '',
+            ),
+            exclude_author: (data.filter_rules.exclude_author ?? []).filter(
+                (v) => v.trim() !== '',
+            ),
+        },
+    }));
+
+    const addFilter = (field: keyof FilterRules) => {
+        setData('filter_rules', {
+            ...data.filter_rules,
+            [field]: [...(data.filter_rules[field] ?? []), ''],
+        });
+    };
+
+    const removeFilter = (field: keyof FilterRules, index: number) => {
+        setData('filter_rules', {
+            ...data.filter_rules,
+            [field]: (data.filter_rules[field] ?? []).filter(
+                (_, i) => i !== index,
+            ),
+        });
+    };
+
+    const updateFilter = (
+        field: keyof FilterRules,
+        index: number,
+        value: string,
+    ) => {
+        const newFilters = [...(data.filter_rules[field] ?? [])];
+        newFilters[index] = value;
+        setData('filter_rules', {
+            ...data.filter_rules,
+            [field]: newFilters,
+        });
+    };
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
 
-        router.patch(
-            route('feed.update', feed.id),
-            {
-                category_id: data.category_id,
-                name: data.name,
-            },
-            {
-                onSuccess: () => {
-                    notifications.show({
-                        title: 'Feed updated',
-                        message: 'The feed has been updated',
-                        color: 'green',
-                        withBorder: true,
-                    });
+        patch(route('feed.update', feed.id), {
+            onSuccess: () => {
+                notifications.show({
+                    title: 'Feed updated',
+                    message: 'The feed has been updated',
+                    color: 'green',
+                    withBorder: true,
+                });
 
-                    onClose();
-                },
-                onError: (errors) => {
-                    notifications.show({
-                        title: 'Failed to update feed',
-                        message: errors.name,
-                        color: 'red',
-                        withBorder: true,
-                    });
-                },
+                onClose();
             },
-        );
+            onError: (errors) => {
+                // Find the first error message to display
+                const errorMessage =
+                    errors.name ||
+                    errors.category_id ||
+                    Object.entries(errors).find(([key]) =>
+                        key.startsWith('filter_rules.'),
+                    )?.[1] ||
+                    'An error occurred while updating the feed';
+
+                notifications.show({
+                    title: 'Failed to update feed',
+                    message: errorMessage,
+                    color: 'red',
+                    withBorder: true,
+                });
+            },
+        });
     };
 
     return (
@@ -107,6 +238,63 @@ export const UpdateFeedModal = ({
                             setData('category_id', parseInt(e.target.value, 10))
                         }
                         error={errors.category_id}
+                    />
+
+                    <Space mt="lg" />
+
+                    <Text size="sm" fw={500}>
+                        Filter rules
+                    </Text>
+                    <Text size="xs" c="dimmed" mb="xs">
+                        Hide entries matching these patterns (supports regex)
+                    </Text>
+
+                    <FilterSection
+                        label="Exclude by title"
+                        placeholder="e.g. alpha|beta"
+                        buttonText="Add title filter"
+                        filters={data.filter_rules.exclude_title ?? []}
+                        errors={errors}
+                        errorKeyPrefix="filter_rules.exclude_title"
+                        onAdd={() => addFilter('exclude_title')}
+                        onRemove={(index) =>
+                            removeFilter('exclude_title', index)
+                        }
+                        onUpdate={(index, value) =>
+                            updateFilter('exclude_title', index, value)
+                        }
+                    />
+
+                    <FilterSection
+                        label="Exclude by content"
+                        placeholder="e.g. sponsored"
+                        buttonText="Add content filter"
+                        filters={data.filter_rules.exclude_content ?? []}
+                        errors={errors}
+                        errorKeyPrefix="filter_rules.exclude_content"
+                        onAdd={() => addFilter('exclude_content')}
+                        onRemove={(index) =>
+                            removeFilter('exclude_content', index)
+                        }
+                        onUpdate={(index, value) =>
+                            updateFilter('exclude_content', index, value)
+                        }
+                    />
+
+                    <FilterSection
+                        label="Exclude by author"
+                        placeholder="e.g. bot"
+                        buttonText="Add author filter"
+                        filters={data.filter_rules.exclude_author ?? []}
+                        errors={errors}
+                        errorKeyPrefix="filter_rules.exclude_author"
+                        onAdd={() => addFilter('exclude_author')}
+                        onRemove={(index) =>
+                            removeFilter('exclude_author', index)
+                        }
+                        onUpdate={(index, value) =>
+                            updateFilter('exclude_author', index, value)
+                        }
                     />
 
                     <Button

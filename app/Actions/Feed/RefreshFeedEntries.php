@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Actions\Feed;
 
+use App\Actions\Entry\ApplySubscriptionFilters;
 use App\Exceptions\FeedCrawlFailedException;
+use App\Models\Entry;
 use App\Models\Feed;
 use App\Models\FeedRefresh;
 use Carbon\Carbon;
 use Feeds;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -68,15 +71,17 @@ class RefreshFeedEntries
             }
 
             $entriesCreated = 0;
+            /** @var Collection<int, Entry> $newEntries */
+            $newEntries = collect();
 
-            DB::transaction(function () use ($crawledFeed, $feed, $startedAt, &$entriesCreated) {
-                collect($crawledFeed->get_items())->each(function (Item $item) use ($feed, &$entriesCreated) {
+            DB::transaction(function () use ($crawledFeed, $feed, $startedAt, &$entriesCreated, &$newEntries) {
+                collect($crawledFeed->get_items())->each(function (Item $item) use ($feed, &$entriesCreated, &$newEntries) {
                     if ($feed->entries()->where('url', $item->get_permalink())->exists()) {
                         // TODO: should we update the entry?
                         return;
                     }
 
-                    $feed->entries()->create([
+                    $entry = $feed->entries()->create([
                         'title' => str_replace('&amp;', '&', $item->get_title()),
                         'url' => $item->get_permalink(),
                         'author' => $item->get_author()?->get_name(),
@@ -84,6 +89,7 @@ class RefreshFeedEntries
                         'published_at' => $item->get_date('Y-m-d H:i:s'),
                     ]);
 
+                    $newEntries->push($entry);
                     $entriesCreated++;
                 });
 
@@ -99,6 +105,11 @@ class RefreshFeedEntries
                     'error_message' => null,
                 ]);
             });
+
+            // Apply subscription filters to new entries (outside transaction for better performance)
+            if ($newEntries->isNotEmpty()) {
+                ApplySubscriptionFilters::make()->forNewEntries($feed->id, $newEntries);
+            }
 
             Log::withContext([
                 'feed_id' => $feed->id,
