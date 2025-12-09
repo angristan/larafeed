@@ -23,12 +23,12 @@ class RefreshFeedEntries
         RefreshFeedEntries::run($feed);
     }
 
-    public function handle(Feed $feed, ?SimplePie $crawledFeed = null): void
+    public function handle(Feed $feed, ?SimplePie $crawledFeed = null, ?int $limit = null): void
     {
         $startedAt = now();
 
         if ($crawledFeed === null) {
-            $result = FetchFeed::run($feed->feed_url, validateSecurity: false);
+            $result = FetchFeed::run($feed->feed_url, validateSecurity: true);
 
             if (! $result['success']) {
                 $error = $result['error'];
@@ -49,7 +49,7 @@ class RefreshFeedEntries
         }
 
         try {
-            $newEntries = IngestFeedEntries::run($feed, $crawledFeed->get_items());
+            $newEntries = IngestFeedEntries::run($feed, $crawledFeed->get_items(), $limit);
 
             RecordFeedRefresh::run($feed, $startedAt, success: true, entriesCreated: $newEntries->count());
 

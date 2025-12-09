@@ -7,6 +7,7 @@ namespace App\Actions\Feed;
 use App\Models\Entry;
 use App\Models\Feed;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
 use SimplePie\Item;
@@ -19,27 +20,38 @@ class IngestFeedEntries
      * @param  array<Item>  $items
      * @return Collection<int, Entry>
      */
-    public function handle(Feed $feed, array $items, int $limit = 20): Collection
+    public function handle(Feed $feed, array $items, ?int $limit = null): Collection
     {
-        $items = array_slice($items, 0, $limit);
+        if ($limit !== null) {
+            $items = array_slice($items, 0, $limit);
+        }
+
+        // Pre-fetch existing URLs to avoid N+1 queries
+        /** @var array<string, bool> $existingUrls */
+        $existingUrls = $feed->entries()->pluck('url')->flip()->all();
 
         /** @var Collection<int, Entry> $newEntries */
         $newEntries = collect();
 
-        foreach ($items as $item) {
-            $data = $this->extractEntryData($item, $feed);
+        DB::transaction(function () use ($feed, $items, $existingUrls, &$newEntries) {
+            foreach ($items as $item) {
+                $data = $this->extractEntryData($item, $feed);
 
-            if ($data === null) {
-                continue;
+                if ($data === null) {
+                    continue;
+                }
+
+                if (isset($existingUrls[$data['url']])) {
+                    continue;
+                }
+
+                $entry = $feed->entries()->create($data);
+                $newEntries->push($entry);
+
+                // Track newly created URLs to prevent duplicates within the same batch
+                $existingUrls[$data['url']] = true;
             }
-
-            if ($feed->entries()->where('url', $data['url'])->exists()) {
-                continue;
-            }
-
-            $entry = $feed->entries()->create($data);
-            $newEntries->push($entry);
-        }
+        });
 
         return $newEntries;
     }

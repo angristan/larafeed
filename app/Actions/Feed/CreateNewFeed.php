@@ -92,14 +92,19 @@ class CreateNewFeed
         return $this->handle($request->feed_url, $request->user(), $resolvedCategoryId);
     }
 
-    public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id, ?string $fallback_name = null): \Illuminate\Http\RedirectResponse
+    public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null): \Illuminate\Http\RedirectResponse
     {
         $result = FetchFeed::run($requested_feed_url);
 
         if (! $result['success']) {
-            return redirect()->back()->withErrors([
-                'feed_url' => 'Failed to fetch feed: '.$result['error'],
-            ]);
+            if (! $force) {
+                return redirect()->back()->withErrors([
+                    'feed_url' => 'Failed to fetch feed: '.$result['error'],
+                ]);
+            }
+
+            // Force mode (OPML import): skip this feed silently
+            return redirect()->back();
         }
 
         $crawledFeed = $result['feed'];
@@ -134,7 +139,7 @@ class CreateNewFeed
         $feed_name = $crawledFeed->get_title() ?? $fallback_name ?? $site_url;
         $feed_name = str_replace('&amp;', '&', $feed_name);
 
-        $feed = DB::transaction(function () use ($feed_name, $feed_url, $site_url, $favicon_url, $attachedUser, $category_id) {
+        $feed = DB::transaction(function () use ($feed_name, $feed_url, $site_url, $favicon_url, $attachedUser, $category_id, $crawledFeed) {
             $feed = Feed::create([
                 'name' => $feed_name,
                 'feed_url' => $feed_url,
@@ -147,10 +152,11 @@ class CreateNewFeed
                 $attachedUser->feeds()->attach($feed, ['category_id' => $category_id]);
             }
 
+            // Limit to 20 items on initial creation for performance (get_content() is slow)
+            RefreshFeedEntries::run($feed, $crawledFeed, limit: 20);
+
             return $feed;
         });
-
-        RefreshFeedEntries::run($feed, $crawledFeed);
 
         return redirect()->route('feeds.index', ['feed' => $feed->id]);
     }

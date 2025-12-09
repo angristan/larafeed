@@ -19,6 +19,8 @@ class FetchFeed
      */
     public function handle(string $url, bool $validateSecurity = true): array
     {
+        $curlOptions = [];
+
         if ($validateSecurity) {
             $urlValidation = UrlSecurityValidator::validate($url);
             if (! $urlValidation['valid']) {
@@ -31,7 +33,6 @@ class FetchFeed
             }
 
             // Pin DNS resolution to the IPs we validated, preventing DNS rebinding
-            $curlOptions = [];
             if (! empty($urlValidation['curl_resolve'])) {
                 $curlOptions[CURLOPT_RESOLVE] = $urlValidation['curl_resolve'];
             }
