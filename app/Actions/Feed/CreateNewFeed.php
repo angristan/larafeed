@@ -7,16 +7,12 @@ namespace App\Actions\Feed;
 use App\Actions\Category\CreateCategory;
 use App\Actions\Favicon\GetFaviconURL;
 use App\Models\Feed;
-use App\Models\FeedRefresh;
 use App\Models\SubscriptionCategory;
 use App\Models\User;
 use App\Rules\SafeFeedUrl;
-use App\Support\UrlSecurityValidator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 class CreateNewFeed
@@ -96,60 +92,18 @@ class CreateNewFeed
         return $this->handle($request->feed_url, $request->user(), $resolvedCategoryId);
     }
 
-    public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null): \Illuminate\Http\RedirectResponse
+    public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id, ?string $fallback_name = null): \Illuminate\Http\RedirectResponse
     {
-        // Validate URL and resolve DNS to prevent SSRF attacks.
-        // The resolved IPs are passed to curl via CURLOPT_RESOLVE to prevent DNS rebinding attacks
-        // (where an attacker's DNS server returns a safe IP during validation, then switches to an
-        // internal IP before the actual request).
-        $urlValidation = UrlSecurityValidator::validate($requested_feed_url);
-        if (! $urlValidation['valid']) {
-            Log::warning("[CreateNewFeed] Blocked unsafe URL: {$requested_feed_url}");
+        $result = FetchFeed::run($requested_feed_url);
 
+        if (! $result['success']) {
             return redirect()->back()->withErrors([
-                'feed_url' => $urlValidation['error'] ?? 'Invalid feed URL',
+                'feed_url' => 'Failed to fetch feed: '.$result['error'],
             ]);
         }
 
-        // Pin DNS resolution to the IPs we validated, preventing DNS rebinding
-        $curlOptions = [];
-        if (! empty($urlValidation['curl_resolve'])) {
-            $curlOptions[CURLOPT_RESOLVE] = $urlValidation['curl_resolve'];
-        }
-
-        $error = null;
-
-        // TODO fetch limit
-        $crawledFeed = \Feeds::make(
-            $requested_feed_url, // @phpstan-ignore argument.type (SimplePie accepts string; array triggers deprecated multi-feed mode)
-            0, // limit
-            false, // forceFeed
-            ! empty($curlOptions) ? ['curl.options' => $curlOptions] : null // @phpstan-ignore argument.type
-        );
-        if ($crawledFeed->error()) {
-            if (is_array($crawledFeed->error())) {
-                $error = implode(', ', $crawledFeed->error());
-            } else {
-                $error = $crawledFeed->error();
-            }
-            // "cURL error 3: " -> "cURL error 3"
-            // idk why it adds a colon at the end
-            $error = rtrim($error, ': ');
-
-            Log::error($error);
-            // return redirect()->back()->withErrors([
-            //     'feed_url' => $error,
-            // ]);
-
-            if (! $force) {
-                return redirect()->back()->withErrors([
-                    'feed_url' => 'Failed to fetch feed: '.$error,
-                ]);
-            }
-
-        }
-
-        $feed_url = $crawledFeed->feed_url;
+        $crawledFeed = $result['feed'];
+        $feed_url = $crawledFeed->feed_url ?? $requested_feed_url;
 
         if (Feed::where('feed_url', $feed_url)->exists()) {
             if ($attachedUser) {
@@ -180,78 +134,23 @@ class CreateNewFeed
         $feed_name = $crawledFeed->get_title() ?? $fallback_name ?? $site_url;
         $feed_name = str_replace('&amp;', '&', $feed_name);
 
-        $refreshTimestamp = now();
-
-        $trimmedError = $error ? Str::limit($error, 255, '') : null;
-
-        // Only get last 20 because $entry->get_content() is very slow
-        // so for feeds with many full-cotent entries, it can take a while
-        $entries = $crawledFeed->get_items(0, 20);
-
-        $feed = DB::transaction(function () use ($feed_name, $feed_url, $site_url, $favicon_url, $error, $refreshTimestamp, $trimmedError, $attachedUser, $category_id, $entries) {
+        $feed = DB::transaction(function () use ($feed_name, $feed_url, $site_url, $favicon_url, $attachedUser, $category_id) {
             $feed = Feed::create([
                 'name' => $feed_name,
                 'feed_url' => $feed_url,
                 'site_url' => $site_url,
                 'favicon_url' => $favicon_url,
                 'favicon_updated_at' => $favicon_url ? now() : null,
-                'last_successful_refresh_at' => $error ? null : $refreshTimestamp,
-                'last_failed_refresh_at' => $error ? $refreshTimestamp : null,
-                'last_error_message' => $trimmedError,
             ]);
 
             if ($attachedUser) {
                 $attachedUser->feeds()->attach($feed, ['category_id' => $category_id]);
             }
 
-            $newFeedEntries = [];
-
-            foreach ($entries as $entry) {
-                if (strlen($entry->get_author()?->get_name() ?? '') > 255) {
-                    // 255 is arbitrary, but if the author is that long, it's probably a bug
-                    // example: https://x.com/fuolpit/status/1873790603768553905
-
-                    \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($feed, $entry): void {
-                        $scope->setContext('feed', [
-                            'url' => $feed->feed_url,
-                            'id' => $feed->id,
-                        ]);
-                        $scope->setContext('entry', [
-                            'author' => $entry->get_author()?->get_name(),
-                            'title' => $entry->get_title(),
-                            'url' => $entry->get_permalink(),
-                        ]);
-
-                        \Sentry\captureMessage('Author name too long');
-                    });
-                }
-
-                $title = str_replace('&amp;', '&', $entry->get_title());
-                $title = substr($title, 0, 255);
-                $newFeedEntries[] = [
-                    'title' => $title,
-                    'url' => $entry->get_permalink(),
-                    'content' => $entry->get_content(),
-                    'author' => substr($entry->get_author()?->get_name() ?? '', 0, 255),
-                    'published_at' => $entry->get_date('Y-m-d H:i:s'),
-                    'feed_id' => $feed->id,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
-            }
-
-            $feed->entries()->insert($newFeedEntries);
-
-            FeedRefresh::create([
-                'feed_id' => $feed->id,
-                'refreshed_at' => $refreshTimestamp,
-                'was_successful' => ! $error,
-                'entries_created' => count($newFeedEntries),
-                'error_message' => $error,
-            ]);
-
             return $feed;
         });
+
+        RefreshFeedEntries::run($feed, $crawledFeed);
 
         return redirect()->route('feeds.index', ['feed' => $feed->id]);
     }

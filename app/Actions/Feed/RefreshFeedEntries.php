@@ -6,18 +6,12 @@ namespace App\Actions\Feed;
 
 use App\Actions\Entry\ApplySubscriptionFilters;
 use App\Exceptions\FeedCrawlFailedException;
-use App\Models\Entry;
 use App\Models\Feed;
-use App\Models\FeedRefresh;
 use Carbon\Carbon;
-use Feeds;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Lorisleiva\Actions\Concerns\AsAction;
-use SimplePie\Item;
+use SimplePie\SimplePie;
 use Throwable;
 
 class RefreshFeedEntries
@@ -29,84 +23,36 @@ class RefreshFeedEntries
         RefreshFeedEntries::run($feed);
     }
 
-    public function handle(Feed $feed): void
+    public function handle(Feed $feed, ?SimplePie $crawledFeed = null): void
     {
         $startedAt = now();
 
-        try {
-            // @phpstan-ignore argument.type (SimplePie accepts string, array triggers deprecated multi-feed mode)
-            $crawledFeed = Feeds::make(feedUrl: $feed->feed_url);
-            if ($crawledFeed->error()) {
-                $error = '';
-                if (is_array($crawledFeed->error())) {
-                    $error = implode(', ', $crawledFeed->error());
-                } else {
-                    $error = $crawledFeed->error();
-                }
-                // "cURL error 3: " -> "cURL error 3"
-                // idk why it adds a colon at the end
-                $error = rtrim($error, ': ');
+        if ($crawledFeed === null) {
+            $result = FetchFeed::run($feed->feed_url, validateSecurity: false);
 
-                $feed->last_error_message = Str::limit($error, 255, '');
-                $feed->last_failed_refresh_at = $startedAt;
-                $feed->save();
+            if (! $result['success']) {
+                $error = $result['error'];
 
-                FeedRefresh::create([
-                    'feed_id' => $feed->id,
-                    'refreshed_at' => $startedAt,
-                    'was_successful' => false,
-                    'entries_created' => 0,
-                    'error_message' => $error,
-                ]);
+                RecordFeedRefresh::run($feed, $startedAt, success: false, error: $error);
 
                 Log::withContext([
                     'feed_id' => $feed->id,
                     'feed_name' => $feed->name,
                     'feed_url' => $feed->feed_url,
-                    'feed_site_url' => $feed->site_url,
                     'error' => $error,
                 ])->error('Failed to refresh feed');
 
                 throw new FeedCrawlFailedException("Failed to refresh feed: {$error}");
             }
 
-            $entriesCreated = 0;
-            /** @var Collection<int, Entry> $newEntries */
-            $newEntries = collect();
+            $crawledFeed = $result['feed'];
+        }
 
-            DB::transaction(function () use ($crawledFeed, $feed, $startedAt, &$entriesCreated, &$newEntries) {
-                collect($crawledFeed->get_items())->each(function (Item $item) use ($feed, &$entriesCreated, &$newEntries) {
-                    if ($feed->entries()->where('url', $item->get_permalink())->exists()) {
-                        // TODO: should we update the entry?
-                        return;
-                    }
+        try {
+            $newEntries = IngestFeedEntries::run($feed, $crawledFeed->get_items());
 
-                    $entry = $feed->entries()->create([
-                        'title' => str_replace('&amp;', '&', $item->get_title()),
-                        'url' => $item->get_permalink(),
-                        'author' => $item->get_author()?->get_name(),
-                        'content' => $item->get_content(),
-                        'published_at' => $item->get_date('Y-m-d H:i:s'),
-                    ]);
+            RecordFeedRefresh::run($feed, $startedAt, success: true, entriesCreated: $newEntries->count());
 
-                    $newEntries->push($entry);
-                    $entriesCreated++;
-                });
-
-                $feed->last_successful_refresh_at = $startedAt;
-                $feed->last_error_message = null;
-                $feed->save();
-
-                FeedRefresh::create([
-                    'feed_id' => $feed->id,
-                    'refreshed_at' => $startedAt,
-                    'was_successful' => true,
-                    'entries_created' => $entriesCreated,
-                    'error_message' => null,
-                ]);
-            });
-
-            // Apply subscription filters to new entries (outside transaction for better performance)
             if ($newEntries->isNotEmpty()) {
                 ApplySubscriptionFilters::make()->forNewEntries($feed->id, $newEntries);
             }
@@ -115,37 +61,17 @@ class RefreshFeedEntries
                 'feed_id' => $feed->id,
                 'feed_name' => $feed->name,
                 'feed_url' => $feed->feed_url,
-                'feed_site_url' => $feed->site_url,
-                'feed_entries_count' => $feed->entries()->count(),
-                'entries_created' => $entriesCreated,
+                'entries_created' => $newEntries->count(),
             ])->info('Feed refreshed');
-        } catch (FeedCrawlFailedException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            $errorMessage = $exception->getMessage();
-            $trimmedError = Str::limit($errorMessage, 255, '');
-
-            $feed->last_error_message = $trimmedError;
-            $feed->last_failed_refresh_at = $startedAt;
-            $feed->save();
-
-            FeedRefresh::create([
-                'feed_id' => $feed->id,
-                'refreshed_at' => $startedAt,
-                'was_successful' => false,
-                'entries_created' => 0,
-                'error_message' => $errorMessage,
-            ]);
+            RecordFeedRefresh::run($feed, $startedAt, success: false, error: $exception->getMessage());
 
             Log::withContext([
                 'feed_id' => $feed->id,
                 'feed_name' => $feed->name,
                 'feed_url' => $feed->feed_url,
-                'feed_site_url' => $feed->site_url,
-                'error' => $trimmedError,
-            ])->error('Feed refresh crashed', [
-                'exception' => $exception,
-            ]);
+                'error' => $exception->getMessage(),
+            ])->error('Feed refresh crashed', ['exception' => $exception]);
 
             throw $exception;
         }
