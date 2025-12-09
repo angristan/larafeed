@@ -17,25 +17,22 @@ class FetchFeed
     /**
      * @return array{success: true, feed: SimplePie}|array{success: false, error: string}
      */
-    public function handle(string $url, bool $validateSecurity = true): array
+    public function handle(string $url): array
     {
+        $urlValidation = UrlSecurityValidator::validate($url);
+        if (! $urlValidation['valid']) {
+            Log::warning("[FetchFeed] Blocked unsafe URL: {$url}");
+
+            return [
+                'success' => false,
+                'error' => $urlValidation['error'] ?? 'Invalid feed URL',
+            ];
+        }
+
+        // Pin DNS resolution to the IPs we validated, preventing DNS rebinding
         $curlOptions = [];
-
-        if ($validateSecurity) {
-            $urlValidation = UrlSecurityValidator::validate($url);
-            if (! $urlValidation['valid']) {
-                Log::warning("[FetchFeed] Blocked unsafe URL: {$url}");
-
-                return [
-                    'success' => false,
-                    'error' => $urlValidation['error'] ?? 'Invalid feed URL',
-                ];
-            }
-
-            // Pin DNS resolution to the IPs we validated, preventing DNS rebinding
-            if (! empty($urlValidation['curl_resolve'])) {
-                $curlOptions[CURLOPT_RESOLVE] = $urlValidation['curl_resolve'];
-            }
+        if (! empty($urlValidation['curl_resolve'])) {
+            $curlOptions[CURLOPT_RESOLVE] = $urlValidation['curl_resolve'];
         }
 
         $crawledFeed = Feeds::make(

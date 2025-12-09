@@ -28,7 +28,7 @@ class RefreshFeedEntries
         $startedAt = now();
 
         if ($crawledFeed === null) {
-            $result = FetchFeed::run($feed->feed_url, validateSecurity: true);
+            $result = FetchFeed::run($feed->feed_url);
 
             if (! $result['success']) {
                 $error = $result['error'];
