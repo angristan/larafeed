@@ -63,7 +63,7 @@ class IngestFeedEntries
     {
         $url = $item->get_permalink();
         $title = $item->get_title();
-        $content = $item->get_content();
+        $content = $item->get_content() ?? '';
 
         if ($url === null) {
             $this->report($feed, $item, 'Entry missing URL');
@@ -73,12 +73,6 @@ class IngestFeedEntries
 
         if ($title === null || trim($title) === '') {
             $this->report($feed, $item, 'Entry missing title');
-
-            return null;
-        }
-
-        if ($content === null || trim($content) === '') {
-            $this->report($feed, $item, 'Entry missing content');
 
             return null;
         }
