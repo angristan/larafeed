@@ -26,34 +26,47 @@ class IngestFeedEntries
             $items = array_slice($items, 0, $limit);
         }
 
-        // Pre-fetch existing URLs to avoid N+1 queries
+        // Pre-fetch existing URLs to filter duplicates
         /** @var array<string, bool> $existingUrls */
         $existingUrls = $feed->entries()->pluck('url')->flip()->all();
 
-        /** @var Collection<int, Entry> $newEntries */
-        $newEntries = collect();
+        $now = now();
+        /** @var array<int, array<string, mixed>> $newEntryData */
+        $newEntryData = [];
 
-        DB::transaction(function () use ($feed, $items, $existingUrls, &$newEntries) {
-            foreach ($items as $item) {
-                $data = $this->extractEntryData($item, $feed);
+        foreach ($items as $item) {
+            $data = $this->extractEntryData($item, $feed);
 
-                if ($data === null) {
-                    continue;
-                }
-
-                if (isset($existingUrls[$data['url']])) {
-                    continue;
-                }
-
-                $entry = $feed->entries()->create($data);
-                $newEntries->push($entry);
-
-                // Track newly created URLs to prevent duplicates within the same batch
-                $existingUrls[$data['url']] = true;
+            if ($data === null) {
+                continue;
             }
+
+            if (isset($existingUrls[$data['url']])) {
+                continue;
+            }
+
+            // Mark URL as seen to prevent duplicates within the same batch
+            $existingUrls[$data['url']] = true;
+
+            $newEntryData[] = [
+                ...$data,
+                'feed_id' => $feed->id,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        if (empty($newEntryData)) {
+            return collect();
+        }
+
+        $newUrls = array_column($newEntryData, 'url');
+
+        DB::transaction(function () use ($feed, $newEntryData) {
+            $feed->entries()->insert($newEntryData);
         });
 
-        return $newEntries;
+        return $feed->entries()->whereIn('url', $newUrls)->get();
     }
 
     /**
