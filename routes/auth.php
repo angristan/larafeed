@@ -11,29 +11,34 @@ use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Http\Middleware\HandlePrecognitiveRequests;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
     Route::get('register', RegisterUser::class)->name('register');
 
-    Route::post('register', RegisterUser::class);
+    Route::post('register', RegisterUser::class)
+        ->middleware(HandlePrecognitiveRequests::class);
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');
 
-    Route::post('login', [AuthenticatedSessionController::class, 'store']);
+    Route::post('login', [AuthenticatedSessionController::class, 'store'])
+        ->middleware(HandlePrecognitiveRequests::class);
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');
 
     Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
-        ->name('password.email');
+        ->name('password.email')
+        ->middleware(HandlePrecognitiveRequests::class);
 
     Route::get('reset-password/{token}', ResetPassword::class)
         ->name('password.reset');
 
     Route::post('reset-password', ResetPassword::class)
-        ->name('password.store');
+        ->name('password.store')
+        ->middleware(HandlePrecognitiveRequests::class);
 });
 
 Route::middleware('auth')->group(function () {
@@ -51,9 +56,12 @@ Route::middleware('auth')->group(function () {
     Route::get('confirm-password', [ConfirmablePasswordController::class, 'show'])
         ->name('password.confirm');
 
-    Route::post('confirm-password', [ConfirmablePasswordController::class, 'store']);
+    Route::post('confirm-password', [ConfirmablePasswordController::class, 'store'])
+        ->middleware(HandlePrecognitiveRequests::class);
 
-    Route::put('password', UpdatePassword::class)->name('password.update');
+    Route::put('password', UpdatePassword::class)
+        ->name('password.update')
+        ->middleware(HandlePrecognitiveRequests::class);
 
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout');

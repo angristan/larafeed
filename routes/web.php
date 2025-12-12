@@ -21,6 +21,7 @@ use App\Actions\User\ShowSettings;
 use App\Actions\User\UpdateProfile;
 use App\Actions\User\WipeAccount;
 use App\Features\Registration;
+use App\Http\Middleware\HandlePrecognitiveRequests;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -38,8 +39,10 @@ Route::get('/', function () {
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', ShowSettings::class)->name('profile.edit');
-    Route::patch('/profile', UpdateProfile::class)->name('profile.update');
-    Route::delete('/profile', DeleteAccount::class)->name('profile.destroy');
+    Route::patch('/profile', UpdateProfile::class)->name('profile.update')
+        ->middleware(HandlePrecognitiveRequests::class);
+    Route::delete('/profile', DeleteAccount::class)->name('profile.destroy')
+        ->middleware(HandlePrecognitiveRequests::class);
 
     Route::post('/profile/wipe', WipeAccount::class)->name('profile.wipe');
 
@@ -47,21 +50,25 @@ Route::middleware('auth')->group(function () {
     Route::get('/feeds', ShowFeedReader::class)->name('feeds.index');
 
     Route::middleware(['throttle:create_feed'])->group(function () {
-        Route::post('/feed', CreateNewFeed::class)->name('feed.store');
+        Route::post('/feed', CreateNewFeed::class)->name('feed.store')
+            ->middleware(HandlePrecognitiveRequests::class);
     });
     Route::delete('/feed/{feed_id}', UnsubscribeFromFeed::class)->name('feed.unsubscribe');
     Route::post('/feed/{feed_id}/refresh', RefreshFeedEntries::class)->name('feed.refresh');
     Route::post('/feed/{feed_id}/refresh-favicon', RefreshFavicon::class)->name('feed.refresh-favicon');
-    Route::patch('feed/{feed_id}', UpdateFeed::class)->name('feed.update');
+    Route::patch('feed/{feed_id}', UpdateFeed::class)->name('feed.update')
+        ->middleware(HandlePrecognitiveRequests::class);
     Route::post('/feed/{feed_id}/mark-read', MarkEntriesAsRead::class)->name('feed.mark-read');
 
     Route::patch('/entry/{entry_id}', UpdateEntryInteractions::class)->name('entry.update');
 
-    Route::post('category', CreateCategory::class)->name('category.store');
+    Route::post('category', CreateCategory::class)->name('category.store')
+        ->middleware(HandlePrecognitiveRequests::class);
     Route::delete('category/{category_id}', DeleteCategory::class)->name('category.delete')->whereNumber('category_id');
 
     Route::get('/import', ImportOPML::class)->name('import.index');
-    Route::post('/import', ImportOPML::class)->name('import.store');
+    Route::post('/import', ImportOPML::class)->name('import.store')
+        ->middleware(HandlePrecognitiveRequests::class);
     Route::get('/export', ExportOPML::class)->name('export.download');
 
     Route::get('/charts', ShowCharts::class)->name('charts.index');

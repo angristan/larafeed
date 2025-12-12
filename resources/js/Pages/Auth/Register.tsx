@@ -12,12 +12,14 @@ import {
 import classes from './Register.module.css';
 
 export default function Register() {
-    const { data, setData, post, processing, errors, reset } = useForm({
+    const form = useForm({
         name: '',
         email: '',
         password: '',
         password_confirmation: '',
-    });
+    }).withPrecognition('post', route('register'));
+
+    const { data, setData, post, processing, errors, reset, validate } = form;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -59,6 +61,7 @@ export default function Register() {
                     required
                     value={data.name}
                     onChange={(e) => setData('name', e.target.value)}
+                    onBlur={() => validate('name')}
                     error={errors.name}
                     autoComplete="name"
                 />
@@ -70,6 +73,7 @@ export default function Register() {
                     mt="md"
                     value={data.email}
                     onChange={(e) => setData('email', e.target.value)}
+                    onBlur={() => validate('email')}
                     error={errors.email}
                     autoComplete="username"
                 />
@@ -81,6 +85,7 @@ export default function Register() {
                     mt="md"
                     value={data.password}
                     onChange={(e) => setData('password', e.target.value)}
+                    onBlur={() => validate('password')}
                     error={errors.password}
                     autoComplete="new-password"
                 />
@@ -94,6 +99,7 @@ export default function Register() {
                     onChange={(e) =>
                         setData('password_confirmation', e.target.value)
                     }
+                    onBlur={() => validate('password_confirmation')}
                     error={errors.password_confirmation}
                     autoComplete="new-password"
                 />

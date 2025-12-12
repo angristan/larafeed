@@ -637,11 +637,14 @@ const AddFeedForm = function AddFeedForm({
     const initialCategorySelection =
         categories.length > 0 ? categories[0].id.toString() : 'new';
 
-    const { data, setData, post, errors, processing, transform } = useForm({
+    const form = useForm({
         feed_url: initialFeedURL || '',
         category_selection: initialCategorySelection,
         category_name: '',
-    });
+    }).withPrecognition('post', route('feed.store'));
+
+    const { data, setData, post, errors, processing, transform, validate } =
+        form;
 
     // Transform the feed URL to have a protocol if it doesn't have one
     transform((data) => {
@@ -727,6 +730,7 @@ const AddFeedForm = function AddFeedForm({
                 data-autofocus
                 value={data.feed_url}
                 onChange={(e) => setData('feed_url', e.target.value)}
+                onBlur={() => validate('feed_url')}
                 error={errors.feed_url}
             />
 
@@ -817,6 +821,7 @@ const AddFeedForm = function AddFeedForm({
                     }
                     value={data.category_name}
                     onChange={(e) => setData('category_name', e.target.value)}
+                    onBlur={() => validate('category_name')}
                     error={errors.category_name}
                     data-autofocus={categories.length === 0}
                 />
@@ -844,9 +849,11 @@ const AddCategoryForm = function AddCategoryForm({
 }: {
     close: () => void;
 }) {
-    const { data, setData, post, errors, processing } = useForm({
+    const form = useForm({
         categoryName: '',
-    });
+    }).withPrecognition('post', route('category.store'));
+
+    const { data, setData, post, errors, processing, validate } = form;
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -897,6 +904,7 @@ const AddCategoryForm = function AddCategoryForm({
                 data-autofocus
                 value={data.categoryName}
                 onChange={(e) => setData('categoryName', e.target.value)}
+                onBlur={() => validate('categoryName')}
                 withErrorStyles={false}
                 rightSectionPointerEvents="none"
                 rightSection={

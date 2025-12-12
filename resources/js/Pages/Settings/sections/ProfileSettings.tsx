@@ -28,11 +28,20 @@ const ProfileSettings = ({ mustVerifyEmail, status }: ProfileSettingsProps) => {
         },
     } = usePage<PageProps>();
 
-    const { data, setData, patch, errors, processing, recentlySuccessful } =
-        useForm({
-            name: user.name,
-            email: user.email,
-        });
+    const profileForm = useForm({
+        name: user.name,
+        email: user.email,
+    }).withPrecognition('patch', route('profile.update'));
+
+    const {
+        data,
+        setData,
+        patch,
+        errors,
+        processing,
+        recentlySuccessful,
+        validate,
+    } = profileForm;
 
     const submitProfile: FormEventHandler = (event) => {
         event.preventDefault();
@@ -49,6 +58,12 @@ const ProfileSettings = ({ mustVerifyEmail, status }: ProfileSettingsProps) => {
         });
     };
 
+    const passwordForm = useForm({
+        current_password: '',
+        password: '',
+        password_confirmation: '',
+    }).withPrecognition('put', route('password.update'));
+
     const {
         data: passwordData,
         setData: setPasswordData,
@@ -56,11 +71,8 @@ const ProfileSettings = ({ mustVerifyEmail, status }: ProfileSettingsProps) => {
         errors: passwordErrors,
         processing: passwordProcessing,
         reset: resetPassword,
-    } = useForm({
-        current_password: '',
-        password: '',
-        password_confirmation: '',
-    });
+        validate: validatePassword,
+    } = passwordForm;
 
     const passwordInputRef = useRef<HTMLInputElement>(null);
     const currentPasswordInputRef = useRef<HTMLInputElement>(null);
@@ -91,6 +103,10 @@ const ProfileSettings = ({ mustVerifyEmail, status }: ProfileSettingsProps) => {
 
     const [deleteModalOpened, deleteModalHandlers] = useDisclosure(false);
     const deletePasswordRef = useRef<HTMLInputElement>(null);
+    const deleteForm = useForm({
+        password: '',
+    }).withPrecognition('delete', route('profile.destroy'));
+
     const {
         data: deleteData,
         setData: setDeleteData,
@@ -98,9 +114,8 @@ const ProfileSettings = ({ mustVerifyEmail, status }: ProfileSettingsProps) => {
         processing: deleteProcessing,
         errors: deleteErrors,
         reset: resetDelete,
-    } = useForm({
-        password: '',
-    });
+        validate: validateDelete,
+    } = deleteForm;
 
     const confirmDeletion: FormEventHandler = (event) => {
         event.preventDefault();
@@ -135,6 +150,7 @@ const ProfileSettings = ({ mustVerifyEmail, status }: ProfileSettingsProps) => {
                     onChange={(event) =>
                         setData('name', event.currentTarget.value)
                     }
+                    onBlur={() => validate('name')}
                     required
                     error={errors.name}
                     data-autofocus
@@ -146,6 +162,7 @@ const ProfileSettings = ({ mustVerifyEmail, status }: ProfileSettingsProps) => {
                     onChange={(event) =>
                         setData('email', event.currentTarget.value)
                     }
+                    onBlur={() => validate('email')}
                     required
                     error={errors.email}
                 />
@@ -211,6 +228,7 @@ const ProfileSettings = ({ mustVerifyEmail, status }: ProfileSettingsProps) => {
                             event.currentTarget.value,
                         )
                     }
+                    onBlur={() => validatePassword('current_password')}
                     error={passwordErrors.current_password}
                     ref={currentPasswordInputRef}
                     required
@@ -221,6 +239,7 @@ const ProfileSettings = ({ mustVerifyEmail, status }: ProfileSettingsProps) => {
                     onChange={(event) =>
                         setPasswordData('password', event.currentTarget.value)
                     }
+                    onBlur={() => validatePassword('password')}
                     error={passwordErrors.password}
                     ref={passwordInputRef}
                     required
@@ -234,6 +253,7 @@ const ProfileSettings = ({ mustVerifyEmail, status }: ProfileSettingsProps) => {
                             event.currentTarget.value,
                         )
                     }
+                    onBlur={() => validatePassword('password_confirmation')}
                     error={passwordErrors.password_confirmation}
                     required
                 />
@@ -288,6 +308,7 @@ const ProfileSettings = ({ mustVerifyEmail, status }: ProfileSettingsProps) => {
                                     event.currentTarget.value,
                                 )
                             }
+                            onBlur={() => validateDelete('password')}
                             error={deleteErrors.password}
                             ref={deletePasswordRef}
                             required
