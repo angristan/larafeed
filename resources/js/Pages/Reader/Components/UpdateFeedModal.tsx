@@ -103,7 +103,7 @@ export const UpdateFeedModal = ({
     opened,
     onClose,
 }: UpdateFeedModalProps) => {
-    const { data, setData, errors, processing, patch, transform } = useForm<{
+    const form = useForm<{
         category_id: number;
         name: string;
         filter_rules: FilterRules;
@@ -115,7 +115,10 @@ export const UpdateFeedModal = ({
             exclude_content: feed.filter_rules?.exclude_content ?? [],
             exclude_author: feed.filter_rules?.exclude_author ?? [],
         },
-    });
+    }).withPrecognition('patch', route('feed.update', feed.id));
+
+    const { data, setData, errors, processing, patch, transform, validate } =
+        form;
 
     // Clean up empty filter values before submitting
     transform((data) => ({
@@ -208,6 +211,7 @@ export const UpdateFeedModal = ({
                         data-autofocus
                         value={data.name}
                         onChange={(e) => setData('name', e.target.value)}
+                        onBlur={() => validate('name')}
                         withErrorStyles={false}
                         rightSectionPointerEvents="none"
                         rightSection={

@@ -25,11 +25,13 @@ export default function Login({
     canResetPassword,
     canRegister,
 }: Props) {
-    const { data, setData, post, processing, errors, reset } = useForm({
+    const form = useForm({
         email: '',
         password: '',
         remember: false as boolean,
-    });
+    }).withPrecognition('post', route('login'));
+
+    const { data, setData, post, processing, errors, reset, validate } = form;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -78,6 +80,7 @@ export default function Login({
                     required
                     value={data.email}
                     onChange={(e) => setData('email', e.target.value)}
+                    onBlur={() => validate('email')}
                     error={errors.email}
                     autoComplete="username"
                 />
@@ -89,6 +92,7 @@ export default function Login({
                     mt="md"
                     value={data.password}
                     onChange={(e) => setData('password', e.target.value)}
+                    onBlur={() => validate('password')}
                     error={errors.password}
                     autoComplete="current-password"
                 />

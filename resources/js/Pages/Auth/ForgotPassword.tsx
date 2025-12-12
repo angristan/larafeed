@@ -6,9 +6,11 @@ import TextInput from '@/Components/Breeze/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 
 export default function ForgotPassword({ status }: { status?: string }) {
-    const { data, setData, post, processing, errors } = useForm({
+    const form = useForm({
         email: '',
-    });
+    }).withPrecognition('post', route('password.email'));
+
+    const { data, setData, post, processing, errors, validate } = form;
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -41,6 +43,7 @@ export default function ForgotPassword({ status }: { status?: string }) {
                     className="mt-1 block w-full"
                     isFocused={true}
                     onChange={(e) => setData('email', e.target.value)}
+                    onBlur={() => validate('email')}
                 />
 
                 <InputError message={errors.email} className="mt-2" />

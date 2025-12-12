@@ -13,12 +13,14 @@ export default function ResetPassword({
     token: string;
     email: string;
 }) {
-    const { data, setData, post, processing, errors, reset } = useForm({
+    const form = useForm({
         token: token,
         email: email,
         password: '',
         password_confirmation: '',
-    });
+    }).withPrecognition('post', route('password.store'));
+
+    const { data, setData, post, processing, errors, reset, validate } = form;
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -44,6 +46,7 @@ export default function ResetPassword({
                         className="mt-1 block w-full"
                         autoComplete="username"
                         onChange={(e) => setData('email', e.target.value)}
+                        onBlur={() => validate('email')}
                     />
 
                     <InputError message={errors.email} className="mt-2" />
@@ -61,6 +64,7 @@ export default function ResetPassword({
                         autoComplete="new-password"
                         isFocused={true}
                         onChange={(e) => setData('password', e.target.value)}
+                        onBlur={() => validate('password')}
                     />
 
                     <InputError message={errors.password} className="mt-2" />
@@ -81,6 +85,7 @@ export default function ResetPassword({
                         onChange={(e) =>
                             setData('password_confirmation', e.target.value)
                         }
+                        onBlur={() => validate('password_confirmation')}
                     />
 
                     <InputError

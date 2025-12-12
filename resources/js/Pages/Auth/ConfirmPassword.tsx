@@ -7,9 +7,11 @@ import TextInput from '@/Components/Breeze/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 
 export default function ConfirmPassword() {
-    const { data, setData, post, processing, errors, reset } = useForm({
+    const form = useForm({
         password: '',
-    });
+    }).withPrecognition('post', route('password.confirm'));
+
+    const { data, setData, post, processing, errors, reset, validate } = form;
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -40,6 +42,7 @@ export default function ConfirmPassword() {
                         className="mt-1 block w-full"
                         isFocused={true}
                         onChange={(e) => setData('password', e.target.value)}
+                        onBlur={() => validate('password')}
                     />
 
                     <InputError message={errors.password} className="mt-2" />
