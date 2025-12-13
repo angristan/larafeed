@@ -142,7 +142,7 @@ class CreateNewFeed
 
         $startedAt = now();
 
-        $feed = DB::transaction(function () use ($feed_name, $feed_url, $site_url, $favicon_url, $attachedUser, $category_id) {
+        $feed = DB::transaction(function () use ($feed_name, $feed_url, $site_url, $favicon_url, $attachedUser, $category_id, $crawledFeed, $startedAt) {
             $feed = Feed::create([
                 'name' => $feed_name,
                 'feed_url' => $feed_url,
@@ -155,16 +155,16 @@ class CreateNewFeed
                 $attachedUser->feeds()->attach($feed, ['category_id' => $category_id]);
             }
 
+            // Ingest entries and record refresh (limit to 20 for performance - get_content() is slow)
+            $newEntries = IngestFeedEntries::run($feed, $crawledFeed->get_items(), limit: 20);
+            RecordFeedRefresh::run($feed, $startedAt, success: true, entriesCreated: $newEntries->count());
+
+            if ($newEntries->isNotEmpty()) {
+                ApplySubscriptionFilters::make()->forNewEntries($feed->id, $newEntries);
+            }
+
             return $feed;
         });
-
-        // Ingest entries and record refresh (limit to 20 for performance - get_content() is slow)
-        $newEntries = IngestFeedEntries::run($feed, $crawledFeed->get_items(), limit: 20);
-        RecordFeedRefresh::run($feed, $startedAt, success: true, entriesCreated: $newEntries->count());
-
-        if ($newEntries->isNotEmpty()) {
-            ApplySubscriptionFilters::make()->forNewEntries($feed->id, $newEntries);
-        }
 
         return redirect()->route('feeds.index', ['feed' => $feed->id]);
     }

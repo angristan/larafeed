@@ -9,6 +9,7 @@ use App\Exceptions\FeedCrawlFailedException;
 use App\Models\Feed;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
 use Throwable;
@@ -46,13 +47,17 @@ class RefreshFeed
         $crawledFeed = $result['feed'];
 
         try {
-            $newEntries = IngestFeedEntries::run($feed, $crawledFeed->get_items());
+            $newEntries = DB::transaction(function () use ($feed, $crawledFeed, $startedAt) {
+                $newEntries = IngestFeedEntries::run($feed, $crawledFeed->get_items());
 
-            RecordFeedRefresh::run($feed, $startedAt, success: true, entriesCreated: $newEntries->count());
+                RecordFeedRefresh::run($feed, $startedAt, success: true, entriesCreated: $newEntries->count());
 
-            if ($newEntries->isNotEmpty()) {
-                ApplySubscriptionFilters::make()->forNewEntries($feed->id, $newEntries);
-            }
+                if ($newEntries->isNotEmpty()) {
+                    ApplySubscriptionFilters::make()->forNewEntries($feed->id, $newEntries);
+                }
+
+                return $newEntries;
+            });
 
             Log::withContext([
                 'feed_id' => $feed->id,
