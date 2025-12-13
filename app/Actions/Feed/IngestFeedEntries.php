@@ -7,7 +7,6 @@ namespace App\Actions\Feed;
 use App\Models\Entry;
 use App\Models\Feed;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
 use SimplePie\Item;
@@ -62,9 +61,7 @@ class IngestFeedEntries
 
         $newUrls = array_column($newEntryData, 'url');
 
-        DB::transaction(function () use ($feed, $newEntryData) {
-            $feed->entries()->insert($newEntryData);
-        });
+        $feed->entries()->insert($newEntryData);
 
         return $feed->entries()->whereIn('url', $newUrls)->get();
     }
