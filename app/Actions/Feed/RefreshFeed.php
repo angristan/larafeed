@@ -11,45 +11,42 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
-use SimplePie\SimplePie;
 use Throwable;
 
-class RefreshFeedEntries
+class RefreshFeed
 {
     use AsAction;
 
     public function asJob(Feed $feed): void
     {
-        RefreshFeedEntries::run($feed);
+        RefreshFeed::run($feed);
     }
 
-    public function handle(Feed $feed, ?SimplePie $crawledFeed = null, ?int $limit = null): void
+    public function handle(Feed $feed): void
     {
         $startedAt = now();
 
-        if ($crawledFeed === null) {
-            $result = FetchFeed::run($feed->feed_url);
+        $result = FetchFeed::run($feed->feed_url);
 
-            if (! $result['success']) {
-                $error = $result['error'];
+        if (! $result['success']) {
+            $error = $result['error'];
 
-                RecordFeedRefresh::run($feed, $startedAt, success: false, error: $error);
+            RecordFeedRefresh::run($feed, $startedAt, success: false, error: $error);
 
-                Log::withContext([
-                    'feed_id' => $feed->id,
-                    'feed_name' => $feed->name,
-                    'feed_url' => $feed->feed_url,
-                    'error' => $error,
-                ])->error('Failed to refresh feed');
+            Log::withContext([
+                'feed_id' => $feed->id,
+                'feed_name' => $feed->name,
+                'feed_url' => $feed->feed_url,
+                'error' => $error,
+            ])->error('Failed to refresh feed');
 
-                throw new FeedCrawlFailedException("Failed to refresh feed: {$error}");
-            }
-
-            $crawledFeed = $result['feed'];
+            throw new FeedCrawlFailedException("Failed to refresh feed: {$error}");
         }
 
+        $crawledFeed = $result['feed'];
+
         try {
-            $newEntries = IngestFeedEntries::run($feed, $crawledFeed->get_items(), $limit);
+            $newEntries = IngestFeedEntries::run($feed, $crawledFeed->get_items());
 
             RecordFeedRefresh::run($feed, $startedAt, success: true, entriesCreated: $newEntries->count());
 

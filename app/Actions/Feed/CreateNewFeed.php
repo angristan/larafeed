@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Feed;
 
 use App\Actions\Category\CreateCategory;
+use App\Actions\Entry\ApplySubscriptionFilters;
 use App\Actions\Favicon\GetFaviconURL;
 use App\Models\Feed;
 use App\Models\SubscriptionCategory;
@@ -139,7 +140,9 @@ class CreateNewFeed
         $feed_name = $crawledFeed->get_title() ?? $fallback_name ?? $site_url;
         $feed_name = str_replace('&amp;', '&', $feed_name);
 
-        $feed = DB::transaction(function () use ($feed_name, $feed_url, $site_url, $favicon_url, $attachedUser, $category_id, $crawledFeed) {
+        $startedAt = now();
+
+        $feed = DB::transaction(function () use ($feed_name, $feed_url, $site_url, $favicon_url, $attachedUser, $category_id) {
             $feed = Feed::create([
                 'name' => $feed_name,
                 'feed_url' => $feed_url,
@@ -152,11 +155,16 @@ class CreateNewFeed
                 $attachedUser->feeds()->attach($feed, ['category_id' => $category_id]);
             }
 
-            // Limit to 20 items on initial creation for performance (get_content() is slow)
-            RefreshFeedEntries::run($feed, $crawledFeed, limit: 20);
-
             return $feed;
         });
+
+        // Ingest entries and record refresh (limit to 20 for performance - get_content() is slow)
+        $newEntries = IngestFeedEntries::run($feed, $crawledFeed->get_items(), limit: 20);
+        RecordFeedRefresh::run($feed, $startedAt, success: true, entriesCreated: $newEntries->count());
+
+        if ($newEntries->isNotEmpty()) {
+            ApplySubscriptionFilters::make()->forNewEntries($feed->id, $newEntries);
+        }
 
         return redirect()->route('feeds.index', ['feed' => $feed->id]);
     }

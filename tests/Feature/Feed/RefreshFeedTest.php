@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Feed;
 
-use App\Actions\Feed\RefreshFeedEntries;
+use App\Actions\Feed\RefreshFeed;
 use App\Exceptions\FeedCrawlFailedException;
 use App\Models\EntryInteraction;
 use App\Models\Feed;
@@ -17,7 +17,7 @@ use Mockery;
 use SimplePie\Item;
 use Tests\TestCase;
 
-class RefreshFeedEntriesTest extends TestCase
+class RefreshFeedTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -48,7 +48,7 @@ class RefreshFeedEntriesTest extends TestCase
 
         \Feeds::shouldReceive('make')->once()->andReturn($crawledFeed);
 
-        RefreshFeedEntries::run($feed);
+        RefreshFeed::run($feed);
 
         $this->assertDatabaseHas('feed_refreshes', [
             'feed_id' => $feed->id,
@@ -78,7 +78,7 @@ class RefreshFeedEntriesTest extends TestCase
         $this->expectException(FeedCrawlFailedException::class);
 
         try {
-            RefreshFeedEntries::run($feed);
+            RefreshFeed::run($feed);
         } finally {
             $this->assertDatabaseHas('feed_refreshes', [
                 'feed_id' => $feed->id,
@@ -184,7 +184,7 @@ class RefreshFeedEntriesTest extends TestCase
 
         \Feeds::shouldReceive('make')->once()->andReturn($crawledFeed);
 
-        RefreshFeedEntries::run($feed);
+        RefreshFeed::run($feed);
 
         // Both entries should be created
         $this->assertDatabaseHas('entries', ['title' => 'v1.0.0-alpha.1 Release']);

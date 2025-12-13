@@ -20,7 +20,7 @@ class RefreshFeeds
     public function handle(): void
     {
         Feed::all()->each(
-            fn (Feed $feed) => RefreshFeedEntries::run($feed)
+            fn (Feed $feed) => RefreshFeed::run($feed)
         );
     }
 
@@ -77,7 +77,7 @@ class RefreshFeeds
             )
             ->limit(1)
             ->get()
-            ->each(fn (Feed $feed) => RefreshFeedEntries::dispatch($feed));
+            ->each(fn (Feed $feed) => RefreshFeed::dispatch($feed));
     }
 
     public function asCommand(Command $command): void
