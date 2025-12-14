@@ -4,7 +4,6 @@ import {
     Divider,
     Flex,
     Group,
-    Image,
     Indicator,
     List,
     Pagination,
@@ -17,6 +16,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
 import { useCallback, useEffect, useRef } from 'react';
+import { FaviconImage } from '@/Components/FaviconImage/FaviconImage';
 import classes from './EntryListPane.module.css';
 
 dayjs.extend(relativeTime);
@@ -145,8 +145,9 @@ export default function EntryListPane({
                             </span>
                             <Flex justify="space-between" mt={10}>
                                 <Flex>
-                                    <Image
+                                    <FaviconImage
                                         src={entry.feed.favicon_url}
+                                        isDark={entry.feed.favicon_is_dark}
                                         w={20}
                                         h={20}
                                         mr={9}

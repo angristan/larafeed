@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions\Feed;
 
+use App\Actions\Favicon\AnalyzeFaviconBrightness;
 use App\Actions\Favicon\GetFaviconURL;
 use App\Models\Feed;
 use Illuminate\Support\Facades\Auth;
@@ -47,6 +48,7 @@ class RefreshFavicon
             if ($favicon_url) {
                 $old_favicon_url = $feed->favicon_url;
                 $feed->favicon_url = $favicon_url;
+                $feed->favicon_is_dark = AnalyzeFaviconBrightness::run($favicon_url);
                 $feed->favicon_updated_at = now();
                 $feed->save();
 
@@ -56,6 +58,7 @@ class RefreshFavicon
                     'site_url' => $feed->site_url,
                     'old_favicon_url' => $old_favicon_url,
                     'new_favicon_url' => $favicon_url,
+                    'favicon_is_dark' => $feed->favicon_is_dark,
                 ]);
             } else {
                 // Even if we failed to get a favicon, update the timestamp so we don't keep retrying immediately

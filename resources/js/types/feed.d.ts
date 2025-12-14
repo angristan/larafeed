@@ -10,6 +10,7 @@ interface Feed {
     name: string;
     original_name: string;
     favicon_url: string;
+    favicon_is_dark: boolean | null;
     site_url: string;
     feed_url: string;
     entries_count: number;
@@ -43,6 +44,7 @@ interface Entry extends Timestamps {
     feed: {
         id: number;
         favicon_url: string;
+        favicon_is_dark: boolean | null;
         name: string;
     };
 }

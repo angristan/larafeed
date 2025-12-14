@@ -43,6 +43,7 @@ class ShowFeedReader
                     'feeds.feed_url',
                     'feeds.site_url',
                     'feeds.favicon_url',
+                    'feeds.favicon_is_dark',
                     'feeds.last_successful_refresh_at',
                     'feeds.last_failed_refresh_at',
                     'subscription_categories.id as category_id',
@@ -63,6 +64,7 @@ class ShowFeedReader
                     'feed_url' => $feed->feed_url,
                     'site_url' => $feed->site_url,
                     'favicon_url' => $feed->favicon_url(),
+                    'favicon_is_dark' => $feed->favicon_is_dark,
                     'entries_count' => $feed['entries_count'],
                     'last_successful_refresh_at' => $feed->last_successful_refresh_at,
                     'last_failed_refresh_at' => $feed->last_failed_refresh_at,
@@ -109,6 +111,7 @@ class ShowFeedReader
                     'feeds.name as feed_name',
                     'feed_subscriptions.custom_feed_name as feed_custom_name',
                     'feeds.favicon_url as feed_favicon_url',
+                    'feeds.favicon_is_dark as feed_favicon_is_dark',
                 ])
                 ->orderByDesc('entries.'.$order_by)
                 ->paginate(perPage: 30)
@@ -126,6 +129,7 @@ class ShowFeedReader
                         'id' => $entry->feed_id,
                         'name' => $entry['feed_custom_name'] ?? $entry['feed_name'],
                         'favicon_url' => BuildProxifiedFaviconURL::run($entry['feed_favicon_url']),
+                        'favicon_is_dark' => $entry['feed_favicon_is_dark'],
                     ],
                 ]);
         };
@@ -149,7 +153,7 @@ class ShowFeedReader
 
             // Merge entry with feed data and user interactions
             $currentEntry = Entry::query()
-                ->with('feed:id,name,favicon_url')
+                ->with('feed:id,name,favicon_url,favicon_is_dark')
                 ->leftJoin('entry_interactions', function ($join) {
                     $join->on('entries.id', '=', 'entry_interactions.entry_id')
                         ->where('entry_interactions.user_id', '=', Auth::id());
