@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Tests\Unit\Favicon;
 
 use App\Actions\Favicon\AnalyzeFaviconBrightness;
+use Illuminate\Foundation\Testing\TestCase;
 use Illuminate\Support\Facades\Http;
-use Tests\TestCase;
 
 class AnalyzeFaviconBrightnessTest extends TestCase
 {
@@ -16,6 +16,14 @@ class AnalyzeFaviconBrightnessTest extends TestCase
     {
         parent::setUp();
         $this->action = new AnalyzeFaviconBrightness;
+    }
+
+    public function createApplication()
+    {
+        $app = require __DIR__.'/../../../bootstrap/app.php';
+        $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+
+        return $app;
     }
 
     public function test_detects_dark_svg_with_dark_hex_color(): void
