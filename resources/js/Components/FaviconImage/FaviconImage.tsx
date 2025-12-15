@@ -14,14 +14,15 @@ interface FaviconImageProps extends Omit<ImageProps, 'className'> {
 }
 
 export function FaviconImage({ src, isDark, ...props }: FaviconImageProps) {
-    // Apply dark styling if isDark is true OR null (couldn't analyze / no favicon)
-    const needsBackground = isDark !== false;
+    // Apply background in dark mode for dark favicons or unknown brightness (conservative approach).
+    // Only apply when there's an actual image to show.
+    const shouldApplyDarkModeBackground = src && isDark !== false;
     return (
         <Image
             src={src}
             className={clsx(
                 classes.favicon,
-                needsBackground && classes.faviconDark,
+                shouldApplyDarkModeBackground && classes.faviconDark,
             )}
             {...props}
         />
@@ -40,12 +41,15 @@ export function FaviconAvatar({
     children,
     ...props
 }: FaviconAvatarProps) {
-    // Apply dark styling if isDark is true OR null (couldn't analyze / no favicon)
-    const needsBackground = isDark !== false;
+    // Apply background in dark mode for dark favicons or unknown brightness (conservative approach).
+    // Only apply when there's an actual image to show.
+    const shouldApplyDarkModeBackground = src && isDark !== false;
     return (
         <Avatar
             src={src}
-            className={clsx(needsBackground && classes.faviconAvatarDark)}
+            className={clsx(
+                shouldApplyDarkModeBackground && classes.faviconAvatarDark,
+            )}
             {...props}
         >
             {children}
