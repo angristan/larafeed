@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace App\Actions\Favicon;
 
+use App\Support\UrlSecurityValidator;
 use AshAllenDesign\FaviconFetcher\Facades\Favicon;
-use Http;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
 use Uri;
@@ -31,6 +32,16 @@ class GetFaviconURL
 
             if (! $favicon_url) {
                 Log::error('Failed to fetch favicon for '.$site_url.': No favicon URL found');
+
+                return null;
+            }
+
+            // Validate favicon URL to prevent SSRF attacks
+            if (! UrlSecurityValidator::isSafe($favicon_url)) {
+                Log::warning('Favicon URL failed SSRF validation', [
+                    'site_url' => $site_url,
+                    'favicon_url' => $favicon_url,
+                ]);
 
                 return null;
             }

@@ -206,37 +206,6 @@ class AnalyzeFaviconBrightnessTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function test_returns_null_for_internal_url_ssrf_protection(): void
-    {
-        // Should not even make HTTP request for internal URLs
-        Http::fake();
-
-        $result = $this->action->handle('http://169.254.169.254/latest/meta-data/');
-
-        $this->assertNull($result);
-        Http::assertNothingSent();
-    }
-
-    public function test_returns_null_for_localhost_ssrf_protection(): void
-    {
-        Http::fake();
-
-        $result = $this->action->handle('http://127.0.0.1/favicon.png');
-
-        $this->assertNull($result);
-        Http::assertNothingSent();
-    }
-
-    public function test_returns_null_for_private_ip_ssrf_protection(): void
-    {
-        Http::fake();
-
-        $result = $this->action->handle('http://192.168.1.1/favicon.png');
-
-        $this->assertNull($result);
-        Http::assertNothingSent();
-    }
-
     public function test_returns_null_on_connection_exception(): void
     {
         Http::fake([

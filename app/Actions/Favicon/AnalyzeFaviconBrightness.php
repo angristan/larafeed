@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Actions\Favicon;
 
-use App\Support\UrlSecurityValidator;
 use GdImage;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -33,15 +32,7 @@ class AnalyzeFaviconBrightness
     public function handle(string $favicon_url): ?bool
     {
         try {
-            // Validate URL to prevent SSRF attacks
-            if (! UrlSecurityValidator::isSafe($favicon_url)) {
-                Log::warning('Favicon URL failed SSRF validation', [
-                    'favicon_url' => $favicon_url,
-                ]);
-
-                return null;
-            }
-
+            // Note: SSRF validation is done when favicon URLs are first fetched in GetFaviconURL
             $proxiedUrl = $this->buildProxiedUrl($favicon_url);
 
             /** @var \Illuminate\Http\Client\Response $response */
