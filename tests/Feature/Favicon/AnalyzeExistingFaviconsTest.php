@@ -4,17 +4,37 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Favicon;
 
+use App\Actions\Favicon\AnalyzeFaviconBrightness;
 use App\Models\Feed;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Mockery;
 use Tests\TestCase;
 
 class AnalyzeExistingFaviconsTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+        Mockery::close();
+    }
+
+    private function mockSsrfValidation(): void
+    {
+        $mock = Mockery::mock(AnalyzeFaviconBrightness::class)
+            ->makePartial()
+            ->shouldAllowMockingProtectedMethods();
+        $mock->shouldReceive('isUrlSafe')->andReturn(true);
+
+        $this->app->instance(AnalyzeFaviconBrightness::class, $mock);
+    }
+
     public function test_command_analyzes_feeds_with_favicons(): void
     {
+        $this->mockSsrfValidation();
+
         Http::fake([
             'localhost:8080/*' => Http::response(
                 $this->createDarkPng(),
@@ -61,6 +81,8 @@ class AnalyzeExistingFaviconsTest extends TestCase
 
     public function test_command_reanalyzes_with_force_flag(): void
     {
+        $this->mockSsrfValidation();
+
         Http::fake([
             'localhost:8080/*' => Http::response(
                 $this->createDarkPng(),
@@ -83,6 +105,8 @@ class AnalyzeExistingFaviconsTest extends TestCase
 
     public function test_command_handles_failed_analysis(): void
     {
+        $this->mockSsrfValidation();
+
         Http::fake([
             'localhost:8080/*' => Http::response('Not Found', 404),
         ]);
@@ -114,6 +138,8 @@ class AnalyzeExistingFaviconsTest extends TestCase
 
     public function test_command_detects_light_favicon(): void
     {
+        $this->mockSsrfValidation();
+
         Http::fake([
             'localhost:8080/*' => Http::response(
                 $this->createLightPng(),
