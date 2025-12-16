@@ -34,7 +34,7 @@ class AnalyzeFaviconBrightness
     {
         try {
             // Validate URL to prevent SSRF attacks
-            if (! $this->isUrlSafe($favicon_url)) {
+            if (! UrlSecurityValidator::isSafe($favicon_url)) {
                 Log::warning('Favicon URL failed SSRF validation', [
                     'favicon_url' => $favicon_url,
                 ]);
@@ -95,14 +95,6 @@ class AnalyzeFaviconBrightness
 
             return null;
         }
-    }
-
-    /**
-     * Check if the URL is safe to fetch (SSRF protection).
-     */
-    protected function isUrlSafe(string $url): bool
-    {
-        return UrlSecurityValidator::isSafe($url);
     }
 
     /**

@@ -7,7 +7,6 @@ namespace Tests\Unit\Favicon;
 use App\Actions\Favicon\AnalyzeFaviconBrightness;
 use Illuminate\Foundation\Testing\TestCase;
 use Illuminate\Support\Facades\Http;
-use Mockery;
 
 class AnalyzeFaviconBrightnessTest extends TestCase
 {
@@ -16,13 +15,7 @@ class AnalyzeFaviconBrightnessTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->action = $this->createActionWithBypassedSsrf();
-    }
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-        Mockery::close();
+        $this->action = new AnalyzeFaviconBrightness;
     }
 
     public function createApplication()
@@ -31,19 +24,6 @@ class AnalyzeFaviconBrightnessTest extends TestCase
         $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
         return $app;
-    }
-
-    /**
-     * Create an action instance with SSRF validation bypassed for testing.
-     */
-    private function createActionWithBypassedSsrf(): AnalyzeFaviconBrightness
-    {
-        return Mockery::mock(AnalyzeFaviconBrightness::class)
-            ->makePartial()
-            ->shouldAllowMockingProtectedMethods()
-            ->shouldReceive('isUrlSafe')
-            ->andReturn(true)
-            ->getMock();
     }
 
     public function test_detects_dark_favicon(): void
@@ -228,11 +208,10 @@ class AnalyzeFaviconBrightnessTest extends TestCase
 
     public function test_returns_null_for_internal_url_ssrf_protection(): void
     {
-        // Use real action (not mocked) to test SSRF protection
-        $action = new AnalyzeFaviconBrightness;
+        // Should not even make HTTP request for internal URLs
         Http::fake();
 
-        $result = $action->handle('http://169.254.169.254/latest/meta-data/');
+        $result = $this->action->handle('http://169.254.169.254/latest/meta-data/');
 
         $this->assertNull($result);
         Http::assertNothingSent();
@@ -240,11 +219,9 @@ class AnalyzeFaviconBrightnessTest extends TestCase
 
     public function test_returns_null_for_localhost_ssrf_protection(): void
     {
-        // Use real action (not mocked) to test SSRF protection
-        $action = new AnalyzeFaviconBrightness;
         Http::fake();
 
-        $result = $action->handle('http://127.0.0.1/favicon.png');
+        $result = $this->action->handle('http://127.0.0.1/favicon.png');
 
         $this->assertNull($result);
         Http::assertNothingSent();
@@ -252,11 +229,9 @@ class AnalyzeFaviconBrightnessTest extends TestCase
 
     public function test_returns_null_for_private_ip_ssrf_protection(): void
     {
-        // Use real action (not mocked) to test SSRF protection
-        $action = new AnalyzeFaviconBrightness;
         Http::fake();
 
-        $result = $action->handle('http://192.168.1.1/favicon.png');
+        $result = $this->action->handle('http://192.168.1.1/favicon.png');
 
         $this->assertNull($result);
         Http::assertNothingSent();
