@@ -34,5 +34,6 @@ return Application::configure(basePath: dirname(__DIR__))
         \App\Actions\Feed\RefreshFeeds::class,
         \App\Actions\Feed\RefreshMissingFavicons::class,
         \App\Actions\Feed\RefreshFavicons::class,
+        \App\Actions\Favicon\AnalyzeExistingFavicons::class,
     ])
     ->create();

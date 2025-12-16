@@ -1,0 +1,14 @@
+.favicon {
+    border-radius: 4px;
+}
+
+.faviconDark {
+    background-color: light-dark(transparent, #e8e8e8);
+    padding: 2px;
+    border-radius: 4px;
+}
+
+.faviconAvatarDark {
+    background-color: light-dark(transparent, #e8e8e8);
+    padding: 2px;
+}

@@ -19,7 +19,7 @@ Larafeed is a simple feed reader.
 - Entry filtering per subscription (hide entries matching patterns by title, content, or author)
 - Read and starred entries
 - AI-generated summary of entries
-- Favicon display (proxified through imgproxy)
+- Favicon display (proxified through imgproxy, with automatic dark mode background for dark favicons)
 - Spotlight-like go to feed
 - OPML import/export
 - Support for Google Reader API and Fever API
@@ -86,6 +86,7 @@ erDiagram
         varchar feed_url UK
         varchar site_url
         varchar favicon_url
+        boolean favicon_is_dark
         timestamp favicon_updated_at
         timestamp last_successful_refresh_at
         timestamp last_failed_refresh_at

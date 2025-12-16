@@ -8,7 +8,6 @@ import {
     Divider,
     Fieldset,
     Group,
-    Image,
     Indicator,
     Menu,
     Modal,
@@ -44,6 +43,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
 import { type FormEventHandler, type ReactNode, useState } from 'react';
+import { FaviconImage } from '@/Components/FaviconImage/FaviconImage';
 import { FeedMenu } from '@/Components/FeedMenu';
 import classes from './Sidebar.module.css';
 
@@ -1023,7 +1023,12 @@ const FeedLink = function FeedLink({
                     >
                         <div className={classes.feedRow}>
                             <div className={classes.feedRowLeft}>
-                                <Image src={feed.favicon_url} w={15} h={15} />
+                                <FaviconImage
+                                    src={feed.favicon_url}
+                                    isDark={feed.favicon_is_dark}
+                                    w={15}
+                                    h={15}
+                                />
                                 <span className={classes.feedName}>
                                     {feed.name}
                                 </span>

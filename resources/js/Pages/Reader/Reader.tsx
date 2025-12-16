@@ -2,7 +2,6 @@ import { Split } from '@gfazioli/mantine-split-pane';
 import { router } from '@inertiajs/react';
 import {
     AppShell,
-    Image,
     useMantineColorScheme,
     useMantineTheme,
 } from '@mantine/core';
@@ -11,6 +10,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
 import type { ReactNode } from 'react';
+import { FaviconImage } from '@/Components/FaviconImage/FaviconImage';
 import AppShellLayout from '@/Layouts/AppShellLayout/AppShellLayout';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import type { PageProps } from '@/types';
@@ -56,7 +56,15 @@ const Reader = ({
                 preserveState: true,
             });
         },
-        leftSection: <Image src={feed.favicon_url} w={20} h={20} mr={9} />,
+        leftSection: (
+            <FaviconImage
+                src={feed.favicon_url}
+                isDark={feed.favicon_is_dark}
+                w={20}
+                h={20}
+                mr={9}
+            />
+        ),
     }));
 
     return (

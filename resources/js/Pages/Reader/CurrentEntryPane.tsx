@@ -7,7 +7,6 @@ import {
     Divider,
     Flex,
     Group,
-    Image,
     Paper,
     ScrollArea,
     SegmentedControl,
@@ -35,6 +34,7 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { readingTime } from 'reading-time-estimator';
+import { FaviconImage } from '@/Components/FaviconImage/FaviconImage';
 import { FeedMenu } from '@/Components/FeedMenu';
 import classes from './CurrentEntryPane.module.css';
 
@@ -225,8 +225,9 @@ export default function CurrentEntryPane({
         <Flex direction="column" w="100%">
             <Card pb={10} pl={10} pr={10} pt={0} bg="transparent">
                 <Flex direction="row" justify="space-between" align="center">
-                    <Image
+                    <FaviconImage
                         src={currententry.feed.favicon_url}
+                        isDark={currententry.feed.favicon_is_dark}
                         w={20}
                         h={20}
                         mr={9}

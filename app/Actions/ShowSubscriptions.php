@@ -58,6 +58,7 @@ class ShowSubscriptions
                     'feed_url' => $feed->feed_url,
                     'site_url' => $feed->site_url,
                     'favicon_url' => BuildProxifiedFaviconURL::run($feed->favicon_url),
+                    'favicon_is_dark' => $feed->favicon_is_dark,
                     'entries_count' => $feed->entries_count,
                     'last_successful_refresh_at' => $feed->last_successful_refresh_at,
                     'last_failed_refresh_at' => $feed->last_failed_refresh_at,

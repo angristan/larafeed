@@ -6,6 +6,7 @@ namespace App\Actions\Feed;
 
 use App\Actions\Category\CreateCategory;
 use App\Actions\Entry\ApplySubscriptionFilters;
+use App\Actions\Favicon\AnalyzeFaviconBrightness;
 use App\Actions\Favicon\GetFaviconURL;
 use App\Models\Feed;
 use App\Models\SubscriptionCategory;
@@ -136,18 +137,20 @@ class CreateNewFeed
         $site_url = $crawledFeed->get_link() ?? $feed_url;
 
         $favicon_url = GetFaviconURL::run($site_url);
+        $favicon_is_dark = $favicon_url ? AnalyzeFaviconBrightness::run($favicon_url) : null;
 
         $feed_name = $crawledFeed->get_title() ?? $fallback_name ?? $site_url;
         $feed_name = str_replace('&amp;', '&', $feed_name);
 
         $startedAt = now();
 
-        $feed = DB::transaction(function () use ($feed_name, $feed_url, $site_url, $favicon_url, $attachedUser, $category_id, $crawledFeed, $startedAt) {
+        $feed = DB::transaction(function () use ($feed_name, $feed_url, $site_url, $favicon_url, $favicon_is_dark, $attachedUser, $category_id, $crawledFeed, $startedAt) {
             $feed = Feed::create([
                 'name' => $feed_name,
                 'feed_url' => $feed_url,
                 'site_url' => $site_url,
                 'favicon_url' => $favicon_url,
+                'favicon_is_dark' => $favicon_is_dark,
                 'favicon_updated_at' => $favicon_url ? now() : null,
             ]);
 

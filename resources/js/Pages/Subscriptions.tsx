@@ -3,7 +3,6 @@ import {
     ActionIcon,
     Anchor,
     AppShell,
-    Avatar,
     Badge,
     Button,
     Divider,
@@ -27,6 +26,7 @@ import {
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { type ReactNode, useMemo, useState } from 'react';
+import { FaviconAvatar } from '@/Components/FaviconImage/FaviconImage';
 import AppShellLayout from '@/Layouts/AppShellLayout/AppShellLayout';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import type { PageProps } from '@/types';
@@ -53,6 +53,7 @@ type SubscriptionFeedDto = {
     feed_url: string;
     site_url: string;
     favicon_url: string | null;
+    favicon_is_dark: boolean | null;
     entries_count: number;
     last_successful_refresh_at: string | null;
     last_failed_refresh_at: string | null;
@@ -538,16 +539,19 @@ const Subscriptions = ({ feeds, categories }: SubscriptionsPageProps) => {
                                                         gap="sm"
                                                         wrap="nowrap"
                                                     >
-                                                        <Avatar
+                                                        <FaviconAvatar
                                                             src={
                                                                 feed.favicon_url ??
                                                                 undefined
+                                                            }
+                                                            isDark={
+                                                                feed.favicon_is_dark
                                                             }
                                                             radius="sm"
                                                             size="md"
                                                         >
                                                             {avatarFallback}
-                                                        </Avatar>
+                                                        </FaviconAvatar>
                                                         <Stack gap={0}>
                                                             <Group
                                                                 gap={6}

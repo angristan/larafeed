@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $feed_url
  * @property string $site_url
  * @property string|null $favicon_url
+ * @property bool|null $favicon_is_dark
  * @property \Illuminate\Support\Carbon|null $last_successful_refresh_at
  * @property \Illuminate\Support\Carbon|null $last_failed_refresh_at
  * @property string|null $last_error_message
@@ -62,6 +63,7 @@ class Feed extends Model
         'feed_url',
         'site_url',
         'favicon_url',
+        'favicon_is_dark',
         'favicon_updated_at',
         'last_successful_refresh_at',
         'last_failed_refresh_at',
@@ -72,6 +74,7 @@ class Feed extends Model
         'last_successful_refresh_at' => 'datetime',
         'last_failed_refresh_at' => 'datetime',
         'favicon_updated_at' => 'datetime',
+        'favicon_is_dark' => 'boolean',
     ];
 
     /**
