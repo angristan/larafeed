@@ -38,6 +38,6 @@
         "reading-time-estimator": "^1.14.0",
         "recharts": "^2.15.4",
         "typescript": "^5.9.3",
-        "vite": "^7.2"
+        "vite": "^7.3"
     }
 }
