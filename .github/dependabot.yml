@@ -31,3 +31,8 @@ updates:
     open-pull-requests-limit: 20
     schedule:
       interval: weekly
+
+  - package-ecosystem: "docker"
+    directory: "/deploy"
+    schedule:
+      interval: weekly
