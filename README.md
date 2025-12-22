@@ -55,6 +55,7 @@ Larafeed is a simple feed reader.
   - Prefetching is leveraged to make the app feel snappy
 - Feed parsing is powered by [SimplePie](https://github.com/simplepie/simplepie)
   - Through [willvincent/feeds](https://github.com/willvincent/feeds)
+  - Polite to publishers: uses ETag/Last-Modified headers to avoid re-downloading unchanged feeds
 - Summary generation is powered by Gemini through [echolabsdev/prism](https://github.com/echolabsdev/prism)
 - Background jobs are powered by Laravel queues
 - Favicon fetching is powered by [ash-jc-allen/favicon-fetcher](https://github.com/ash-jc-allen/favicon-fetcher)

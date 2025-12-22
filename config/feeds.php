@@ -21,9 +21,12 @@ return [
     |--------------------------------------------------------------------------
     |
     | Life of cache, in seconds
+    | We set it very short in Larafeed to force conditional requests
+    | (ETag/Last-Modified) on each fetch while still benefiting from
+    | HTTP 304 responses when feeds haven't changed.
     |
     */
-    'cache.life' => 3600,
+    'cache.life' => 60,
 
     /*
     |--------------------------------------------------------------------------
@@ -33,7 +36,7 @@ return [
     | Whether to disable the cache.
     |
     */
-    'cache.disabled' => true,
+    'cache.disabled' => false,
 
     /*
     |--------------------------------------------------------------------------
