@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property int $category_id
- * @property array<string, array<string>>|null $filter_rules
+ * @property array<array-key, mixed>|null $filter_rules
  * @property-read \App\Models\SubscriptionCategory $category
  * @property-read \App\Models\Feed $feed
  *
@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
  * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedSubscription whereCreatedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedSubscription whereCustomFeedName($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedSubscription whereFeedId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedSubscription whereFilterRules($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedSubscription whereUpdatedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|FeedSubscription whereUserId($value)
  *

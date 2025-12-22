@@ -29,18 +29,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property-read int|null $users_count
  *
  * @method static \Database\Factories\EntryFactory factory($count = null, $state = [])
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry newModelQuery()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry newQuery()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry query()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry whereAuthor($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry whereContent($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry whereCreatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry whereFeedId($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry whereId($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry wherePublishedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry whereTitle($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry whereUpdatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Entry whereUrl($value)
+ * @method static Builder<static>|Entry forUser(\App\Models\User $user)
+ * @method static Builder<static>|Entry newModelQuery()
+ * @method static Builder<static>|Entry newQuery()
+ * @method static Builder<static>|Entry query()
+ * @method static Builder<static>|Entry whereAuthor($value)
+ * @method static Builder<static>|Entry whereContent($value)
+ * @method static Builder<static>|Entry whereCreatedAt($value)
+ * @method static Builder<static>|Entry whereFeedId($value)
+ * @method static Builder<static>|Entry whereId($value)
+ * @method static Builder<static>|Entry wherePublishedAt($value)
+ * @method static Builder<static>|Entry whereTitle($value)
+ * @method static Builder<static>|Entry whereUpdatedAt($value)
+ * @method static Builder<static>|Entry whereUrl($value)
  *
  * @mixin \Eloquent
  */

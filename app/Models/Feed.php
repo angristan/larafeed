@@ -22,11 +22,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $feed_url
  * @property string $site_url
  * @property string|null $favicon_url
- * @property bool|null $favicon_is_dark
  * @property \Illuminate\Support\Carbon|null $last_successful_refresh_at
  * @property \Illuminate\Support\Carbon|null $last_failed_refresh_at
  * @property string|null $last_error_message
  * @property \Illuminate\Support\Carbon|null $favicon_updated_at
+ * @property bool|null $favicon_is_dark
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Entry> $entries
  * @property-read int|null $entries_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\FeedRefresh> $refreshes
@@ -36,20 +36,22 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read int|null $users_count
  *
  * @method static \Database\Factories\FeedFactory factory($count = null, $state = [])
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed newModelQuery()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed newQuery()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed query()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereCreatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereFaviconUpdatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereFaviconUrl($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereFeedUrl($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereId($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereLastErrorMessage($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereLastFailedRefreshAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereLastSuccessfulRefreshAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereName($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereSiteUrl($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Feed whereUpdatedAt($value)
+ * @method static Builder<static>|Feed forUser(\App\Models\User $user)
+ * @method static Builder<static>|Feed newModelQuery()
+ * @method static Builder<static>|Feed newQuery()
+ * @method static Builder<static>|Feed query()
+ * @method static Builder<static>|Feed whereCreatedAt($value)
+ * @method static Builder<static>|Feed whereFaviconIsDark($value)
+ * @method static Builder<static>|Feed whereFaviconUpdatedAt($value)
+ * @method static Builder<static>|Feed whereFaviconUrl($value)
+ * @method static Builder<static>|Feed whereFeedUrl($value)
+ * @method static Builder<static>|Feed whereId($value)
+ * @method static Builder<static>|Feed whereLastErrorMessage($value)
+ * @method static Builder<static>|Feed whereLastFailedRefreshAt($value)
+ * @method static Builder<static>|Feed whereLastSuccessfulRefreshAt($value)
+ * @method static Builder<static>|Feed whereName($value)
+ * @method static Builder<static>|Feed whereSiteUrl($value)
+ * @method static Builder<static>|Feed whereUpdatedAt($value)
  *
  * @mixin \Eloquent
  */

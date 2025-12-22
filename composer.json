@@ -33,6 +33,7 @@
         "barryvdh/laravel-ide-helper": "^3.3",
         "fakerphp/faker": "^1.23",
         "larastan/larastan": "^3.0",
+        "laravel/boost": "^1.8",
         "laravel/breeze": "^2.2",
         "laravel/pail": "^1.1",
         "laravel/pint": "^1.13",
@@ -62,6 +63,7 @@
         ],
         "post-update-cmd": [
             "@php artisan vendor:publish --tag=laravel-assets --ansi --force",
+            "@php artisan boost:update --ansi",
             "@ide-helper"
         ],
         "ide-helper": [

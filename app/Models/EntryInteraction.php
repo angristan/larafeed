@@ -12,9 +12,9 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
  * @property string|null $read_at
  * @property string|null $starred_at
  * @property string|null $archived_at
- * @property string|null $filtered_at
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property string|null $filtered_at
  *
  * @method static \Illuminate\Database\Eloquent\Builder<static>|EntryInteraction newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|EntryInteraction newQuery()

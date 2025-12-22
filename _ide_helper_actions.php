@@ -30,6 +30,48 @@ class NotifyLoginFailureOnTelegram
 class NotifyUserRegistrationOnTelegram
 {
 }
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(string $name, string $email, string $password)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(string $name, string $email, string $password)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(string $name, string $email, string $password)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, string $name, string $email, string $password)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, string $name, string $email, string $password)
+ * @method static dispatchSync(string $name, string $email, string $password)
+ * @method static dispatchNow(string $name, string $email, string $password)
+ * @method static dispatchAfterResponse(string $name, string $email, string $password)
+ * @method static \App\Models\User run(string $name, string $email, string $password)
+ */
+class RegisterUser
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(string $email, string $password, string $passwordConfirmation, string $token)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(string $email, string $password, string $passwordConfirmation, string $token)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(string $email, string $password, string $passwordConfirmation, string $token)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, string $email, string $password, string $passwordConfirmation, string $token)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, string $email, string $password, string $passwordConfirmation, string $token)
+ * @method static dispatchSync(string $email, string $password, string $passwordConfirmation, string $token)
+ * @method static dispatchNow(string $email, string $password, string $passwordConfirmation, string $token)
+ * @method static dispatchAfterResponse(string $email, string $password, string $passwordConfirmation, string $token)
+ * @method static string run(string $email, string $password, string $passwordConfirmation, string $token)
+ */
+class ResetPassword
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\App\Models\User $user, string $password)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\App\Models\User $user, string $password)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\App\Models\User $user, string $password)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \App\Models\User $user, string $password)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \App\Models\User $user, string $password)
+ * @method static dispatchSync(\App\Models\User $user, string $password)
+ * @method static dispatchNow(\App\Models\User $user, string $password)
+ * @method static dispatchAfterResponse(\App\Models\User $user, string $password)
+ * @method static void run(\App\Models\User $user, string $password)
+ */
+class UpdatePassword
+{
+}
 namespace App\Actions\Category;
 
 /**
@@ -62,6 +104,34 @@ class DeleteCategory
 }
 namespace App\Actions\Entry;
 
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\App\Models\FeedSubscription $subscription, ?\Illuminate\Support\Collection $entries = null)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\App\Models\FeedSubscription $subscription, ?\Illuminate\Support\Collection $entries = null)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\App\Models\FeedSubscription $subscription, ?\Illuminate\Support\Collection $entries = null)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \App\Models\FeedSubscription $subscription, ?\Illuminate\Support\Collection $entries = null)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \App\Models\FeedSubscription $subscription, ?\Illuminate\Support\Collection $entries = null)
+ * @method static dispatchSync(\App\Models\FeedSubscription $subscription, ?\Illuminate\Support\Collection $entries = null)
+ * @method static dispatchNow(\App\Models\FeedSubscription $subscription, ?\Illuminate\Support\Collection $entries = null)
+ * @method static dispatchAfterResponse(\App\Models\FeedSubscription $subscription, ?\Illuminate\Support\Collection $entries = null)
+ * @method static void run(\App\Models\FeedSubscription $subscription, ?\Illuminate\Support\Collection $entries = null)
+ */
+class ApplySubscriptionFilters
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\App\Models\Entry $entry, ?array $filterRules)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\App\Models\Entry $entry, ?array $filterRules)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\App\Models\Entry $entry, ?array $filterRules)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \App\Models\Entry $entry, ?array $filterRules)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \App\Models\Entry $entry, ?array $filterRules)
+ * @method static dispatchSync(\App\Models\Entry $entry, ?array $filterRules)
+ * @method static dispatchNow(\App\Models\Entry $entry, ?array $filterRules)
+ * @method static dispatchAfterResponse(\App\Models\Entry $entry, ?array $filterRules)
+ * @method static bool run(\App\Models\Entry $entry, ?array $filterRules)
+ */
+class EvaluateEntryFilter
+{
+}
 /**
  * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(string $content)
  * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(string $content)
@@ -107,6 +177,25 @@ class UpdateEntryInteractions
 namespace App\Actions\Favicon;
 
 /**
+ */
+class AnalyzeExistingFavicons
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(string $favicon_url)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(string $favicon_url)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(string $favicon_url)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, string $favicon_url)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, string $favicon_url)
+ * @method static dispatchSync(string $favicon_url)
+ * @method static dispatchNow(string $favicon_url)
+ * @method static dispatchAfterResponse(string $favicon_url)
+ * @method static ?bool run(string $favicon_url)
+ */
+class AnalyzeFaviconBrightness
+{
+}
+/**
  * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(?string $favicon_url)
  * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(?string $favicon_url)
  * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(?string $favicon_url)
@@ -151,8 +240,50 @@ class CreateNewFeed
 {
 }
 /**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(string $url)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(string $url)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(string $url)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, string $url)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, string $url)
+ * @method static dispatchSync(string $url)
+ * @method static dispatchNow(string $url)
+ * @method static dispatchAfterResponse(string $url)
+ * @method static array run(string $url)
+ */
+class FetchFeed
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\App\Models\Feed $feed, array $items, ?int $limit = null)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\App\Models\Feed $feed, array $items, ?int $limit = null)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\App\Models\Feed $feed, array $items, ?int $limit = null)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \App\Models\Feed $feed, array $items, ?int $limit = null)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \App\Models\Feed $feed, array $items, ?int $limit = null)
+ * @method static dispatchSync(\App\Models\Feed $feed, array $items, ?int $limit = null)
+ * @method static dispatchNow(\App\Models\Feed $feed, array $items, ?int $limit = null)
+ * @method static dispatchAfterResponse(\App\Models\Feed $feed, array $items, ?int $limit = null)
+ * @method static \Illuminate\Support\Collection run(\App\Models\Feed $feed, array $items, ?int $limit = null)
+ */
+class IngestFeedEntries
+{
+}
+/**
  */
 class MarkEntriesAsRead
+{
+}
+/**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\App\Models\Feed $feed, \Illuminate\Support\Carbon $timestamp, bool $success, int $entriesCreated, ?string $error = null)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\App\Models\Feed $feed, \Illuminate\Support\Carbon $timestamp, bool $success, int $entriesCreated, ?string $error = null)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\App\Models\Feed $feed, \Illuminate\Support\Carbon $timestamp, bool $success, int $entriesCreated, ?string $error = null)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \App\Models\Feed $feed, \Illuminate\Support\Carbon $timestamp, bool $success, int $entriesCreated, ?string $error = null)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \App\Models\Feed $feed, \Illuminate\Support\Carbon $timestamp, bool $success, int $entriesCreated, ?string $error = null)
+ * @method static dispatchSync(\App\Models\Feed $feed, \Illuminate\Support\Carbon $timestamp, bool $success, int $entriesCreated, ?string $error = null)
+ * @method static dispatchNow(\App\Models\Feed $feed, \Illuminate\Support\Carbon $timestamp, bool $success, int $entriesCreated, ?string $error = null)
+ * @method static dispatchAfterResponse(\App\Models\Feed $feed, \Illuminate\Support\Carbon $timestamp, bool $success, int $entriesCreated, ?string $error = null)
+ * @method static void run(\App\Models\Feed $feed, \Illuminate\Support\Carbon $timestamp, bool $success, int $entriesCreated, ?string $error = null)
+ */
+class RecordFeedRefresh
 {
 }
 /**
@@ -208,7 +339,7 @@ class RefreshFavicons
  * @method static dispatchAfterResponse(\App\Models\Feed $feed)
  * @method static void run(\App\Models\Feed $feed)
  */
-class RefreshFeedEntries
+class RefreshFeed
 {
 }
 /**
@@ -254,15 +385,15 @@ class RefreshOutdatedFavicons
 {
 }
 /**
- * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\App\Models\User $user, int $feedId)
- * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\App\Models\User $user, int $feedId)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\App\Models\User $user, int $feedId)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \App\Models\User $user, int $feedId)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \App\Models\User $user, int $feedId)
- * @method static dispatchSync(\App\Models\User $user, int $feedId)
- * @method static dispatchNow(\App\Models\User $user, int $feedId)
- * @method static dispatchAfterResponse(\App\Models\User $user, int $feedId)
- * @method static bool run(\App\Models\User $user, int $feedId)
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\App\Models\User $user, \App\Models\Feed $feed)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\App\Models\User $user, \App\Models\Feed $feed)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\App\Models\User $user, \App\Models\Feed $feed)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \App\Models\User $user, \App\Models\Feed $feed)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \App\Models\User $user, \App\Models\Feed $feed)
+ * @method static dispatchSync(\App\Models\User $user, \App\Models\Feed $feed)
+ * @method static dispatchNow(\App\Models\User $user, \App\Models\Feed $feed)
+ * @method static dispatchAfterResponse(\App\Models\User $user, \App\Models\Feed $feed)
+ * @method static void run(\App\Models\User $user, \App\Models\Feed $feed)
  */
 class UnsubscribeFromFeed
 {
@@ -431,6 +562,15 @@ class ExportOPML
 {
 }
 /**
+ * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\App\Models\User $user, string $opmlContent)
+ * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\App\Models\User $user, string $opmlContent)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\App\Models\User $user, string $opmlContent)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \App\Models\User $user, string $opmlContent)
+ * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \App\Models\User $user, string $opmlContent)
+ * @method static dispatchSync(\App\Models\User $user, string $opmlContent)
+ * @method static dispatchNow(\App\Models\User $user, string $opmlContent)
+ * @method static dispatchAfterResponse(\App\Models\User $user, string $opmlContent)
+ * @method static void run(\App\Models\User $user, string $opmlContent)
  */
 class ImportOPML
 {
@@ -443,15 +583,6 @@ class ShowCharts
 {
 }
 /**
- * @method static \Lorisleiva\Actions\Decorators\JobDecorator|\Lorisleiva\Actions\Decorators\UniqueJobDecorator makeJob(\Illuminate\Http\Request $request)
- * @method static \Lorisleiva\Actions\Decorators\UniqueJobDecorator makeUniqueJob(\Illuminate\Http\Request $request)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch dispatch(\Illuminate\Http\Request $request)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchIf(bool $boolean, \Illuminate\Http\Request $request)
- * @method static \Illuminate\Foundation\Bus\PendingDispatch|\Illuminate\Support\Fluent dispatchUnless(bool $boolean, \Illuminate\Http\Request $request)
- * @method static dispatchSync(\Illuminate\Http\Request $request)
- * @method static dispatchNow(\Illuminate\Http\Request $request)
- * @method static dispatchAfterResponse(\Illuminate\Http\Request $request)
- * @method static \Inertia\Response run(\Illuminate\Http\Request $request)
  */
 class ShowFeedReader
 {

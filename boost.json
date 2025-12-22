@@ -1,0 +1,14 @@
+{
+    "agents": [
+        "codex"
+    ],
+    "editors": [
+        "claude_code",
+        "codex",
+        "opencode",
+        "vscode"
+    ],
+    "guidelines": [
+        "echolabsdev/prism"
+    ]
+}

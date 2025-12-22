@@ -19,14 +19,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read int|null $feeds_subscriptions_count
  * @property-read \App\Models\User $user
  *
- * @method static \Illuminate\Database\Eloquent\Builder<static>|SubscriptionCategory newModelQuery()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|SubscriptionCategory newQuery()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|SubscriptionCategory query()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|SubscriptionCategory whereCreatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|SubscriptionCategory whereId($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|SubscriptionCategory whereName($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|SubscriptionCategory whereUpdatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|SubscriptionCategory whereUserId($value)
+ * @method static Builder<static>|SubscriptionCategory forUser(\App\Models\User $user)
+ * @method static Builder<static>|SubscriptionCategory newModelQuery()
+ * @method static Builder<static>|SubscriptionCategory newQuery()
+ * @method static Builder<static>|SubscriptionCategory query()
+ * @method static Builder<static>|SubscriptionCategory whereCreatedAt($value)
+ * @method static Builder<static>|SubscriptionCategory whereId($value)
+ * @method static Builder<static>|SubscriptionCategory whereName($value)
+ * @method static Builder<static>|SubscriptionCategory whereUpdatedAt($value)
+ * @method static Builder<static>|SubscriptionCategory whereUserId($value)
  *
  * @mixin \Eloquent
  */
