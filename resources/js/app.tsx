@@ -7,6 +7,37 @@ import '@gfazioli/mantine-split-pane/styles.css';
 
 import '../css/app.css';
 import './bootstrap';
+
+import { datadogRum } from '@datadog/browser-rum';
+
+// Initialize Datadog RUM
+if (
+    import.meta.env.VITE_DATADOG_APPLICATION_ID &&
+    import.meta.env.VITE_DATADOG_CLIENT_TOKEN
+) {
+    datadogRum.init({
+        applicationId: import.meta.env.VITE_DATADOG_APPLICATION_ID,
+        clientToken: import.meta.env.VITE_DATADOG_CLIENT_TOKEN,
+        site: import.meta.env.VITE_DATADOG_SITE || 'datadoghq.com',
+        service: import.meta.env.VITE_DATADOG_SERVICE || 'larafeed',
+        env: import.meta.env.VITE_DATADOG_ENV || 'production',
+        version: import.meta.env.VITE_APP_VERSION || '1.0.0',
+        sessionSampleRate:
+            Number(import.meta.env.VITE_DATADOG_SESSION_SAMPLE_RATE) || 100,
+        sessionReplaySampleRate:
+            Number(import.meta.env.VITE_DATADOG_SESSION_REPLAY_SAMPLE_RATE) ||
+            100,
+        trackUserInteractions: true,
+        trackResources: true,
+        trackLongTasks: true,
+        defaultPrivacyLevel:
+            (import.meta.env.VITE_DATADOG_PRIVACY_LEVEL as
+                | 'mask'
+                | 'mask-user-input'
+                | 'allow') || 'mask-user-input',
+    });
+}
+
 import { createInertiaApp } from '@inertiajs/react';
 import { createTheme, MantineProvider, rem } from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';
