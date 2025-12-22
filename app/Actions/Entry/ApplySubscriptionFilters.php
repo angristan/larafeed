@@ -7,6 +7,7 @@ namespace App\Actions\Entry;
 use App\Models\Entry;
 use App\Models\EntryInteraction;
 use App\Models\FeedSubscription;
+use DDTrace\Trace;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Lorisleiva\Actions\Concerns\AsAction;
@@ -21,8 +22,14 @@ class ApplySubscriptionFilters
      *
      * @param  Collection<int, Entry>|null  $entries  If null, re-evaluates all entries for this feed
      */
+    #[Trace(name: 'entry.apply_filters', tags: ['domain' => 'entries'])]
     public function handle(FeedSubscription $subscription, ?Collection $entries = null): void
     {
+        $span = function_exists('DDTrace\active_span') ? \DDTrace\active_span() : null;
+        if ($span) {
+            $span->meta['subscription.user_id'] = (string) $subscription->user_id;
+            $span->meta['subscription.feed_id'] = (string) $subscription->feed_id;
+        }
         $filterRules = $subscription->filter_rules;
 
         // Handle case where filter_rules comes as JSON string (pivot model cast issue)
@@ -84,6 +91,12 @@ class ApplySubscriptionFilters
                     ->update(['filtered_at' => null, 'updated_at' => now()]);
             }
         });
+
+        if ($span) {
+            $span->metrics['entries.evaluated'] = $entries->count();
+            $span->metrics['entries.filtered'] = count($toFilter);
+            $span->metrics['entries.unfiltered'] = count($toUnfilter);
+        }
     }
 
     /**

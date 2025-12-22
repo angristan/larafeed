@@ -6,6 +6,7 @@ namespace App\Actions\Feed;
 
 use App\Models\Entry;
 use App\Models\Feed;
+use DDTrace\Trace;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
@@ -19,8 +20,15 @@ class IngestFeedEntries
      * @param  array<Item>  $items
      * @return Collection<int, Entry>
      */
+    #[Trace(name: 'feed.ingest_entries', tags: ['domain' => 'feeds'])]
     public function handle(Feed $feed, array $items, ?int $limit = null): Collection
     {
+        $span = function_exists('DDTrace\active_span') ? \DDTrace\active_span() : null;
+        if ($span) {
+            $span->meta['feed.id'] = (string) $feed->id;
+            $span->meta['feed.name'] = $feed->name;
+            $span->metrics['entries.received'] = count($items);
+        }
         if ($limit !== null) {
             $items = array_slice($items, 0, $limit);
         }
@@ -56,6 +64,11 @@ class IngestFeedEntries
         }
 
         if (empty($newEntryData)) {
+            if ($span) {
+                $span->metrics['entries.created'] = 0;
+                $span->metrics['entries.skipped'] = count($items);
+            }
+
             return collect();
         }
 
@@ -63,7 +76,14 @@ class IngestFeedEntries
 
         $feed->entries()->insert($newEntryData);
 
-        return $feed->entries()->whereIn('url', $newUrls)->get();
+        $newEntries = $feed->entries()->whereIn('url', $newUrls)->get();
+
+        if ($span) {
+            $span->metrics['entries.created'] = $newEntries->count();
+            $span->metrics['entries.skipped'] = count($items) - $newEntries->count();
+        }
+
+        return $newEntries;
     }
 
     /**

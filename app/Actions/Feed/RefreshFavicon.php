@@ -7,6 +7,7 @@ namespace App\Actions\Feed;
 use App\Actions\Favicon\AnalyzeFaviconBrightness;
 use App\Actions\Favicon\GetFaviconURL;
 use App\Models\Feed;
+use DDTrace\Trace;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
@@ -33,8 +34,15 @@ class RefreshFavicon
         return response()->json(['message' => 'Favicon refresh requested'], 200);
     }
 
+    #[Trace(name: 'favicon.refresh', tags: ['domain' => 'feeds'])]
     public function handle(Feed $feed): void
     {
+        $span = function_exists('DDTrace\active_span') ? \DDTrace\active_span() : null;
+        if ($span) {
+            $span->meta['feed.id'] = (string) $feed->id;
+            $span->meta['feed.name'] = $feed->name;
+            $span->meta['feed.site_url'] = $feed->site_url;
+        }
         Log::info('Starting favicon refresh for feed', [
             'feed_id' => $feed->id,
             'feed_name' => $feed->name,
@@ -60,6 +68,12 @@ class RefreshFavicon
                     'new_favicon_url' => $favicon_url,
                     'favicon_is_dark' => $feed->favicon_is_dark,
                 ]);
+
+                if ($span) {
+                    $span->meta['favicon.status'] = 'success';
+                    $span->meta['favicon.url'] = $favicon_url;
+                    $span->meta['favicon.changed'] = $old_favicon_url !== $favicon_url ? 'true' : 'false';
+                }
             } else {
                 // Even if we failed to get a favicon, update the timestamp so we don't keep retrying immediately
                 $feed->favicon_updated_at = now();
@@ -71,6 +85,10 @@ class RefreshFavicon
                     'site_url' => $feed->site_url,
                     'reason' => 'No favicon URL returned',
                 ]);
+
+                if ($span) {
+                    $span->meta['favicon.status'] = 'not_found';
+                }
             }
         } catch (\Exception $e) {
             Log::error('Exception occurred while refreshing favicon for feed', [

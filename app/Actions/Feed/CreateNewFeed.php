@@ -12,6 +12,7 @@ use App\Models\Feed;
 use App\Models\SubscriptionCategory;
 use App\Models\User;
 use App\Rules\SafeFeedUrl;
+use DDTrace\Trace;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -94,8 +95,18 @@ class CreateNewFeed
         return $this->handle($request->feed_url, $request->user(), $resolvedCategoryId);
     }
 
+    #[Trace(name: 'feed.create', tags: ['domain' => 'feeds'])]
     public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null): \Illuminate\Http\RedirectResponse
     {
+        $span = function_exists('DDTrace\active_span') ? \DDTrace\active_span() : null;
+        if ($span) {
+            $span->meta['feed.requested_url'] = $requested_feed_url;
+            $span->meta['feed.force_mode'] = $force ? 'true' : 'false';
+            if ($attachedUser) {
+                $span->meta['user.id'] = (string) $attachedUser->id;
+            }
+        }
+
         $result = FetchFeed::run($requested_feed_url);
 
         if (! $result['success']) {
@@ -168,6 +179,12 @@ class CreateNewFeed
 
             return $feed;
         });
+
+        if ($span) {
+            $span->meta['feed.id'] = (string) $feed->id;
+            $span->meta['feed.name'] = $feed->name;
+            $span->meta['feed.status'] = 'created';
+        }
 
         return redirect()->route('feeds.index', ['feed' => $feed->id]);
     }

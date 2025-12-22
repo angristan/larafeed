@@ -8,6 +8,7 @@ use App\Actions\Entry\ApplySubscriptionFilters;
 use App\Exceptions\FeedCrawlFailedException;
 use App\Models\Feed;
 use Carbon\Carbon;
+use DDTrace\Trace;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -23,8 +24,15 @@ class RefreshFeed
         RefreshFeed::run($feed);
     }
 
+    #[Trace(name: 'feed.refresh', tags: ['domain' => 'feeds'])]
     public function handle(Feed $feed): void
     {
+        $span = function_exists('DDTrace\active_span') ? \DDTrace\active_span() : null;
+        if ($span) {
+            $span->meta['feed.id'] = (string) $feed->id;
+            $span->meta['feed.name'] = $feed->name;
+            $span->meta['feed.url'] = $feed->feed_url;
+        }
         $startedAt = now();
 
         $result = FetchFeed::run($feed->feed_url);
@@ -65,6 +73,11 @@ class RefreshFeed
                 'feed_url' => $feed->feed_url,
                 'entries_created' => $newEntries->count(),
             ])->info('Feed refreshed');
+
+            if ($span) {
+                $span->meta['feed.status'] = 'success';
+                $span->metrics['entries.created'] = $newEntries->count();
+            }
         } catch (Throwable $exception) {
             RecordFeedRefresh::run($feed, $startedAt, success: false, error: $exception->getMessage());
 

@@ -10,6 +10,7 @@ use App\Models\FeedSubscription;
 use App\Models\SubscriptionCategory;
 use App\Models\User;
 use App\Support\UrlSecurityValidator;
+use DDTrace\Trace;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -41,8 +42,15 @@ class ImportOPML
         ];
     }
 
+    #[Trace(name: 'opml.import', tags: ['domain' => 'opml'])]
     public function handle(User $user, string $opmlContent): void
     {
+        $span = function_exists('DDTrace\active_span') ? \DDTrace\active_span() : null;
+        if ($span) {
+            $span->meta['user.id'] = (string) $user->id;
+            $span->metrics['opml.size_bytes'] = strlen($opmlContent);
+        }
+
         // Disable network access to prevent XXE attacks (SSRF, external entity loading)
         // Use internal error handling to capture libxml errors
         $previousUseErrors = libxml_use_internal_errors(true);
@@ -59,11 +67,16 @@ class ImportOPML
         }
 
         // TODO: make this optional
-        DB::transaction(function () use ($xml, $user) {
+        $feedCount = 0;
+        $categoryCount = 0;
+        $skippedCount = 0;
+
+        DB::transaction(function () use ($xml, $user, &$feedCount, &$categoryCount, &$skippedCount) {
             EntryInteraction::where('user_id', $user->id)->delete();
             FeedSubscription::where('user_id', $user->id)->delete();
 
             foreach ($xml->body->outline as $category_outline) {
+                $categoryCount++;
                 foreach ($category_outline->outline as $feed_outline) {
                     $feed_url = (string) $feed_outline['xmlUrl'];
                     $feed_name = (string) $feed_outline['title'];
@@ -71,9 +84,12 @@ class ImportOPML
                     // Validate URL against SSRF attacks before dispatching
                     if (! UrlSecurityValidator::isSafe($feed_url)) {
                         Log::warning("[OPML] Skipping unsafe URL: {$feed_url} for user: ".$user->id);
+                        $skippedCount++;
 
                         continue;
                     }
+
+                    $feedCount++;
 
                     $category = SubscriptionCategory::firstOrCreate([
                         'user_id' => $user->id,
@@ -86,6 +102,12 @@ class ImportOPML
                 }
             }
         });
+
+        if ($span) {
+            $span->metrics['opml.feeds_imported'] = $feedCount;
+            $span->metrics['opml.categories'] = $categoryCount;
+            $span->metrics['opml.feeds_skipped'] = $skippedCount;
+        }
     }
 
     public function asController(Request $request): RedirectResponse

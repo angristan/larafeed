@@ -17,5 +17,9 @@ parameters:
             paths:
                 - app/Actions/ShowFeedReader.php
 
+        # DDTrace is a runtime PHP extension, not available during static analysis
+        -
+            message: '#Attribute class DDTrace\\Trace does not exist#'
+
 #    excludePaths:
 #        - ./*/*/FileToBeExcluded.php
