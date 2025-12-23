@@ -1,53 +1,101 @@
 services:
+    init:
+        image: ghcr.io/angristan/larafeed:latest
+        volumes:
+            - ./.secrets:/secrets
+        entrypoint: ["sh", "-c"]
+        command:
+            - |
+                if [ ! -f /secrets/.env.generated ]; then
+                    echo "Generating secrets for first-time setup..."
+                    APP_KEY=$$(php artisan key:generate --show)
+                    IMGPROXY_KEY=$$(openssl rand -hex 64)
+                    IMGPROXY_SALT=$$(openssl rand -hex 64)
+                    cat > /secrets/.env.generated << EOF
+                APP_KEY=$$APP_KEY
+                IMGPROXY_KEY=$$IMGPROXY_KEY
+                IMGPROXY_SALT=$$IMGPROXY_SALT
+                EOF
+                    echo "Secrets generated and saved to .secrets/.env.generated"
+                else
+                    echo "Secrets already exist, skipping generation."
+                fi
+        networks:
+            - internal_network
+
     web:
         image: ghcr.io/angristan/larafeed:latest
-        env_file: .env.compose
+        env_file:
+            - .env.compose
+            - path: ./.secrets/.env.generated
+              required: false
+        volumes:
+            - ./.secrets:/secrets
         command:
             [
                 "sh",
                 "-c",
-                "php artisan optimize && php artisan migrate --force && php artisan octane:start --server=frankenphp --host=0.0.0.0 --port=8080 --log-level=info --caddyfile=./deploy/Caddyfile --max-requests=100",
+                "if [ -f /secrets/.env.generated ]; then export $$(cat /secrets/.env.generated | xargs); fi && php artisan optimize && php artisan migrate --force && php artisan octane:start --server=frankenphp --host=0.0.0.0 --port=8080 --log-level=info --caddyfile=./deploy/Caddyfile --max-requests=100",
             ]
         ports:
             - "8000:8080"
         depends_on:
-            - postgres
-            - redis
+            init:
+                condition: service_completed_successfully
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
         networks:
             - internal_network
             - external_network
 
     queue:
         image: ghcr.io/angristan/larafeed:latest
-        env_file: .env.compose
+        env_file:
+            - .env.compose
+            - path: ./.secrets/.env.generated
+              required: false
+        volumes:
+            - ./.secrets:/secrets
         command:
             [
-                "php",
-                "artisan",
-                "queue:work",
-                "--max-jobs=100",
-                "--max-time=600",
-                "--memory=64",
+                "sh",
+                "-c",
+                "if [ -f /secrets/.env.generated ]; then export $$(cat /secrets/.env.generated | xargs); fi && php artisan queue:work --max-jobs=100 --max-time=600 --memory=64",
             ]
         depends_on:
-            - postgres
-            - redis
+            init:
+                condition: service_completed_successfully
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
         networks:
             - external_network
             - internal_network
 
     scheduler:
         image: ghcr.io/angristan/larafeed:latest
-        env_file: .env.compose
+        env_file:
+            - .env.compose
+            - path: ./.secrets/.env.generated
+              required: false
+        volumes:
+            - ./.secrets:/secrets
         command:
             [
                 "sh",
                 "-c",
-                "while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done",
+                "if [ -f /secrets/.env.generated ]; then export $$(cat /secrets/.env.generated | xargs); fi && while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done",
             ]
         depends_on:
-            - postgres
-            - redis
+            init:
+                condition: service_completed_successfully
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
         networks:
             - internal_network
 
@@ -75,7 +123,20 @@ services:
 
     imgproxy:
         image: ghcr.io/imgproxy/imgproxy:latest
-        env_file: .env.compose
+        env_file:
+            - .env.compose
+            - path: ./.secrets/.env.generated
+              required: false
+        volumes:
+            - ./.secrets:/secrets
+        entrypoint: ["sh", "-c"]
+        command:
+            - |
+                if [ -f /secrets/.env.generated ]; then export $$(cat /secrets/.env.generated | xargs); fi
+                /usr/local/bin/imgproxy
+        depends_on:
+            init:
+                condition: service_completed_successfully
         ports:
             - "127.0.0.1:8080:8080"
         networks:
