@@ -96,17 +96,15 @@ class ProxifyImagesInHTML
 
     private function proxifySrcset(string $srcset): string
     {
-        return $srcset
-            |> (fn ($s) => explode(',', $s))
-            |> (fn ($parts) => array_map($this->proxifySrcsetPart(...), $parts))
-            |> (fn ($parts) => implode(', ', $parts));
+        $parts = explode(',', $srcset);
+        $parts = array_map($this->proxifySrcsetPart(...), $parts);
+
+        return implode(', ', $parts);
     }
 
     private function proxifySrcsetPart(string $srcsetPart): string
     {
-        [$url, $descriptor] = $srcsetPart
-            |> trim(...)
-            |> (fn ($t) => preg_split('/\s+/', $t, 2) + [1 => '']);
+        [$url, $descriptor] = preg_split('/\s+/', trim($srcsetPart), 2) + [1 => ''];
 
         return $this->getProxiedUrl($url).($descriptor ? " {$descriptor}" : '');
     }

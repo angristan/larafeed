@@ -74,8 +74,8 @@ COPY --link --chown=${WWWUSER}:${WWWUSER} deploy/php.ini ${PHP_INI_DIR}/conf.d/9
 
 COPY --link --chown=${WWWUSER}:${WWWUSER} composer.json composer.lock ./
 
-# Disable Datadog profiling during build to prevent segfaults
-RUN DD_TRACE_ENABLED=0 composer install \
+# Disable Datadog tracing and profiling during build to prevent segfaults
+RUN DD_TRACE_ENABLED=0 DD_PROFILING_ENABLED=0 composer install \
     --no-dev \
     --no-interaction \
     --no-autoloader \
@@ -115,8 +115,8 @@ RUN mkdir -p \
     storage/logs \
     bootstrap/cache && chmod -R a+rw storage
 
-# Disable Datadog profiling during build to prevent segfaults
-RUN DD_TRACE_ENABLED=0 composer install \
+# Disable Datadog tracing and profiling during build to prevent segfaults
+RUN DD_TRACE_ENABLED=0 DD_PROFILING_ENABLED=0 composer install \
     --classmap-authoritative \
     --no-interaction \
     --no-ansi \
