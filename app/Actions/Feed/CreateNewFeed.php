@@ -189,10 +189,9 @@ class CreateNewFeed
             // Clear items to free memory before exception propagates to logging
             unset($items);
 
-            // Rethrow with a clean exception that won't carry large data in its trace
             throw new \RuntimeException(
                 "Failed to create feed from {$feed_url}: {$e->getMessage()}",
-                previous: null // Don't chain the original exception to avoid memory issues when logging
+                previous: $e
             );
         }
 

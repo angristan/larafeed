@@ -97,10 +97,9 @@ class RefreshFeed
                 'error' => $errorMessage,
             ])->error('Feed refresh crashed');
 
-            // Rethrow with a clean exception that won't carry large data in its trace
             throw new \RuntimeException(
                 "Failed to refresh feed {$feed->id}: {$errorMessage}",
-                previous: null // Don't chain the original exception to avoid memory issues when logging
+                previous: $exception
             );
         }
     }
