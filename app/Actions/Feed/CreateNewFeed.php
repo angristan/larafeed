@@ -155,30 +155,46 @@ class CreateNewFeed
 
         $startedAt = now();
 
-        $feed = DB::transaction(function () use ($feed_name, $feed_url, $site_url, $favicon_url, $favicon_is_dark, $attachedUser, $category_id, $crawledFeed, $startedAt) {
-            $feed = Feed::create([
-                'name' => $feed_name,
-                'feed_url' => $feed_url,
-                'site_url' => $site_url,
-                'favicon_url' => $favicon_url,
-                'favicon_is_dark' => $favicon_is_dark,
-                'favicon_updated_at' => $favicon_url ? now() : null,
-            ]);
+        // Extract items before transaction to allow clearing SimplePie from memory on error
+        $items = $crawledFeed->get_items();
+        // Clear SimplePie object to free memory before processing
+        unset($crawledFeed);
 
-            if ($attachedUser) {
-                $attachedUser->feeds()->attach($feed, ['category_id' => $category_id]);
-            }
+        try {
+            $feed = DB::transaction(function () use ($feed_name, $feed_url, $site_url, $favicon_url, $favicon_is_dark, $attachedUser, $category_id, $items, $startedAt) {
+                $feed = Feed::create([
+                    'name' => $feed_name,
+                    'feed_url' => $feed_url,
+                    'site_url' => $site_url,
+                    'favicon_url' => $favicon_url,
+                    'favicon_is_dark' => $favicon_is_dark,
+                    'favicon_updated_at' => $favicon_url ? now() : null,
+                ]);
 
-            // Ingest entries and record refresh (limit to 20 for performance - get_content() is slow)
-            $newEntries = IngestFeedEntries::run($feed, $crawledFeed->get_items(), limit: 20);
-            RecordFeedRefresh::run($feed, $startedAt, success: true, entriesCreated: $newEntries->count());
+                if ($attachedUser) {
+                    $attachedUser->feeds()->attach($feed, ['category_id' => $category_id]);
+                }
 
-            if ($newEntries->isNotEmpty()) {
-                ApplySubscriptionFilters::make()->forNewEntries($feed->id, $newEntries);
-            }
+                // Ingest entries and record refresh (limit to 20 for performance - get_content() is slow)
+                $newEntries = IngestFeedEntries::run($feed, $items, limit: 20);
+                RecordFeedRefresh::run($feed, $startedAt, success: true, entriesCreated: $newEntries->count());
 
-            return $feed;
-        });
+                if ($newEntries->isNotEmpty()) {
+                    ApplySubscriptionFilters::make()->forNewEntries($feed->id, $newEntries);
+                }
+
+                return $feed;
+            });
+        } catch (\Throwable $e) {
+            // Clear items to free memory before exception propagates to logging
+            unset($items);
+
+            // Rethrow with a clean exception that won't carry large data in its trace
+            throw new \RuntimeException(
+                "Failed to create feed from {$feed_url}: {$e->getMessage()}",
+                previous: null // Don't chain the original exception to avoid memory issues when logging
+            );
+        }
 
         if ($span) {
             $span->meta['feed.id'] = (string) $feed->id;

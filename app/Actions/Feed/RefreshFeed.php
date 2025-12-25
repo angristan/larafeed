@@ -54,9 +54,14 @@ class RefreshFeed
 
         $crawledFeed = $result['feed'];
 
+        // Extract items before processing to allow clearing SimplePie from memory on error
+        $items = $crawledFeed->get_items();
+        // Clear SimplePie object to free memory before processing
+        unset($crawledFeed);
+
         try {
-            $newEntries = DB::transaction(function () use ($feed, $crawledFeed, $startedAt) {
-                $newEntries = IngestFeedEntries::run($feed, $crawledFeed->get_items());
+            $newEntries = DB::transaction(function () use ($feed, $items, $startedAt) {
+                $newEntries = IngestFeedEntries::run($feed, $items);
 
                 RecordFeedRefresh::run($feed, $startedAt, success: true, entriesCreated: $newEntries->count());
 
@@ -79,16 +84,24 @@ class RefreshFeed
                 $span->metrics['entries.created'] = $newEntries->count();
             }
         } catch (Throwable $exception) {
-            RecordFeedRefresh::run($feed, $startedAt, success: false, error: $exception->getMessage());
+            // Clear items to free memory before exception propagates to logging
+            unset($items);
+
+            $errorMessage = $exception->getMessage();
+            RecordFeedRefresh::run($feed, $startedAt, success: false, error: $errorMessage);
 
             Log::withContext([
                 'feed_id' => $feed->id,
                 'feed_name' => $feed->name,
                 'feed_url' => $feed->feed_url,
-                'error' => $exception->getMessage(),
-            ])->error('Feed refresh crashed', ['exception' => $exception]);
+                'error' => $errorMessage,
+            ])->error('Feed refresh crashed');
 
-            throw $exception;
+            // Rethrow with a clean exception that won't carry large data in its trace
+            throw new \RuntimeException(
+                "Failed to refresh feed {$feed->id}: {$errorMessage}",
+                previous: null // Don't chain the original exception to avoid memory issues when logging
+            );
         }
     }
 
