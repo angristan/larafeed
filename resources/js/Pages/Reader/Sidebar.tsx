@@ -1026,8 +1026,8 @@ const FeedLink = function FeedLink({
                                 <FaviconImage
                                     src={feed.favicon_url}
                                     isDark={feed.favicon_is_dark}
-                                    w={15}
-                                    h={15}
+                                    w={18}
+                                    h={18}
                                 />
                                 <span className={classes.feedName}>
                                     {feed.name}
