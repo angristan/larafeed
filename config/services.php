@@ -47,4 +47,15 @@ return [
         'salt' => env('IMGPROXY_SALT'),
         'key' => env('IMGPROXY_KEY'),
     ],
+
+    'datadog_rum' => [
+        'application_id' => env('DD_RUM_APPLICATION_ID'),
+        'client_token' => env('DD_RUM_CLIENT_TOKEN'),
+        'site' => env('DD_RUM_SITE', 'datadoghq.eu'),
+        'service' => env('DD_RUM_SERVICE', 'larafeed'),
+        'env' => env('DD_RUM_ENV', 'production'),
+        'session_sample_rate' => env('DD_RUM_SESSION_SAMPLE_RATE', 100),
+        'session_replay_sample_rate' => env('DD_RUM_SESSION_REPLAY_SAMPLE_RATE', 100),
+        'privacy_level' => env('DD_RUM_PRIVACY_LEVEL', 'mask-user-input'),
+    ],
 ];

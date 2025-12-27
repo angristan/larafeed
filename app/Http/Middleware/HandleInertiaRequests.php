@@ -36,6 +36,16 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            'datadogRum' => [
+                'applicationId' => config('services.datadog_rum.application_id'),
+                'clientToken' => config('services.datadog_rum.client_token'),
+                'site' => config('services.datadog_rum.site'),
+                'service' => config('services.datadog_rum.service'),
+                'env' => config('services.datadog_rum.env'),
+                'sessionSampleRate' => (int) config('services.datadog_rum.session_sample_rate'),
+                'sessionReplaySampleRate' => (int) config('services.datadog_rum.session_replay_sample_rate'),
+                'privacyLevel' => config('services.datadog_rum.privacy_level'),
+            ],
         ];
     }
 }
