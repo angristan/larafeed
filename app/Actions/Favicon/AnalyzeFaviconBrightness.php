@@ -27,7 +27,9 @@ class AnalyzeFaviconBrightness
      * then calculates the average brightness of the pixels.
      *
      * @param  string  $favicon_url  The URL of the favicon to analyze
-     * @return bool|null True if dark, false if light, null if analysis failed
+     * @return bool|null True if dark, false if light, null if image couldn't be fetched/parsed
+     *
+     * @throws \Throwable If an unexpected error occurs (e.g., missing GD extension)
      */
     public function handle(string $favicon_url): ?bool
     {
@@ -84,7 +86,7 @@ class AnalyzeFaviconBrightness
                 'error' => $e->getMessage(),
             ]);
 
-            return null;
+            throw $e;
         }
     }
 
