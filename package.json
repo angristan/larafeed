@@ -5,10 +5,13 @@
         "build": "tsc && vite build",
         "dev": "vite",
         "lint": "biome check --write",
-        "lint-check": "biome check"
+        "lint-check": "biome check",
+        "typecheck": "tsc --noEmit",
+        "prepare": "[ -d .git ] && lefthook install || true"
     },
     "devDependencies": {
         "@biomejs/biome": "^2.3.10",
+        "lefthook": "^2.0.13",
         "@datadog/browser-rum": "^6.25.1",
         "@gfazioli/mantine-split-pane": "^1.1.5",
         "@headlessui/react": "^2.2.9",
