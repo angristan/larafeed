@@ -6,6 +6,12 @@
                 "artisan",
                 "boost:mcp"
             ]
+        },
+        "playwriter": {
+            "command": "npx",
+            "args": [
+                "playwriter@latest"
+            ]
         }
     }
 }
