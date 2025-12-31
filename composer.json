@@ -30,7 +30,6 @@
         "willvincent/feeds": "^2.4"
     },
     "require-dev": {
-        "barryvdh/laravel-ide-helper": "^3.3",
         "fakerphp/faker": "^1.23",
         "larastan/larastan": "^3.0",
         "laravel/boost": "^1.8",
@@ -41,8 +40,7 @@
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.1",
         "phpstan/phpstan": "^2.0",
-        "phpunit/phpunit": "^12.5.2",
-        "wulfheart/laravel-actions-ide-helper": "^0.10.0"
+        "phpunit/phpunit": "^12.5.2"
     },
     "autoload": {
         "psr-4": {
@@ -63,14 +61,7 @@
         ],
         "post-update-cmd": [
             "@php artisan vendor:publish --tag=laravel-assets --ansi --force",
-            "@php artisan boost:update --ansi",
-            "@ide-helper"
-        ],
-        "ide-helper": [
-            "@php artisan ide-helper:generate",
-            "@php artisan ide-helper:models -W -R",
-            "@php artisan ide-helper:actions",
-            "@pint"
+            "@php artisan boost:update --ansi"
         ],
         "pint": [
             "vendor/bin/pint"
