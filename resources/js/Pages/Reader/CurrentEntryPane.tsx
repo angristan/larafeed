@@ -36,6 +36,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { readingTime } from 'reading-time-estimator';
 import { FaviconImage } from '@/Components/FaviconImage/FaviconImage';
 import { FeedMenu } from '@/Components/FeedMenu';
+import { getUrlParams } from '@/utils/queryString';
 import classes from './CurrentEntryPane.module.css';
 
 dayjs.extend(relativeTime);
@@ -108,18 +109,16 @@ export default function CurrentEntryPane({
     };
 
     const updateRead = () => {
-        const urlParams = new URLSearchParams(window.location.search);
+        const urlParams = { ...getUrlParams() };
 
         if (currententry.read_at) {
-            urlParams.set('read', 'false');
+            urlParams.read = 'false';
         } else {
-            urlParams.set('read', 'true');
+            urlParams.read = 'true';
         }
 
         router.visit('feeds', {
-            data: {
-                ...Object.fromEntries(urlParams),
-            },
+            data: urlParams,
             preserveScroll: true,
             preserveState: true,
             only: [
@@ -163,14 +162,12 @@ export default function CurrentEntryPane({
             value === 'summary' &&
             !window.location.search.includes('summarize')
         ) {
-            const urlParams = new URLSearchParams(window.location.search);
-            urlParams.set('summarize', 'true');
+            const urlParams = { ...getUrlParams() };
+            urlParams.summarize = 'true';
 
             router.visit('feeds', {
                 only: ['summary'],
-                data: {
-                    ...Object.fromEntries(urlParams),
-                },
+                data: urlParams,
                 preserveScroll: true,
                 preserveState: true,
             });
@@ -179,14 +176,12 @@ export default function CurrentEntryPane({
             value === 'content' &&
             window.location.search.includes('summarize')
         ) {
-            const urlParams = new URLSearchParams(window.location.search);
-            urlParams.delete('summarize');
+            const urlParams = { ...getUrlParams() };
+            delete urlParams.summarize;
 
             router.visit('feeds', {
                 only: ['summary'],
-                data: {
-                    ...Object.fromEntries(urlParams),
-                },
+                data: urlParams,
                 preserveScroll: true,
                 preserveState: true,
             });

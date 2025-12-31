@@ -1,6 +1,7 @@
 import { router } from '@inertiajs/react';
 import { Button, Group, Modal, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { getUrlParam, getUrlParams } from '@/utils/queryString';
 
 interface DeleteFeedModalProps {
     feed: { name: string; id: number };
@@ -34,11 +35,11 @@ export const DeleteFeedModal = ({
                                     withBorder: true,
                                 });
 
-                                const params = new URLSearchParams(
-                                    window.location.search,
-                                );
-                                if (params.get('feed') === feed.id.toString()) {
-                                    params.delete('feed');
+                                const params = { ...getUrlParams() };
+                                if (
+                                    getUrlParam('feed') === feed.id.toString()
+                                ) {
+                                    delete params.feed;
                                 }
 
                                 router.visit(route('feeds.index'), {
@@ -49,9 +50,7 @@ export const DeleteFeedModal = ({
                                         'unreadEntriesCount',
                                         'readEntriesCount',
                                     ],
-                                    data: {
-                                        ...Object.fromEntries(params),
-                                    },
+                                    data: params,
                                     preserveScroll: true,
                                     preserveState: true,
                                 });
