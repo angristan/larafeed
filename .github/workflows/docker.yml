@@ -9,12 +9,20 @@ env:
 jobs:
   build-and-push-image:
     runs-on: ubuntu-latest
-    # Sets the permissions granted to the `GITHUB_TOKEN` for the actions in this job.
     permissions:
       contents: read
       packages: write
       attestations: write
       id-token: write
+    strategy:
+      matrix:
+        include:
+          - dockerfile: ./deploy/Dockerfile
+            suffix: ""
+          - dockerfile: ./deploy/Dockerfile.caddy-fpm
+            suffix: "-caddy-fpm"
+          - dockerfile: ./deploy/Dockerfile.nginx-fpm
+            suffix: "-nginx-fpm"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -31,15 +39,15 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value={{branch}}
+            type=raw,value=latest${{ matrix.suffix }},enable={{is_default_branch}}
+            type=raw,value={{branch}}${{ matrix.suffix }}
 
       - name: Build and push Docker image
         id: push
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./deploy/Dockerfile
+          file: ${{ matrix.dockerfile }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
