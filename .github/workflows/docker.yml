@@ -43,9 +43,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            DD_GIT_REPOSITORY_URL=${{ github.server_url }}/${{ github.repository }}
-            DD_GIT_COMMIT_SHA=${{ github.sha }}
 
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v3

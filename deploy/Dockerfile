@@ -49,9 +49,6 @@ RUN apt-get update; \
     pcntl \
     zip \
     gd \
-    # for datadog
-    && curl -LO https://github.com/DataDog/dd-trace-php/releases/latest/download/datadog-setup.php \
-    && php datadog-setup.php --php-bin=all \
     && apt-get -y autoremove \
     && apt-get clean \
     && docker-php-source delete \
@@ -75,8 +72,7 @@ COPY --link --chown=${WWWUSER}:${WWWUSER} deploy/php.ini ${PHP_INI_DIR}/conf.d/9
 
 COPY --link --chown=${WWWUSER}:${WWWUSER} composer.json composer.lock ./
 
-# Disable Datadog profiling during build to prevent segfaults
-RUN DD_TRACE_ENABLED=0 composer install \
+RUN composer install \
     --no-dev \
     --no-interaction \
     --no-autoloader \
@@ -100,12 +96,6 @@ RUN npm run build
 
 FROM base AS app
 
-ARG DD_GIT_REPOSITORY_URL
-ARG DD_GIT_COMMIT_SHA
-ENV DD_GIT_REPOSITORY_URL=${DD_GIT_REPOSITORY_URL}
-ENV DD_GIT_COMMIT_SHA=${DD_GIT_COMMIT_SHA}
-ENV DD_VERSION=${DD_GIT_COMMIT_SHA}
-
 USER ${USER}
 
 COPY --link --chown=${WWWUSER}:${WWWUSER} . .
@@ -116,8 +106,7 @@ RUN mkdir -p \
     storage/logs \
     bootstrap/cache && chmod -R a+rw storage
 
-# Disable Datadog profiling during build to prevent segfaults
-RUN DD_TRACE_ENABLED=0 composer install \
+RUN composer install \
     --classmap-authoritative \
     --no-interaction \
     --no-ansi \
