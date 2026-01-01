@@ -10,7 +10,7 @@
 
 	route {
 		root * /var/www/html/public
-		encode zstd br gzip
+		encode zstd gzip
 
 		request_body {
 			max_size 500MB
