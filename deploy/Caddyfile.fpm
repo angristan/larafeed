@@ -33,7 +33,7 @@
 		@rejected `path('*.bak', '*.conf', '*.dist', '*.fla', '*.ini', '*.inc', '*.inci', '*.log', '*.orig', '*.psd', '*.sh', '*.sql', '*.swo', '*.swp', '*.swop', '*/.*') && !path('*/.well-known/')`
 		error @rejected 401
 
-		php_fastcgi unix//var/run/php-fpm.sock {
+		php_fastcgi 127.0.0.1:9000 {
 			index index.php
 			resolve_root_symlink
 		}
