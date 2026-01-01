@@ -33,6 +33,7 @@ RUN apt-get update; \
     apt-utils \
     curl \
     git \
+    gnupg \
     ca-certificates \
     supervisor \
     debian-keyring \
