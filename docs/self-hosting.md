@@ -54,7 +54,7 @@ command:
     [
         "sh",
         "-c",
-        "if [ -f /secrets/.env.generated ]; then export $$(cat /secrets/.env.generated | xargs); fi && php artisan optimize && php artisan migrate --force && frankenphp run --config ./deploy/Caddyfile",
+        "if [ -f /secrets/.env.generated ]; then export $$(cat /secrets/.env.generated | xargs); fi && php artisan optimize && php artisan migrate --force && frankenphp run --config ./deploy/Caddyfile.classic",
     ]
 ```
 
