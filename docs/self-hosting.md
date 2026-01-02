@@ -1,6 +1,23 @@
 # Self-hosting with Docker Compose
 
-Self-hosting Larafeed is straightforward. The `docker-compose.yml` includes everything you need:
+## Quick Start
+
+```bash
+git clone https://github.com/angristan/larafeed.git
+cd larafeed/deploy
+
+# (Optional) Edit configuration
+cp .env.compose .env.compose.local
+nano .env.compose.local
+
+docker compose up -d
+```
+
+Access at <http://localhost:8000> and create an account.
+
+Secrets (`APP_KEY`, `IMGPROXY_KEY`, `IMGPROXY_SALT`) are automatically generated on first run.
+
+## What's Included
 
 - **Web server** (FrankenPHP/Octane)
 - **Queue worker** (background jobs)
@@ -9,32 +26,9 @@ Self-hosting Larafeed is straightforward. The `docker-compose.yml` includes ever
 - **Redis** cache
 - **imgproxy** (image optimization)
 
-## Quick Start
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/angristan/larafeed.git
-cd larafeed
-
-# 2. (Optional) Edit configuration
-#    - Change APP_URL to your domain
-#    - Add GEMINI_API_KEY for AI summaries
-nano .env.compose
-
-# 3. Start everything
-docker compose up -d
-```
-
-That's it! Secrets (`APP_KEY`, `IMGPROXY_KEY`, `IMGPROXY_SALT`) are automatically generated on first run and stored in `.secrets/.env.generated`.
-
-## Access
-
-- **Web UI**: <http://localhost:8000>
-- Create an account at the login page
-
 ## Configuration
 
-Edit `.env.compose` before starting (or restart after changes):
+Edit `.env.compose` (or `.env.compose.local`) before starting:
 
 | Variable             | Description                                                           |
 | -------------------- | --------------------------------------------------------------------- |
@@ -46,7 +40,7 @@ Edit `.env.compose` before starting (or restart after changes):
 
 By default, the web server runs with **Laravel Octane**, which keeps your application in memory between requests for better performance. This is recommended for most deployments.
 
-For **low-memory environments** (e.g., small VPS, Raspberry Pi), you can disable Octane by changing the web service command in `docker-compose.yml`:
+For **low-memory environments** (e.g., small VPS, Raspberry Pi), you can disable Octane by changing the web service command:
 
 ```yaml
 # Replace the octane command with classic FrankenPHP mode:

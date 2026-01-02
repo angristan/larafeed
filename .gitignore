@@ -1,5 +1,6 @@
 /.phpunit.cache
-/.secrets
+/deploy/.secrets
+/deploy/.env.compose.local
 /node_modules
 /public/build
 /public/hot

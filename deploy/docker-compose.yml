@@ -27,6 +27,8 @@ services:
         image: ghcr.io/angristan/larafeed:latest
         env_file:
             - .env.compose
+            - path: .env.compose.local
+              required: false
             - path: ./.secrets/.env.generated
               required: false
         volumes:
@@ -54,6 +56,8 @@ services:
         image: ghcr.io/angristan/larafeed:latest
         env_file:
             - .env.compose
+            - path: .env.compose.local
+              required: false
             - path: ./.secrets/.env.generated
               required: false
         volumes:
@@ -79,6 +83,8 @@ services:
         image: ghcr.io/angristan/larafeed:latest
         env_file:
             - .env.compose
+            - path: .env.compose.local
+              required: false
             - path: ./.secrets/.env.generated
               required: false
         volumes:
@@ -101,7 +107,10 @@ services:
 
     postgres:
         image: postgres:17-alpine
-        env_file: .env.compose
+        env_file:
+            - .env.compose
+            - path: .env.compose.local
+              required: false
         healthcheck:
             test: ["CMD", "pg_isready", "-U", "postgres"]
         environment:
@@ -113,7 +122,10 @@ services:
 
     redis:
         image: redis:7-alpine
-        env_file: .env.compose
+        env_file:
+            - .env.compose
+            - path: .env.compose.local
+              required: false
         healthcheck:
             test: ["CMD", "redis-cli", "ping"]
         volumes:
@@ -125,6 +137,8 @@ services:
         image: ghcr.io/imgproxy/imgproxy:latest
         env_file:
             - .env.compose
+            - path: .env.compose.local
+              required: false
             - path: ./.secrets/.env.generated
               required: false
         volumes:
