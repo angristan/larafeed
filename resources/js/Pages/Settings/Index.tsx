@@ -1,5 +1,5 @@
 import { AppShell, Stack, Text, Title } from '@mantine/core';
-import { type ReactNode, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useMemo, useState } from 'react';
 import AppShellLayout from '@/Layouts/AppShellLayout/AppShellLayout';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import SettingsSidebar from './components/SettingsSidebar';
@@ -16,6 +16,17 @@ const Settings = ({
     twoFactorConfirmed,
 }: SettingsPageProps) => {
     const [section, setSection] = useState<SettingsSection>(initialSection);
+
+    const handleSectionChange = useCallback((newSection: SettingsSection) => {
+        setSection(newSection);
+        const url = new URL(window.location.href);
+        if (newSection === 'profile') {
+            url.searchParams.delete('section');
+        } else {
+            url.searchParams.set('section', newSection);
+        }
+        window.history.replaceState({}, '', url.toString());
+    }, []);
 
     const content = useMemo(() => {
         if (section === 'opml') {
@@ -51,7 +62,7 @@ const Settings = ({
             sidebar={
                 <SettingsSidebar
                     activeSection={section}
-                    onSelect={setSection}
+                    onSelect={handleSectionChange}
                 />
             }
         >
