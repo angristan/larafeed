@@ -5,12 +5,15 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import SettingsSidebar from './components/SettingsSidebar';
 import OpmlSettings from './sections/OpmlSettings';
 import ProfileSettings from './sections/ProfileSettings';
+import TwoFactorSettings from './sections/TwoFactorSettings';
 import type { SettingsPageProps, SettingsSection } from './types';
 
 const Settings = ({
     mustVerifyEmail,
     status,
     initialSection = 'profile',
+    twoFactorEnabled,
+    twoFactorConfirmed,
 }: SettingsPageProps) => {
     const [section, setSection] = useState<SettingsSection>(initialSection);
 
@@ -19,13 +22,28 @@ const Settings = ({
             return <OpmlSettings />;
         }
 
+        if (section === 'security') {
+            return (
+                <TwoFactorSettings
+                    twoFactorEnabled={twoFactorEnabled}
+                    twoFactorConfirmed={twoFactorConfirmed}
+                />
+            );
+        }
+
         return (
             <ProfileSettings
                 mustVerifyEmail={mustVerifyEmail}
                 status={status}
             />
         );
-    }, [section, mustVerifyEmail, status]);
+    }, [
+        section,
+        mustVerifyEmail,
+        status,
+        twoFactorEnabled,
+        twoFactorConfirmed,
+    ]);
 
     return (
         <AppShellLayout

@@ -12,6 +12,7 @@ use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 Route::middleware('guest')->group(function () {
     Route::get('register', RegisterUser::class)->name('register');
@@ -34,6 +35,10 @@ Route::middleware('guest')->group(function () {
 
     Route::post('reset-password', ResetPassword::class)
         ->name('password.store');
+
+    // Two-factor authentication challenge (shown during login)
+    Route::get('two-factor-challenge', fn () => Inertia::render('Auth/TwoFactorChallenge'))
+        ->name('two-factor.login');
 });
 
 Route::middleware('auth')->group(function () {

@@ -1,5 +1,9 @@
 import { AppShell, NavLink, Stack, Text } from '@mantine/core';
-import { IconFileImport, IconUserCircle } from '@tabler/icons-react';
+import {
+    IconFileImport,
+    IconShieldLock,
+    IconUserCircle,
+} from '@tabler/icons-react';
 import type { SettingsSection } from '../types';
 
 interface SettingsSidebarProps {
@@ -24,6 +28,15 @@ const SettingsSidebar = ({ activeSection, onSelect }: SettingsSidebarProps) => (
                     label="Profile"
                     description="Account details & password"
                     leftSection={<IconUserCircle size={16} stroke={1.5} />}
+                />
+                <NavLink
+                    component="button"
+                    type="button"
+                    onClick={() => onSelect('security')}
+                    active={activeSection === 'security'}
+                    label="Security"
+                    description="Two-factor authentication"
+                    leftSection={<IconShieldLock size={16} stroke={1.5} />}
                 />
                 <NavLink
                     component="button"

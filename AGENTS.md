@@ -17,6 +17,7 @@ This application is a Laravel application and its main Laravel ecosystems packag
 
 - php - 8.5.1
 - inertiajs/inertia-laravel (INERTIA) - v2
+- laravel/fortify (FORTIFY) - v1
 - laravel/framework (LARAVEL) - v12
 - laravel/octane (OCTANE) - v2
 - laravel/pennant (PENNANT) - v1
