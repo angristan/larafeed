@@ -31,7 +31,6 @@ This application is a Laravel application and its main Laravel ecosystems packag
 - laravel/breeze (BREEZE) - v2
 - laravel/mcp (MCP) - v0
 - laravel/pint (PINT) - v1
-- laravel/sail (SAIL) - v1
 - phpunit/phpunit (PHPUNIT) - v12
 - @inertiajs/react (INERTIA) - v2
 - react (REACT) - v18
