@@ -10,7 +10,7 @@
         "prepare": "[ -d .git ] && lefthook install || true"
     },
     "devDependencies": {
-        "@biomejs/biome": "^2.3.10",
+        "@biomejs/biome": "^2.3.11",
         "lefthook": "^2.0.13",
         "@datadog/browser-rum": "^6.25.1",
         "@gfazioli/mantine-split-pane": "^1.1.5",
