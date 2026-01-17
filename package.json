@@ -15,7 +15,7 @@
         "@datadog/browser-rum": "^6.25.1",
         "@gfazioli/mantine-split-pane": "^1.1.5",
         "@headlessui/react": "^2.2.9",
-        "@inertiajs/react": "^2.3.3",
+        "@inertiajs/react": "^2.3.10",
         "@mantine/charts": "^8.3.10",
         "@mantine/core": "^8.3.10",
         "@mantine/hooks": "^8.3.10",
