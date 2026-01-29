@@ -1,5 +1,6 @@
 import { Link, router } from '@inertiajs/react';
 import {
+    Box,
     Card,
     Divider,
     Flex,
@@ -8,6 +9,7 @@ import {
     List,
     Pagination,
     ScrollArea,
+    Select,
     Text,
 } from '@mantine/core';
 import { useHotkeys } from '@mantine/hooks';
@@ -167,6 +169,38 @@ export default function EntryListPane({
         );
     });
 
+    // Get current sort settings from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const currentOrderBy = urlParams.get('order_by') || 'published_at';
+    const currentOrderDirection = urlParams.get('order_direction') || 'desc';
+
+    const handleSortChange = (value: string | null) => {
+        if (!value) return;
+
+        const [orderBy, orderDirection] = value.split('-');
+        const newParams = new URLSearchParams(window.location.search);
+        newParams.set('order_by', orderBy);
+        newParams.set('order_direction', orderDirection);
+        newParams.delete('page'); // Reset to page 1 when sorting changes
+
+        router.visit(route('feeds.index'), {
+            only: ['entries'],
+            preserveScroll: false, // Scroll to top when sorting changes
+            preserveState: true,
+            data: Object.fromEntries(newParams),
+        });
+    };
+
+    const sortOptions = [
+        { value: 'published_at-desc', label: 'Newest first' },
+        { value: 'published_at-asc', label: 'Oldest first' },
+        { value: 'balanced-desc', label: 'Balanced feed mix' },
+        { value: 'created_at-desc', label: 'Recently added' },
+        { value: 'created_at-asc', label: 'Oldest added' },
+    ];
+
+    const currentSortValue = `${currentOrderBy}-${currentOrderDirection}`;
+
     return (
         <List
             listStyleType="none"
@@ -178,6 +212,26 @@ export default function EntryListPane({
                 paddingLeft: 0,
             }}
         >
+            <Box
+                style={{ padding: '8px 10px', borderBottom: '1px solid #eee' }}
+            >
+                <Select
+                    placeholder="Sort by..."
+                    size="xs"
+                    value={currentSortValue}
+                    onChange={handleSortChange}
+                    data={sortOptions}
+                    withCheckIcon={false}
+                    styles={{
+                        input: {
+                            fontSize: '12px',
+                            height: '28px',
+                            minHeight: '28px',
+                        },
+                        wrapper: { marginBottom: 0 },
+                    }}
+                />
+            </Box>
             <ScrollArea style={{ flex: 1 }} viewportRef={viewport}>
                 {entryList}
             </ScrollArea>
