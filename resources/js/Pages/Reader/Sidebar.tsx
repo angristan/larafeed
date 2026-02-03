@@ -45,6 +45,7 @@ import utc from 'dayjs/plugin/utc';
 import { type FormEventHandler, type ReactNode, useState } from 'react';
 import { FaviconImage } from '@/Components/FaviconImage/FaviconImage';
 import { FeedMenu } from '@/Components/FeedMenu';
+import { getUrlParam, getUrlParams } from '@/utils/queryString';
 import classes from './Sidebar.module.css';
 
 dayjs.extend(relativeTime);
@@ -133,11 +134,7 @@ export default function Sidebar({
                 opened={opened}
                 close={close}
                 categories={sortedCategories}
-                initialFeedURL={
-                    new URLSearchParams(window.location.search).get(
-                        'addFeedUrl',
-                    ) || undefined
-                }
+                initialFeedURL={getUrlParam('addFeedUrl') || undefined}
             />
             <AppShell.Navbar>
                 <AppShell.Section pr="md" pl="md" pt="md">
@@ -290,23 +287,22 @@ const FilterLink = function FilterLink({
     readEntriesCount: number;
     unreadEntriesCount: number;
 }) {
-    const params = new URLSearchParams(window.location.search);
-    params.delete('page');
+    const params = { ...getUrlParams() };
+    delete params.page;
 
-    const currentFilter = params.get('filter');
+    const currentFilter = getUrlParam('filter');
     if (currentFilter === label.toLowerCase()) {
         // Clicking again -> remove the filter
-        params.delete('filter');
+        delete params.filter;
     } else {
-        params.set('filter', label.toLowerCase());
+        params.filter = label.toLowerCase();
     }
 
     return (
         <Link
             key={label}
             className={`${classes.mainLink} ${
-                label.toLowerCase() ===
-                new URLSearchParams(window.location.search).get('filter')
+                label.toLowerCase() === getUrlParam('filter')
                     ? classes.activeFeed
                     : ''
             }`}
@@ -314,9 +310,7 @@ const FilterLink = function FilterLink({
             only={['entries']}
             preserveScroll
             preserveState
-            data={{
-                ...Object.fromEntries(params),
-            }}
+            data={params}
             prefetch
             as="div"
         >
@@ -361,15 +355,15 @@ export const FeedLinksGroup = ({
     const [manualOpened, setManualOpened] = useState<boolean | null>(null);
     const opened = manualOpened ?? autoOpened;
 
-    const params = new URLSearchParams(window.location.search);
-    params.delete('feed');
+    const params = { ...getUrlParams() };
+    delete params.feed;
 
-    const currentCategory = params.get('category');
+    const currentCategory = getUrlParam('category');
     if (currentCategory === category.id.toString()) {
         // Clicking again -> unselect the category
-        params.delete('category');
+        delete params.category;
     } else {
-        params.set('category', category.id.toString());
+        params.category = category.id.toString();
     }
 
     return (
@@ -379,9 +373,7 @@ export const FeedLinksGroup = ({
             prefetch
             preserveScroll
             preserveState
-            data={{
-                ...Object.fromEntries(params),
-            }}
+            data={params}
             as="div"
         >
             <NavLink
@@ -394,16 +386,10 @@ export const FeedLinksGroup = ({
                         only: ['entries'],
                         preserveScroll: true,
                         preserveState: true,
-                        data: {
-                            ...Object.fromEntries(params),
-                        },
+                        data: params,
                     });
                 }}
-                active={
-                    new URLSearchParams(window.location.search).get(
-                        'category',
-                    ) === category.id.toString()
-                }
+                active={getUrlParam('category') === category.id.toString()}
                 label={
                     <CategoryHeader
                         category={category}
@@ -951,11 +937,11 @@ const FeedLink = function FeedLink({
             .fromNow()}`;
     })();
 
-    const urlParams = new URLSearchParams(window.location.search);
-    urlParams.delete('filter');
-    urlParams.delete('page');
-    urlParams.delete('category');
-    urlParams.set('feed', feed.id.toString());
+    const urlParams = { ...getUrlParams() };
+    delete urlParams.filter;
+    delete urlParams.page;
+    delete urlParams.category;
+    urlParams.feed = feed.id.toString();
 
     return (
         <div
@@ -995,8 +981,7 @@ const FeedLink = function FeedLink({
                     ref={ref}
                     key={feed.id}
                     className={`${classes.collectionLink} ${
-                        feed.id.toString() ===
-                        new URLSearchParams(window.location.search).get('feed')
+                        feed.id.toString() === getUrlParam('feed')
                             ? classes.activeFeed
                             : ''
                     }`}
@@ -1005,9 +990,7 @@ const FeedLink = function FeedLink({
                     only={['feed', 'entries']}
                     preserveScroll
                     preserveState
-                    data={{
-                        ...Object.fromEntries(urlParams),
-                    }}
+                    data={urlParams}
                     prefetch
                 >
                     <Indicator

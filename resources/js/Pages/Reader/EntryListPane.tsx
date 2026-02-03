@@ -17,6 +17,7 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
 import { useCallback, useEffect, useRef } from 'react';
 import { FaviconImage } from '@/Components/FaviconImage/FaviconImage';
+import { getUrlParams } from '@/utils/queryString';
 import classes from './EntryListPane.module.css';
 
 dayjs.extend(relativeTime);
@@ -54,9 +55,7 @@ export default function EntryListPane({
                     'readEntriesCount',
                 ],
                 data: {
-                    ...Object.fromEntries(
-                        new URLSearchParams(window.location.search),
-                    ),
+                    ...getUrlParams(),
                     entry: entries.data[newIndex].id,
                 },
                 preserveScroll: true,
@@ -71,13 +70,13 @@ export default function EntryListPane({
     ]);
 
     const entryList = entries.data.map((entry) => {
-        const urlParams = new URLSearchParams(window.location.search);
+        const urlParams = { ...getUrlParams() };
 
-        urlParams.delete('summarize');
-        urlParams.delete('read');
-        urlParams.set('entry', entry.id.toString());
+        delete urlParams.summarize;
+        delete urlParams.read;
+        urlParams.entry = entry.id.toString();
 
-        const data = Object.fromEntries(urlParams);
+        const data = urlParams;
         return (
             <Link
                 key={entry.id}
@@ -195,9 +194,7 @@ export default function EntryListPane({
                         preserveState: true,
                         prefetch: true,
                         data: {
-                            ...Object.fromEntries(
-                                new URLSearchParams(window.location.search),
-                            ),
+                            ...getUrlParams(),
                             page,
                         },
                     })}
@@ -211,9 +208,7 @@ export default function EntryListPane({
                             preserveState
                             prefetch
                             data={{
-                                ...Object.fromEntries(
-                                    new URLSearchParams(window.location.search),
-                                ),
+                                ...getUrlParams(),
                                 page: 1,
                             }}
                         />
@@ -225,9 +220,7 @@ export default function EntryListPane({
                             preserveState
                             prefetch
                             data={{
-                                ...Object.fromEntries(
-                                    new URLSearchParams(window.location.search),
-                                ),
+                                ...getUrlParams(),
                                 page: Math.max(1, entries.current_page - 1),
                             }}
                         />
@@ -240,9 +233,7 @@ export default function EntryListPane({
                             preserveState
                             prefetch
                             data={{
-                                ...Object.fromEntries(
-                                    new URLSearchParams(window.location.search),
-                                ),
+                                ...getUrlParams(),
                                 page: Math.min(
                                     entries.last_page,
                                     entries.current_page + 1,
@@ -257,9 +248,7 @@ export default function EntryListPane({
                             preserveState
                             prefetch
                             data={{
-                                ...Object.fromEntries(
-                                    new URLSearchParams(window.location.search),
-                                ),
+                                ...getUrlParams(),
                                 page: entries.last_page,
                             }}
                         />
