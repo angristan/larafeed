@@ -49,6 +49,7 @@ RUN apt-get update; \
     pcntl \
     zip \
     gd \
+    protobuf \
     && apt-get -y autoremove \
     && apt-get clean \
     && docker-php-source delete \

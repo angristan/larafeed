@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Actions\Entry;
 
 use App\Models\Entry;
+use App\Support\Tracing;
 use DDTrace\Trace;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
+use Keepsuit\LaravelOpenTelemetry\Facades\Tracer;
 use Lorisleiva\Actions\Concerns\AsAction;
 use Prism\Prism\Enums\Provider;
 use Prism\Prism\Facades\Prism;
@@ -19,15 +21,17 @@ class SummarizeEntryWithLLM
     #[Trace(name: 'entry.summarize_llm', tags: ['domain' => 'entries', 'llm' => 'true'])]
     public function handle(Entry $entry): string
     {
-        $span = function_exists('DDTrace\active_span') ? \DDTrace\active_span() : null;
-        if ($span) {
-            $span->meta['entry.id'] = (string) $entry->id;
-            $span->meta['entry.title'] = $entry->title;
-            $span->meta['llm.provider'] = 'gemini';
-            $span->meta['llm.model'] = 'gemini-2.0-flash';
-        }
+        return Tracer::newSpan('entry.summarize_llm')
+            ->setAttributes(['domain' => 'entries', 'llm' => 'true'])
+            ->measure(function () use ($entry): string {
+                Tracing::setAttributes([
+                    'entry.id' => (string) $entry->id,
+                    'entry.title' => $entry->title,
+                    'llm.provider' => 'gemini',
+                    'llm.model' => 'gemini-2.0-flash',
+                ]);
 
-        $prompt = <<<EOT
+                $prompt = <<<EOT
 Please provide a concise summary of the following article in 3-4 sentences.
 Focus on the main points and key takeaways.
 Maintain a neutral, informative tone.
@@ -43,26 +47,27 @@ Here's the article:
 {$entry->content}
 EOT;
 
-        $cacheHit = Cache::has("entry_{$entry->id}_llm_summary");
+                $cacheHit = Cache::has("entry_{$entry->id}_llm_summary");
 
-        $summary = Cache::remember(
-            "entry_{$entry->id}_llm_summary",
-            now()->addDays(30),
-            function () use ($prompt) {
-                return Prism::text()
-                    ->using(Provider::Gemini, 'gemini-2.0-flash')
-                    ->withPrompt($prompt)
-                    ->withMaxTokens(512)
-                    ->generate()->text;
-            }
-        );
+                $summary = Cache::remember(
+                    "entry_{$entry->id}_llm_summary",
+                    now()->addDays(30),
+                    function () use ($prompt) {
+                        return Prism::text()
+                            ->using(Provider::Gemini, 'gemini-2.0-flash')
+                            ->withPrompt($prompt)
+                            ->withMaxTokens(512)
+                            ->generate()->text;
+                    }
+                );
 
-        if ($span) {
-            $span->meta['cache.hit'] = $cacheHit ? 'true' : 'false';
-            $span->metrics['summary.length'] = strlen($summary);
-        }
+                Tracing::setAttributes([
+                    'cache.hit' => $cacheHit ? 'true' : 'false',
+                    'summary.length' => strlen($summary),
+                ]);
 
-        return $summary;
+                return $summary;
+            });
     }
 
     public function asController(Entry $entry): JsonResponse

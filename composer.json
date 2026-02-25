@@ -14,6 +14,7 @@
         "bensampo/laravel-enum": "^6.2",
         "echolabsdev/prism": "^0.99",
         "inertiajs/inertia-laravel": "^2.0",
+        "keepsuit/laravel-opentelemetry": "*",
         "laravel-notification-channels/telegram": "^6.0",
         "laravel/fortify": "^1.33",
         "laravel/framework": "^12.0",

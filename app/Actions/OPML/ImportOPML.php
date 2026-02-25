@@ -9,6 +9,7 @@ use App\Models\EntryInteraction;
 use App\Models\FeedSubscription;
 use App\Models\SubscriptionCategory;
 use App\Models\User;
+use App\Support\Tracing;
 use App\Support\UrlSecurityValidator;
 use DDTrace\Trace;
 use Illuminate\Http\RedirectResponse;
@@ -16,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Keepsuit\LaravelOpenTelemetry\Facades\Tracer;
 use Lorisleiva\Actions\Concerns\AsAction;
 use SimpleXMLElement;
 
@@ -45,69 +47,72 @@ class ImportOPML
     #[Trace(name: 'opml.import', tags: ['domain' => 'opml'])]
     public function handle(User $user, string $opmlContent): void
     {
-        $span = function_exists('DDTrace\active_span') ? \DDTrace\active_span() : null;
-        if ($span) {
-            $span->meta['user.id'] = (string) $user->id;
-            $span->metrics['opml.size_bytes'] = strlen($opmlContent);
-        }
+        Tracer::newSpan('opml.import')
+            ->setAttributes(['domain' => 'opml'])
+            ->measure(function () use ($user, $opmlContent): void {
+                Tracing::setAttributes([
+                    'user.id' => (string) $user->id,
+                    'opml.size_bytes' => strlen($opmlContent),
+                ]);
 
-        // Disable network access to prevent XXE attacks (SSRF, external entity loading)
-        // Use internal error handling to capture libxml errors
-        $previousUseErrors = libxml_use_internal_errors(true);
+                // Disable network access to prevent XXE attacks (SSRF, external entity loading)
+                // Use internal error handling to capture libxml errors
+                $previousUseErrors = libxml_use_internal_errors(true);
 
-        $xml = simplexml_load_string($opmlContent, SimpleXMLElement::class, LIBXML_NONET);
+                $xml = simplexml_load_string($opmlContent, SimpleXMLElement::class, LIBXML_NONET);
 
-        $errors = libxml_get_errors();
-        libxml_clear_errors();
-        libxml_use_internal_errors($previousUseErrors);
+                $errors = libxml_get_errors();
+                libxml_clear_errors();
+                libxml_use_internal_errors($previousUseErrors);
 
-        if ($xml === false) {
-            $errorMessage = ! empty($errors) ? $errors[0]->message : 'Unknown XML error';
-            throw new \Exception('Unable to parse OPML file: '.trim($errorMessage));
-        }
-
-        // TODO: make this optional
-        $feedCount = 0;
-        $categoryCount = 0;
-        $skippedCount = 0;
-
-        DB::transaction(function () use ($xml, $user, &$feedCount, &$categoryCount, &$skippedCount) {
-            EntryInteraction::where('user_id', $user->id)->delete();
-            FeedSubscription::where('user_id', $user->id)->delete();
-
-            foreach ($xml->body->outline as $category_outline) {
-                $categoryCount++;
-                foreach ($category_outline->outline as $feed_outline) {
-                    $feed_url = (string) $feed_outline['xmlUrl'];
-                    $feed_name = (string) $feed_outline['title'];
-
-                    // Validate URL against SSRF attacks before dispatching
-                    if (! UrlSecurityValidator::isSafe($feed_url)) {
-                        Log::warning("[OPML] Skipping unsafe URL: {$feed_url} for user: ".$user->id);
-                        $skippedCount++;
-
-                        continue;
-                    }
-
-                    $feedCount++;
-
-                    $category = SubscriptionCategory::firstOrCreate([
-                        'user_id' => $user->id,
-                        'name' => (string) $category_outline['text'],
-                    ]);
-
-                    Log::info("[OPML] Importing feed: {$feed_url} for user: ".$user->id);
-
-                    CreateNewFeed::dispatch($feed_url, $user, $category->id, true, $feed_name)->afterCommit();
+                if ($xml === false) {
+                    $errorMessage = ! empty($errors) ? $errors[0]->message : 'Unknown XML error';
+                    throw new \Exception('Unable to parse OPML file: '.trim($errorMessage));
                 }
-            }
-        });
 
-        if ($span) {
-            $span->metrics['opml.feeds_imported'] = $feedCount;
-            $span->metrics['opml.categories'] = $categoryCount;
-            $span->metrics['opml.feeds_skipped'] = $skippedCount;
-        }
+                // TODO: make this optional
+                $feedCount = 0;
+                $categoryCount = 0;
+                $skippedCount = 0;
+
+                DB::transaction(function () use ($xml, $user, &$feedCount, &$categoryCount, &$skippedCount) {
+                    EntryInteraction::where('user_id', $user->id)->delete();
+                    FeedSubscription::where('user_id', $user->id)->delete();
+
+                    foreach ($xml->body->outline as $category_outline) {
+                        $categoryCount++;
+                        foreach ($category_outline->outline as $feed_outline) {
+                            $feed_url = (string) $feed_outline['xmlUrl'];
+                            $feed_name = (string) $feed_outline['title'];
+
+                            // Validate URL against SSRF attacks before dispatching
+                            if (! UrlSecurityValidator::isSafe($feed_url)) {
+                                Log::warning("[OPML] Skipping unsafe URL: {$feed_url} for user: ".$user->id);
+                                $skippedCount++;
+
+                                continue;
+                            }
+
+                            $feedCount++;
+
+                            $category = SubscriptionCategory::firstOrCreate([
+                                'user_id' => $user->id,
+                                'name' => (string) $category_outline['text'],
+                            ]);
+
+                            Log::info("[OPML] Importing feed: {$feed_url} for user: ".$user->id);
+
+                            CreateNewFeed::dispatch($feed_url, $user, $category->id, true, $feed_name)->afterCommit();
+                        }
+                    }
+                });
+
+                Tracing::setAttributes([
+                    'opml.feeds_imported' => $feedCount,
+                    'opml.categories' => $categoryCount,
+                    'opml.feeds_skipped' => $skippedCount,
+                ]);
+            });
     }
 
     public function asController(Request $request): RedirectResponse

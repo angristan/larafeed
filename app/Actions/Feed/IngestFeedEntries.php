@@ -6,9 +6,11 @@ namespace App\Actions\Feed;
 
 use App\Models\Entry;
 use App\Models\Feed;
+use App\Support\Tracing;
 use DDTrace\Trace;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
+use Keepsuit\LaravelOpenTelemetry\Facades\Tracer;
 use Lorisleiva\Actions\Concerns\AsAction;
 use SimplePie\Item;
 
@@ -23,67 +25,71 @@ class IngestFeedEntries
     #[Trace(name: 'feed.ingest_entries', tags: ['domain' => 'feeds'])]
     public function handle(Feed $feed, array $items, ?int $limit = null): Collection
     {
-        $span = function_exists('DDTrace\active_span') ? \DDTrace\active_span() : null;
-        if ($span) {
-            $span->meta['feed.id'] = (string) $feed->id;
-            $span->meta['feed.name'] = $feed->name;
-            $span->metrics['entries.received'] = count($items);
-        }
-        if ($limit !== null) {
-            $items = array_slice($items, 0, $limit);
-        }
+        return Tracer::newSpan('feed.ingest_entries')
+            ->setAttributes(['domain' => 'feeds'])
+            ->measure(function () use ($feed, $items, $limit): Collection {
+                Tracing::setAttributes([
+                    'feed.id' => (string) $feed->id,
+                    'feed.name' => $feed->name,
+                    'entries.received' => count($items),
+                ]);
 
-        // Pre-fetch existing URLs to filter duplicates
-        /** @var array<string, bool> $existingUrls */
-        $existingUrls = $feed->entries()->pluck('url')->flip()->all();
+                if ($limit !== null) {
+                    $items = array_slice($items, 0, $limit);
+                }
 
-        $now = now();
-        /** @var array<int, array<string, mixed>> $newEntryData */
-        $newEntryData = [];
+                // Pre-fetch existing URLs to filter duplicates
+                /** @var array<string, bool> $existingUrls */
+                $existingUrls = $feed->entries()->pluck('url')->flip()->all();
 
-        foreach ($items as $item) {
-            $data = $this->extractEntryData($item, $feed);
+                $now = now();
+                /** @var array<int, array<string, mixed>> $newEntryData */
+                $newEntryData = [];
 
-            if ($data === null) {
-                continue;
-            }
+                foreach ($items as $item) {
+                    $data = $this->extractEntryData($item, $feed);
 
-            if (isset($existingUrls[$data['url']])) {
-                continue;
-            }
+                    if ($data === null) {
+                        continue;
+                    }
 
-            // Mark URL as seen to prevent duplicates within the same batch
-            $existingUrls[$data['url']] = true;
+                    if (isset($existingUrls[$data['url']])) {
+                        continue;
+                    }
 
-            $newEntryData[] = [
-                ...$data,
-                'feed_id' => $feed->id,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-        }
+                    // Mark URL as seen to prevent duplicates within the same batch
+                    $existingUrls[$data['url']] = true;
 
-        if (empty($newEntryData)) {
-            if ($span) {
-                $span->metrics['entries.created'] = 0;
-                $span->metrics['entries.skipped'] = count($items);
-            }
+                    $newEntryData[] = [
+                        ...$data,
+                        'feed_id' => $feed->id,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
 
-            return collect();
-        }
+                if (empty($newEntryData)) {
+                    Tracing::setAttributes([
+                        'entries.created' => 0,
+                        'entries.skipped' => count($items),
+                    ]);
 
-        $newUrls = array_column($newEntryData, 'url');
+                    return collect();
+                }
 
-        $feed->entries()->insert($newEntryData);
+                $newUrls = array_column($newEntryData, 'url');
 
-        $newEntries = $feed->entries()->whereIn('url', $newUrls)->get();
+                $feed->entries()->insert($newEntryData);
 
-        if ($span) {
-            $span->metrics['entries.created'] = $newEntries->count();
-            $span->metrics['entries.skipped'] = count($items) - $newEntries->count();
-        }
+                $newEntries = $feed->entries()->whereIn('url', $newUrls)->get();
 
-        return $newEntries;
+                Tracing::setAttributes([
+                    'entries.created' => $newEntries->count(),
+                    'entries.skipped' => count($items) - $newEntries->count(),
+                ]);
+
+                return $newEntries;
+            });
     }
 
     /**

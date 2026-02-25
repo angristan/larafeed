@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Actions\Feed;
 
+use App\Support\Tracing;
 use App\Support\UrlSecurityValidator;
 use DDTrace\Trace;
 use Feeds;
 use Illuminate\Support\Facades\Log;
+use Keepsuit\LaravelOpenTelemetry\Facades\Tracer;
 use Lorisleiva\Actions\Concerns\AsAction;
 use SimplePie\SimplePie;
 
@@ -21,64 +23,64 @@ class FetchFeed
     #[Trace(name: 'feed.fetch', tags: ['domain' => 'feeds'])]
     public function handle(string $url): array
     {
-        $span = function_exists('DDTrace\active_span') ? \DDTrace\active_span() : null;
-        if ($span) {
-            $span->meta['feed.url'] = $url;
-        }
-        $urlValidation = UrlSecurityValidator::validate($url);
-        if (! $urlValidation['valid']) {
-            Log::warning("[FetchFeed] Blocked unsafe URL: {$url}");
+        return Tracer::newSpan('feed.fetch')
+            ->setAttributes(['domain' => 'feeds'])
+            ->measure(function () use ($url): array {
+                Tracing::setAttributes(['feed.url' => $url]);
 
-            if ($span) {
-                $span->meta['fetch.status'] = 'blocked';
-                $span->meta['fetch.error'] = $urlValidation['error'] ?? 'Invalid feed URL';
-            }
+                $urlValidation = UrlSecurityValidator::validate($url);
+                if (! $urlValidation['valid']) {
+                    Log::warning("[FetchFeed] Blocked unsafe URL: {$url}");
 
-            return [
-                'success' => false,
-                'error' => $urlValidation['error'] ?? 'Invalid feed URL',
-            ];
-        }
+                    Tracing::setAttributes([
+                        'fetch.status' => 'blocked',
+                        'fetch.error' => $urlValidation['error'] ?? 'Invalid feed URL',
+                    ]);
 
-        // Pin DNS resolution to the IPs we validated, preventing DNS rebinding
-        $curlOptions = [];
-        if (! empty($urlValidation['curl_resolve'])) {
-            $curlOptions[CURLOPT_RESOLVE] = $urlValidation['curl_resolve'];
-        }
+                    return [
+                        'success' => false,
+                        'error' => $urlValidation['error'] ?? 'Invalid feed URL',
+                    ];
+                }
 
-        $crawledFeed = Feeds::make(
-            $url, // @phpstan-ignore argument.type (SimplePie accepts string; array triggers deprecated multi-feed mode)
-            0,
-            false,
-            ! empty($curlOptions) ? ['curl.options' => $curlOptions] : null // @phpstan-ignore argument.type
-        );
+                // Pin DNS resolution to the IPs we validated, preventing DNS rebinding
+                $curlOptions = [];
+                if (! empty($urlValidation['curl_resolve'])) {
+                    $curlOptions[CURLOPT_RESOLVE] = $urlValidation['curl_resolve'];
+                }
 
-        if ($crawledFeed->error()) {
-            $error = is_array($crawledFeed->error())
-                ? implode(', ', $crawledFeed->error())
-                : $crawledFeed->error();
+                $crawledFeed = Feeds::make(
+                    $url, // @phpstan-ignore argument.type (SimplePie accepts string; array triggers deprecated multi-feed mode)
+                    0,
+                    false,
+                    ! empty($curlOptions) ? ['curl.options' => $curlOptions] : null // @phpstan-ignore argument.type
+                );
 
-            // "cURL error 3: " -> "cURL error 3"
-            $error = rtrim($error, ': ');
+                if ($crawledFeed->error()) {
+                    $error = is_array($crawledFeed->error())
+                        ? implode(', ', $crawledFeed->error())
+                        : $crawledFeed->error();
 
-            if ($span) {
-                $span->meta['fetch.status'] = 'error';
-                $span->meta['fetch.error'] = $error;
-            }
+                    // "cURL error 3: " -> "cURL error 3"
+                    $error = rtrim($error, ': ');
 
-            return [
-                'success' => false,
-                'error' => $error,
-            ];
-        }
+                    Tracing::setAttributes([
+                        'fetch.status' => 'error',
+                        'fetch.error' => $error,
+                    ]);
 
-        if ($span) {
-            $span->meta['fetch.status'] = 'success';
-        }
+                    return [
+                        'success' => false,
+                        'error' => $error,
+                    ];
+                }
 
-        return [
-            'success' => true,
-            'feed' => $crawledFeed,
-        ];
+                Tracing::setAttributes(['fetch.status' => 'success']);
+
+                return [
+                    'success' => true,
+                    'feed' => $crawledFeed,
+                ];
+            });
     }
 }

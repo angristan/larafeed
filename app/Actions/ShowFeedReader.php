@@ -9,6 +9,7 @@ use App\Actions\Entry\SummarizeEntryWithLLM;
 use App\Actions\Favicon\BuildProxifiedFaviconURL;
 use App\Models\Entry;
 use App\Models\Feed;
+use App\Support\Tracing;
 use DDTrace\Trace;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,22 +23,21 @@ class ShowFeedReader
     #[Trace(name: 'reader.show', tags: ['domain' => 'reader'])]
     public function asController(Request $request): \Inertia\Response
     {
-        $span = function_exists('DDTrace\active_span') ? \DDTrace\active_span() : null;
-        if ($span) {
-            $span->meta['user.id'] = (string) Auth::id();
-            if ($request->query('feed')) {
-                $span->meta['reader.feed_id'] = (string) $request->query('feed');
-            }
-            if ($request->query('entry')) {
-                $span->meta['reader.entry_id'] = (string) $request->query('entry');
-            }
-            if ($request->query('filter')) {
-                $span->meta['reader.filter'] = (string) $request->query('filter');
-            }
-            if ($request->query('category')) {
-                $span->meta['reader.category_id'] = (string) $request->query('category');
-            }
+        $attributes = ['user.id' => (string) Auth::id()];
+        if ($request->query('feed')) {
+            $attributes['reader.feed_id'] = (string) $request->query('feed');
         }
+        if ($request->query('entry')) {
+            $attributes['reader.entry_id'] = (string) $request->query('entry');
+        }
+        if ($request->query('filter')) {
+            $attributes['reader.filter'] = (string) $request->query('filter');
+        }
+        if ($request->query('category')) {
+            $attributes['reader.category_id'] = (string) $request->query('category');
+        }
+        Tracing::setAttributes($attributes);
+
         $feed_id = $request->query('feed');
         $entry_id = $request->query('entry');
         $filter = $request->query('filter');

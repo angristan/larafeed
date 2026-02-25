@@ -7,11 +7,13 @@ namespace App\Actions\Feed;
 use App\Actions\Entry\ApplySubscriptionFilters;
 use App\Exceptions\FeedCrawlFailedException;
 use App\Models\Feed;
+use App\Support\Tracing;
 use Carbon\Carbon;
 use DDTrace\Trace;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Keepsuit\LaravelOpenTelemetry\Facades\Tracer;
 use Lorisleiva\Actions\Concerns\AsAction;
 use Throwable;
 
@@ -27,69 +29,73 @@ class RefreshFeed
     #[Trace(name: 'feed.refresh', tags: ['domain' => 'feeds'])]
     public function handle(Feed $feed): void
     {
-        $span = function_exists('DDTrace\active_span') ? \DDTrace\active_span() : null;
-        if ($span) {
-            $span->meta['feed.id'] = (string) $feed->id;
-            $span->meta['feed.name'] = $feed->name;
-            $span->meta['feed.url'] = $feed->feed_url;
-        }
-        $startedAt = now();
+        Tracer::newSpan('feed.refresh')
+            ->setAttributes(['domain' => 'feeds'])
+            ->measure(function () use ($feed): void {
+                Tracing::setAttributes([
+                    'feed.id' => (string) $feed->id,
+                    'feed.name' => $feed->name,
+                    'feed.url' => $feed->feed_url,
+                ]);
 
-        $result = FetchFeed::run($feed->feed_url);
+                $startedAt = now();
 
-        if (! $result['success']) {
-            $error = $result['error'];
+                $result = FetchFeed::run($feed->feed_url);
 
-            RecordFeedRefresh::run($feed, $startedAt, success: false, error: $error);
+                if (! $result['success']) {
+                    $error = $result['error'];
 
-            Log::withContext([
-                'feed_id' => $feed->id,
-                'feed_name' => $feed->name,
-                'feed_url' => $feed->feed_url,
-                'error' => $error,
-            ])->error('Failed to refresh feed');
+                    RecordFeedRefresh::run($feed, $startedAt, success: false, error: $error);
 
-            throw new FeedCrawlFailedException("Failed to refresh feed: {$error}");
-        }
+                    Log::withContext([
+                        'feed_id' => $feed->id,
+                        'feed_name' => $feed->name,
+                        'feed_url' => $feed->feed_url,
+                        'error' => $error,
+                    ])->error('Failed to refresh feed');
 
-        $crawledFeed = $result['feed'];
-
-        try {
-            $newEntries = DB::transaction(function () use ($feed, $crawledFeed, $startedAt) {
-                $newEntries = IngestFeedEntries::run($feed, $crawledFeed->get_items());
-
-                RecordFeedRefresh::run($feed, $startedAt, success: true, entriesCreated: $newEntries->count());
-
-                if ($newEntries->isNotEmpty()) {
-                    ApplySubscriptionFilters::make()->forNewEntries($feed->id, $newEntries);
+                    throw new FeedCrawlFailedException("Failed to refresh feed: {$error}");
                 }
 
-                return $newEntries;
+                $crawledFeed = $result['feed'];
+
+                try {
+                    $newEntries = DB::transaction(function () use ($feed, $crawledFeed, $startedAt) {
+                        $newEntries = IngestFeedEntries::run($feed, $crawledFeed->get_items());
+
+                        RecordFeedRefresh::run($feed, $startedAt, success: true, entriesCreated: $newEntries->count());
+
+                        if ($newEntries->isNotEmpty()) {
+                            ApplySubscriptionFilters::make()->forNewEntries($feed->id, $newEntries);
+                        }
+
+                        return $newEntries;
+                    });
+
+                    Log::withContext([
+                        'feed_id' => $feed->id,
+                        'feed_name' => $feed->name,
+                        'feed_url' => $feed->feed_url,
+                        'entries_created' => $newEntries->count(),
+                    ])->info('Feed refreshed');
+
+                    Tracing::setAttributes([
+                        'feed.status' => 'success',
+                        'entries.created' => $newEntries->count(),
+                    ]);
+                } catch (Throwable $exception) {
+                    RecordFeedRefresh::run($feed, $startedAt, success: false, error: $exception->getMessage());
+
+                    Log::withContext([
+                        'feed_id' => $feed->id,
+                        'feed_name' => $feed->name,
+                        'feed_url' => $feed->feed_url,
+                        'error' => $exception->getMessage(),
+                    ])->error('Feed refresh crashed', ['exception' => $exception]);
+
+                    throw $exception;
+                }
             });
-
-            Log::withContext([
-                'feed_id' => $feed->id,
-                'feed_name' => $feed->name,
-                'feed_url' => $feed->feed_url,
-                'entries_created' => $newEntries->count(),
-            ])->info('Feed refreshed');
-
-            if ($span) {
-                $span->meta['feed.status'] = 'success';
-                $span->metrics['entries.created'] = $newEntries->count();
-            }
-        } catch (Throwable $exception) {
-            RecordFeedRefresh::run($feed, $startedAt, success: false, error: $exception->getMessage());
-
-            Log::withContext([
-                'feed_id' => $feed->id,
-                'feed_name' => $feed->name,
-                'feed_url' => $feed->feed_url,
-                'error' => $exception->getMessage(),
-            ])->error('Feed refresh crashed', ['exception' => $exception]);
-
-            throw $exception;
-        }
     }
 
     public function asController(string $feed_id): \Illuminate\Http\JsonResponse

@@ -7,9 +7,11 @@ namespace App\Actions\Entry;
 use App\Models\Entry;
 use App\Models\EntryInteraction;
 use App\Models\FeedSubscription;
+use App\Support\Tracing;
 use DDTrace\Trace;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Keepsuit\LaravelOpenTelemetry\Facades\Tracer;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 class ApplySubscriptionFilters
@@ -25,78 +27,82 @@ class ApplySubscriptionFilters
     #[Trace(name: 'entry.apply_filters', tags: ['domain' => 'entries'])]
     public function handle(FeedSubscription $subscription, ?Collection $entries = null): void
     {
-        $span = function_exists('DDTrace\active_span') ? \DDTrace\active_span() : null;
-        if ($span) {
-            $span->meta['subscription.user_id'] = (string) $subscription->user_id;
-            $span->meta['subscription.feed_id'] = (string) $subscription->feed_id;
-        }
-        $filterRules = $subscription->filter_rules;
+        Tracer::newSpan('entry.apply_filters')
+            ->setAttributes(['domain' => 'entries'])
+            ->measure(function () use ($subscription, $entries): void {
+                Tracing::setAttributes([
+                    'subscription.user_id' => (string) $subscription->user_id,
+                    'subscription.feed_id' => (string) $subscription->feed_id,
+                ]);
 
-        // Handle case where filter_rules comes as JSON string (pivot model cast issue)
-        // @phpstan-ignore function.impossibleType (Pivot model casts don't always work)
-        if (is_string($filterRules)) {
-            $filterRules = json_decode($filterRules, true);
-        }
+                $filterRules = $subscription->filter_rules;
 
-        $userId = $subscription->user_id;
-        $feedId = $subscription->feed_id;
+                // Handle case where filter_rules comes as JSON string (pivot model cast issue)
+                // @phpstan-ignore function.impossibleType (Pivot model casts don't always work)
+                if (is_string($filterRules)) {
+                    $filterRules = json_decode($filterRules, true);
+                }
 
-        // If no specific entries provided, get all entries for this feed
-        if ($entries === null) {
-            $entries = Entry::where('feed_id', $feedId)->get();
-        }
+                $userId = $subscription->user_id;
+                $feedId = $subscription->feed_id;
 
-        if ($entries->isEmpty()) {
-            return;
-        }
+                // If no specific entries provided, get all entries for this feed
+                if ($entries === null) {
+                    $entries = Entry::where('feed_id', $feedId)->get();
+                }
 
-        $toFilter = [];
-        $toUnfilter = [];
-        $now = now();
+                if ($entries->isEmpty()) {
+                    return;
+                }
 
-        foreach ($entries as $entry) {
-            $shouldFilter = EvaluateEntryFilter::run($entry, $filterRules);
+                $toFilter = [];
+                $toUnfilter = [];
+                $now = now();
 
-            if ($shouldFilter) {
-                $toFilter[] = [
-                    'user_id' => $userId,
-                    'entry_id' => $entry->id,
-                    'filtered_at' => $now,
-                    'read_at' => null,
-                    'starred_at' => null,
-                    'archived_at' => null,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-            } else {
-                $toUnfilter[] = $entry->id;
-            }
-        }
+                foreach ($entries as $entry) {
+                    $shouldFilter = EvaluateEntryFilter::run($entry, $filterRules);
 
-        DB::transaction(function () use ($toFilter, $toUnfilter, $userId) {
-            // Mark entries as filtered and clear other interactions
-            if (! empty($toFilter)) {
-                EntryInteraction::upsert(
-                    $toFilter,
-                    ['user_id', 'entry_id'],
-                    ['filtered_at', 'read_at', 'starred_at', 'archived_at', 'updated_at']
-                );
-            }
+                    if ($shouldFilter) {
+                        $toFilter[] = [
+                            'user_id' => $userId,
+                            'entry_id' => $entry->id,
+                            'filtered_at' => $now,
+                            'read_at' => null,
+                            'starred_at' => null,
+                            'archived_at' => null,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+                    } else {
+                        $toUnfilter[] = $entry->id;
+                    }
+                }
 
-            // Unmark entries that no longer match filters
-            if (! empty($toUnfilter)) {
-                EntryInteraction::where('user_id', $userId)
-                    ->whereIn('entry_id', $toUnfilter)
-                    ->whereNotNull('filtered_at')
-                    ->update(['filtered_at' => null, 'updated_at' => now()]);
-            }
-        });
+                DB::transaction(function () use ($toFilter, $toUnfilter, $userId) {
+                    // Mark entries as filtered and clear other interactions
+                    if (! empty($toFilter)) {
+                        EntryInteraction::upsert(
+                            $toFilter,
+                            ['user_id', 'entry_id'],
+                            ['filtered_at', 'read_at', 'starred_at', 'archived_at', 'updated_at']
+                        );
+                    }
 
-        if ($span) {
-            $span->metrics['entries.evaluated'] = $entries->count();
-            $span->metrics['entries.filtered'] = count($toFilter);
-            $span->metrics['entries.unfiltered'] = count($toUnfilter);
-        }
+                    // Unmark entries that no longer match filters
+                    if (! empty($toUnfilter)) {
+                        EntryInteraction::where('user_id', $userId)
+                            ->whereIn('entry_id', $toUnfilter)
+                            ->whereNotNull('filtered_at')
+                            ->update(['filtered_at' => null, 'updated_at' => now()]);
+                    }
+                });
+
+                Tracing::setAttributes([
+                    'entries.evaluated' => $entries->count(),
+                    'entries.filtered' => count($toFilter),
+                    'entries.unfiltered' => count($toUnfilter),
+                ]);
+            });
     }
 
     /**

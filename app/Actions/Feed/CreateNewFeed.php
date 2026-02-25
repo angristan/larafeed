@@ -12,10 +12,12 @@ use App\Models\Feed;
 use App\Models\SubscriptionCategory;
 use App\Models\User;
 use App\Rules\SafeFeedUrl;
+use App\Support\Tracing;
 use DDTrace\Trace;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Keepsuit\LaravelOpenTelemetry\Facades\Tracer;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 class CreateNewFeed
@@ -98,94 +100,97 @@ class CreateNewFeed
     #[Trace(name: 'feed.create', tags: ['domain' => 'feeds'])]
     public function handle(string $requested_feed_url, ?User $attachedUser, ?int $category_id, bool $force = false, ?string $fallback_name = null): \Illuminate\Http\RedirectResponse
     {
-        $span = function_exists('DDTrace\active_span') ? \DDTrace\active_span() : null;
-        if ($span) {
-            $span->meta['feed.requested_url'] = $requested_feed_url;
-            $span->meta['feed.force_mode'] = $force ? 'true' : 'false';
-            if ($attachedUser) {
-                $span->meta['user.id'] = (string) $attachedUser->id;
-            }
-        }
-
-        $result = FetchFeed::run($requested_feed_url);
-
-        if (! $result['success']) {
-            if (! $force) {
-                return redirect()->back()->withErrors([
-                    'feed_url' => 'Failed to fetch feed: '.$result['error'],
+        return Tracer::newSpan('feed.create')
+            ->setAttributes(['domain' => 'feeds'])
+            ->measure(function () use ($requested_feed_url, $attachedUser, $category_id, $force, $fallback_name): \Illuminate\Http\RedirectResponse {
+                Tracing::setAttributes([
+                    'feed.requested_url' => $requested_feed_url,
+                    'feed.force_mode' => $force ? 'true' : 'false',
                 ]);
-            }
+                if ($attachedUser) {
+                    Tracing::setAttributes(['user.id' => (string) $attachedUser->id]);
+                }
 
-            // Force mode (OPML import): skip this feed silently
-            return redirect()->back();
-        }
+                $result = FetchFeed::run($requested_feed_url);
 
-        $crawledFeed = $result['feed'];
-        $feed_url = $crawledFeed->feed_url ?? $requested_feed_url;
+                if (! $result['success']) {
+                    if (! $force) {
+                        return redirect()->back()->withErrors([
+                            'feed_url' => 'Failed to fetch feed: '.$result['error'],
+                        ]);
+                    }
 
-        if (Feed::where('feed_url', $feed_url)->exists()) {
-            if ($attachedUser) {
-                if ($attachedUser->feeds()->where('feed_url', $feed_url)->exists()) {
-                    return redirect()->back()->withErrors([
-                        'feed_url' => "You're already following this feed",
-                    ]);
-                } else {
-                    $attachedUser->feeds()->attach(
-                        Feed::where('feed_url', $feed_url)->first(),
-                        ['category_id' => $category_id]
-                    );
-
+                    // Force mode (OPML import): skip this feed silently
                     return redirect()->back();
                 }
-            }
 
-            return redirect()->back()->withErrors([
-                'feed_url' => 'Feed already exists',
-            ]);
-        }
+                $crawledFeed = $result['feed'];
+                $feed_url = $crawledFeed->feed_url ?? $requested_feed_url;
 
-        // Handle feeds without site link such as https://aggregate.stitcher.io/rss
-        $site_url = $crawledFeed->get_link() ?? $feed_url;
+                if (Feed::where('feed_url', $feed_url)->exists()) {
+                    if ($attachedUser) {
+                        if ($attachedUser->feeds()->where('feed_url', $feed_url)->exists()) {
+                            return redirect()->back()->withErrors([
+                                'feed_url' => "You're already following this feed",
+                            ]);
+                        } else {
+                            $attachedUser->feeds()->attach(
+                                Feed::where('feed_url', $feed_url)->first(),
+                                ['category_id' => $category_id]
+                            );
 
-        $favicon_url = GetFaviconURL::run($site_url);
-        $favicon_is_dark = $favicon_url ? AnalyzeFaviconBrightness::run($favicon_url) : null;
+                            return redirect()->back();
+                        }
+                    }
 
-        $feed_name = $crawledFeed->get_title() ?? $fallback_name ?? $site_url;
-        $feed_name = str_replace('&amp;', '&', $feed_name);
+                    return redirect()->back()->withErrors([
+                        'feed_url' => 'Feed already exists',
+                    ]);
+                }
 
-        $startedAt = now();
+                // Handle feeds without site link such as https://aggregate.stitcher.io/rss
+                $site_url = $crawledFeed->get_link() ?? $feed_url;
 
-        $feed = DB::transaction(function () use ($feed_name, $feed_url, $site_url, $favicon_url, $favicon_is_dark, $attachedUser, $category_id, $crawledFeed, $startedAt) {
-            $feed = Feed::create([
-                'name' => $feed_name,
-                'feed_url' => $feed_url,
-                'site_url' => $site_url,
-                'favicon_url' => $favicon_url,
-                'favicon_is_dark' => $favicon_is_dark,
-                'favicon_updated_at' => $favicon_url ? now() : null,
-            ]);
+                $favicon_url = GetFaviconURL::run($site_url);
+                $favicon_is_dark = $favicon_url ? AnalyzeFaviconBrightness::run($favicon_url) : null;
 
-            if ($attachedUser) {
-                $attachedUser->feeds()->attach($feed, ['category_id' => $category_id]);
-            }
+                $feed_name = $crawledFeed->get_title() ?? $fallback_name ?? $site_url;
+                $feed_name = str_replace('&amp;', '&', $feed_name);
 
-            // Ingest entries and record refresh (limit to 20 for performance - get_content() is slow)
-            $newEntries = IngestFeedEntries::run($feed, $crawledFeed->get_items(), limit: 20);
-            RecordFeedRefresh::run($feed, $startedAt, success: true, entriesCreated: $newEntries->count());
+                $startedAt = now();
 
-            if ($newEntries->isNotEmpty()) {
-                ApplySubscriptionFilters::make()->forNewEntries($feed->id, $newEntries);
-            }
+                $feed = DB::transaction(function () use ($feed_name, $feed_url, $site_url, $favicon_url, $favicon_is_dark, $attachedUser, $category_id, $crawledFeed, $startedAt) {
+                    $feed = Feed::create([
+                        'name' => $feed_name,
+                        'feed_url' => $feed_url,
+                        'site_url' => $site_url,
+                        'favicon_url' => $favicon_url,
+                        'favicon_is_dark' => $favicon_is_dark,
+                        'favicon_updated_at' => $favicon_url ? now() : null,
+                    ]);
 
-            return $feed;
-        });
+                    if ($attachedUser) {
+                        $attachedUser->feeds()->attach($feed, ['category_id' => $category_id]);
+                    }
 
-        if ($span) {
-            $span->meta['feed.id'] = (string) $feed->id;
-            $span->meta['feed.name'] = $feed->name;
-            $span->meta['feed.status'] = 'created';
-        }
+                    // Ingest entries and record refresh (limit to 20 for performance - get_content() is slow)
+                    $newEntries = IngestFeedEntries::run($feed, $crawledFeed->get_items(), limit: 20);
+                    RecordFeedRefresh::run($feed, $startedAt, success: true, entriesCreated: $newEntries->count());
 
-        return redirect()->route('feeds.index', ['feed' => $feed->id]);
+                    if ($newEntries->isNotEmpty()) {
+                        ApplySubscriptionFilters::make()->forNewEntries($feed->id, $newEntries);
+                    }
+
+                    return $feed;
+                });
+
+                Tracing::setAttributes([
+                    'feed.id' => (string) $feed->id,
+                    'feed.name' => $feed->name,
+                    'feed.status' => 'created',
+                ]);
+
+                return redirect()->route('feeds.index', ['feed' => $feed->id]);
+            });
     }
 }
