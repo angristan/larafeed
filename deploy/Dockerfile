@@ -50,7 +50,6 @@ RUN apt-get update; \
     zip \
     gd \
     protobuf \
-    grpc \
     && apt-get -y autoremove \
     && apt-get clean \
     && docker-php-source delete \
