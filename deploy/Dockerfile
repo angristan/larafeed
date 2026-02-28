@@ -111,7 +111,7 @@ RUN mkdir -p \
     storage/logs \
     bootstrap/cache && chmod -R a+rw storage
 
-RUN composer install \
+RUN OTEL_SDK_DISABLED=true composer install \
     --classmap-authoritative \
     --no-interaction \
     --no-ansi \
