@@ -66,6 +66,10 @@ RUN chown -R ${USER}:${USER} ${ROOT} /var/{log,run} \
 
 RUN cp ${PHP_INI_DIR}/php.ini-production ${PHP_INI_DIR}/php.ini
 
+# Remove file capabilities so the binary works with allowPrivilegeEscalation: false (no_new_privs)
+# Not needed since we bind to port 8080, not 80/443
+RUN setcap -r /usr/local/bin/frankenphp
+
 USER ${USER}
 
 COPY --link --chown=${WWWUSER}:${WWWUSER} --from=composer /usr/bin/composer /usr/bin/composer
