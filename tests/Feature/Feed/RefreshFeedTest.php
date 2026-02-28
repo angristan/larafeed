@@ -30,7 +30,7 @@ class RefreshFeedTest extends TestCase
 
     public function test_it_records_successful_refresh_attempts(): void
     {
-        $feed = Feed::factory()->create();
+        $feed = Feed::factory()->create(['feed_url' => 'https://example.com/feed.xml']);
 
         $author = Mockery::mock();
         $author->shouldReceive('get_name')->andReturn('Author');
@@ -66,7 +66,7 @@ class RefreshFeedTest extends TestCase
 
     public function test_it_records_failed_refresh_attempts(): void
     {
-        $feed = Feed::factory()->create();
+        $feed = Feed::factory()->create(['feed_url' => 'https://example.com/feed.xml']);
 
         $errorMessage = 'Connection timeout: '.str_repeat('x', 300);
 
@@ -154,7 +154,7 @@ class RefreshFeedTest extends TestCase
             'name' => 'Tech',
         ]);
 
-        $feed = Feed::factory()->create();
+        $feed = Feed::factory()->create(['feed_url' => 'https://example.com/feed.xml']);
         $user->feeds()->attach($feed->id, [
             'category_id' => $category->id,
             'filter_rules' => json_encode(['exclude_title' => ['alpha']]),
