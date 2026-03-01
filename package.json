@@ -13,7 +13,7 @@
         "@biomejs/biome": "^2.4.4",
         "lefthook": "^2.1.1",
         "@datadog/browser-rum": "^6.25.1",
-        "@gfazioli/mantine-split-pane": "^1.1.5",
+        "@gfazioli/mantine-split-pane": "^2.7.3",
         "@headlessui/react": "^2.2.9",
         "@inertiajs/react": "^2.3.17",
         "@mantine/charts": "^8.3.15",
