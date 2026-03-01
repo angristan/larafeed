@@ -22,7 +22,7 @@
         "@mantine/modals": "^8.3.15",
         "@mantine/notifications": "^8.3.15",
         "@mantine/spotlight": "^8.3.15",
-        "@tabler/icons-react": "^3.36.1",
+        "@tabler/icons-react": "^3.37.1",
         "@types/node": "^25.3.2",
         "@types/react": "^18.0.28",
         "@types/react-dom": "^18.0.10",
