@@ -1,12 +1,7 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
-
 version: 2
 updates:
   - package-ecosystem: npm
-    directory: "/"
+    directory: /
     open-pull-requests-limit: 20
     schedule:
       interval: weekly
@@ -14,25 +9,53 @@ updates:
       mantine:
         patterns:
           - "@mantine/*"
-      eslint:
+      react:
         patterns:
-          - "*eslint*"
-      vite:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+      inertia:
         patterns:
-          - "*vite*"
+          - "@inertiajs/*"
+      minor-dependencies:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@mantine/*"
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+          - "@inertiajs/*"
 
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: weekly
-
-  - package-ecosystem: "composer"
-    directory: "/"
+  - package-ecosystem: composer
+    directory: /
     open-pull-requests-limit: 20
     schedule:
       interval: weekly
+    groups:
+      laravel:
+        patterns:
+          - "laravel/*"
+          - "inertiajs/*"
+      minor-dependencies:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "laravel/*"
+          - "inertiajs/*"
 
-  - package-ecosystem: "docker"
-    directory: "/deploy"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: /deploy
     schedule:
       interval: weekly
