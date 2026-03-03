@@ -19,6 +19,9 @@ updates:
         patterns:
           - "@inertiajs/*"
       minor-dependencies:
+        update-types:
+          - "minor"
+          - "patch"
         patterns:
           - "*"
         exclude-patterns:
@@ -40,6 +43,9 @@ updates:
           - "laravel/*"
           - "inertiajs/*"
       minor-dependencies:
+        update-types:
+          - "minor"
+          - "patch"
         patterns:
           - "*"
         exclude-patterns:
