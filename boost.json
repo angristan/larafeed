@@ -1,14 +1,23 @@
 {
     "agents": [
-        "codex"
-    ],
-    "editors": [
-        "claude_code",
         "codex",
-        "opencode",
-        "vscode"
+        "claude_code",
+        "opencode"
     ],
-    "guidelines": [
-        "echolabsdev/prism"
+    "guidelines": true,
+    "herd_mcp": false,
+    "mcp": true,
+    "packages": [
+        "echolabsdev/prism",
+        "inertiajs/inertia-laravel",
+        "laravel/fortify",
+        "laravel/pennant"
+    ],
+    "sail": false,
+    "skills": [
+        "pennant-development",
+        "inertia-react-development",
+        "developing-with-prism",
+        "developing-with-fortify"
     ]
 }
