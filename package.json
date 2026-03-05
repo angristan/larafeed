@@ -11,8 +11,6 @@
     },
     "devDependencies": {
         "@biomejs/biome": "^2.4.5",
-        "lefthook": "^2.1.2",
-        "@datadog/browser-rum": "^6.28.1",
         "@gfazioli/mantine-split-pane": "^1.1.5",
         "@headlessui/react": "^2.2.9",
         "@inertiajs/react": "^2.3.17",
@@ -33,6 +31,7 @@
         "concurrently": "^9.2.1",
         "dayjs": "^1.11.19",
         "laravel-vite-plugin": "^2.1",
+        "lefthook": "^2.1.2",
         "postcss": "^8.5.8",
         "postcss-preset-mantine": "^1.18.0",
         "postcss-simple-vars": "^7.0.1",

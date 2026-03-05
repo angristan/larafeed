@@ -8,14 +8,12 @@ import '@gfazioli/mantine-split-pane/styles.css';
 import '../css/app.css';
 import './bootstrap';
 
-import { datadogRum } from '@datadog/browser-rum';
 import { createInertiaApp } from '@inertiajs/react';
 import { createTheme, MantineProvider, rem } from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
-import type { PageProps } from '@/types';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -51,25 +49,6 @@ createInertiaApp({
         ),
     setup({ el, App, props }) {
         const root = createRoot(el);
-        const { datadogRum: ddConfig } = props.initialPage
-            .props as unknown as PageProps;
-
-        // Initialize Datadog RUM if configured
-        if (ddConfig.applicationId && ddConfig.clientToken) {
-            datadogRum.init({
-                applicationId: ddConfig.applicationId,
-                clientToken: ddConfig.clientToken,
-                site: ddConfig.site,
-                service: ddConfig.service,
-                env: ddConfig.env,
-                sessionSampleRate: ddConfig.sessionSampleRate,
-                sessionReplaySampleRate: ddConfig.sessionReplaySampleRate,
-                trackUserInteractions: true,
-                trackResources: true,
-                trackLongTasks: true,
-                defaultPrivacyLevel: ddConfig.privacyLevel,
-            });
-        }
 
         root.render(
             <MantineProvider theme={theme}>
