@@ -1,6 +1,6 @@
 services:
     init:
-        image: ghcr.io/angristan/larafeed:latest
+        image: alpine:3.21
         volumes:
             - ./.secrets:/secrets
         entrypoint: ["sh", "-c"]
@@ -8,11 +8,11 @@ services:
             - |
                 if [ ! -f /secrets/.env.generated ]; then
                     echo "Generating secrets for first-time setup..."
-                    APP_KEY=$$(php artisan key:generate --show)
-                    IMGPROXY_KEY=$$(openssl rand -hex 64)
-                    IMGPROXY_SALT=$$(openssl rand -hex 64)
+                    SESSION_SECRET=$$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+                    IMGPROXY_KEY=$$(cat /dev/urandom | tr -dc 'a-f0-9' | fold -w 128 | head -n 1)
+                    IMGPROXY_SALT=$$(cat /dev/urandom | tr -dc 'a-f0-9' | fold -w 128 | head -n 1)
                     cat > /secrets/.env.generated << EOF
-                APP_KEY=$$APP_KEY
+                SESSION_SECRET=$$SESSION_SECRET
                 IMGPROXY_KEY=$$IMGPROXY_KEY
                 IMGPROXY_SALT=$$IMGPROXY_SALT
                 EOF
@@ -20,10 +20,8 @@ services:
                 else
                     echo "Secrets already exist, skipping generation."
                 fi
-        networks:
-            - internal_network
 
-    web:
+    app:
         image: ghcr.io/angristan/larafeed:latest
         env_file:
             - .env.compose
@@ -31,105 +29,30 @@ services:
               required: false
             - path: ./.secrets/.env.generated
               required: false
-        volumes:
-            - ./.secrets:/secrets
-        command:
-            [
-                "sh",
-                "-c",
-                "if [ -f /secrets/.env.generated ]; then export $$(cat /secrets/.env.generated | xargs); fi && php artisan optimize && php artisan migrate --force && php artisan octane:start --server=frankenphp --host=0.0.0.0 --port=8080 --log-level=info --caddyfile=./deploy/Caddyfile.octane --max-requests=100",
-            ]
         ports:
-            - "8000:8080"
+            - "8000:3000"
         depends_on:
             init:
                 condition: service_completed_successfully
             postgres:
-                condition: service_healthy
-            redis:
                 condition: service_healthy
         networks:
             - internal_network
             - external_network
-
-    queue:
-        image: ghcr.io/angristan/larafeed:latest
-        env_file:
-            - .env.compose
-            - path: .env.compose.local
-              required: false
-            - path: ./.secrets/.env.generated
-              required: false
-        volumes:
-            - ./.secrets:/secrets
-        command:
-            [
-                "sh",
-                "-c",
-                "if [ -f /secrets/.env.generated ]; then export $$(cat /secrets/.env.generated | xargs); fi && php artisan queue:work --max-jobs=100 --max-time=600 --memory=64",
-            ]
-        depends_on:
-            init:
-                condition: service_completed_successfully
-            postgres:
-                condition: service_healthy
-            redis:
-                condition: service_healthy
-        networks:
-            - external_network
-            - internal_network
-
-    scheduler:
-        image: ghcr.io/angristan/larafeed:latest
-        env_file:
-            - .env.compose
-            - path: .env.compose.local
-              required: false
-            - path: ./.secrets/.env.generated
-              required: false
-        volumes:
-            - ./.secrets:/secrets
-        command:
-            [
-                "sh",
-                "-c",
-                "if [ -f /secrets/.env.generated ]; then export $$(cat /secrets/.env.generated | xargs); fi && while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done",
-            ]
-        depends_on:
-            init:
-                condition: service_completed_successfully
-            postgres:
-                condition: service_healthy
-            redis:
-                condition: service_healthy
-        networks:
-            - internal_network
 
     postgres:
         image: postgres:17-alpine
-        env_file:
-            - .env.compose
-            - path: .env.compose.local
-              required: false
-        healthcheck:
-            test: ["CMD", "pg_isready", "-U", "postgres"]
         environment:
-            - "POSTGRES_HOST_AUTH_METHOD=trust"
+            POSTGRES_DB: larafeed
+            POSTGRES_USER: larafeed
+            POSTGRES_PASSWORD: larafeed
+        healthcheck:
+            test: ["CMD", "pg_isready", "-U", "larafeed"]
+            interval: 5s
+            timeout: 3s
+            retries: 5
         volumes:
             - postgres-data:/var/lib/postgresql/data
-        networks:
-            - internal_network
-
-    redis:
-        image: redis:7-alpine
-        env_file:
-            - .env.compose
-            - path: .env.compose.local
-              required: false
-        healthcheck:
-            test: ["CMD", "redis-cli", "ping"]
-        volumes:
-            - redis-data:/data
         networks:
             - internal_network
 
@@ -163,4 +86,3 @@ networks:
 
 volumes:
     postgres-data:
-    redis-data:

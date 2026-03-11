@@ -6,13 +6,12 @@ import (
 	"time"
 
 	"github.com/angristan/larafeed-go/internal/db"
-	"github.com/angristan/larafeed-go/internal/testhelper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCreateUser(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 	queries := db.New(pool)
 
@@ -32,7 +31,7 @@ func TestCreateUser(t *testing.T) {
 }
 
 func TestFindByEmail(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 	queries := db.New(pool)
 
@@ -55,11 +54,11 @@ func TestFindByEmail(t *testing.T) {
 }
 
 func TestUpdateProfile(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 	queries := db.New(pool)
 
-	user := testhelper.CreateUser(t, pool, "Old Name", "old@test.com", "password")
+	user := createUser(t, pool, "Old Name", "old@test.com", "password")
 
 	err := queries.UpdateUserProfile(ctx, db.UpdateUserProfileParams{
 		ID:    user.ID,
@@ -75,11 +74,11 @@ func TestUpdateProfile(t *testing.T) {
 }
 
 func TestClearEmailVerification(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 	queries := db.New(pool)
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
+	user := createUser(t, pool, "Test", "test@test.com", "password")
 
 	// Verify email
 	err := queries.VerifyUserEmail(ctx, user.ID)
@@ -97,11 +96,11 @@ func TestClearEmailVerification(t *testing.T) {
 }
 
 func TestDeleteUser(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 	queries := db.New(pool)
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
+	user := createUser(t, pool, "Test", "test@test.com", "password")
 
 	err := queries.DeleteUser(ctx, user.ID)
 	require.NoError(t, err)
@@ -111,14 +110,14 @@ func TestDeleteUser(t *testing.T) {
 }
 
 func TestWipeAccount_DeletesUserData(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
-	cat := testhelper.CreateCategory(t, pool, user.ID, "Tech")
-	feed := testhelper.CreateFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
-	testhelper.Subscribe(t, pool, user.ID, feed.ID, cat.ID)
-	entry := testhelper.CreateEntry(t, pool, feed.ID, "Entry", "https://example.com/1")
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	cat := createCategory(t, pool, user.ID, "Tech")
+	feed := createFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
+	subscribe(t, pool, user.ID, feed.ID, cat.ID)
+	entry := createEntry(t, pool, feed.ID, "Entry", "https://example.com/1")
 
 	queries := db.New(pool)
 
@@ -146,13 +145,13 @@ func TestWipeAccount_DeletesUserData(t *testing.T) {
 }
 
 func TestWipeAccount_DeletesOrphanedFeeds(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
-	cat := testhelper.CreateCategory(t, pool, user.ID, "Tech")
-	feed := testhelper.CreateFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
-	testhelper.Subscribe(t, pool, user.ID, feed.ID, cat.ID)
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	cat := createCategory(t, pool, user.ID, "Tech")
+	feed := createFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
+	subscribe(t, pool, user.ID, feed.ID, cat.ID)
 
 	queries := db.New(pool)
 	_ = queries.DeleteAllSubscriptionsForUser(ctx, user.ID)
@@ -163,16 +162,16 @@ func TestWipeAccount_DeletesOrphanedFeeds(t *testing.T) {
 }
 
 func TestWipeAccount_PreservesFeedsWithOtherSubscribers(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 
-	user1 := testhelper.CreateUser(t, pool, "User1", "user1@test.com", "password")
-	user2 := testhelper.CreateUser(t, pool, "User2", "user2@test.com", "password")
-	cat1 := testhelper.CreateCategory(t, pool, user1.ID, "Tech")
-	cat2 := testhelper.CreateCategory(t, pool, user2.ID, "Tech")
-	feed := testhelper.CreateFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
-	testhelper.Subscribe(t, pool, user1.ID, feed.ID, cat1.ID)
-	testhelper.Subscribe(t, pool, user2.ID, feed.ID, cat2.ID)
+	user1 := createUser(t, pool, "User1", "user1@test.com", "password")
+	user2 := createUser(t, pool, "User2", "user2@test.com", "password")
+	cat1 := createCategory(t, pool, user1.ID, "Tech")
+	cat2 := createCategory(t, pool, user2.ID, "Tech")
+	feed := createFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
+	subscribe(t, pool, user1.ID, feed.ID, cat1.ID)
+	subscribe(t, pool, user2.ID, feed.ID, cat2.ID)
 
 	queries := db.New(pool)
 
