@@ -5,24 +5,23 @@ import (
 	"testing"
 
 	"github.com/angristan/larafeed-go/internal/db"
-	"github.com/angristan/larafeed-go/internal/testhelper"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestListForReader_Pagination(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
-	cat := testhelper.CreateCategory(t, pool, user.ID, "Tech")
-	feed := testhelper.CreateFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
-	testhelper.Subscribe(t, pool, user.ID, feed.ID, cat.ID)
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	cat := createCategory(t, pool, user.ID, "Tech")
+	feed := createFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
+	subscribe(t, pool, user.ID, feed.ID, cat.ID)
 
 	// Create 5 entries
 	for i := 0; i < 5; i++ {
-		testhelper.CreateEntry(t, pool, feed.ID, "Entry "+string(rune('A'+i)), "https://example.com/"+string(rune('a'+i)))
+		createEntry(t, pool, feed.ID, "Entry "+string(rune('A'+i)), "https://example.com/"+string(rune('a'+i)))
 	}
 
 	queries := db.New(pool)
@@ -59,16 +58,16 @@ func TestListForReader_Pagination(t *testing.T) {
 }
 
 func TestListForReader_FilterUnread(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
-	cat := testhelper.CreateCategory(t, pool, user.ID, "Tech")
-	feed := testhelper.CreateFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
-	testhelper.Subscribe(t, pool, user.ID, feed.ID, cat.ID)
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	cat := createCategory(t, pool, user.ID, "Tech")
+	feed := createFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
+	subscribe(t, pool, user.ID, feed.ID, cat.ID)
 
-	entry1 := testhelper.CreateEntry(t, pool, feed.ID, "Unread", "https://example.com/1")
-	_ = testhelper.CreateEntry(t, pool, feed.ID, "Read", "https://example.com/2")
+	entry1 := createEntry(t, pool, feed.ID, "Unread", "https://example.com/1")
+	_ = createEntry(t, pool, feed.ID, "Read", "https://example.com/2")
 
 	// Mark one as read
 	queries := db.New(pool)
@@ -94,16 +93,16 @@ func TestListForReader_FilterUnread(t *testing.T) {
 }
 
 func TestListForReader_FilterFavorites(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
-	cat := testhelper.CreateCategory(t, pool, user.ID, "Tech")
-	feed := testhelper.CreateFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
-	testhelper.Subscribe(t, pool, user.ID, feed.ID, cat.ID)
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	cat := createCategory(t, pool, user.ID, "Tech")
+	feed := createFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
+	subscribe(t, pool, user.ID, feed.ID, cat.ID)
 
-	entry1 := testhelper.CreateEntry(t, pool, feed.ID, "Starred", "https://example.com/1")
-	_ = testhelper.CreateEntry(t, pool, feed.ID, "Not Starred", "https://example.com/2")
+	entry1 := createEntry(t, pool, feed.ID, "Starred", "https://example.com/1")
+	_ = createEntry(t, pool, feed.ID, "Not Starred", "https://example.com/2")
 
 	queries := db.New(pool)
 	_ = queries.Favorite(ctx, db.FavoriteParams{UserID: user.ID, EntryID: entry1.ID})
@@ -128,18 +127,18 @@ func TestListForReader_FilterFavorites(t *testing.T) {
 }
 
 func TestListForReader_FilterByFeed(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
-	cat := testhelper.CreateCategory(t, pool, user.ID, "Tech")
-	feed1 := testhelper.CreateFeed(t, pool, "Feed 1", "https://example.com/feed1", "https://example.com")
-	feed2 := testhelper.CreateFeed(t, pool, "Feed 2", "https://example.com/feed2", "https://example.com")
-	testhelper.Subscribe(t, pool, user.ID, feed1.ID, cat.ID)
-	testhelper.Subscribe(t, pool, user.ID, feed2.ID, cat.ID)
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	cat := createCategory(t, pool, user.ID, "Tech")
+	feed1 := createFeed(t, pool, "Feed 1", "https://example.com/feed1", "https://example.com")
+	feed2 := createFeed(t, pool, "Feed 2", "https://example.com/feed2", "https://example.com")
+	subscribe(t, pool, user.ID, feed1.ID, cat.ID)
+	subscribe(t, pool, user.ID, feed2.ID, cat.ID)
 
-	testhelper.CreateEntry(t, pool, feed1.ID, "Feed 1 Entry", "https://example.com/1")
-	testhelper.CreateEntry(t, pool, feed2.ID, "Feed 2 Entry", "https://example.com/2")
+	createEntry(t, pool, feed1.ID, "Feed 1 Entry", "https://example.com/1")
+	createEntry(t, pool, feed2.ID, "Feed 2 Entry", "https://example.com/2")
 
 	queries := db.New(pool)
 
@@ -167,19 +166,19 @@ func TestListForReader_FilterByFeed(t *testing.T) {
 }
 
 func TestListForReader_FilterByCategory(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
-	cat1 := testhelper.CreateCategory(t, pool, user.ID, "Tech")
-	cat2 := testhelper.CreateCategory(t, pool, user.ID, "News")
-	feed1 := testhelper.CreateFeed(t, pool, "Tech Feed", "https://example.com/tech", "https://example.com")
-	feed2 := testhelper.CreateFeed(t, pool, "News Feed", "https://example.com/news", "https://example.com")
-	testhelper.Subscribe(t, pool, user.ID, feed1.ID, cat1.ID)
-	testhelper.Subscribe(t, pool, user.ID, feed2.ID, cat2.ID)
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	cat1 := createCategory(t, pool, user.ID, "Tech")
+	cat2 := createCategory(t, pool, user.ID, "News")
+	feed1 := createFeed(t, pool, "Tech Feed", "https://example.com/tech", "https://example.com")
+	feed2 := createFeed(t, pool, "News Feed", "https://example.com/news", "https://example.com")
+	subscribe(t, pool, user.ID, feed1.ID, cat1.ID)
+	subscribe(t, pool, user.ID, feed2.ID, cat2.ID)
 
-	testhelper.CreateEntry(t, pool, feed1.ID, "Tech Entry", "https://example.com/1")
-	testhelper.CreateEntry(t, pool, feed2.ID, "News Entry", "https://example.com/2")
+	createEntry(t, pool, feed1.ID, "Tech Entry", "https://example.com/1")
+	createEntry(t, pool, feed2.ID, "News Entry", "https://example.com/2")
 
 	queries := db.New(pool)
 
@@ -207,16 +206,16 @@ func TestListForReader_FilterByCategory(t *testing.T) {
 }
 
 func TestListForReader_ExcludesFilteredEntries(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
-	cat := testhelper.CreateCategory(t, pool, user.ID, "Tech")
-	feed := testhelper.CreateFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
-	testhelper.Subscribe(t, pool, user.ID, feed.ID, cat.ID)
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	cat := createCategory(t, pool, user.ID, "Tech")
+	feed := createFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
+	subscribe(t, pool, user.ID, feed.ID, cat.ID)
 
-	entry1 := testhelper.CreateEntry(t, pool, feed.ID, "Visible", "https://example.com/1")
-	entry2 := testhelper.CreateEntry(t, pool, feed.ID, "Filtered", "https://example.com/2")
+	entry1 := createEntry(t, pool, feed.ID, "Visible", "https://example.com/1")
+	entry2 := createEntry(t, pool, feed.ID, "Filtered", "https://example.com/2")
 	_ = entry1
 
 	// Mark entry2 as filtered
@@ -243,16 +242,16 @@ func TestListForReader_ExcludesFilteredEntries(t *testing.T) {
 }
 
 func TestCountUnreadAndRead(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
-	cat := testhelper.CreateCategory(t, pool, user.ID, "Tech")
-	feed := testhelper.CreateFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
-	testhelper.Subscribe(t, pool, user.ID, feed.ID, cat.ID)
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	cat := createCategory(t, pool, user.ID, "Tech")
+	feed := createFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
+	subscribe(t, pool, user.ID, feed.ID, cat.ID)
 
-	entry1 := testhelper.CreateEntry(t, pool, feed.ID, "Entry 1", "https://example.com/1")
-	_ = testhelper.CreateEntry(t, pool, feed.ID, "Entry 2", "https://example.com/2")
+	entry1 := createEntry(t, pool, feed.ID, "Entry 1", "https://example.com/1")
+	_ = createEntry(t, pool, feed.ID, "Entry 2", "https://example.com/2")
 
 	queries := db.New(pool)
 
@@ -278,16 +277,16 @@ func TestCountUnreadAndRead(t *testing.T) {
 }
 
 func TestBulkCreate_SkipsDuplicates(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
-	cat := testhelper.CreateCategory(t, pool, user.ID, "Tech")
-	feed := testhelper.CreateFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
-	testhelper.Subscribe(t, pool, user.ID, feed.ID, cat.ID)
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	cat := createCategory(t, pool, user.ID, "Tech")
+	feed := createFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
+	subscribe(t, pool, user.ID, feed.ID, cat.ID)
 
 	// Create first batch
-	entry := testhelper.CreateEntry(t, pool, feed.ID, "Entry 1", "https://example.com/1")
+	entry := createEntry(t, pool, feed.ID, "Entry 1", "https://example.com/1")
 
 	// Try to create again with same URL and published_at
 	created, err := db.BulkCreate(ctx, pool, []db.Entry{{

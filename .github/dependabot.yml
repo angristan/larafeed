@@ -32,25 +32,23 @@ updates:
           - "@types/react-dom"
           - "@inertiajs/*"
 
-  - package-ecosystem: composer
+  - package-ecosystem: gomod
     directory: /
-    open-pull-requests-limit: 20
+    open-pull-requests-limit: 10
     schedule:
       interval: weekly
     groups:
-      laravel:
-        patterns:
-          - "laravel/*"
-          - "inertiajs/*"
       minor-dependencies:
         update-types:
           - "minor"
           - "patch"
         patterns:
           - "*"
-        exclude-patterns:
-          - "laravel/*"
-          - "inertiajs/*"
+
+  - package-ecosystem: docker
+    directory: /deploy
+    schedule:
+      interval: weekly
 
   - package-ecosystem: github-actions
     directory: /
@@ -60,8 +58,3 @@ updates:
       actions:
         patterns:
           - "*"
-
-  - package-ecosystem: docker
-    directory: /deploy
-    schedule:
-      interval: weekly

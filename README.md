@@ -25,7 +25,7 @@ Larafeed is a simple feed reader.
 - Support for Google Reader API and Fever API
   - Support is partial, but works with [Reeder classic](https://reederapp.com/classic/) at least
   - Google Reader API is available at `/api/reader` and Fever API at `/api/fever`, both with username+password
-- Telegram notications on user registration and login failures
+- Telegram notifications on user registration and login failures
 - Estimated reading time for each entry
 
 ### Screenshots & demo
@@ -48,18 +48,20 @@ Larafeed is a simple feed reader.
 
 ## Technical overview
 
-- Backend build with Laravel 12
-  - Architectured around [Actions](https://laravelactions.com/)
+- Backend built with Go
+  - [Chi](https://github.com/go-chi/chi) for routing
+  - [gonertia](https://github.com/romsar/gonertia) for Inertia.js SSR
+  - [pgx](https://github.com/jackc/pgx) for PostgreSQL
+  - [sqlc](https://sqlc.dev/) for type-safe SQL queries
+  - [River](https://riverqueue.com/) for background jobs (PostgreSQL-backed)
+  - [Goose](https://pressly.github.io/goose/) for database migrations
 - React for the frontend with the amazing [Mantine](https://mantine.dev/) components and hooks
-- [Inertia.js](https://inertiajs.com/) that does the magic glue between Laravel and React
+- [Inertia.js](https://inertiajs.com/) that does the magic glue between the Go backend and React
   - Prefetching is leveraged to make the app feel snappy
-- Feed parsing is powered by [SimplePie](https://github.com/simplepie/simplepie)
-  - Through [willvincent/feeds](https://github.com/willvincent/feeds)
+- Feed parsing is powered by [gofeed](https://github.com/mmcdole/gofeed)
   - Polite to publishers: uses ETag/Last-Modified headers to avoid re-downloading unchanged feeds
-- Summary generation is powered by Gemini through [echolabsdev/prism](https://github.com/echolabsdev/prism)
-- Background jobs are powered by Laravel queues
-- Favicon fetching is powered by [ash-jc-allen/favicon-fetcher](https://github.com/ash-jc-allen/favicon-fetcher)
-  - They are proxified through [imgproxy](https://github.com/imgproxy/imgproxy)
+- Summary generation is powered by Gemini
+- Favicon fetching and proxification through [imgproxy](https://github.com/imgproxy/imgproxy)
 - Images from articles are also proxified and optimized through `imgproxy`, for better privacy and performance
 - Google Reader API and Fever API are implemented from scratch
   - I relied heavily on the implementations of [FreshRSS](https://github.com/FreshRSS/FreshRSS/tree/edge/p/api) and [Miniflux](https://github.com/miniflux/v2/tree/main/internal)
@@ -158,14 +160,6 @@ erDiagram
     subscription_categories ||--o{ feed_subscriptions : "organizes"
 ```
 
-### Deployment
-
-The project is currently deployed on [Railway](https://railway.com?referralCode=XPWq2Z):
-
-![Railway deployment diagram](.github/readme/railway.png)
-
-The web server is powered by Laravel Octane, FrankenPHP and Caddy.
-
 ### Self-hosting
 
 See [docs/self-hosting.md](docs/self-hosting.md) for Docker Compose setup instructions.
@@ -174,17 +168,12 @@ See [docs/self-hosting.md](docs/self-hosting.md) for Docker Compose setup instru
 
 ### Run locally
 
-Larafeed is built with Laravel Sail, so you can run it locally with Docker.
-
 ```bash
 cp .env.example .env # and adjust the values
-composer update
-php artisan migrate --seed
 npm install
-composer dev
+npm run dev          # Vite dev server in another terminal
+docker compose -f docker-compose.dev.yml up  # Go backend with hot reload + PostgreSQL
 ```
-
-A [quick login link](https://github.com/spatie/laravel-login-link) is available on the login form, which will create a user and log you in.
 
 ## License
 

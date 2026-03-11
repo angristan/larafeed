@@ -5,19 +5,18 @@ import (
 	"testing"
 
 	"github.com/angristan/larafeed-go/internal/db"
-	"github.com/angristan/larafeed-go/internal/testhelper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSubscribeAndUnsubscribe(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 	queries := db.New(pool)
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
-	cat := testhelper.CreateCategory(t, pool, user.ID, "Tech")
-	feed := testhelper.CreateFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	cat := createCategory(t, pool, user.ID, "Tech")
+	feed := createFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
 
 	// Subscribe
 	err := queries.Subscribe(ctx, db.SubscribeParams{UserID: user.ID, FeedID: feed.ID, CategoryID: cat.ID})
@@ -39,13 +38,13 @@ func TestSubscribeAndUnsubscribe(t *testing.T) {
 }
 
 func TestSubscribe_DuplicateDoesNothing(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 	queries := db.New(pool)
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
-	cat := testhelper.CreateCategory(t, pool, user.ID, "Tech")
-	feed := testhelper.CreateFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	cat := createCategory(t, pool, user.ID, "Tech")
+	feed := createFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
 
 	err := queries.Subscribe(ctx, db.SubscribeParams{UserID: user.ID, FeedID: feed.ID, CategoryID: cat.ID})
 	require.NoError(t, err)
@@ -59,18 +58,18 @@ func TestSubscribe_DuplicateDoesNothing(t *testing.T) {
 }
 
 func TestListForUser_WithCounts(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 	queries := db.New(pool)
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
-	cat := testhelper.CreateCategory(t, pool, user.ID, "Tech")
-	feed := testhelper.CreateFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
-	testhelper.Subscribe(t, pool, user.ID, feed.ID, cat.ID)
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	cat := createCategory(t, pool, user.ID, "Tech")
+	feed := createFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
+	subscribe(t, pool, user.ID, feed.ID, cat.ID)
 
 	// Create entries
-	testhelper.CreateEntry(t, pool, feed.ID, "Entry 1", "https://example.com/1")
-	testhelper.CreateEntry(t, pool, feed.ID, "Entry 2", "https://example.com/2")
+	createEntry(t, pool, feed.ID, "Entry 1", "https://example.com/1")
+	createEntry(t, pool, feed.ID, "Entry 2", "https://example.com/2")
 
 	feeds, err := queries.ListSubscriptionsForUser(ctx, user.ID)
 	require.NoError(t, err)
@@ -80,15 +79,15 @@ func TestListForUser_WithCounts(t *testing.T) {
 }
 
 func TestUpdateSubscription(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 	queries := db.New(pool)
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
-	cat1 := testhelper.CreateCategory(t, pool, user.ID, "Tech")
-	cat2 := testhelper.CreateCategory(t, pool, user.ID, "News")
-	feed := testhelper.CreateFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
-	testhelper.Subscribe(t, pool, user.ID, feed.ID, cat1.ID)
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	cat1 := createCategory(t, pool, user.ID, "Tech")
+	cat2 := createCategory(t, pool, user.ID, "News")
+	feed := createFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
+	subscribe(t, pool, user.ID, feed.ID, cat1.ID)
 
 	customName := "My Custom Feed"
 	err := queries.UpdateSubscription(ctx, db.UpdateSubscriptionParams{
@@ -107,13 +106,13 @@ func TestUpdateSubscription(t *testing.T) {
 }
 
 func TestFeedHasSubscribers(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 	queries := db.New(pool)
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
-	cat := testhelper.CreateCategory(t, pool, user.ID, "Tech")
-	feed := testhelper.CreateFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	cat := createCategory(t, pool, user.ID, "Tech")
+	feed := createFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
 
 	// No subscribers
 	count, err := queries.CountFeedSubscribers(ctx, feed.ID)
@@ -121,7 +120,7 @@ func TestFeedHasSubscribers(t *testing.T) {
 	assert.Equal(t, int64(0), count)
 
 	// Subscribe
-	testhelper.Subscribe(t, pool, user.ID, feed.ID, cat.ID)
+	subscribe(t, pool, user.ID, feed.ID, cat.ID)
 
 	count, err = queries.CountFeedSubscribers(ctx, feed.ID)
 	require.NoError(t, err)

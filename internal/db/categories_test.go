@@ -5,17 +5,16 @@ import (
 	"testing"
 
 	"github.com/angristan/larafeed-go/internal/db"
-	"github.com/angristan/larafeed-go/internal/testhelper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCreateCategory(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 	queries := db.New(pool)
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
+	user := createUser(t, pool, "Test", "test@test.com", "password")
 
 	cat, err := queries.CreateCategory(ctx, db.CreateCategoryParams{UserID: user.ID, Name: "Tech"})
 	require.NoError(t, err)
@@ -25,11 +24,11 @@ func TestCreateCategory(t *testing.T) {
 }
 
 func TestCreateCategory_DuplicateNameFails(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 	queries := db.New(pool)
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
+	user := createUser(t, pool, "Test", "test@test.com", "password")
 
 	_, err := queries.CreateCategory(ctx, db.CreateCategoryParams{UserID: user.ID, Name: "Tech"})
 	require.NoError(t, err)
@@ -39,12 +38,12 @@ func TestCreateCategory_DuplicateNameFails(t *testing.T) {
 }
 
 func TestCreateCategory_DifferentUsersCanHaveSameName(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 	queries := db.New(pool)
 
-	user1 := testhelper.CreateUser(t, pool, "User1", "user1@test.com", "password")
-	user2 := testhelper.CreateUser(t, pool, "User2", "user2@test.com", "password")
+	user1 := createUser(t, pool, "User1", "user1@test.com", "password")
+	user2 := createUser(t, pool, "User2", "user2@test.com", "password")
 
 	cat1, err := queries.CreateCategory(ctx, db.CreateCategoryParams{UserID: user1.ID, Name: "Tech"})
 	require.NoError(t, err)
@@ -55,11 +54,11 @@ func TestCreateCategory_DifferentUsersCanHaveSameName(t *testing.T) {
 }
 
 func TestDeleteCategory(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 	queries := db.New(pool)
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
+	user := createUser(t, pool, "Test", "test@test.com", "password")
 	cat, _ := queries.CreateCategory(ctx, db.CreateCategoryParams{UserID: user.ID, Name: "Tech"})
 
 	err := queries.DeleteCategory(ctx, cat.ID)
@@ -70,12 +69,12 @@ func TestDeleteCategory(t *testing.T) {
 }
 
 func TestHasSubscriptions(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 	queries := db.New(pool)
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
-	cat := testhelper.CreateCategory(t, pool, user.ID, "Tech")
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	cat := createCategory(t, pool, user.ID, "Tech")
 
 	// No subscriptions
 	count, err := queries.CategoryHasSubscriptions(ctx, cat.ID)
@@ -83,8 +82,8 @@ func TestHasSubscriptions(t *testing.T) {
 	assert.Equal(t, int64(0), count)
 
 	// Add subscription
-	feed := testhelper.CreateFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
-	testhelper.Subscribe(t, pool, user.ID, feed.ID, cat.ID)
+	feed := createFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
+	subscribe(t, pool, user.ID, feed.ID, cat.ID)
 
 	count, err = queries.CategoryHasSubscriptions(ctx, cat.ID)
 	require.NoError(t, err)
@@ -92,11 +91,11 @@ func TestHasSubscriptions(t *testing.T) {
 }
 
 func TestFindOrCreate(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 	queries := db.New(pool)
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
+	user := createUser(t, pool, "Test", "test@test.com", "password")
 
 	// Create new
 	cat1, err := queries.FindOrCreateCategory(ctx, db.FindOrCreateCategoryParams{UserID: user.ID, Name: "Tech"})
@@ -110,11 +109,11 @@ func TestFindOrCreate(t *testing.T) {
 }
 
 func TestListForUser(t *testing.T) {
-	pool := testhelper.TestDB(t)
+	pool := testPool(t)
 	ctx := context.Background()
 	queries := db.New(pool)
 
-	user := testhelper.CreateUser(t, pool, "Test", "test@test.com", "password")
+	user := createUser(t, pool, "Test", "test@test.com", "password")
 	_, _ = queries.CreateCategory(ctx, db.CreateCategoryParams{UserID: user.ID, Name: "News"})
 	_, _ = queries.CreateCategory(ctx, db.CreateCategoryParams{UserID: user.ID, Name: "Tech"})
 
