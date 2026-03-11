@@ -1,13 +1,16 @@
 package service
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"regexp"
 	"strings"
+
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 )
 
 type ImgProxyService struct {
@@ -34,6 +37,14 @@ func (s *ImgProxyService) ProxifyFaviconURL(originalURL string) string {
 	return s.buildURL("rs:fill:32:32/dpr:2/f:webp", originalURL)
 }
 
+// ProxifyFaviconForAnalysis returns a proxified URL resized to 10x10 PNG for brightness analysis.
+func (s *ImgProxyService) ProxifyFaviconForAnalysis(originalURL string) string {
+	if !s.Enabled() || originalURL == "" {
+		return originalURL
+	}
+	return s.buildURL("rs:force:10:10/f:png", originalURL)
+}
+
 // ProxifyContentImage returns a proxified URL for content images.
 func (s *ImgProxyService) ProxifyContentImage(originalURL string) string {
 	if !s.Enabled() || originalURL == "" {
@@ -42,44 +53,80 @@ func (s *ImgProxyService) ProxifyContentImage(originalURL string) string {
 	return s.buildURL("f:webp", originalURL)
 }
 
-// ProxifyImagesInHTML replaces img src URLs in HTML content with proxified versions.
-func (s *ImgProxyService) ProxifyImagesInHTML(html string) string {
-	if !s.Enabled() || html == "" {
-		return html
+// ProxifyImagesInHTML replaces img src/srcset and picture>source srcset URLs
+// in HTML content with proxified versions, using DOM parsing.
+func (s *ImgProxyService) ProxifyImagesInHTML(htmlContent string) string {
+	if !s.Enabled() || htmlContent == "" {
+		return htmlContent
 	}
 
-	// Replace img src attributes
-	imgSrcRe := regexp.MustCompile(`(<img[^>]+src=")([^"]+)(")`)
-	html = imgSrcRe.ReplaceAllStringFunc(html, func(match string) string {
-		groups := imgSrcRe.FindStringSubmatch(match)
-		if len(groups) < 4 {
-			return match
-		}
-		proxied := s.ProxifyContentImage(groups[2])
-		return groups[1] + proxied + groups[3]
+	// Parse the HTML fragment
+	nodes, err := html.ParseFragment(strings.NewReader(htmlContent), &html.Node{
+		Type:     html.ElementNode,
+		DataAtom: atom.Body,
+		Data:     "body",
 	})
+	if err != nil || len(nodes) == 0 {
+		return htmlContent
+	}
 
-	// Replace img srcset attributes
-	srcsetRe := regexp.MustCompile(`(<(?:img|source)[^>]+srcset=")([^"]+)(")`)
-	html = srcsetRe.ReplaceAllStringFunc(html, func(match string) string {
-		groups := srcsetRe.FindStringSubmatch(match)
-		if len(groups) < 4 {
-			return match
-		}
-		srcset := groups[2]
-		parts := strings.Split(srcset, ",")
-		for i, part := range parts {
-			part = strings.TrimSpace(part)
-			fields := strings.Fields(part)
-			if len(fields) >= 1 {
-				fields[0] = s.ProxifyContentImage(fields[0])
-				parts[i] = strings.Join(fields, " ")
-			}
-		}
-		return groups[1] + strings.Join(parts, ", ") + groups[3]
-	})
+	// Walk all nodes and proxify img src/srcset and source srcset
+	for _, n := range nodes {
+		s.walkAndProxify(n)
+	}
 
-	return html
+	// Render back to HTML
+	var buf bytes.Buffer
+	for _, n := range nodes {
+		if err := html.Render(&buf, n); err != nil {
+			return htmlContent
+		}
+	}
+
+	return buf.String()
+}
+
+func (s *ImgProxyService) walkAndProxify(n *html.Node) {
+	if n.Type == html.ElementNode {
+		switch n.DataAtom {
+		case atom.Img:
+			s.proxifyAttr(n, "src", false)
+			s.proxifyAttr(n, "srcset", true)
+		case atom.Source:
+			s.proxifyAttr(n, "srcset", true)
+		}
+	}
+
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		s.walkAndProxify(c)
+	}
+}
+
+func (s *ImgProxyService) proxifyAttr(n *html.Node, attrName string, isSrcset bool) {
+	for i, a := range n.Attr {
+		if a.Key != attrName || a.Val == "" {
+			continue
+		}
+		if isSrcset {
+			n.Attr[i].Val = s.proxifySrcset(a.Val)
+		} else {
+			n.Attr[i].Val = s.ProxifyContentImage(a.Val)
+		}
+		return
+	}
+}
+
+func (s *ImgProxyService) proxifySrcset(srcset string) string {
+	parts := strings.Split(srcset, ",")
+	for i, part := range parts {
+		part = strings.TrimSpace(part)
+		fields := strings.Fields(part)
+		if len(fields) >= 1 {
+			fields[0] = s.ProxifyContentImage(fields[0])
+			parts[i] = strings.Join(fields, " ")
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 func (s *ImgProxyService) buildURL(processing, sourceURL string) string {

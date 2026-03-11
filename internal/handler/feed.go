@@ -195,18 +195,22 @@ func (h *FeedHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if fr := form.Get("filter_rules"); fr != "" {
 		filterRules = json.RawMessage(fr)
 		// Validate filter patterns
-		var rules []service.FilterRule
+		var rules service.FilterRules
 		if jsonErr := json.Unmarshal(filterRules, &rules); jsonErr == nil {
-			for _, rule := range rules {
-				if rule.ExcludeTitle != nil && *rule.ExcludeTitle != "" && !service.ValidateFilterPattern(*rule.ExcludeTitle) {
+			for _, pattern := range rules.ExcludeTitle {
+				if pattern != "" && !service.ValidateFilterPattern(pattern) {
 					validationError(w, r, h.inertia, map[string]string{"filter_rules": "Invalid or unsafe filter pattern in title filter."})
 					return
 				}
-				if rule.ExcludeContent != nil && *rule.ExcludeContent != "" && !service.ValidateFilterPattern(*rule.ExcludeContent) {
+			}
+			for _, pattern := range rules.ExcludeContent {
+				if pattern != "" && !service.ValidateFilterPattern(pattern) {
 					validationError(w, r, h.inertia, map[string]string{"filter_rules": "Invalid or unsafe filter pattern in content filter."})
 					return
 				}
-				if rule.ExcludeAuthor != nil && *rule.ExcludeAuthor != "" && !service.ValidateFilterPattern(*rule.ExcludeAuthor) {
+			}
+			for _, pattern := range rules.ExcludeAuthor {
+				if pattern != "" && !service.ValidateFilterPattern(pattern) {
 					validationError(w, r, h.inertia, map[string]string{"filter_rules": "Invalid or unsafe filter pattern in author filter."})
 					return
 				}
