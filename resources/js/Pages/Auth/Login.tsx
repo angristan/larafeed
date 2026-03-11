@@ -110,23 +110,9 @@ export default function Login({
                     )}
                 </Group>
 
-                <Group mt="xl" gap="sm">
-                    <Button fullWidth type="submit" loading={processing}>
-                        Sign in
-                    </Button>
-                    {window.location.hostname === 'localhost' && (
-                        <Anchor
-                            component="a"
-                            href={route('loginLinkLogin')}
-                            onClick={(e) => {
-                                e.preventDefault();
-                                post(route('loginLinkLogin'));
-                            }}
-                        >
-                            Quick Login
-                        </Anchor>
-                    )}
-                </Group>
+                <Button fullWidth mt="xl" type="submit" loading={processing}>
+                    Sign in
+                </Button>
             </Paper>
         </Container>
     );

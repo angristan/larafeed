@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: larafeed
+      POSTGRES_USER: larafeed
+      POSTGRES_PASSWORD: larafeed
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      DATABASE_URL: postgres://larafeed:larafeed@postgres:5432/larafeed?sslmode=disable
+      PORT: "3000"
+      APP_ENV: development
+      APP_URL: http://localhost:3000
+      VITE_DEV_URL: http://localhost:5173
+      SESSION_SECRET: dev-secret-key-change-in-production
+    volumes:
+      - .:/app
+    depends_on:
+      - postgres
+
+  vite:
+    build:
+      context: .
+      dockerfile: Dockerfile.vite
+    ports:
+      - "127.0.0.1:5173:5173"
+    volumes:
+      - ./resources:/app/resources
+      - ./postcss.config.js:/app/postcss.config.js
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./vite.config.ts:/app/vite.config.ts
+
+volumes:
+  pgdata:

@@ -12,10 +12,20 @@ import { createInertiaApp } from '@inertiajs/react';
 import { createTheme, MantineProvider, rem } from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
-import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName = import.meta.env.VITE_APP_NAME || 'Larafeed';
+
+const pages = import.meta.glob('./Pages/**/*.tsx');
+
+async function resolvePageComponent(name: string) {
+    const path = `./Pages/${name}.tsx`;
+    const loader = pages[path];
+    if (!loader) {
+        throw new Error(`Page not found: ${path}`);
+    }
+    return loader();
+}
 
 const theme = createTheme({
     colors: {
@@ -42,11 +52,7 @@ const theme = createTheme({
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
-    resolve: (name) =>
-        resolvePageComponent(
-            `./Pages/${name}.tsx`,
-            import.meta.glob('./Pages/**/*.tsx'),
-        ),
+    resolve: (name) => resolvePageComponent(name),
     setup({ el, App, props }) {
         const root = createRoot(el);
 
