@@ -1,8 +1,10 @@
 package server
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/angristan/larafeed-go/internal/auth"
 	"github.com/angristan/larafeed-go/internal/config"
@@ -125,8 +127,8 @@ func RegisterRoutes(
 		// Reader
 		r.Get("/feeds", readerHandler.Show)
 
-		// Feed CRUD
-		r.Post("/feed", feedHandler.Create)
+		// Feed CRUD (rate limited: 10 per minute)
+		r.With(RateLimitByIP(10, 1*time.Minute)).Post("/feed", feedHandler.Create)
 		r.Delete("/feed/{feed_id}", feedHandler.Unsubscribe)
 		r.Post("/feed/{feed_id}/refresh", feedHandler.Refresh)
 		r.Post("/feed/{feed_id}/refresh-favicon", feedHandler.RefreshFavicon)
@@ -158,10 +160,10 @@ func RegisterRoutes(
 		// Password
 		r.Put("/password", authHandler.UpdatePassword)
 
-		// Email verification
+		// Email verification (rate limited: 6 per minute)
 		r.Get("/verify-email", authHandler.ShowVerifyEmail)
 		r.Get("/verify-email/{id}/{hash}", authHandler.VerifyEmail)
-		r.Post("/email/verification-notification", authHandler.SendVerificationEmail)
+		r.With(RateLimitByIP(6, 1*time.Minute)).Post("/email/verification-notification", authHandler.SendVerificationEmail)
 
 		// Password confirmation
 		r.Get("/confirm-password", authHandler.ShowConfirmPassword)
@@ -173,6 +175,21 @@ func RegisterRoutes(
 
 	// API routes
 	r.Route("/api", func(r chi.Router) {
+		// Authenticated user endpoint (Sanctum-like)
+		r.With(authSvc.RequireAuth).Get("/user", func(w http.ResponseWriter, r *http.Request) {
+			user := auth.UserFromRequest(r)
+			if user == nil {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]any{
+				"id":    user.ID,
+				"name":  user.Name,
+				"email": user.Email,
+			})
+		})
+
 		// Google Reader API
 		r.Post("/reader/accounts/ClientLogin", greaderHandler.ClientLogin)
 		r.Route("/reader/reader/api/0", func(r chi.Router) {

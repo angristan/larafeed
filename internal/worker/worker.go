@@ -34,6 +34,8 @@ func Setup(ctx context.Context, pool *pgxpool.Pool, feedService *service.FeedSer
 	river.AddWorker(workers, &RefreshFeedWorker{feedService: feedService, q: q})
 	river.AddWorker(workers, &RefreshFaviconWorker{faviconService: faviconService, q: q})
 	river.AddWorker(workers, &RefreshStaleFeedsWorker{q: q, pool: pool})
+	river.AddWorker(workers, &RefreshStaleFaviconsWorker{q: q, pool: pool})
+	river.AddWorker(workers, &ImportOPMLWorker{feedService: feedService, faviconService: faviconService, q: q, pool: pool})
 
 	periodicJobs := []*river.PeriodicJob{
 		// Refresh stale feeds every 5 minutes
@@ -43,6 +45,14 @@ func Setup(ctx context.Context, pool *pgxpool.Pool, feedService *service.FeedSer
 				return RefreshStaleFeedsArgs{}, nil
 			},
 			&river.PeriodicJobOpts{RunOnStart: true},
+		),
+		// Refresh outdated/missing favicons every hour
+		river.NewPeriodicJob(
+			river.PeriodicInterval(1*time.Hour),
+			func() (river.JobArgs, *river.InsertOpts) {
+				return RefreshStaleFaviconsArgs{}, nil
+			},
+			nil,
 		),
 	}
 

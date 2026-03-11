@@ -54,6 +54,9 @@ func main() {
 		log.Fatalf("Failed to start worker: %v", err)
 	}
 
+	// Inject River client into OPML handler for async import
+	svcs.OPMLHandler.SetRiverClient(riverClient)
+
 	// Mount River UI (behind auth)
 	endpoints := riverui.NewEndpoints(riverClient, nil)
 	riverHandler, err := riverui.NewHandler(&riverui.HandlerOpts{

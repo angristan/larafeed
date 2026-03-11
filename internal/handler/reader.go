@@ -13,14 +13,15 @@ import (
 )
 
 type ReaderHandler struct {
-	inertia  *gonertia.Inertia
-	q        *db.Queries
-	llm      *service.LLMService
-	imgProxy *service.ImgProxyService
+	inertia    *gonertia.Inertia
+	q          *db.Queries
+	llm        *service.LLMService
+	imgProxy   *service.ImgProxyService
+	faviconSvc *service.FaviconService
 }
 
-func NewReaderHandler(i *gonertia.Inertia, q *db.Queries, llm *service.LLMService, imgProxy *service.ImgProxyService) *ReaderHandler {
-	return &ReaderHandler{inertia: i, q: q, llm: llm, imgProxy: imgProxy}
+func NewReaderHandler(i *gonertia.Inertia, q *db.Queries, llm *service.LLMService, imgProxy *service.ImgProxyService, faviconSvc *service.FaviconService) *ReaderHandler {
+	return &ReaderHandler{inertia: i, q: q, llm: llm, imgProxy: imgProxy, faviconSvc: faviconSvc}
 }
 
 func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +63,7 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 		ID                      int64    `json:"id"`
 		Name                    string   `json:"name"`
 		OriginalName            string   `json:"original_name"`
-		FaviconURL              *string  `json:"favicon_url"`
+		FaviconURL              string   `json:"favicon_url"`
 		FaviconIsDark           *bool    `json:"favicon_is_dark"`
 		SiteURL                 string   `json:"site_url"`
 		FeedURL                 string   `json:"feed_url"`
@@ -87,11 +88,12 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 			s := f.LastFailedRefreshAt.Format(time.RFC3339)
 			lastFail = &s
 		}
+		proxifiedFavicon := h.faviconSvc.BuildProxifiedFaviconURL(f.FaviconURL)
 		feeds[i] = readerFeed{
 			ID:                      f.ID,
 			Name:                    displayName,
 			OriginalName:            f.Name,
-			FaviconURL:              f.FaviconURL,
+			FaviconURL:              proxifiedFavicon,
 			FaviconIsDark:           f.FaviconIsDark,
 			SiteURL:                 f.SiteURL,
 			FeedURL:                 f.FeedURL,
@@ -139,6 +141,12 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 		entries = db.ReaderEntriesFromPublishedRows(rows)
 	}
 
+	// Proxify favicon URLs in entries
+	for i := range entries {
+		proxified := h.faviconSvc.BuildProxifiedFaviconURL(entries[i].FaviconURL)
+		entries[i].FaviconURL = &proxified
+	}
+
 	var entryData any = entries
 	if entries == nil {
 		entryData = []any{}
@@ -160,6 +168,10 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 			return nil, nil
 		}
 		entry := db.ReaderEntryFromRow(&row)
+
+		// Proxify favicon URL
+		proxifiedFav := h.faviconSvc.BuildProxifiedFaviconURL(entry.FaviconURL)
+		entry.FaviconURL = &proxifiedFav
 
 		// Auto-mark as read/unread based on query param
 		if readParam := q.Get("read"); readParam == "true" {

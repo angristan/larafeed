@@ -2,19 +2,22 @@ package handler
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/angristan/larafeed-go/internal/auth"
 	"github.com/angristan/larafeed-go/internal/db"
+	"github.com/angristan/larafeed-go/internal/service"
 	gonertia "github.com/romsar/gonertia/v2"
 )
 
 type SubscriptionsHandler struct {
-	inertia *gonertia.Inertia
-	q       *db.Queries
+	inertia    *gonertia.Inertia
+	q          *db.Queries
+	faviconSvc *service.FaviconService
 }
 
-func NewSubscriptionsHandler(i *gonertia.Inertia, q *db.Queries) *SubscriptionsHandler {
-	return &SubscriptionsHandler{inertia: i, q: q}
+func NewSubscriptionsHandler(i *gonertia.Inertia, q *db.Queries, faviconSvc *service.FaviconService) *SubscriptionsHandler {
+	return &SubscriptionsHandler{inertia: i, q: q, faviconSvc: faviconSvc}
 }
 
 // subscriptionFeedDTO matches the frontend SubscriptionFeedDto shape.
@@ -24,7 +27,7 @@ type subscriptionFeedDTO struct {
 	OriginalName            string                   `json:"original_name"`
 	FeedURL                 string                   `json:"feed_url"`
 	SiteURL                 string                   `json:"site_url"`
-	FaviconURL              *string                  `json:"favicon_url"`
+	FaviconURL              string                   `json:"favicon_url"`
 	FaviconIsDark           *bool                    `json:"favicon_is_dark"`
 	EntriesCount            int64                    `json:"entries_count"`
 	LastSuccessfulRefreshAt *string                  `json:"last_successful_refresh_at"`
@@ -72,7 +75,7 @@ func (h *SubscriptionsHandler) Show(w http.ResponseWriter, r *http.Request) {
 		for j, rr := range refreshRows {
 			var refreshedAt *string
 			if !rr.RefreshedAt.IsZero() {
-				s := rr.RefreshedAt.Format("2006-01-02T15:04:05Z")
+				s := rr.RefreshedAt.Format(time.RFC3339)
 				refreshedAt = &s
 			}
 			refreshes[j] = refreshDTO{
@@ -86,11 +89,11 @@ func (h *SubscriptionsHandler) Show(w http.ResponseWriter, r *http.Request) {
 
 		var lastSuccess, lastFailure *string
 		if f.LastSuccessfulRefreshAt != nil {
-			s := f.LastSuccessfulRefreshAt.Format("2006-01-02T15:04:05Z")
+			s := f.LastSuccessfulRefreshAt.Format(time.RFC3339)
 			lastSuccess = &s
 		}
 		if f.LastFailedRefreshAt != nil {
-			s := f.LastFailedRefreshAt.Format("2006-01-02T15:04:05Z")
+			s := f.LastFailedRefreshAt.Format(time.RFC3339)
 			lastFailure = &s
 		}
 
@@ -100,7 +103,7 @@ func (h *SubscriptionsHandler) Show(w http.ResponseWriter, r *http.Request) {
 			OriginalName:            f.Name,
 			FeedURL:                 f.FeedURL,
 			SiteURL:                 f.SiteURL,
-			FaviconURL:              f.FaviconURL,
+			FaviconURL:              h.faviconSvc.BuildProxifiedFaviconURL(f.FaviconURL),
 			FaviconIsDark:           f.FaviconIsDark,
 			EntriesCount:            f.EntryCount,
 			LastSuccessfulRefreshAt: lastSuccess,

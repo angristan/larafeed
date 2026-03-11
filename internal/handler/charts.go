@@ -1,14 +1,15 @@
 package handler
 
 import (
+	"math"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/angristan/larafeed-go/internal/auth"
 	"github.com/angristan/larafeed-go/internal/db"
-	gonertia "github.com/romsar/gonertia/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
+	gonertia "github.com/romsar/gonertia/v2"
 )
 
 type ChartsHandler struct {
@@ -237,7 +238,7 @@ func safePercent(num, denom int) float64 {
 	if denom == 0 {
 		return 0
 	}
-	return float64(num) / float64(denom) * 100
+	return math.Round(float64(num)/float64(denom)*10000) / 100
 }
 
 func sumCounts(counts []DailyCount) int {
@@ -292,7 +293,7 @@ func computeReadThrough(entries, reads []DailyCount, since time.Time, days int) 
 		r := readMap[date]
 		var pct *float64
 		if e > 0 {
-			v := float64(r) / float64(e) * 100
+			v := math.Round(float64(r)/float64(e)*10000) / 100
 			pct = &v
 		}
 		result = append(result, DailyReadThrough{Date: date, Percentage: pct})
@@ -326,7 +327,7 @@ func (h *ChartsHandler) queryDailyRefreshes(r *http.Request, userID int64, feedI
 		dr.Date = d.Format("2006-01-02")
 		dr.TotalAttempts = dr.Successes + dr.Failures
 		if dr.TotalAttempts > 0 {
-			rate := float64(dr.Successes) / float64(dr.TotalAttempts) * 100
+			rate := math.Round(float64(dr.Successes)/float64(dr.TotalAttempts)*10000) / 100
 			dr.SuccessRate = &rate
 		}
 		dataMap[dr.Date] = dr
