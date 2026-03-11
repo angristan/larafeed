@@ -1,0 +1,129 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "internal/db/queries"
+    schema: "internal/db/migrations"
+    gen:
+      go:
+        package: "db"
+        out: "internal/db"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        emit_empty_slices: true
+        emit_interface: true
+        output_db_file_name: "sqlc_db.go"
+        output_models_file_name: "sqlc_models.go"
+        output_querier_file_name: "sqlc_querier.go"
+        overrides:
+          # Non-nullable timestamptz → time.Time
+          - db_type: "timestamptz"
+            go_type:
+              import: "time"
+              type: "Time"
+          - db_type: "pg_catalog.timestamptz"
+            go_type:
+              import: "time"
+              type: "Time"
+          # Nullable timestamptz → *time.Time
+          - db_type: "timestamptz"
+            nullable: true
+            go_type:
+              import: "time"
+              type: "Time"
+              pointer: true
+          - db_type: "pg_catalog.timestamptz"
+            nullable: true
+            go_type:
+              import: "time"
+              type: "Time"
+              pointer: true
+          # Non-nullable int4 → int
+          - db_type: "int4"
+            go_type: "int"
+          - db_type: "pg_catalog.int4"
+            go_type: "int"
+          # Nullable int4 → *int
+          - db_type: "int4"
+            nullable: true
+            go_type:
+              type: "int"
+              pointer: true
+          - db_type: "pg_catalog.int4"
+            nullable: true
+            go_type:
+              type: "int"
+              pointer: true
+          # Nullable varchar → *string
+          - db_type: "varchar"
+            nullable: true
+            go_type:
+              type: "string"
+              pointer: true
+          - db_type: "pg_catalog.varchar"
+            nullable: true
+            go_type:
+              type: "string"
+              pointer: true
+          # Nullable text → *string
+          - db_type: "text"
+            nullable: true
+            go_type:
+              type: "string"
+              pointer: true
+          # Nullable bool → *bool
+          - db_type: "bool"
+            nullable: true
+            go_type:
+              type: "bool"
+              pointer: true
+          - db_type: "pg_catalog.bool"
+            nullable: true
+            go_type:
+              type: "bool"
+              pointer: true
+          # Column-specific overrides
+          - column: "feed_subscriptions.filter_rules"
+            go_type: "encoding/json.RawMessage"
+          - column: "personal_access_tokens.abilities"
+            go_type:
+              type: "string"
+              pointer: true
+        rename:
+          url: "URL"
+          feed_url: "FeedURL"
+          site_url: "SiteURL"
+          favicon_url: "FaviconURL"
+          favicon_is_dark: "FaviconIsDark"
+          favicon_updated_at: "FaviconUpdatedAt"
+          last_successful_refresh_at: "LastSuccessfulRefreshAt"
+          last_failed_refresh_at: "LastFailedRefreshAt"
+          last_error_message: "LastErrorMessage"
+          feed_id: "FeedID"
+          user_id: "UserID"
+          entry_id: "EntryID"
+          category_id: "CategoryID"
+          published_at: "PublishedAt"
+          created_at: "CreatedAt"
+          updated_at: "UpdatedAt"
+          read_at: "ReadAt"
+          starred_at: "StarredAt"
+          archived_at: "ArchivedAt"
+          filtered_at: "FilteredAt"
+          email_verified_at: "EmailVerifiedAt"
+          remember_token: "RememberToken"
+          fever_api_key: "FeverAPIKey"
+          two_factor_secret: "TwoFactorSecret"
+          two_factor_recovery_codes: "TwoFactorRecoveryCodes"
+          two_factor_confirmed_at: "TwoFactorConfirmedAt"
+          custom_feed_name: "CustomFeedName"
+          filter_rules: "FilterRules"
+          was_successful: "WasSuccessful"
+          entries_created: "EntriesCreated"
+          error_message: "ErrorMessage"
+          refreshed_at: "RefreshedAt"
+          tokenable_type: "TokenableType"
+          tokenable_id: "TokenableID"
+          last_used_at: "LastUsedAt"
+          expires_at: "ExpiresAt"
+          html_url: "HTMLURL"
+          xml_url: "XMLURL"

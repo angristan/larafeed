@@ -2,12 +2,10 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "tsc && vite build",
         "dev": "vite",
-        "lint": "biome check --write",
-        "lint-check": "biome check",
-        "typecheck": "tsc --noEmit",
-        "prepare": "[ -d .git ] && lefthook install || true"
+        "build": "vite build",
+        "lint-check": "biome check --no-errors-on-unmatched",
+        "typecheck": "tsc --noEmit"
     },
     "devDependencies": {
         "@biomejs/biome": "^2.4.5",
@@ -27,20 +25,16 @@
         "@vitejs/plugin-react": "^5.1.4",
         "autoprefixer": "^10.4.27",
         "axios": "^1.13.6",
-        "babel-plugin-react-compiler": "^19.0.0-beta-27714ef-20250124",
-        "concurrently": "^9.2.1",
         "dayjs": "^1.11.19",
-        "laravel-vite-plugin": "^2.1",
-        "lefthook": "^2.1.2",
         "postcss": "^8.5.8",
         "postcss-preset-mantine": "^1.18.0",
         "postcss-simple-vars": "^7.0.1",
         "react": "^19.2.4",
-        "react-compiler-runtime": "^19.0.0-beta-714736e-20250131",
         "react-dom": "^19.2.4",
         "reading-time-estimator": "^1.14.0",
         "recharts": "^2.15.4",
         "typescript": "^5.9.3",
-        "vite": "^7.3"
+        "vite": "^7.3",
+        "ziggy-js": "^2.0"
     }
 }
