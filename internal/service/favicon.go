@@ -8,13 +8,15 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
-	"math"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/angristan/larafeed-go/internal/db"
 )
+
+const brightnessThreshold = 80
 
 type FaviconService struct {
 	q        *db.Queries
@@ -74,13 +76,19 @@ func (s *FaviconService) GetFaviconURL(ctx context.Context, siteURL string) stri
 }
 
 // AnalyzeBrightness determines if a favicon is dark (for dark mode backgrounds).
+// Uses imgproxy to resize to 10x10 PNG, then calculates weighted average brightness.
 func (s *FaviconService) AnalyzeBrightness(ctx context.Context, faviconURL string) *bool {
 	if faviconURL == "" {
 		return nil
 	}
 
-	// Fetch the image
-	req, err := http.NewRequestWithContext(ctx, "GET", faviconURL, nil)
+	// Use imgproxy to resize to 10x10 PNG for consistent analysis
+	fetchURL := faviconURL
+	if s.imgProxy.Enabled() {
+		fetchURL = s.imgProxy.ProxifyFaviconForAnalysis(faviconURL)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", fetchURL, nil)
 	if err != nil {
 		return nil
 	}
@@ -89,6 +97,12 @@ func (s *FaviconService) AnalyzeBrightness(ctx context.Context, faviconURL strin
 		return nil
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		slog.Warn("Failed to fetch favicon for brightness analysis",
+			"favicon_url", faviconURL, "status", resp.StatusCode)
+		return nil
+	}
 
 	img, _, err := image.Decode(resp.Body)
 	if err != nil {
@@ -102,23 +116,33 @@ func (s *FaviconService) AnalyzeBrightness(ctx context.Context, faviconURL strin
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
 			c := img.At(x, y)
-			r, g, b, a := c.RGBA()
-			if a == 0 {
+
+			// Convert to NRGBA to get non-premultiplied 0-255 values,
+			// matching PHP GD's imagecolorat() behavior.
+			nrgba := color.NRGBAModel.Convert(c).(color.NRGBA)
+
+			// Alpha: 0=transparent, 255=opaque (GD uses 0=opaque, 127=transparent)
+			if nrgba.A == 0 {
 				continue
 			}
-			opacity := float64(a) / float64(color.Opaque.A)
-			brightness := 0.299*float64(r)/256 + 0.587*float64(g)/256 + 0.114*float64(b)/256
+
+			// Opacity: 0.0 to 1.0
+			opacity := float64(nrgba.A) / 255.0
+
+			// Perceived brightness using luminance formula on 0-255 RGB values
+			brightness := 0.299*float64(nrgba.R) + 0.587*float64(nrgba.G) + 0.114*float64(nrgba.B)
+
 			totalBrightness += brightness * opacity
 			totalWeight += opacity
 		}
 	}
 
-	if totalWeight == 0 {
+	if totalWeight < 0.001 {
 		return nil
 	}
 
 	avgBrightness := totalBrightness / totalWeight
-	isDark := avgBrightness < 80
+	isDark := avgBrightness < brightnessThreshold
 	return &isDark
 }
 
@@ -141,6 +165,3 @@ func (s *FaviconService) BuildProxifiedFaviconURL(faviconURL *string) string {
 	}
 	return s.imgProxy.ProxifyFaviconURL(*faviconURL)
 }
-
-// Unused but needed for math import
-var _ = math.Abs

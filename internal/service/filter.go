@@ -17,39 +17,45 @@ func NewFilterService(q *db.Queries) *FilterService {
 	return &FilterService{q: q}
 }
 
-type FilterRule struct {
-	ExcludeTitle   *string `json:"exclude_title"`
-	ExcludeContent *string `json:"exclude_content"`
-	ExcludeAuthor  *string `json:"exclude_author"`
+// FilterRules matches the frontend format: {exclude_title: string[], exclude_content: string[], exclude_author: string[]}
+type FilterRules struct {
+	ExcludeTitle   []string `json:"exclude_title"`
+	ExcludeContent []string `json:"exclude_content"`
+	ExcludeAuthor  []string `json:"exclude_author"`
 }
 
 // EvaluateFilter checks if an entry should be filtered based on the rules.
-func EvaluateFilter(entry db.Entry, rules []FilterRule) bool {
-	for _, rule := range rules {
-		if rule.ExcludeTitle != nil && *rule.ExcludeTitle != "" {
-			if matchesPattern(*rule.ExcludeTitle, entry.Title) {
-				return true
-			}
-		}
-		if rule.ExcludeContent != nil && *rule.ExcludeContent != "" {
-			content := ""
-			if entry.Content != nil {
-				content = *entry.Content
-			}
-			if matchesPattern(*rule.ExcludeContent, content) {
-				return true
-			}
-		}
-		if rule.ExcludeAuthor != nil && *rule.ExcludeAuthor != "" {
-			author := ""
-			if entry.Author != nil {
-				author = *entry.Author
-			}
-			if matchesPattern(*rule.ExcludeAuthor, author) {
-				return true
-			}
+func EvaluateFilter(entry db.Entry, rules *FilterRules) bool {
+	if rules == nil {
+		return false
+	}
+
+	for _, pattern := range rules.ExcludeTitle {
+		if pattern != "" && matchesPattern(pattern, entry.Title) {
+			return true
 		}
 	}
+
+	content := ""
+	if entry.Content != nil {
+		content = *entry.Content
+	}
+	for _, pattern := range rules.ExcludeContent {
+		if pattern != "" && matchesPattern(pattern, content) {
+			return true
+		}
+	}
+
+	author := ""
+	if entry.Author != nil {
+		author = *entry.Author
+	}
+	for _, pattern := range rules.ExcludeAuthor {
+		if pattern != "" && matchesPattern(pattern, author) {
+			return true
+		}
+	}
+
 	return false
 }
 
@@ -69,16 +75,16 @@ func (s *FilterService) ApplyFilters(ctx context.Context, sub db.FeedSubscriptio
 		return
 	}
 
-	var rules []FilterRule
+	var rules FilterRules
 	if err := json.Unmarshal(sub.FilterRules, &rules); err != nil {
 		return
 	}
-	if len(rules) == 0 {
+	if len(rules.ExcludeTitle) == 0 && len(rules.ExcludeContent) == 0 && len(rules.ExcludeAuthor) == 0 {
 		return
 	}
 
 	for _, entry := range entries {
-		if EvaluateFilter(entry, rules) {
+		if EvaluateFilter(entry, &rules) {
 			_ = s.q.MarkFiltered(ctx, db.MarkFilteredParams{UserID: sub.UserID, EntryID: entry.ID})
 		} else {
 			_ = s.q.ClearFiltered(ctx, db.ClearFilteredParams{UserID: sub.UserID, EntryID: entry.ID})

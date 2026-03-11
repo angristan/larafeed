@@ -61,7 +61,6 @@ func TestEvaluateFilter(t *testing.T) {
 			Author:  author,
 		}
 	}
-	strPtr := func(s string) *string { return &s }
 
 	t.Run("returns false when no filter rules", func(t *testing.T) {
 		entry := makeEntry("Test Title", nil, nil)
@@ -70,79 +69,85 @@ func TestEvaluateFilter(t *testing.T) {
 
 	t.Run("returns false when empty filter rules", func(t *testing.T) {
 		entry := makeEntry("Test Title", nil, nil)
-		assert.False(t, EvaluateFilter(entry, []FilterRule{}))
+		assert.False(t, EvaluateFilter(entry, &FilterRules{}))
 	})
 
 	t.Run("filters entry by title substring", func(t *testing.T) {
 		entry := makeEntry("v1.0.0-alpha.1 Release", nil, nil)
-		rules := []FilterRule{{ExcludeTitle: strPtr("alpha")}}
+		rules := &FilterRules{ExcludeTitle: []string{"alpha"}}
 		assert.True(t, EvaluateFilter(entry, rules))
 	})
 
 	t.Run("filters entry by title regex", func(t *testing.T) {
 		entry := makeEntry("v1.0.0-rc.2 Release", nil, nil)
-		rules := []FilterRule{{ExcludeTitle: strPtr(`rc\.\d+`)}}
+		rules := &FilterRules{ExcludeTitle: []string{`rc\.\d+`}}
 		assert.True(t, EvaluateFilter(entry, rules))
 	})
 
 	t.Run("filters entry by title regex alternative", func(t *testing.T) {
 		entry := makeEntry("v1.0.0-beta.1 Release", nil, nil)
-		rules := []FilterRule{{ExcludeTitle: strPtr(`alpha|beta|rc`)}}
+		rules := &FilterRules{ExcludeTitle: []string{`alpha|beta|rc`}}
 		assert.True(t, EvaluateFilter(entry, rules))
 	})
 
 	t.Run("does not filter when title does not match", func(t *testing.T) {
 		entry := makeEntry("v1.0.0 Stable Release", nil, nil)
-		rules := []FilterRule{{ExcludeTitle: strPtr("alpha")}}
+		rules := &FilterRules{ExcludeTitle: []string{"alpha"}}
 		assert.False(t, EvaluateFilter(entry, rules))
 	})
 
 	t.Run("filters entry by content", func(t *testing.T) {
 		content := "This is a sponsored post"
 		entry := makeEntry("Title", &content, nil)
-		rules := []FilterRule{{ExcludeContent: strPtr("sponsored")}}
+		rules := &FilterRules{ExcludeContent: []string{"sponsored"}}
 		assert.True(t, EvaluateFilter(entry, rules))
 	})
 
 	t.Run("filters entry by author", func(t *testing.T) {
 		author := "AutoBot"
 		entry := makeEntry("Title", nil, &author)
-		rules := []FilterRule{{ExcludeAuthor: strPtr("bot")}}
+		rules := &FilterRules{ExcludeAuthor: []string{"bot"}}
 		assert.True(t, EvaluateFilter(entry, rules))
 	})
 
 	t.Run("filter is case insensitive", func(t *testing.T) {
 		entry := makeEntry("ALPHA Release", nil, nil)
-		rules := []FilterRule{{ExcludeTitle: strPtr("alpha")}}
+		rules := &FilterRules{ExcludeTitle: []string{"alpha"}}
 		assert.True(t, EvaluateFilter(entry, rules))
 	})
 
 	t.Run("handles nil content gracefully", func(t *testing.T) {
 		entry := makeEntry("Title", nil, nil)
-		rules := []FilterRule{{ExcludeContent: strPtr("test")}}
+		rules := &FilterRules{ExcludeContent: []string{"test"}}
 		assert.False(t, EvaluateFilter(entry, rules))
 	})
 
 	t.Run("handles nil author gracefully", func(t *testing.T) {
 		entry := makeEntry("Title", nil, nil)
-		rules := []FilterRule{{ExcludeAuthor: strPtr("test")}}
+		rules := &FilterRules{ExcludeAuthor: []string{"test"}}
 		assert.False(t, EvaluateFilter(entry, rules))
 	})
 
 	t.Run("invalid regex falls back to substring match", func(t *testing.T) {
 		entry := makeEntry("Title with [brackets]", nil, nil)
-		rules := []FilterRule{{ExcludeTitle: strPtr("[brackets]")}}
+		rules := &FilterRules{ExcludeTitle: []string{"[brackets]"}}
 		// [brackets] is valid regex (character class), but substring also matches
 		assert.True(t, EvaluateFilter(entry, rules))
 	})
 
-	t.Run("multiple rules across fields", func(t *testing.T) {
+	t.Run("multiple patterns in same field", func(t *testing.T) {
+		entry := makeEntry("Title", nil, nil)
+		rules := &FilterRules{ExcludeTitle: []string{"nomatch", "Title"}}
+		assert.True(t, EvaluateFilter(entry, rules))
+	})
+
+	t.Run("multiple fields with patterns", func(t *testing.T) {
 		content := "Sponsored content"
 		author := "John"
 		entry := makeEntry("Title", &content, &author)
-		rules := []FilterRule{
-			{ExcludeTitle: strPtr("nomatch")},
-			{ExcludeContent: strPtr("Sponsored")},
+		rules := &FilterRules{
+			ExcludeTitle:   []string{"nomatch"},
+			ExcludeContent: []string{"Sponsored"},
 		}
 		assert.True(t, EvaluateFilter(entry, rules))
 	})
