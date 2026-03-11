@@ -35,6 +35,7 @@ type Services struct {
 	FeedService    *service.FeedService
 	FaviconService *service.FaviconService
 	Queries        *db.Queries
+	OPMLHandler    *handler.OPMLHandler
 }
 
 func New(cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux, *Services, error) {
@@ -105,13 +106,13 @@ func New(cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux, *Services, error) {
 
 	// Create handlers
 	authHandler := handler.NewAuthHandler(i, authSvc, q, cfg, telegramSvc)
-	readerHandler := handler.NewReaderHandler(i, q, llmSvc, imgProxySvc)
+	readerHandler := handler.NewReaderHandler(i, q, llmSvc, imgProxySvc, faviconSvc)
 	feedHandler := handler.NewFeedHandler(i, pool, q, feedSvc, faviconSvc, filterSvc)
 	entryHandler := handler.NewEntryHandler(q)
 	categoryHandler := handler.NewCategoryHandler(i, q)
 	userHandler := handler.NewUserHandler(i, pool, authSvc, q)
-	opmlHandler := handler.NewOPMLHandler(i, opmlSvc, authSvc)
-	subsHandler := handler.NewSubscriptionsHandler(i, q)
+	opmlHandler := handler.NewOPMLHandler(i, opmlSvc, authSvc, q)
+	subsHandler := handler.NewSubscriptionsHandler(i, q, faviconSvc)
 	chartsHandler := handler.NewChartsHandler(i, pool, q)
 
 	// API handlers
@@ -127,6 +128,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux, *Services, error) {
 		FeedService:    feedSvc,
 		FaviconService: faviconSvc,
 		Queries:        q,
+		OPMLHandler:    opmlHandler,
 	}
 
 	return r, svcs, nil

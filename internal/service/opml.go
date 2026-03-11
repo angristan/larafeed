@@ -10,6 +10,13 @@ import (
 	"github.com/angristan/larafeed-go/internal/db"
 )
 
+// OPMLFeedImport represents a single feed to import from OPML.
+type OPMLFeedImport struct {
+	FeedURL      string
+	CategoryName string
+	FallbackName string
+}
+
 type OPMLService struct {
 	q           *db.Queries
 	feedService *FeedService
@@ -24,10 +31,10 @@ func NewOPMLService(q *db.Queries, feedService *FeedService) *OPMLService {
 
 // OPML XML structures
 type OPML struct {
-	XMLName xml.Name  `xml:"opml"`
-	Version string    `xml:"version,attr"`
-	Head    OPMLHead  `xml:"head"`
-	Body    OPMLBody  `xml:"body"`
+	XMLName xml.Name `xml:"opml"`
+	Version string   `xml:"version,attr"`
+	Head    OPMLHead `xml:"head"`
+	Body    OPMLBody `xml:"body"`
 }
 
 type OPMLHead struct {
@@ -102,53 +109,70 @@ func (s *OPMLService) Export(ctx context.Context, userID int64) ([]byte, error) 
 	return append([]byte(xml.Header), data...), nil
 }
 
-// Import parses an OPML file and creates subscriptions.
-func (s *OPMLService) Import(ctx context.Context, userID int64, reader io.Reader) error {
+// ParseOPML parses an OPML file and returns the list of feeds to import.
+func (s *OPMLService) ParseOPML(ctx context.Context, userID int64, reader io.Reader) ([]OPMLFeedImport, error) {
 	data, err := io.ReadAll(reader)
 	if err != nil {
-		return fmt.Errorf("read OPML: %w", err)
+		return nil, fmt.Errorf("read OPML: %w", err)
 	}
 
 	var opml OPML
 	if err := xml.Unmarshal(data, &opml); err != nil {
-		return fmt.Errorf("parse OPML: %w", err)
+		return nil, fmt.Errorf("parse OPML: %w", err)
 	}
+
+	var imports []OPMLFeedImport
 
 	for _, outline := range opml.Body.Outlines {
 		if outline.XMLURL != "" {
-			// Validate URL before importing (SSRF protection)
 			if err := ValidateURL(outline.XMLURL); err != nil {
 				continue
 			}
-			// Single feed, no category wrapper
-			cat, err := s.q.FindOrCreateCategory(ctx, db.FindOrCreateCategoryParams{UserID: userID, Name: "Uncategorized"})
-			if err != nil {
-				continue
-			}
-			_, _ = s.feedService.CreateFeed(ctx, userID, outline.XMLURL, cat.ID, outline.Text)
+			imports = append(imports, OPMLFeedImport{
+				FeedURL:      outline.XMLURL,
+				CategoryName: "Uncategorized",
+				FallbackName: outline.Text,
+			})
 			continue
 		}
 
-		// Category with child feeds
 		catName := outline.Text
 		if catName == "" {
 			catName = "Uncategorized"
-		}
-		cat, err := s.q.FindOrCreateCategory(ctx, db.FindOrCreateCategoryParams{UserID: userID, Name: catName})
-		if err != nil {
-			continue
 		}
 
 		for _, child := range outline.Outlines {
 			if child.XMLURL == "" {
 				continue
 			}
-			// Validate URL before importing (SSRF protection)
 			if err := ValidateURL(child.XMLURL); err != nil {
 				continue
 			}
-			_, _ = s.feedService.CreateFeed(ctx, userID, child.XMLURL, cat.ID, child.Text)
+			imports = append(imports, OPMLFeedImport{
+				FeedURL:      child.XMLURL,
+				CategoryName: catName,
+				FallbackName: child.Text,
+			})
 		}
+	}
+
+	return imports, nil
+}
+
+// Import parses an OPML file and creates subscriptions synchronously.
+// Kept for backward compatibility; prefer ParseOPML + async job dispatch.
+func (s *OPMLService) Import(ctx context.Context, userID int64, reader io.Reader) error {
+	imports, err := s.ParseOPML(ctx, userID, reader)
+	if err != nil {
+		return err
+	}
+
+	for _, imp := range imports {
+		cat, err := s.q.FindOrCreateCategory(ctx, db.FindOrCreateCategoryParams{UserID: userID, Name: imp.CategoryName})
+		if err != nil {
+			continue
+		}
+		_, _ = s.feedService.CreateFeed(ctx, userID, imp.FeedURL, cat.ID, imp.FallbackName)
 	}
 
 	return nil
