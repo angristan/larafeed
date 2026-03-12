@@ -9,6 +9,12 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+type updateEntryRequest struct {
+	Read     *bool `json:"read"`
+	Starred  *bool `json:"starred"`
+	Archived *bool `json:"archived"`
+}
+
 type EntryHandler struct {
 	q *db.Queries
 }
@@ -18,7 +24,7 @@ func NewEntryHandler(q *db.Queries) *EntryHandler {
 }
 
 func (h *EntryHandler) Update(w http.ResponseWriter, r *http.Request) {
-	form, err := parseFormData(r)
+	req, err := decodeRequest[updateEntryRequest](r)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
@@ -31,24 +37,24 @@ func (h *EntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if form.Get("read") != "" {
-		if form.GetBool("read") {
+	if req.Read != nil {
+		if *req.Read {
 			_ = h.q.MarkAsRead(r.Context(), db.MarkAsReadParams{UserID: user.ID, EntryID: entryID})
 		} else {
 			_ = h.q.MarkAsUnread(r.Context(), db.MarkAsUnreadParams{UserID: user.ID, EntryID: entryID})
 		}
 	}
 
-	if form.Get("starred") != "" {
-		if form.GetBool("starred") {
+	if req.Starred != nil {
+		if *req.Starred {
 			_ = h.q.Favorite(r.Context(), db.FavoriteParams{UserID: user.ID, EntryID: entryID})
 		} else {
 			_ = h.q.Unfavorite(r.Context(), db.UnfavoriteParams{UserID: user.ID, EntryID: entryID})
 		}
 	}
 
-	if form.Get("archived") != "" {
-		if form.GetBool("archived") {
+	if req.Archived != nil {
+		if *req.Archived {
 			_ = h.q.Archive(r.Context(), db.ArchiveParams{UserID: user.ID, EntryID: entryID})
 		} else {
 			_ = h.q.Unarchive(r.Context(), db.UnarchiveParams{UserID: user.ID, EntryID: entryID})
