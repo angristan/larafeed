@@ -2,7 +2,7 @@ package worker
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/angristan/larafeed-go/internal/db"
@@ -31,7 +31,7 @@ func (w *RefreshStaleFaviconsWorker) Work(ctx context.Context, job *river.Job[Re
 		Valid:        true,
 	})
 	if err != nil {
-		log.Printf("Failed to get feeds with outdated favicons: %v", err)
+		slog.Error("failed to get feeds with outdated favicons", "error", err)
 		return nil
 	}
 
@@ -59,10 +59,10 @@ func (w *RefreshStaleFaviconsWorker) Work(ctx context.Context, job *river.Job[Re
 			},
 		})
 		if err != nil {
-			log.Printf("Failed to enqueue favicon refresh for feed %d: %v", feed.ID, err)
+			slog.Error("failed to enqueue favicon refresh", "feed_id", feed.ID, "error", err)
 		}
 	}
 
-	log.Printf("Enqueued favicon refresh for %d feeds", limit)
+	slog.Info("enqueued favicon refresh", "count", limit)
 	return nil
 }

@@ -3,7 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 
 	gonertia "github.com/romsar/gonertia/v2"
@@ -18,7 +18,7 @@ func render(w http.ResponseWriter, r *http.Request, i *gonertia.Inertia, compone
 		err = i.Render(w, r, component)
 	}
 	if err != nil {
-		log.Printf("Render %s error: %v", component, err)
+		slog.Error("render error", "component", component, "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }

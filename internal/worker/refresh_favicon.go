@@ -3,7 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/angristan/larafeed-go/internal/db"
 	"github.com/angristan/larafeed-go/internal/service"
@@ -31,7 +31,7 @@ func (w *RefreshFaviconWorker) Work(ctx context.Context, job *river.Job[RefreshF
 	}
 
 	if err := w.faviconService.RefreshFavicon(ctx, &feed); err != nil {
-		log.Printf("Failed to refresh favicon for feed %d: %v", feed.ID, err)
+		slog.Error("failed to refresh favicon", "feed_id", feed.ID, "error", err)
 	}
 
 	return nil

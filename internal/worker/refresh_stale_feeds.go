@@ -2,7 +2,7 @@ package worker
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/angristan/larafeed-go/internal/db"
@@ -30,7 +30,7 @@ func (w *RefreshStaleFeedsWorker) Work(ctx context.Context, job *river.Job[Refre
 		MaxFeeds:   10,
 	})
 	if err != nil {
-		log.Printf("Failed to get stale feeds: %v", err)
+		slog.Error("failed to get stale feeds", "error", err)
 		return nil
 	}
 
@@ -52,10 +52,10 @@ func (w *RefreshStaleFeedsWorker) Work(ctx context.Context, job *river.Job[Refre
 			},
 		})
 		if err != nil {
-			log.Printf("Failed to enqueue refresh for feed %d: %v", feed.ID, err)
+			slog.Error("failed to enqueue refresh for feed", "feed_id", feed.ID, "error", err)
 		}
 	}
 
-	log.Printf("Enqueued refresh for %d stale feeds", len(staleFeeds))
+	slog.Info("enqueued refresh for stale feeds", "count", len(staleFeeds))
 	return nil
 }

@@ -2,7 +2,7 @@ package handler
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/angristan/larafeed-go/internal/auth"
@@ -82,13 +82,13 @@ func (h *OPMLHandler) Import(w http.ResponseWriter, r *http.Request) {
 			FallbackName: imp.FallbackName,
 		}, nil)
 		if err != nil {
-			log.Printf("Failed to enqueue OPML feed import for %s: %v", imp.FeedURL, err)
+			slog.Error("failed to enqueue OPML feed import", "feed_url", imp.FeedURL, "error", err)
 			continue
 		}
 		dispatched++
 	}
 
-	log.Printf("OPML import: dispatched %d/%d feed jobs for user %d", dispatched, len(imports), user.ID)
+	slog.Info("OPML import dispatched", "dispatched", dispatched, "total", len(imports), "user_id", user.ID)
 
 	h.authSvc.SetFlash(w, r, "status", "OPML imported successfully. Feeds are being added in the background.")
 	http.Redirect(w, r, "/profile?section=opml", http.StatusFound)

@@ -3,7 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/angristan/larafeed-go/internal/db"
 	"github.com/angristan/larafeed-go/internal/service"
@@ -32,12 +32,12 @@ func (w *RefreshFeedWorker) Work(ctx context.Context, job *river.Job[RefreshFeed
 
 	newCount, err := w.feedService.RefreshFeed(ctx, &feed)
 	if err != nil {
-		log.Printf("Failed to refresh feed %d (%s): %v", feed.ID, feed.FeedURL, err)
+		slog.Error("failed to refresh feed", "feed_id", feed.ID, "feed_url", feed.FeedURL, "error", err)
 		return nil // Don't retry — errors are recorded in feed_refreshes
 	}
 
 	if newCount > 0 {
-		log.Printf("Refreshed feed %d (%s): %d new entries", feed.ID, feed.FeedURL, newCount)
+		slog.Info("refreshed feed", "feed_id", feed.ID, "feed_url", feed.FeedURL, "new_entries", newCount)
 	}
 	return nil
 }
