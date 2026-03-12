@@ -2,7 +2,7 @@ package server
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -99,7 +99,7 @@ func RegisterRoutes(
 		if err := i.Render(w, r, "Welcome", gonertia.Props{
 			"canRegister": cfg.RegistrationEnabled,
 		}); err != nil {
-			log.Printf("Render Welcome error: %v", err)
+			slog.Error("render error", "component", "Welcome", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
 	})

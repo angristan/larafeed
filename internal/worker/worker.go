@@ -2,7 +2,7 @@ package worker
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/angristan/larafeed-go/internal/db"
@@ -27,7 +27,7 @@ func Setup(ctx context.Context, pool *pgxpool.Pool, feedService *service.FeedSer
 		return nil, err
 	}
 	for _, v := range res.Versions {
-		log.Printf("River migration %d applied", v.Version)
+		slog.Info("river migration applied", "version", v.Version)
 	}
 
 	workers := river.NewWorkers()
@@ -71,6 +71,6 @@ func Setup(ctx context.Context, pool *pgxpool.Pool, feedService *service.FeedSer
 		return nil, err
 	}
 
-	log.Println("River worker started")
+	slog.Info("river worker started")
 	return client, nil
 }

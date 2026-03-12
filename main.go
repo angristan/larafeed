@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -39,19 +38,22 @@ func main() {
 	// Connect to database
 	pool, err := db.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("Database connection failed: %v", err)
+		slog.Error("database connection failed", "error", err)
+		os.Exit(1)
 	}
 	defer pool.Close()
 
 	srv, svcs, err := server.New(cfg, pool)
 	if err != nil {
-		log.Fatalf("Failed to create server: %v", err)
+		slog.Error("failed to create server", "error", err)
+		os.Exit(1)
 	}
 
 	// Start River worker
 	riverClient, err := worker.Setup(ctx, pool, svcs.FeedService, svcs.FaviconService, svcs.Queries)
 	if err != nil {
-		log.Fatalf("Failed to start worker: %v", err)
+		slog.Error("failed to start worker", "error", err)
+		os.Exit(1)
 	}
 
 	// Inject River client into OPML handler for async import
@@ -65,7 +67,8 @@ func main() {
 		Prefix:    "/jobs",
 	})
 	if err != nil {
-		log.Fatalf("Failed to create River UI handler: %v", err)
+		slog.Error("failed to create River UI handler", "error", err)
+		os.Exit(1)
 	}
 	riverHandler.Start(ctx)
 	srv.Group(func(r chi.Router) {
@@ -78,19 +81,20 @@ func main() {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		<-sigCh
-		log.Println("Shutting down...")
+		slog.Info("shutting down...")
 
 		if err := riverClient.Stop(ctx); err != nil {
-			log.Printf("River shutdown error: %v", err)
+			slog.Error("river shutdown error", "error", err)
 		}
 
 		cancel()
 	}()
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
-	log.Printf("Larafeed starting on %s (env=%s)", addr, cfg.AppEnv)
+	slog.Info("larafeed starting", "addr", addr, "env", cfg.AppEnv)
 
 	if err := http.ListenAndServe(addr, srv); err != nil {
-		log.Fatalf("Server failed: %v", err)
+		slog.Error("server failed", "error", err)
+		os.Exit(1)
 	}
 }
