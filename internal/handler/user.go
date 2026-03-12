@@ -11,6 +11,15 @@ import (
 	gonertia "github.com/romsar/gonertia/v2"
 )
 
+type updateProfileRequest struct {
+	Name  string `json:"name" validate:"required"`
+	Email string `json:"email" validate:"required"`
+}
+
+type deleteAccountRequest struct {
+	Password string `json:"password"`
+}
+
 type UserHandler struct {
 	inertia *gonertia.Inertia
 	pool    *db.Pool
@@ -43,41 +52,34 @@ func (h *UserHandler) ShowSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
-	form, err := parseFormData(r)
+	req, err := decodeRequest[updateProfileRequest](r)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
-	user := auth.UserFromRequest(r)
-	name := strings.TrimSpace(form.Get("name"))
-	email := strings.ToLower(strings.TrimSpace(form.Get("email")))
+	req.Name = strings.TrimSpace(req.Name)
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 
-	errors := map[string]string{}
-	if name == "" {
-		errors["name"] = "The name field is required."
-	}
-	if email == "" {
-		errors["email"] = "The email field is required."
-	}
-
-	// Check if email changed and is taken
-	if email != user.Email {
-		_, err := h.q.FindUserByEmail(r.Context(), email)
-		if err == nil {
-			errors["email"] = "The email has already been taken."
-		}
-	}
-
-	if len(errors) > 0 {
-		validationError(w, r, h.inertia, errors)
+	if errs := validateRequest(req); errs != nil {
+		validationError(w, r, h.inertia, errs)
 		return
 	}
 
-	_ = h.q.UpdateUserProfile(r.Context(), db.UpdateUserProfileParams{ID: user.ID, Name: name, Email: email})
+	user := auth.UserFromRequest(r)
+
+	// Check if email changed and is taken
+	if req.Email != user.Email {
+		if _, err := h.q.FindUserByEmail(r.Context(), req.Email); err == nil {
+			validationError(w, r, h.inertia, map[string]string{"email": "The email has already been taken."})
+			return
+		}
+	}
+
+	_ = h.q.UpdateUserProfile(r.Context(), db.UpdateUserProfileParams{ID: user.ID, Name: req.Name, Email: req.Email})
 
 	// Clear verification if email changed
-	if email != user.Email {
+	if req.Email != user.Email {
 		_ = h.q.ClearUserEmailVerification(r.Context(), user.ID)
 	}
 
@@ -85,16 +87,15 @@ func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
-	form, err := parseFormData(r)
+	req, err := decodeRequest[deleteAccountRequest](r)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
 	user := auth.UserFromRequest(r)
-	password := form.Get("password")
 
-	if !auth.CheckPassword(user.Password, password) {
+	if !auth.CheckPassword(user.Password, req.Password) {
 		validationError(w, r, h.inertia, map[string]string{"password": "The provided password is incorrect."})
 		return
 	}

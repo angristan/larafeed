@@ -15,6 +15,45 @@ import (
 	gonertia "github.com/romsar/gonertia/v2"
 )
 
+type loginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	Remember bool   `json:"remember"`
+}
+
+type registerRequest struct {
+	Name                 string `json:"name" validate:"required"`
+	Email                string `json:"email" validate:"required"`
+	Password             string `json:"password" validate:"required,min=8,eqfield=PasswordConfirmation"`
+	PasswordConfirmation string `json:"password_confirmation"`
+}
+
+type twoFactorChallengeRequest struct {
+	Code         string `json:"code"`
+	RecoveryCode string `json:"recovery_code"`
+}
+
+type forgotPasswordRequest struct {
+	Email string `json:"email" validate:"required"`
+}
+
+type resetPasswordRequest struct {
+	Email                string `json:"email"`
+	Password             string `json:"password" validate:"required,min=8,eqfield=PasswordConfirmation"`
+	PasswordConfirmation string `json:"password_confirmation"`
+	Token                string `json:"token"`
+}
+
+type confirmPasswordRequest struct {
+	Password string `json:"password"`
+}
+
+type updatePasswordRequest struct {
+	CurrentPassword      string `json:"current_password"`
+	Password             string `json:"password" validate:"required,min=8,eqfield=PasswordConfirmation"`
+	PasswordConfirmation string `json:"password_confirmation"`
+}
+
 type AuthHandler struct {
 	inertia  *gonertia.Inertia
 	auth     *auth.Auth
@@ -36,24 +75,21 @@ func (h *AuthHandler) ShowLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
-	form, err := parseFormData(r)
+	req, err := decodeRequest[loginRequest](r)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
-	email := strings.ToLower(strings.TrimSpace(form.Get("email")))
-	password := form.Get("password")
-	remember := form.GetBool("remember")
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 
-	user, err := h.q.FindUserByEmail(r.Context(), email)
-	if err != nil || !auth.CheckPassword(user.Password, password) {
-		// Notify on failure
+	user, err := h.q.FindUserByEmail(r.Context(), req.Email)
+	if err != nil || !auth.CheckPassword(user.Password, req.Password) {
 		ip := r.RemoteAddr
 		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
 			ip = strings.Split(fwd, ",")[0]
 		}
-		go h.telegram.NotifyLoginFailure(email, ip)
+		go h.telegram.NotifyLoginFailure(req.Email, ip)
 
 		validationError(w, r, h.inertia, map[string]string{"email": "These credentials do not match our records."})
 		return
@@ -61,7 +97,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	// Check for 2FA
 	if user.TwoFactorSecret != nil && *user.TwoFactorSecret != "" {
-		_ = h.auth.Set2FAChallenge(w, r, user.ID, remember)
+		_ = h.auth.Set2FAChallenge(w, r, user.ID, req.Remember)
 		http.Redirect(w, r, "/two-factor-challenge", http.StatusFound)
 		return
 	}
@@ -84,59 +120,36 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	form, err := parseFormData(r)
+	req, err := decodeRequest[registerRequest](r)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
-	name := strings.TrimSpace(form.Get("name"))
-	email := strings.ToLower(strings.TrimSpace(form.Get("email")))
-	password := form.Get("password")
-	passwordConfirmation := form.Get("password_confirmation")
+	req.Name = strings.TrimSpace(req.Name)
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 
-	// Validation
-	errors := map[string]string{}
-	if name == "" {
-		errors["name"] = "The name field is required."
-	}
-	if email == "" {
-		errors["email"] = "The email field is required."
-	}
-	if password == "" {
-		errors["password"] = "The password field is required."
-	}
-	if password != passwordConfirmation {
-		errors["password"] = "The password confirmation does not match."
-	}
-	if len(password) < 8 {
-		errors["password"] = "The password must be at least 8 characters."
-	}
-
-	// Check if email exists
-	if email != "" {
-		_, err := h.q.FindUserByEmail(r.Context(), email)
-		if err == nil {
-			errors["email"] = "The email has already been taken."
-		}
-	}
-
-	if len(errors) > 0 {
-		validationError(w, r, h.inertia, errors)
+	if errs := validateRequest(req); errs != nil {
+		validationError(w, r, h.inertia, errs)
 		return
 	}
 
-	hashedPassword, err := auth.HashPassword(password)
+	if _, err := h.q.FindUserByEmail(r.Context(), req.Email); err == nil {
+		validationError(w, r, h.inertia, map[string]string{"email": "The email has already been taken."})
+		return
+	}
+
+	hashedPassword, err := auth.HashPassword(req.Password)
 	if err != nil {
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
 
-	feverKey := auth.FeverAPIKey(email, password)
+	feverKey := auth.FeverAPIKey(req.Email, req.Password)
 	now := time.Now()
 	user, err := h.q.CreateUser(r.Context(), db.CreateUserParams{
-		Name:        name,
-		Email:       email,
+		Name:        req.Name,
+		Email:       req.Email,
 		Password:    hashedPassword,
 		FeverAPIKey: &feverKey,
 		CreatedAt:   &now,
@@ -146,7 +159,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go h.telegram.NotifyRegistration(name, email)
+	go h.telegram.NotifyRegistration(req.Name, req.Email)
 
 	_ = h.auth.Login(w, r, user.ID)
 	http.Redirect(w, r, "/feeds", http.StatusFound)
@@ -162,7 +175,7 @@ func (h *AuthHandler) ShowTwoFactorChallenge(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *AuthHandler) TwoFactorChallenge(w http.ResponseWriter, r *http.Request) {
-	form, err := parseFormData(r)
+	req, err := decodeRequest[twoFactorChallengeRequest](r)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
@@ -180,16 +193,13 @@ func (h *AuthHandler) TwoFactorChallenge(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	code := form.Get("code")
-	recoveryCode := form.Get("recovery_code")
-
-	if code != "" {
+	if req.Code != "" {
 		// TOTP validation
-		if user.TwoFactorSecret == nil || !totp.Validate(code, *user.TwoFactorSecret) {
+		if user.TwoFactorSecret == nil || !totp.Validate(req.Code, *user.TwoFactorSecret) {
 			validationError(w, r, h.inertia, map[string]string{"code": "The provided two factor authentication code was invalid."})
 			return
 		}
-	} else if recoveryCode != "" {
+	} else if req.RecoveryCode != "" {
 		// Recovery code validation
 		if user.TwoFactorRecoveryCodes == nil {
 			validationError(w, r, h.inertia, map[string]string{"recovery_code": "The provided recovery code was invalid."})
@@ -200,7 +210,7 @@ func (h *AuthHandler) TwoFactorChallenge(w http.ResponseWriter, r *http.Request)
 		found := false
 		var remaining []string
 		for _, c := range codes {
-			if c == recoveryCode && !found {
+			if c == req.RecoveryCode && !found {
 				found = true
 			} else {
 				remaining = append(remaining, c)
@@ -235,22 +245,24 @@ func (h *AuthHandler) ShowForgotPassword(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
-	form, err := parseFormData(r)
+	req, err := decodeRequest[forgotPasswordRequest](r)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	email := strings.ToLower(strings.TrimSpace(form.Get("email")))
-	if email == "" {
-		validationError(w, r, h.inertia, map[string]string{"email": "The email field is required."})
+
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+
+	if errs := validateRequest(req); errs != nil {
+		validationError(w, r, h.inertia, errs)
 		return
 	}
 
 	// Always show success to prevent email enumeration
-	_, err = h.q.FindUserByEmail(r.Context(), email)
+	_, err = h.q.FindUserByEmail(r.Context(), req.Email)
 	if err == nil {
 		token := generatePlainToken(64)
-		_ = h.q.CreatePasswordReset(r.Context(), db.CreatePasswordResetParams{Email: email, Token: db.HashToken(token)})
+		_ = h.q.CreatePasswordReset(r.Context(), db.CreatePasswordResetParams{Email: req.Email, Token: db.HashToken(token)})
 		// TODO: Send email with reset link
 	}
 
@@ -267,54 +279,40 @@ func (h *AuthHandler) ShowResetPassword(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
-	form, err := parseFormData(r)
+	req, err := decodeRequest[resetPasswordRequest](r)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
-	email := strings.ToLower(strings.TrimSpace(form.Get("email")))
-	password := form.Get("password")
-	passwordConfirmation := form.Get("password_confirmation")
-	token := form.Get("token")
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 
-	errors := map[string]string{}
-	if password == "" {
-		errors["password"] = "The password field is required."
-	}
-	if password != passwordConfirmation {
-		errors["password"] = "The password confirmation does not match."
-	}
-	if len(password) < 8 {
-		errors["password"] = "The password must be at least 8 characters."
-	}
-
-	if len(errors) > 0 {
-		validationError(w, r, h.inertia, errors)
+	if errs := validateRequest(req); errs != nil {
+		validationError(w, r, h.inertia, errs)
 		return
 	}
 
 	// Verify token
-	resetToken, err := h.q.FindPasswordReset(r.Context(), email)
-	if err != nil || !checkTokenHash(token, resetToken.Token) {
+	resetToken, err := h.q.FindPasswordReset(r.Context(), req.Email)
+	if err != nil || !checkTokenHash(req.Token, resetToken.Token) {
 		validationError(w, r, h.inertia, map[string]string{"email": "This password reset token is invalid."})
 		return
 	}
 
-	user, err := h.q.FindUserByEmail(r.Context(), email)
+	user, err := h.q.FindUserByEmail(r.Context(), req.Email)
 	if err != nil {
 		validationError(w, r, h.inertia, map[string]string{"email": "We can't find a user with that email address."})
 		return
 	}
 
-	hashedPassword, _ := auth.HashPassword(password)
-	feverKey := auth.FeverAPIKey(email, password)
+	hashedPassword, _ := auth.HashPassword(req.Password)
+	feverKey := auth.FeverAPIKey(req.Email, req.Password)
 	_ = h.q.UpdateUserPasswordAndFeverKey(r.Context(), db.UpdateUserPasswordAndFeverKeyParams{
 		ID:          user.ID,
 		Password:    hashedPassword,
 		FeverAPIKey: &feverKey,
 	})
-	_ = h.q.DeletePasswordReset(r.Context(), email)
+	_ = h.q.DeletePasswordReset(r.Context(), req.Email)
 
 	h.auth.SetFlash(w, r, "status", "Your password has been reset.")
 	http.Redirect(w, r, "/login", http.StatusFound)
@@ -358,16 +356,15 @@ func (h *AuthHandler) ShowConfirmPassword(w http.ResponseWriter, r *http.Request
 }
 
 func (h *AuthHandler) ConfirmPassword(w http.ResponseWriter, r *http.Request) {
-	form, err := parseFormData(r)
+	req, err := decodeRequest[confirmPasswordRequest](r)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
 	user := auth.UserFromRequest(r)
-	password := form.Get("password")
 
-	if !auth.CheckPassword(user.Password, password) {
+	if !auth.CheckPassword(user.Password, req.Password) {
 		validationError(w, r, h.inertia, map[string]string{"password": "The provided password was incorrect."})
 		return
 	}
@@ -381,51 +378,31 @@ func (h *AuthHandler) ConfirmPassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
-	form, err := parseFormData(r)
+	req, err := decodeRequest[updatePasswordRequest](r)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
 	user := auth.UserFromRequest(r)
-	currentPassword := form.Get("current_password")
-	newPassword := form.Get("password")
-	confirmation := form.Get("password_confirmation")
 
-	errors := map[string]string{}
-	if !auth.CheckPassword(user.Password, currentPassword) {
-		errors["current_password"] = "The provided password does not match your current password."
-	}
-	if newPassword == "" || len(newPassword) < 8 {
-		errors["password"] = "The password must be at least 8 characters."
-	}
-	if newPassword != confirmation {
-		errors["password"] = "The password confirmation does not match."
-	}
-
-	if len(errors) > 0 {
-		validationError(w, r, h.inertia, errors)
+	if errs := validateRequest(req); errs != nil {
+		validationError(w, r, h.inertia, errs)
 		return
 	}
 
-	hashedPassword, _ := auth.HashPassword(newPassword)
+	if !auth.CheckPassword(user.Password, req.CurrentPassword) {
+		validationError(w, r, h.inertia, map[string]string{"current_password": "The provided password does not match your current password."})
+		return
+	}
+
+	hashedPassword, _ := auth.HashPassword(req.Password)
 	_ = h.q.UpdateUserPassword(r.Context(), db.UpdateUserPasswordParams{ID: user.ID, Password: hashedPassword})
 
 	http.Redirect(w, r, "/profile", http.StatusFound)
 }
 
 // Helpers
-
-func validationError(w http.ResponseWriter, r *http.Request, i *gonertia.Inertia, errors map[string]string) {
-	// Convert to gonertia ValidationErrors and set in context for flash provider
-	ve := gonertia.ValidationErrors{}
-	for k, v := range errors {
-		ve[k] = v
-	}
-	ctx := gonertia.SetValidationErrors(r.Context(), ve)
-	r = r.WithContext(ctx)
-	i.Back(w, r)
-}
 
 func generatePlainToken(length int) string {
 	return db.GeneratePlainToken(length)

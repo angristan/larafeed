@@ -3,10 +3,8 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"strings"
 
 	gonertia "github.com/romsar/gonertia/v2"
 )
@@ -25,73 +23,12 @@ func render(w http.ResponseWriter, r *http.Request, i *gonertia.Inertia, compone
 	}
 }
 
-// formData provides uniform access to request data whether sent as JSON or form-encoded.
-// Inertia sends POST/PUT/PATCH/DELETE as JSON; regular forms send URL-encoded.
-type formData map[string]any
-
-// parseFormData reads the request body. If Content-Type is JSON it decodes the body,
-// otherwise it falls back to r.ParseForm so r.FormValue still works.
-func parseFormData(r *http.Request) (formData, error) {
-	ct := r.Header.Get("Content-Type")
-	if strings.HasPrefix(ct, "application/json") {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			return nil, fmt.Errorf("read body: %w", err)
-		}
-		defer r.Body.Close()
-		var data formData
-		if err := json.Unmarshal(body, &data); err != nil {
-			return nil, fmt.Errorf("decode json: %w", err)
-		}
-		return data, nil
+// decodeRequest decodes the JSON request body into a typed struct.
+// All Inertia POST/PUT/PATCH/DELETE requests send JSON.
+func decodeRequest[T any](r *http.Request) (T, error) {
+	var req T
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, fmt.Errorf("decode request: %w", err)
 	}
-	if err := r.ParseForm(); err != nil {
-		return nil, err
-	}
-	// Wrap r.FormValue so callers use the same API.
-	data := formData{}
-	for k, v := range r.Form {
-		if len(v) > 0 {
-			data[k] = v[0]
-		}
-	}
-	return data, nil
-}
-
-// Get returns a string value for the given key, or "" if not present.
-func (f formData) Get(key string) string {
-	v, ok := f[key]
-	if !ok {
-		return ""
-	}
-	switch val := v.(type) {
-	case string:
-		return val
-	case float64:
-		// JSON numbers
-		return fmt.Sprintf("%v", val)
-	case bool:
-		if val {
-			return "true"
-		}
-		return "false"
-	default:
-		return fmt.Sprintf("%v", val)
-	}
-}
-
-// GetBool returns a boolean value for the given key.
-func (f formData) GetBool(key string) bool {
-	v, ok := f[key]
-	if !ok {
-		return false
-	}
-	switch val := v.(type) {
-	case bool:
-		return val
-	case string:
-		return val == "true" || val == "1"
-	default:
-		return false
-	}
+	return req, nil
 }

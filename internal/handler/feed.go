@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/angristan/larafeed-go/internal/auth"
@@ -16,13 +15,25 @@ import (
 	gonertia "github.com/romsar/gonertia/v2"
 )
 
+type createFeedRequest struct {
+	FeedURL      string `json:"feed_url" validate:"required" label:"feed URL"`
+	CategoryID   *int64 `json:"category_id"`
+	CategoryName string `json:"category_name"`
+}
+
+type updateFeedRequest struct {
+	CategoryID  int64                `json:"category_id"`
+	Name        string               `json:"name"`
+	FilterRules *service.FilterRules `json:"filter_rules"`
+}
+
 type FeedHandler struct {
-	inertia    *gonertia.Inertia
-	pool       *db.Pool
-	q          *db.Queries
+	inertia     *gonertia.Inertia
+	pool        *db.Pool
+	q           *db.Queries
 	feedService *service.FeedService
-	faviconSvc *service.FaviconService
-	filter     *service.FilterService
+	faviconSvc  *service.FaviconService
+	filter      *service.FilterService
 }
 
 func NewFeedHandler(i *gonertia.Inertia, pool *db.Pool, q *db.Queries, feedSvc *service.FeedService, faviconSvc *service.FaviconService, filter *service.FilterService) *FeedHandler {
@@ -33,46 +44,43 @@ func NewFeedHandler(i *gonertia.Inertia, pool *db.Pool, q *db.Queries, feedSvc *
 }
 
 func (h *FeedHandler) Create(w http.ResponseWriter, r *http.Request) {
-	form, err := parseFormData(r)
+	req, err := decodeRequest[createFeedRequest](r)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
-	user := auth.UserFromRequest(r)
-	feedURL := strings.TrimSpace(form.Get("feed_url"))
-
-	errors := map[string]string{}
-	if feedURL == "" {
-		errors["feed_url"] = "The feed URL is required."
+	if errs := validateRequest(req); errs != nil {
+		validationError(w, r, h.inertia, errs)
+		return
 	}
 
+	user := auth.UserFromRequest(r)
+
 	// Determine category
+	v := newValidationErrs()
 	var categoryID int64
-	if catIDStr := form.Get("category_id"); catIDStr != "" {
-		id, err := strconv.ParseInt(catIDStr, 10, 64)
-		if err == nil {
-			categoryID = id
-		}
-	} else if catName := form.Get("category_name"); catName != "" {
-		cat, err := h.q.FindOrCreateCategory(r.Context(), db.FindOrCreateCategoryParams{UserID: user.ID, Name: catName})
+	if req.CategoryID != nil {
+		categoryID = *req.CategoryID
+	} else if req.CategoryName != "" {
+		cat, err := h.q.FindOrCreateCategory(r.Context(), db.FindOrCreateCategoryParams{UserID: user.ID, Name: req.CategoryName})
 		if err != nil {
-			errors["category_name"] = "Could not create category."
+			v.Add("category_name", "Could not create category.")
 		} else {
 			categoryID = cat.ID
 		}
 	}
 
-	if categoryID == 0 && len(errors) == 0 {
-		errors["category_id"] = "A category is required."
+	if categoryID == 0 && !v.HasErrors() {
+		v.Add("category_id", "A category is required.")
 	}
 
-	if len(errors) > 0 {
-		validationError(w, r, h.inertia, errors)
+	if v.HasErrors() {
+		validationError(w, r, h.inertia, v.Map())
 		return
 	}
 
-	feed, err := h.feedService.CreateFeed(r.Context(), user.ID, feedURL, categoryID, "")
+	feed, err := h.feedService.CreateFeed(r.Context(), user.ID, req.FeedURL, categoryID, "")
 	if err != nil {
 		validationError(w, r, h.inertia, map[string]string{"feed_url": err.Error()})
 		return
@@ -170,7 +178,7 @@ func (h *FeedHandler) RefreshFavicon(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FeedHandler) Update(w http.ResponseWriter, r *http.Request) {
-	form, err := parseFormData(r)
+	req, err := decodeRequest[updateFeedRequest](r)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
@@ -183,44 +191,38 @@ func (h *FeedHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	categoryIDStr := form.Get("category_id")
-	categoryID, _ := strconv.ParseInt(categoryIDStr, 10, 64)
-
 	var customName *string
-	if name := form.Get("name"); name != "" {
-		customName = &name
+	if req.Name != "" {
+		customName = &req.Name
 	}
 
-	var filterRules json.RawMessage
-	if fr := form.Get("filter_rules"); fr != "" {
-		filterRules = json.RawMessage(fr)
+	var filterRulesJSON json.RawMessage
+	if req.FilterRules != nil {
 		// Validate filter patterns
-		var rules service.FilterRules
-		if jsonErr := json.Unmarshal(filterRules, &rules); jsonErr == nil {
-			for _, pattern := range rules.ExcludeTitle {
-				if pattern != "" && !service.ValidateFilterPattern(pattern) {
-					validationError(w, r, h.inertia, map[string]string{"filter_rules": "Invalid or unsafe filter pattern in title filter."})
-					return
-				}
-			}
-			for _, pattern := range rules.ExcludeContent {
-				if pattern != "" && !service.ValidateFilterPattern(pattern) {
-					validationError(w, r, h.inertia, map[string]string{"filter_rules": "Invalid or unsafe filter pattern in content filter."})
-					return
-				}
-			}
-			for _, pattern := range rules.ExcludeAuthor {
-				if pattern != "" && !service.ValidateFilterPattern(pattern) {
-					validationError(w, r, h.inertia, map[string]string{"filter_rules": "Invalid or unsafe filter pattern in author filter."})
-					return
-				}
+		for _, pattern := range req.FilterRules.ExcludeTitle {
+			if pattern != "" && !service.ValidateFilterPattern(pattern) {
+				validationError(w, r, h.inertia, map[string]string{"filter_rules": "Invalid or unsafe filter pattern in title filter."})
+				return
 			}
 		}
+		for _, pattern := range req.FilterRules.ExcludeContent {
+			if pattern != "" && !service.ValidateFilterPattern(pattern) {
+				validationError(w, r, h.inertia, map[string]string{"filter_rules": "Invalid or unsafe filter pattern in content filter."})
+				return
+			}
+		}
+		for _, pattern := range req.FilterRules.ExcludeAuthor {
+			if pattern != "" && !service.ValidateFilterPattern(pattern) {
+				validationError(w, r, h.inertia, map[string]string{"filter_rules": "Invalid or unsafe filter pattern in author filter."})
+				return
+			}
+		}
+		filterRulesJSON, _ = json.Marshal(req.FilterRules)
 	}
 
 	err = h.q.UpdateSubscription(r.Context(), db.UpdateSubscriptionParams{
-		UserID: user.ID, FeedID: feedID, CategoryID: categoryID,
-		CustomFeedName: customName, FilterRules: filterRules,
+		UserID: user.ID, FeedID: feedID, CategoryID: req.CategoryID,
+		CustomFeedName: customName, FilterRules: filterRulesJSON,
 	})
 	if err != nil {
 		http.Error(w, "Could not update feed", http.StatusInternalServerError)
@@ -228,7 +230,7 @@ func (h *FeedHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Re-apply filters if rules changed
-	if filterRules != nil {
+	if req.FilterRules != nil {
 		sub, err := h.q.GetSubscription(r.Context(), db.GetSubscriptionParams{UserID: user.ID, FeedID: feedID})
 		if err == nil {
 			allEntries, _ := h.q.EntriesForFeed(r.Context(), feedID)

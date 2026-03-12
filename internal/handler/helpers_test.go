@@ -10,79 +10,75 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseFormData_JSON(t *testing.T) {
+func TestDecodeRequest_JSON(t *testing.T) {
+	type loginReq struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Remember bool   `json:"remember"`
+	}
+
 	body := `{"email":"test@example.com","password":"secret","remember":true}`
-	req := httptest.NewRequest("POST", "/login", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
+	r := httptest.NewRequest("POST", "/login", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
 
-	form, err := parseFormData(req)
+	req, err := decodeRequest[loginReq](r)
 	require.NoError(t, err)
 
-	assert.Equal(t, "test@example.com", form.Get("email"))
-	assert.Equal(t, "secret", form.Get("password"))
-	assert.True(t, form.GetBool("remember"))
+	assert.Equal(t, "test@example.com", req.Email)
+	assert.Equal(t, "secret", req.Password)
+	assert.True(t, req.Remember)
 }
 
-func TestParseFormData_FormEncoded(t *testing.T) {
-	body := "email=test%40example.com&password=secret&remember=1"
-	req := httptest.NewRequest("POST", "/login", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+func TestDecodeRequest_NestedJSON(t *testing.T) {
+	type filterRules struct {
+		ExcludeTitle []string `json:"exclude_title"`
+	}
+	type updateReq struct {
+		Name        string       `json:"name"`
+		FilterRules *filterRules `json:"filter_rules"`
+	}
 
-	form, err := parseFormData(req)
+	body := `{"name":"My Feed","filter_rules":{"exclude_title":["sponsor","ad"]}}`
+	r := httptest.NewRequest("PATCH", "/feeds/1", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+
+	req, err := decodeRequest[updateReq](r)
 	require.NoError(t, err)
 
-	assert.Equal(t, "test@example.com", form.Get("email"))
-	assert.Equal(t, "secret", form.Get("password"))
+	assert.Equal(t, "My Feed", req.Name)
+	require.NotNil(t, req.FilterRules)
+	assert.Equal(t, []string{"sponsor", "ad"}, req.FilterRules.ExcludeTitle)
 }
 
-func TestFormData_Get(t *testing.T) {
-	t.Run("returns string value", func(t *testing.T) {
-		f := formData{"key": "value"}
-		assert.Equal(t, "value", f.Get("key"))
-	})
+func TestDecodeRequest_OptionalBoolPointers(t *testing.T) {
+	type entryReq struct {
+		Read    *bool `json:"read"`
+		Starred *bool `json:"starred"`
+	}
 
-	t.Run("returns empty for missing key", func(t *testing.T) {
-		f := formData{}
-		assert.Equal(t, "", f.Get("missing"))
-	})
+	// Only "read" is sent
+	body := `{"read":true}`
+	r := httptest.NewRequest("PATCH", "/entries/1", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
 
-	t.Run("converts float64 to string", func(t *testing.T) {
-		f := formData{"num": float64(42)}
-		assert.Equal(t, "42", f.Get("num"))
-	})
+	req, err := decodeRequest[entryReq](r)
+	require.NoError(t, err)
 
-	t.Run("converts bool to string", func(t *testing.T) {
-		f := formData{"flag": true}
-		assert.Equal(t, "true", f.Get("flag"))
-		f2 := formData{"flag": false}
-		assert.Equal(t, "false", f2.Get("flag"))
-	})
+	require.NotNil(t, req.Read)
+	assert.True(t, *req.Read)
+	assert.Nil(t, req.Starred) // absent field stays nil
 }
 
-func TestFormData_GetBool(t *testing.T) {
-	t.Run("returns bool value", func(t *testing.T) {
-		f := formData{"flag": true}
-		assert.True(t, f.GetBool("flag"))
-	})
+func TestDecodeRequest_InvalidJSON(t *testing.T) {
+	type req struct {
+		Name string `json:"name"`
+	}
 
-	t.Run("returns false for missing key", func(t *testing.T) {
-		f := formData{}
-		assert.False(t, f.GetBool("missing"))
-	})
+	r := httptest.NewRequest("POST", "/test", strings.NewReader("not json"))
+	r.Header.Set("Content-Type", "application/json")
 
-	t.Run("parses string true/1", func(t *testing.T) {
-		f := formData{"flag": "true"}
-		assert.True(t, f.GetBool("flag"))
-		f2 := formData{"flag": "1"}
-		assert.True(t, f2.GetBool("flag"))
-	})
-
-	t.Run("parses string false/0", func(t *testing.T) {
-		f := formData{"flag": "false"}
-		assert.False(t, f.GetBool("flag"))
-		f2 := formData{"flag": "0"}
-		assert.False(t, f2.GetBool("flag"))
-	})
+	_, err := decodeRequest[req](r)
+	assert.Error(t, err)
 }
 
 func TestJsonResponse(t *testing.T) {
