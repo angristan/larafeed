@@ -151,6 +151,10 @@ func (a *Auth) LoadUser(next http.Handler) http.Handler {
 			if err == nil {
 				ctx := SetUserInContext(r.Context(), &user)
 				r = r.WithContext(ctx)
+			} else {
+				// User no longer exists — clear the stale session
+				session.Options.MaxAge = -1
+				_ = session.Save(r, w)
 			}
 		}
 		next.ServeHTTP(w, r)
@@ -158,40 +162,25 @@ func (a *Auth) LoadUser(next http.Handler) http.Handler {
 }
 
 // RequireAuth middleware redirects to login if not authenticated.
+// It expects LoadUser to have already run, placing the user in context.
 func (a *Auth) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		session, _ := a.store.Get(r, sessionName)
-		userID, ok := session.Values["user_id"].(int64)
-		if !ok {
+		if UserFromRequest(r) == nil {
 			http.Redirect(w, r, "/login", http.StatusFound)
 			return
 		}
-
-		user, err := a.q.FindUserByID(r.Context(), userID)
-		if err != nil {
-			http.Redirect(w, r, "/login", http.StatusFound)
-			return
-		}
-
-		ctx := SetUserInContext(r.Context(), &user)
-		next.ServeHTTP(w, r.WithContext(ctx))
+		next.ServeHTTP(w, r)
 	})
 }
 
 // RequireGuest middleware redirects to feeds if authenticated.
-// It verifies the user exists in the DB to avoid redirect loops when
-// the session references a deleted user.
+// It expects LoadUser to have already run, so if the user is in context
+// they are verified to exist in the DB.
 func (a *Auth) RequireGuest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		session, _ := a.store.Get(r, sessionName)
-		if userID, ok := session.Values["user_id"].(int64); ok {
-			if _, err := a.q.FindUserByID(r.Context(), userID); err == nil {
-				http.Redirect(w, r, "/feeds", http.StatusFound)
-				return
-			}
-			// User no longer exists — clear the stale session
-			session.Options.MaxAge = -1
-			_ = session.Save(r, w)
+		if UserFromRequest(r) != nil {
+			http.Redirect(w, r, "/feeds", http.StatusFound)
+			return
 		}
 		next.ServeHTTP(w, r)
 	})
