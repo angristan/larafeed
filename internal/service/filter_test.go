@@ -1,10 +1,14 @@
 package service
 
 import (
+	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/angristan/larafeed-go/internal/db"
+	"github.com/angristan/larafeed-go/internal/db/mocks"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestValidateFilterPattern(t *testing.T) {
@@ -50,6 +54,125 @@ func TestValidateFilterPattern(t *testing.T) {
 		// falls back to substring matching
 		assert.True(t, ValidateFilterPattern("[unclosed"))
 		assert.True(t, ValidateFilterPattern("C++"))
+	})
+}
+
+func TestApplyFilters(t *testing.T) {
+	makeEntry := func(id int64, title string) db.Entry {
+		return db.Entry{ID: id, Title: title}
+	}
+
+	t.Run("marks matching entries as filtered", func(t *testing.T) {
+		q := mocks.NewQuerier(t)
+		svc := NewFilterService(q)
+
+		rules := FilterRules{ExcludeTitle: []string{"alpha"}}
+		rulesJSON, _ := json.Marshal(rules)
+
+		sub := db.FeedSubscription{UserID: 1, FeedID: 5, FilterRules: rulesJSON}
+		entries := []db.Entry{
+			makeEntry(10, "v1.0-alpha release"),
+			makeEntry(11, "v1.0 stable release"),
+		}
+
+		q.On("MarkFiltered", mock.Anything, db.MarkFilteredParams{UserID: 1, EntryID: 10}).Return(nil)
+		q.On("ClearFiltered", mock.Anything, db.ClearFilteredParams{UserID: 1, EntryID: 11}).Return(nil)
+
+		svc.ApplyFilters(context.Background(), sub, entries)
+
+		q.AssertCalled(t, "MarkFiltered", mock.Anything, db.MarkFilteredParams{UserID: 1, EntryID: 10})
+		q.AssertCalled(t, "ClearFiltered", mock.Anything, db.ClearFilteredParams{UserID: 1, EntryID: 11})
+	})
+
+	t.Run("clears all entries when no rules match", func(t *testing.T) {
+		q := mocks.NewQuerier(t)
+		svc := NewFilterService(q)
+
+		rules := FilterRules{ExcludeTitle: []string{"nonexistent"}}
+		rulesJSON, _ := json.Marshal(rules)
+
+		sub := db.FeedSubscription{UserID: 1, FeedID: 5, FilterRules: rulesJSON}
+		entries := []db.Entry{
+			makeEntry(10, "First post"),
+			makeEntry(11, "Second post"),
+		}
+
+		q.On("ClearFiltered", mock.Anything, mock.Anything).Return(nil)
+
+		svc.ApplyFilters(context.Background(), sub, entries)
+
+		q.AssertNumberOfCalls(t, "ClearFiltered", 2)
+		q.AssertNotCalled(t, "MarkFiltered")
+	})
+
+	t.Run("no-op when filter rules are nil", func(t *testing.T) {
+		q := mocks.NewQuerier(t)
+		svc := NewFilterService(q)
+
+		sub := db.FeedSubscription{UserID: 1, FeedID: 5, FilterRules: nil}
+		entries := []db.Entry{makeEntry(10, "Post")}
+
+		svc.ApplyFilters(context.Background(), sub, entries)
+
+		q.AssertNotCalled(t, "MarkFiltered")
+		q.AssertNotCalled(t, "ClearFiltered")
+	})
+
+	t.Run("no-op when filter rules JSON is invalid", func(t *testing.T) {
+		q := mocks.NewQuerier(t)
+		svc := NewFilterService(q)
+
+		sub := db.FeedSubscription{UserID: 1, FeedID: 5, FilterRules: json.RawMessage(`{bad json`)}
+		entries := []db.Entry{makeEntry(10, "Post")}
+
+		svc.ApplyFilters(context.Background(), sub, entries)
+
+		q.AssertNotCalled(t, "MarkFiltered")
+		q.AssertNotCalled(t, "ClearFiltered")
+	})
+
+	t.Run("no-op when all rule lists are empty", func(t *testing.T) {
+		q := mocks.NewQuerier(t)
+		svc := NewFilterService(q)
+
+		rules := FilterRules{}
+		rulesJSON, _ := json.Marshal(rules)
+
+		sub := db.FeedSubscription{UserID: 1, FeedID: 5, FilterRules: rulesJSON}
+		entries := []db.Entry{makeEntry(10, "Post")}
+
+		svc.ApplyFilters(context.Background(), sub, entries)
+
+		q.AssertNotCalled(t, "MarkFiltered")
+		q.AssertNotCalled(t, "ClearFiltered")
+	})
+
+	t.Run("applies multiple filter types together", func(t *testing.T) {
+		q := mocks.NewQuerier(t)
+		svc := NewFilterService(q)
+
+		author := "SpamBot"
+		rules := FilterRules{
+			ExcludeTitle:  []string{"sponsored"},
+			ExcludeAuthor: []string{"bot"},
+		}
+		rulesJSON, _ := json.Marshal(rules)
+
+		sub := db.FeedSubscription{UserID: 1, FeedID: 5, FilterRules: rulesJSON}
+		entries := []db.Entry{
+			{ID: 10, Title: "Sponsored post", Author: nil},       // matches title
+			{ID: 11, Title: "Good post", Author: &author},        // matches author
+			{ID: 12, Title: "Legit post by real person", Author: nil}, // no match
+		}
+
+		q.On("MarkFiltered", mock.Anything, db.MarkFilteredParams{UserID: 1, EntryID: 10}).Return(nil)
+		q.On("MarkFiltered", mock.Anything, db.MarkFilteredParams{UserID: 1, EntryID: 11}).Return(nil)
+		q.On("ClearFiltered", mock.Anything, db.ClearFilteredParams{UserID: 1, EntryID: 12}).Return(nil)
+
+		svc.ApplyFilters(context.Background(), sub, entries)
+
+		q.AssertNumberOfCalls(t, "MarkFiltered", 2)
+		q.AssertNumberOfCalls(t, "ClearFiltered", 1)
 	})
 }
 

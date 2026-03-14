@@ -224,3 +224,84 @@ func TestUpdateSubscription_WithFilters(t *testing.T) {
 	err := svc.UpdateSubscription(context.Background(), 1, 5, 2, nil, rulesJSON)
 	require.NoError(t, err)
 }
+
+func TestDiscoverFeedFromHTML(t *testing.T) {
+	t.Run("discovers RSS link", func(t *testing.T) {
+		html := `<html><head>
+			<link rel="alternate" type="application/rss+xml" href="/feed.xml">
+		</head></html>`
+		got := discoverFeedFromHTML("https://example.com", html)
+		assert.Equal(t, "https://example.com/feed.xml", got)
+	})
+
+	t.Run("discovers Atom link", func(t *testing.T) {
+		html := `<html><head>
+			<link rel="alternate" type="application/atom+xml" href="/atom.xml">
+		</head></html>`
+		got := discoverFeedFromHTML("https://example.com", html)
+		assert.Equal(t, "https://example.com/atom.xml", got)
+	})
+
+	t.Run("discovers JSON feed link", func(t *testing.T) {
+		html := `<html><head>
+			<link rel="alternate" type="application/feed+json" href="/feed.json">
+		</head></html>`
+		got := discoverFeedFromHTML("https://example.com", html)
+		assert.Equal(t, "https://example.com/feed.json", got)
+	})
+
+	t.Run("resolves absolute URLs", func(t *testing.T) {
+		html := `<html><head>
+			<link rel="alternate" type="application/rss+xml" href="https://cdn.example.com/rss">
+		</head></html>`
+		got := discoverFeedFromHTML("https://example.com", html)
+		assert.Equal(t, "https://cdn.example.com/rss", got)
+	})
+
+	t.Run("resolves relative paths", func(t *testing.T) {
+		html := `<html><head>
+			<link rel="alternate" type="application/rss+xml" href="blog/feed">
+		</head></html>`
+		got := discoverFeedFromHTML("https://example.com/site/", html)
+		assert.Equal(t, "https://example.com/site/blog/feed", got)
+	})
+
+	t.Run("returns empty when no feed link", func(t *testing.T) {
+		html := `<html><head>
+			<link rel="stylesheet" href="/style.css">
+		</head></html>`
+		got := discoverFeedFromHTML("https://example.com", html)
+		assert.Empty(t, got)
+	})
+
+	t.Run("returns empty when no alternate link", func(t *testing.T) {
+		html := `<html><head><title>No feeds</title></head></html>`
+		got := discoverFeedFromHTML("https://example.com", html)
+		assert.Empty(t, got)
+	})
+
+	t.Run("ignores non-feed alternate types", func(t *testing.T) {
+		html := `<html><head>
+			<link rel="alternate" type="text/html" href="/fr/" hreflang="fr">
+		</head></html>`
+		got := discoverFeedFromHTML("https://example.com", html)
+		assert.Empty(t, got)
+	})
+
+	t.Run("handles single-quoted attributes", func(t *testing.T) {
+		html := `<html><head>
+			<link rel='alternate' type='application/rss+xml' href='/feed'>
+		</head></html>`
+		got := discoverFeedFromHTML("https://example.com", html)
+		assert.Equal(t, "https://example.com/feed", got)
+	})
+
+	t.Run("picks first feed link when multiple present", func(t *testing.T) {
+		html := `<html><head>
+			<link rel="alternate" type="application/rss+xml" href="/rss">
+			<link rel="alternate" type="application/atom+xml" href="/atom">
+		</head></html>`
+		got := discoverFeedFromHTML("https://example.com", html)
+		assert.Equal(t, "https://example.com/rss", got)
+	})
+}
