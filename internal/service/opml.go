@@ -18,11 +18,11 @@ type OPMLFeedImport struct {
 }
 
 type OPMLService struct {
-	q           *db.Queries
+	q           db.Querier
 	feedService *FeedService
 }
 
-func NewOPMLService(q *db.Queries, feedService *FeedService) *OPMLService {
+func NewOPMLService(q db.Querier, feedService *FeedService) *OPMLService {
 	return &OPMLService{
 		q:           q,
 		feedService: feedService,

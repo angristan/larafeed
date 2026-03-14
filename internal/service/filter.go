@@ -10,10 +10,10 @@ import (
 )
 
 type FilterService struct {
-	q *db.Queries
+	q db.Querier
 }
 
-func NewFilterService(q *db.Queries) *FilterService {
+func NewFilterService(q db.Querier) *FilterService {
 	return &FilterService{q: q}
 }
 

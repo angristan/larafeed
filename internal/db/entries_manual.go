@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // ReaderEntry is an entry with interaction data and feed info for the reader view.
@@ -122,7 +120,7 @@ func ReaderEntriesFromCreatedRows(rows []ListForReaderByCreatedRow) []ReaderEntr
 type UserFeed = ListSubscriptionsForUserRow
 
 // BulkCreate inserts entries in bulk, skipping duplicates.
-func BulkCreate(ctx context.Context, pool *pgxpool.Pool, entries []Entry) ([]Entry, error) {
+func BulkCreate(ctx context.Context, db DBTX, entries []Entry) ([]Entry, error) {
 	if len(entries) == 0 {
 		return nil, nil
 	}
@@ -154,7 +152,7 @@ func BulkCreate(ctx context.Context, pool *pgxpool.Pool, entries []Entry) ([]Ent
 		updatedAts[i] = now
 	}
 
-	rows, err := pool.Query(ctx, query, feedIDs, titles, urls, authors, contents, publishedAts, createdAts, updatedAts)
+	rows, err := db.Query(ctx, query, feedIDs, titles, urls, authors, contents, publishedAts, createdAts, updatedAts)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +172,7 @@ func BulkCreate(ctx context.Context, pool *pgxpool.Pool, entries []Entry) ([]Ent
 }
 
 // MarkAllAsRead marks all unread entries for a feed as read (combines two sqlc queries).
-func MarkAllAsRead(ctx context.Context, q *Queries, userID, feedID int64) error {
+func MarkAllAsRead(ctx context.Context, q Querier, userID, feedID int64) error {
 	if err := q.MarkAllAsReadExisting(ctx, MarkAllAsReadExistingParams{UserID: userID, FeedID: feedID}); err != nil {
 		return err
 	}
