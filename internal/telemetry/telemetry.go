@@ -2,8 +2,10 @@ package telemetry
 
 import (
 	"context"
+	"net/http"
 	"os"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
@@ -44,6 +46,9 @@ func Setup(ctx context.Context, serviceName, environment string) (shutdown func(
 
 	otel.SetTracerProvider(tp)
 	otel.SetTextMapPropagator(propagation.TraceContext{})
+
+	// Instrument default HTTP transport so all outgoing requests get traced.
+	http.DefaultTransport = otelhttp.NewTransport(http.DefaultTransport)
 
 	return tp.Shutdown, nil
 }
