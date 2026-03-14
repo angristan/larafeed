@@ -29,14 +29,8 @@ type OPMLHandler struct {
 	riverClient *river.Client[pgx.Tx]
 }
 
-func NewOPMLHandler(i *gonertia.Inertia, opml opmlService, a *auth.Auth, feedSvc feedService) *OPMLHandler {
-	return &OPMLHandler{inertia: i, opml: opml, authSvc: a, feedSvc: feedSvc}
-}
-
-// SetRiverClient sets the River client for async job dispatch.
-// Called from main() after the River client is created.
-func (h *OPMLHandler) SetRiverClient(rc *river.Client[pgx.Tx]) {
-	h.riverClient = rc
+func NewOPMLHandler(i *gonertia.Inertia, opml opmlService, a *auth.Auth, feedSvc feedService, rc *river.Client[pgx.Tx]) *OPMLHandler {
+	return &OPMLHandler{inertia: i, opml: opml, authSvc: a, feedSvc: feedSvc, riverClient: rc}
 }
 
 func (h *OPMLHandler) ShowImport(w http.ResponseWriter, r *http.Request) {

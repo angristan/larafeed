@@ -15,7 +15,6 @@ import (
 	"github.com/angristan/larafeed-go/internal/logging"
 	"github.com/angristan/larafeed-go/internal/server"
 	"github.com/angristan/larafeed-go/internal/telemetry"
-	"github.com/angristan/larafeed-go/internal/worker"
 	"github.com/go-chi/chi/v5"
 	"riverqueue.com/riverui"
 )
@@ -62,21 +61,11 @@ func main() {
 	}
 	defer pool.Close()
 
-	srv, svcs, err := server.New(cfg, pool)
+	srv, riverClient, err := server.New(ctx, cfg, pool)
 	if err != nil {
 		slog.Error("failed to create server", "error", err)
 		os.Exit(1)
 	}
-
-	// Start River worker
-	riverClient, err := worker.Setup(ctx, pool, svcs.FeedService, svcs.FaviconService, svcs.Queries)
-	if err != nil {
-		slog.Error("failed to start worker", "error", err)
-		os.Exit(1)
-	}
-
-	// Inject River client into OPML handler for async import
-	svcs.OPMLHandler.SetRiverClient(riverClient)
 
 	// Mount River UI (behind auth)
 	endpoints := riverui.NewEndpoints(riverClient, nil)

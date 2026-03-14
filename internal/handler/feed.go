@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -9,6 +11,8 @@ import (
 	"github.com/angristan/larafeed-go/internal/auth"
 	"github.com/angristan/larafeed-go/internal/service"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
+	"github.com/riverqueue/river"
 	gonertia "github.com/romsar/gonertia/v2"
 )
 
@@ -24,15 +28,22 @@ type updateFeedRequest struct {
 	FilterRules *service.FilterRules `json:"filter_rules"`
 }
 
+// RefreshFaviconArgs must match worker.RefreshFaviconArgs for River dispatch.
+type RefreshFaviconArgs struct {
+	FeedID int64 `json:"feed_id"`
+}
+
+func (RefreshFaviconArgs) Kind() string { return "refresh_favicon" }
+
 type FeedHandler struct {
 	inertia     *gonertia.Inertia
 	feedService feedService
-	faviconSvc  faviconService
+	riverClient *river.Client[pgx.Tx]
 }
 
-func NewFeedHandler(i *gonertia.Inertia, feedSvc feedService, faviconSvc faviconService) *FeedHandler {
+func NewFeedHandler(i *gonertia.Inertia, feedSvc feedService, rc *river.Client[pgx.Tx]) *FeedHandler {
 	return &FeedHandler{
-		inertia: i, feedService: feedSvc, faviconSvc: faviconSvc,
+		inertia: i, feedService: feedSvc, riverClient: rc,
 	}
 }
 
@@ -66,10 +77,15 @@ func (h *FeedHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch favicon in background
-	go func() {
-		_ = h.faviconSvc.RefreshFavicon(r.Context(), feed)
-	}()
+	// Enqueue favicon refresh as a River job
+	if _, err := h.riverClient.Insert(context.Background(), RefreshFaviconArgs{FeedID: feed.ID}, &river.InsertOpts{
+		UniqueOpts: river.UniqueOpts{
+			ByArgs:   true,
+			ByPeriod: 1 * time.Hour,
+		},
+	}); err != nil {
+		slog.ErrorContext(r.Context(), "failed to enqueue favicon refresh", "feed_id", feed.ID, "error", err)
+	}
 
 	http.Redirect(w, r, "/feeds?feed="+strconv.FormatInt(feed.ID, 10), http.StatusFound)
 }
@@ -131,9 +147,16 @@ func (h *FeedHandler) RefreshFavicon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go func() {
-		_ = h.faviconSvc.RefreshFavicon(r.Context(), feed)
-	}()
+	// Enqueue favicon refresh as a River job
+	if _, err := h.riverClient.Insert(context.Background(), RefreshFaviconArgs{FeedID: feed.ID}, &river.InsertOpts{
+		UniqueOpts: river.UniqueOpts{
+			ByArgs:   true,
+			ByPeriod: 1 * time.Hour,
+		},
+	}); err != nil {
+		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "failed to enqueue favicon refresh"})
+		return
+	}
 
 	jsonResponse(w, http.StatusOK, map[string]string{"status": "refreshing"})
 }
