@@ -23,12 +23,13 @@ type Auth struct {
 	q     *db.Queries
 }
 
-func New(sessionKey string, q *db.Queries) *Auth {
+func New(sessionKey string, q *db.Queries, secure bool) *Auth {
 	store := sessions.NewCookieStore([]byte(sessionKey))
 	store.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   86400 * 30, // 30 days
 		HttpOnly: true,
+		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
 	}
 	return &Auth{store: store, q: q}
