@@ -6,12 +6,13 @@ import (
 	"time"
 
 	"github.com/angristan/larafeed-go/internal/db"
+	"github.com/angristan/larafeed-go/internal/db/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-func newTestReaderService(q *mockQuerier) *ReaderService {
+func newTestReaderService(q *mocks.Querier) *ReaderService {
 	imgProxy := NewImgProxyService("", "", "")
 	faviconSvc := NewFaviconService(q, imgProxy)
 	llm := NewLLMService("", q)
@@ -19,18 +20,17 @@ func newTestReaderService(q *mockQuerier) *ReaderService {
 }
 
 func TestListFeeds_Empty(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("ListSubscriptionsForUser", mock.Anything, int64(1)).
 		Return([]db.ListSubscriptionsForUserRow(nil), nil)
 
 	svc := newTestReaderService(q)
 	feeds := svc.ListFeeds(context.Background(), 1)
 	assert.Nil(t, feeds)
-	q.AssertExpectations(t)
 }
 
 func TestListFeeds_WithSubscriptions(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	now := time.Now()
 	q.On("ListSubscriptionsForUser", mock.Anything, int64(1)).
 		Return([]db.ListSubscriptionsForUserRow{
@@ -48,11 +48,10 @@ func TestListFeeds_WithSubscriptions(t *testing.T) {
 	assert.Equal(t, "Go Blog", feeds[0].Name)
 	assert.Equal(t, int64(2), feeds[0].CategoryID)
 	assert.Equal(t, int64(5), feeds[0].EntriesCount)
-	q.AssertExpectations(t)
 }
 
 func TestListFeeds_CustomNameOverridesOriginal(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	custom := "My Go Blog"
 	q.On("ListSubscriptionsForUser", mock.Anything, int64(1)).
 		Return([]db.ListSubscriptionsForUserRow{
@@ -68,7 +67,7 @@ func TestListFeeds_CustomNameOverridesOriginal(t *testing.T) {
 }
 
 func TestFetchEntriesPage_Empty(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("CountForReader", mock.Anything, mock.Anything).Return(int64(0), nil)
 	q.On("ListForReaderByPublished", mock.Anything, mock.Anything).
 		Return([]db.ListForReaderByPublishedRow(nil), nil)
@@ -80,11 +79,10 @@ func TestFetchEntriesPage_Empty(t *testing.T) {
 
 	assert.Equal(t, 0, result.Total)
 	assert.Equal(t, 1, result.CurrentPage)
-	q.AssertExpectations(t)
 }
 
 func TestFetchEntriesPage_UsesCreatedOrderBy(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("CountForReader", mock.Anything, mock.Anything).Return(int64(1), nil)
 	q.On("ListForReaderByCreated", mock.Anything, mock.Anything).
 		Return([]db.ListForReaderByCreatedRow{
@@ -103,7 +101,7 @@ func TestFetchEntriesPage_UsesCreatedOrderBy(t *testing.T) {
 }
 
 func TestFetchCurrentEntry(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("FindReaderEntry", mock.Anything, db.FindReaderEntryParams{UserID: 1, EntryID: 42}).
 		Return(db.FindReaderEntryRow{
 			ID: 42, FeedID: 10, Title: "Test Entry", FeedName: "Go Blog",
@@ -116,11 +114,10 @@ func TestFetchCurrentEntry(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(42), entry.ID)
 	assert.Equal(t, "Test Entry", entry.Title)
-	q.AssertExpectations(t)
 }
 
 func TestFetchCurrentEntry_MarkAsRead(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("FindReaderEntry", mock.Anything, mock.Anything).
 		Return(db.FindReaderEntryRow{ID: 42, FeedID: 10, Title: "Test", FeedName: "Blog", PublishedAt: time.Now()}, nil)
 	q.On("MarkAsRead", mock.Anything, db.MarkAsReadParams{UserID: 1, EntryID: 42}).Return(nil)
@@ -135,7 +132,7 @@ func TestFetchCurrentEntry_MarkAsRead(t *testing.T) {
 }
 
 func TestFetchCurrentEntry_MarkAsUnread(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	now := time.Now()
 	q.On("FindReaderEntry", mock.Anything, mock.Anything).
 		Return(db.FindReaderEntryRow{ID: 42, FeedID: 10, Title: "Test", FeedName: "Blog", PublishedAt: time.Now(), ReadAt: &now}, nil)
@@ -151,18 +148,17 @@ func TestFetchCurrentEntry_MarkAsUnread(t *testing.T) {
 }
 
 func TestCountUnread(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("CountUnread", mock.Anything, int64(1)).Return(int64(42), nil)
 
 	svc := newTestReaderService(q)
 	count := svc.CountUnread(context.Background(), 1)
 
 	assert.Equal(t, int64(42), count)
-	q.AssertExpectations(t)
 }
 
 func TestCountRead(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("CountRead", mock.Anything, int64(1)).Return(int64(10), nil)
 
 	svc := newTestReaderService(q)
@@ -172,7 +168,7 @@ func TestCountRead(t *testing.T) {
 }
 
 func TestListCategories(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("ListCategoriesForUser", mock.Anything, int64(1)).
 		Return([]db.SubscriptionCategory{
 			{ID: 1, Name: "Tech"},
@@ -184,5 +180,4 @@ func TestListCategories(t *testing.T) {
 
 	assert.Len(t, cats, 2)
 	assert.Equal(t, "Tech", cats[0].Name)
-	q.AssertExpectations(t)
 }

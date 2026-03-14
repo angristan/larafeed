@@ -8,13 +8,14 @@ import (
 
 	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/db"
+	"github.com/angristan/larafeed-go/internal/db/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCategoryCreate(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("CreateCategory", mock.Anything, db.CreateCategoryParams{UserID: 1, Name: "Tech"}).
 		Return(db.SubscriptionCategory{ID: 5, Name: "Tech"}, nil)
 
@@ -24,11 +25,10 @@ func TestCategoryCreate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(5), cat.ID)
 	assert.Equal(t, "Tech", cat.Name)
-	q.AssertExpectations(t)
 }
 
 func TestCategoryDelete_Success(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("FindCategoryByID", mock.Anything, int64(5)).
 		Return(db.SubscriptionCategory{ID: 5, UserID: 1}, nil)
 	q.On("CategoryHasSubscriptions", mock.Anything, int64(5)).Return(int64(0), nil)
@@ -38,11 +38,10 @@ func TestCategoryDelete_Success(t *testing.T) {
 	err := svc.Delete(context.Background(), 1, 5)
 
 	require.NoError(t, err)
-	q.AssertExpectations(t)
 }
 
 func TestCategoryDelete_NotOwned(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("FindCategoryByID", mock.Anything, int64(5)).
 		Return(db.SubscriptionCategory{ID: 5, UserID: 999}, nil) // different user
 
@@ -56,7 +55,7 @@ func TestCategoryDelete_NotOwned(t *testing.T) {
 }
 
 func TestCategoryDelete_NotFound(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("FindCategoryByID", mock.Anything, int64(5)).
 		Return(db.SubscriptionCategory{}, fmt.Errorf("no rows"))
 
@@ -69,7 +68,7 @@ func TestCategoryDelete_NotFound(t *testing.T) {
 }
 
 func TestCategoryCreate_Conflict(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("CreateCategory", mock.Anything, db.CreateCategoryParams{UserID: 1, Name: "Tech"}).
 		Return(db.SubscriptionCategory{}, fmt.Errorf("unique constraint violation"))
 
@@ -83,7 +82,7 @@ func TestCategoryCreate_Conflict(t *testing.T) {
 }
 
 func TestCategoryDelete_HasSubscriptions(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("FindCategoryByID", mock.Anything, int64(5)).
 		Return(db.SubscriptionCategory{ID: 5, UserID: 1}, nil)
 	q.On("CategoryHasSubscriptions", mock.Anything, int64(5)).Return(int64(3), nil)

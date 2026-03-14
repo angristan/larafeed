@@ -1,4 +1,4 @@
-.PHONY: build run dev clean test
+.PHONY: build run dev clean test generate-mocks
 
 build:
 	go build -o larafeed ./main.go
@@ -14,6 +14,9 @@ test:
 
 test-unit:
 	go test -short ./... -race
+
+generate-mocks:
+	go generate ./internal/db/...
 
 clean:
 	rm -rf larafeed tmp
