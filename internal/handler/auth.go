@@ -21,9 +21,9 @@ type loginRequest struct {
 }
 
 type registerRequest struct {
-	Name                 string `json:"name" validate:"required"`
-	Email                string `json:"email" validate:"required"`
-	Password             string `json:"password" validate:"required,min=8,eqfield=PasswordConfirmation"`
+	Name                 string `json:"name" validate:"required,max=255"`
+	Email                string `json:"email" validate:"required,max=255"`
+	Password             string `json:"password" validate:"required,min=8,max=255,eqfield=PasswordConfirmation"`
 	PasswordConfirmation string `json:"password_confirmation"`
 }
 
@@ -33,12 +33,12 @@ type twoFactorChallengeRequest struct {
 }
 
 type forgotPasswordRequest struct {
-	Email string `json:"email" validate:"required"`
+	Email string `json:"email" validate:"required,max=255"`
 }
 
 type resetPasswordRequest struct {
 	Email                string `json:"email"`
-	Password             string `json:"password" validate:"required,min=8,eqfield=PasswordConfirmation"`
+	Password             string `json:"password" validate:"required,min=8,max=255,eqfield=PasswordConfirmation"`
 	PasswordConfirmation string `json:"password_confirmation"`
 	Token                string `json:"token"`
 }
@@ -49,7 +49,7 @@ type confirmPasswordRequest struct {
 
 type updatePasswordRequest struct {
 	CurrentPassword      string `json:"current_password"`
-	Password             string `json:"password" validate:"required,min=8,eqfield=PasswordConfirmation"`
+	Password             string `json:"password" validate:"required,min=8,max=255,eqfield=PasswordConfirmation"`
 	PasswordConfirmation string `json:"password_confirmation"`
 }
 

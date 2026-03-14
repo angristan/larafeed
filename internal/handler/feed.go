@@ -17,14 +17,14 @@ import (
 )
 
 type createFeedRequest struct {
-	FeedURL      string `json:"feed_url" validate:"required" label:"feed URL"`
+	FeedURL      string `json:"feed_url" validate:"required,max=255" label:"feed URL"`
 	CategoryID   *int64 `json:"category_id"`
 	CategoryName string `json:"category_name"`
 }
 
 type updateFeedRequest struct {
 	CategoryID  int64                `json:"category_id"`
-	Name        string               `json:"name"`
+	Name        string               `json:"name" validate:"max=255"`
 	FilterRules *service.FilterRules `json:"filter_rules"`
 }
 
