@@ -47,10 +47,13 @@ type ReaderQuery struct {
 const readerPageSize = 30
 
 // ListFeeds returns the user's subscribed feeds formatted for the reader sidebar.
-func (s *ReaderService) ListFeeds(ctx context.Context, userID int64) []ReaderFeed {
-	feedRows, _ := s.q.ListSubscriptionsForUser(ctx, userID)
+func (s *ReaderService) ListFeeds(ctx context.Context, userID int64) ([]ReaderFeed, error) {
+	feedRows, err := s.q.ListSubscriptionsForUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
 	if feedRows == nil {
-		return nil
+		return nil, nil
 	}
 
 	feeds := make([]ReaderFeed, len(feedRows))
@@ -86,11 +89,11 @@ func (s *ReaderService) ListFeeds(ctx context.Context, userID int64) []ReaderFee
 			FilterRules:             f.FilterRules,
 		}
 	}
-	return feeds
+	return feeds, nil
 }
 
 // FetchEntriesPage returns paginated entries for the reader view.
-func (s *ReaderService) FetchEntriesPage(ctx context.Context, userID int64, params ReaderQuery) PaginatedResult {
+func (s *ReaderService) FetchEntriesPage(ctx context.Context, userID int64, params ReaderQuery) (PaginatedResult, error) {
 	var feedIDPg, categoryIDPg pgtype.Int8
 	if params.FeedID != nil {
 		feedIDPg = pgtype.Int8{Int64: *params.FeedID, Valid: true}
@@ -99,23 +102,32 @@ func (s *ReaderService) FetchEntriesPage(ctx context.Context, userID int64, para
 		categoryIDPg = pgtype.Int8{Int64: *params.CategoryID, Valid: true}
 	}
 
-	total, _ := s.q.CountForReader(ctx, db.CountForReaderParams{
+	total, err := s.q.CountForReader(ctx, db.CountForReaderParams{
 		UserID: userID, FeedID: feedIDPg, CategoryID: categoryIDPg, Filter: params.Filter,
 	})
+	if err != nil {
+		return PaginatedResult{}, err
+	}
 
 	pageOffset := int32((params.Page - 1) * readerPageSize)
 	var entries []db.ReaderEntry
 	if params.OrderBy == "created_at" {
-		rows, _ := s.q.ListForReaderByCreated(ctx, db.ListForReaderByCreatedParams{
+		rows, err := s.q.ListForReaderByCreated(ctx, db.ListForReaderByCreatedParams{
 			UserID: userID, FeedID: feedIDPg, CategoryID: categoryIDPg,
 			Filter: params.Filter, PageOffset: pageOffset, PageSize: readerPageSize,
 		})
+		if err != nil {
+			return PaginatedResult{}, err
+		}
 		entries = db.ReaderEntriesFromCreatedRows(rows)
 	} else {
-		rows, _ := s.q.ListForReaderByPublished(ctx, db.ListForReaderByPublishedParams{
+		rows, err := s.q.ListForReaderByPublished(ctx, db.ListForReaderByPublishedParams{
 			UserID: userID, FeedID: feedIDPg, CategoryID: categoryIDPg,
 			Filter: params.Filter, PageOffset: pageOffset, PageSize: readerPageSize,
 		})
+		if err != nil {
+			return PaginatedResult{}, err
+		}
 		entries = db.ReaderEntriesFromPublishedRows(rows)
 	}
 
@@ -129,7 +141,7 @@ func (s *ReaderService) FetchEntriesPage(ctx context.Context, userID int64, para
 	if entries == nil {
 		entryData = []any{}
 	}
-	return Paginate(entryData, int(total), params.Page, readerPageSize)
+	return Paginate(entryData, int(total), params.Page, readerPageSize), nil
 }
 
 // FetchCurrentEntry returns a single entry with interactions, applying read/unread
@@ -149,11 +161,15 @@ func (s *ReaderService) FetchCurrentEntry(ctx context.Context, userID int64, ent
 	// Mark as read/unread
 	if markRead != nil {
 		if *markRead {
-			_ = s.q.MarkAsRead(ctx, db.MarkAsReadParams{UserID: userID, EntryID: entryID})
+			if err := s.q.MarkAsRead(ctx, db.MarkAsReadParams{UserID: userID, EntryID: entryID}); err != nil {
+				return nil, err
+			}
 			now := time.Now()
 			entry.ReadAt = &now
 		} else {
-			_ = s.q.MarkAsUnread(ctx, db.MarkAsUnreadParams{UserID: userID, EntryID: entryID})
+			if err := s.q.MarkAsUnread(ctx, db.MarkAsUnreadParams{UserID: userID, EntryID: entryID}); err != nil {
+				return nil, err
+			}
 			entry.ReadAt = nil
 		}
 	}
@@ -177,21 +193,18 @@ func (s *ReaderService) SummarizeEntry(ctx context.Context, entryID int64) (any,
 }
 
 // CountUnread returns the number of unread entries for the user.
-func (s *ReaderService) CountUnread(ctx context.Context, userID int64) int64 {
-	count, _ := s.q.CountUnread(ctx, userID)
-	return count
+func (s *ReaderService) CountUnread(ctx context.Context, userID int64) (int64, error) {
+	return s.q.CountUnread(ctx, userID)
 }
 
 // CountRead returns the number of read entries for the user.
-func (s *ReaderService) CountRead(ctx context.Context, userID int64) int64 {
-	count, _ := s.q.CountRead(ctx, userID)
-	return count
+func (s *ReaderService) CountRead(ctx context.Context, userID int64) (int64, error) {
+	return s.q.CountRead(ctx, userID)
 }
 
 // ListCategories returns the user's subscription categories.
-func (s *ReaderService) ListCategories(ctx context.Context, userID int64) []db.SubscriptionCategory {
-	cats, _ := s.q.ListCategoriesForUser(ctx, userID)
-	return cats
+func (s *ReaderService) ListCategories(ctx context.Context, userID int64) ([]db.SubscriptionCategory, error) {
+	return s.q.ListCategoriesForUser(ctx, userID)
 }
 
 // ListSubscriptions returns raw subscription rows for the user.

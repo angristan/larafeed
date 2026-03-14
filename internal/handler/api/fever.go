@@ -78,7 +78,7 @@ func (h *FeverHandler) Handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FeverHandler) getGroups(r *http.Request, user *db.User, base map[string]any) {
-	cats := h.reader.ListCategories(r.Context(), user.ID)
+	cats, _ := h.reader.ListCategories(r.Context(), user.ID)
 	feeds, _ := h.reader.ListSubscriptions(r.Context(), user.ID)
 
 	var groups []map[string]any
