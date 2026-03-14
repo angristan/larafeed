@@ -10,6 +10,12 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  jaeger:
+    image: jaegertracing/jaeger:latest
+    ports:
+      - "127.0.0.1:16686:16686"
+      - "127.0.0.1:4318:4318"
+
   app:
     build:
       context: .
@@ -23,10 +29,12 @@ services:
       APP_URL: http://localhost:3000
       VITE_DEV_URL: http://localhost:5173
       SESSION_SECRET: dev-secret-key-change-in-production
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     volumes:
       - .:/app
     depends_on:
       - postgres
+      - jaeger
 
   vite:
     build:
