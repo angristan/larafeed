@@ -18,7 +18,7 @@ func render(w http.ResponseWriter, r *http.Request, i *gonertia.Inertia, compone
 		err = i.Render(w, r, component)
 	}
 	if err != nil {
-		slog.Error("render error", "component", component, "error", err)
+		slog.ErrorContext(r.Context(), "render error", "component", component, "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
@@ -38,7 +38,7 @@ func renderError(w http.ResponseWriter, r *http.Request, i *gonertia.Inertia, st
 		w.WriteHeader(status)
 	}
 	if err := i.Render(w, r, "Error", gonertia.Props{"status": status}); err != nil {
-		slog.Error("render error page failed", "status", status, "error", err)
+		slog.ErrorContext(r.Context(), "render error page failed", "status", status, "error", err)
 		http.Error(w, http.StatusText(status), status)
 	}
 }

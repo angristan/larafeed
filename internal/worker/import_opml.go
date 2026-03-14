@@ -2,10 +2,12 @@ package worker
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/angristan/larafeed-go/internal/db"
+	"github.com/angristan/larafeed-go/internal/logging"
 	"github.com/angristan/larafeed-go/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -32,11 +34,12 @@ type ImportOPMLWorker struct {
 }
 
 func (w *ImportOPMLWorker) Work(ctx context.Context, job *river.Job[ImportOPMLFeedArgs]) error {
+	ctx = logging.WithRequestID(ctx, fmt.Sprintf("job-%d", job.ID))
 	args := job.Args
 
 	feed, err := w.feedService.CreateFeed(ctx, args.UserID, args.FeedURL, args.CategoryID, args.FallbackName)
 	if err != nil {
-		slog.Error("OPML import: failed to create feed", "feed_url", args.FeedURL, "error", err)
+		slog.ErrorContext(ctx, "OPML import: failed to create feed", "feed_url", args.FeedURL, "error", err)
 		return nil // Don't retry — log and move on
 	}
 

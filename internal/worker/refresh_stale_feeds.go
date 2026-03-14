@@ -2,10 +2,12 @@ package worker
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/angristan/larafeed-go/internal/db"
+	"github.com/angristan/larafeed-go/internal/logging"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -25,12 +27,14 @@ type RefreshStaleFeedsWorker struct {
 }
 
 func (w *RefreshStaleFeedsWorker) Work(ctx context.Context, job *river.Job[RefreshStaleFeedsArgs]) error {
+	ctx = logging.WithRequestID(ctx, fmt.Sprintf("job-%d", job.ID))
+
 	staleFeeds, err := w.q.FeedsNeedingRefresh(ctx, db.FeedsNeedingRefreshParams{
 		StaleAfter: pgtype.Interval{Microseconds: int64(2 * time.Hour / time.Microsecond), Valid: true},
 		MaxFeeds:   10,
 	})
 	if err != nil {
-		slog.Error("failed to get stale feeds", "error", err)
+		slog.ErrorContext(ctx, "failed to get stale feeds", "error", err)
 		return nil
 	}
 
@@ -52,10 +56,10 @@ func (w *RefreshStaleFeedsWorker) Work(ctx context.Context, job *river.Job[Refre
 			},
 		})
 		if err != nil {
-			slog.Error("failed to enqueue refresh for feed", "feed_id", feed.ID, "error", err)
+			slog.ErrorContext(ctx, "failed to enqueue refresh for feed", "feed_id", feed.ID, "error", err)
 		}
 	}
 
-	slog.Info("enqueued refresh for stale feeds", "count", len(staleFeeds))
+	slog.InfoContext(ctx, "enqueued refresh for stale feeds", "count", len(staleFeeds))
 	return nil
 }

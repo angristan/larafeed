@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/angristan/larafeed-go/internal/db"
+	"github.com/angristan/larafeed-go/internal/logging"
 	"github.com/angristan/larafeed-go/internal/service"
 	"github.com/riverqueue/river"
 )
@@ -25,6 +26,8 @@ type RefreshFeedWorker struct {
 }
 
 func (w *RefreshFeedWorker) Work(ctx context.Context, job *river.Job[RefreshFeedArgs]) error {
+	ctx = logging.WithRequestID(ctx, fmt.Sprintf("job-%d", job.ID))
+
 	feed, err := w.q.FindFeedByID(ctx, job.Args.FeedID)
 	if err != nil {
 		return fmt.Errorf("find feed %d: %w", job.Args.FeedID, err)
@@ -32,12 +35,12 @@ func (w *RefreshFeedWorker) Work(ctx context.Context, job *river.Job[RefreshFeed
 
 	newCount, err := w.feedService.RefreshFeed(ctx, &feed)
 	if err != nil {
-		slog.Error("failed to refresh feed", "feed_id", feed.ID, "feed_url", feed.FeedURL, "error", err)
+		slog.ErrorContext(ctx, "failed to refresh feed", "feed_id", feed.ID, "feed_url", feed.FeedURL, "error", err)
 		return nil // Don't retry — errors are recorded in feed_refreshes
 	}
 
 	if newCount > 0 {
-		slog.Info("refreshed feed", "feed_id", feed.ID, "feed_url", feed.FeedURL, "new_entries", newCount)
+		slog.InfoContext(ctx, "refreshed feed", "feed_id", feed.ID, "feed_url", feed.FeedURL, "new_entries", newCount)
 	}
 	return nil
 }

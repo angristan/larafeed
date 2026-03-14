@@ -2,10 +2,12 @@ package worker
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/angristan/larafeed-go/internal/db"
+	"github.com/angristan/larafeed-go/internal/logging"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -25,13 +27,15 @@ type RefreshStaleFaviconsWorker struct {
 }
 
 func (w *RefreshStaleFaviconsWorker) Work(ctx context.Context, job *river.Job[RefreshStaleFaviconsArgs]) error {
+	ctx = logging.WithRequestID(ctx, fmt.Sprintf("job-%d", job.ID))
+
 	// Refresh favicons older than 30 days or missing
 	feeds, err := w.q.FeedsWithOutdatedFavicons(ctx, pgtype.Interval{
 		Microseconds: int64(30 * 24 * time.Hour / time.Microsecond),
 		Valid:        true,
 	})
 	if err != nil {
-		slog.Error("failed to get feeds with outdated favicons", "error", err)
+		slog.ErrorContext(ctx, "failed to get feeds with outdated favicons", "error", err)
 		return nil
 	}
 
@@ -59,10 +63,10 @@ func (w *RefreshStaleFaviconsWorker) Work(ctx context.Context, job *river.Job[Re
 			},
 		})
 		if err != nil {
-			slog.Error("failed to enqueue favicon refresh", "feed_id", feed.ID, "error", err)
+			slog.ErrorContext(ctx, "failed to enqueue favicon refresh", "feed_id", feed.ID, "error", err)
 		}
 	}
 
-	slog.Info("enqueued favicon refresh", "count", limit)
+	slog.InfoContext(ctx, "enqueued favicon refresh", "count", limit)
 	return nil
 }

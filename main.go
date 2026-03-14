@@ -12,6 +12,7 @@ import (
 	"github.com/angristan/larafeed-go/internal/auth"
 	"github.com/angristan/larafeed-go/internal/config"
 	"github.com/angristan/larafeed-go/internal/db"
+	"github.com/angristan/larafeed-go/internal/logging"
 	"github.com/angristan/larafeed-go/internal/server"
 	"github.com/angristan/larafeed-go/internal/worker"
 	"github.com/go-chi/chi/v5"
@@ -30,6 +31,11 @@ func requireAuthAPI(next http.Handler) http.Handler {
 }
 
 func main() {
+	// Set up structured logging with request ID extraction from context.
+	slog.SetDefault(slog.New(logging.NewContextHandler(
+		slog.NewTextHandler(os.Stderr, nil),
+	)))
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/angristan/larafeed-go/internal/db"
+	"github.com/angristan/larafeed-go/internal/logging"
 	"github.com/angristan/larafeed-go/internal/service"
 	"github.com/riverqueue/river"
 )
@@ -25,13 +26,15 @@ type RefreshFaviconWorker struct {
 }
 
 func (w *RefreshFaviconWorker) Work(ctx context.Context, job *river.Job[RefreshFaviconArgs]) error {
+	ctx = logging.WithRequestID(ctx, fmt.Sprintf("job-%d", job.ID))
+
 	feed, err := w.q.FindFeedByID(ctx, job.Args.FeedID)
 	if err != nil {
 		return fmt.Errorf("find feed %d: %w", job.Args.FeedID, err)
 	}
 
 	if err := w.faviconService.RefreshFavicon(ctx, &feed); err != nil {
-		slog.Error("failed to refresh favicon", "feed_id", feed.ID, "error", err)
+		slog.ErrorContext(ctx, "failed to refresh favicon", "feed_id", feed.ID, "error", err)
 	}
 
 	return nil
