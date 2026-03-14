@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/angristan/larafeed-go/internal/db"
@@ -53,7 +54,11 @@ func (s *LLMService) SummarizeEntry(ctx context.Context, entry *db.Entry) (strin
 	if err != nil {
 		return "", fmt.Errorf("create genai client: %w", err)
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil {
+			slog.WarnContext(ctx, "failed to close genai client", "error", err)
+		}
+	}()
 
 	model := client.GenerativeModel("gemini-2.0-flash")
 	model.SetMaxOutputTokens(512)

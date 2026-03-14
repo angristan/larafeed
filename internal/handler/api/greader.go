@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -58,8 +59,7 @@ func (h *GoogleReaderHandler) ClientLogin(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	greaderJSON(w, r, map[string]string{
 		"Auth": plain,
 		"SID":  plain,
 		"LSID": plain,
@@ -70,13 +70,14 @@ func (h *GoogleReaderHandler) GetToken(w http.ResponseWriter, r *http.Request) {
 	authHeader := r.Header.Get("Authorization")
 	token := strings.TrimPrefix(authHeader, "GoogleLogin auth=")
 	w.Header().Set("Content-Type", "text/plain")
-	fmt.Fprint(w, token)
+	if _, err := fmt.Fprint(w, token); err != nil {
+		slog.ErrorContext(r.Context(), "failed to write response", "error", err)
+	}
 }
 
 func (h *GoogleReaderHandler) GetUserInfo(w http.ResponseWriter, r *http.Request) {
 	user := auth.UserFromRequest(r)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	greaderJSON(w, r, map[string]string{
 		"userId":        strconv.FormatInt(user.ID, 10),
 		"userName":      user.Name,
 		"userEmail":     user.Email,
@@ -131,8 +132,7 @@ func (h *GoogleReaderHandler) GetSubscriptionList(w http.ResponseWriter, r *http
 		})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"subscriptions": subs})
+	greaderJSON(w, r, map[string]any{"subscriptions": subs})
 }
 
 func (h *GoogleReaderHandler) GetStreamItemIds(w http.ResponseWriter, r *http.Request) {
@@ -171,8 +171,7 @@ func (h *GoogleReaderHandler) GetStreamItemIds(w http.ResponseWriter, r *http.Re
 		refs = append(refs, ItemRef{ID: fmt.Sprintf("%d", id)})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"itemRefs": refs})
+	greaderJSON(w, r, map[string]any{"itemRefs": refs})
 }
 
 func (h *GoogleReaderHandler) GetStreamContents(w http.ResponseWriter, r *http.Request) {
@@ -203,7 +202,11 @@ func (h *GoogleReaderHandler) GetStreamContents(w http.ResponseWriter, r *http.R
 	for _, hexID := range hexIDs {
 		entryID, err := strconv.ParseInt(hexID, 16, 64)
 		if err != nil {
-			entryID, _ = strconv.ParseInt(hexID, 10, 64)
+			var parseErr error
+			entryID, parseErr = strconv.ParseInt(hexID, 10, 64)
+			if parseErr != nil {
+				continue
+			}
 		}
 		if entryID == 0 {
 			continue
@@ -253,8 +256,7 @@ func (h *GoogleReaderHandler) GetStreamContents(w http.ResponseWriter, r *http.R
 		})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	greaderJSON(w, r, map[string]any{
 		"items":   items,
 		"updated": time.Now().Unix(),
 	})
@@ -273,7 +275,12 @@ func (h *GoogleReaderHandler) EditTag(w http.ResponseWriter, r *http.Request) {
 
 	entryID, err := strconv.ParseInt(hexID, 16, 64)
 	if err != nil {
-		entryID, _ = strconv.ParseInt(hexID, 10, 64)
+		var parseErr error
+		entryID, parseErr = strconv.ParseInt(hexID, 10, 64)
+		if parseErr != nil {
+			http.Error(w, "Invalid ID", http.StatusBadRequest)
+			return
+		}
 	}
 	if entryID == 0 {
 		http.Error(w, "Invalid ID", http.StatusBadRequest)
@@ -291,8 +298,20 @@ func (h *GoogleReaderHandler) EditTag(w http.ResponseWriter, r *http.Request) {
 	case removeTag == "user/-/state/com.google/starred":
 		starred = ptrBool(false)
 	}
-	_ = h.entries.UpdateInteractions(r.Context(), user.ID, entryID, read, starred, nil)
+
+	if err := h.entries.UpdateInteractions(r.Context(), user.ID, entryID, read, starred, nil); err != nil {
+		slog.ErrorContext(r.Context(), "failed to update entry interactions", "entry_id", entryID, "error", err)
+	}
 
 	w.Header().Set("Content-Type", "text/plain")
-	fmt.Fprint(w, "OK")
+	if _, err := fmt.Fprint(w, "OK"); err != nil {
+		slog.ErrorContext(r.Context(), "failed to write response", "error", err)
+	}
+}
+
+func greaderJSON(w http.ResponseWriter, r *http.Request, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		slog.ErrorContext(r.Context(), "failed to write Google Reader response", "error", err)
+	}
 }

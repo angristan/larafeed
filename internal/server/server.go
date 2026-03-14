@@ -197,11 +197,13 @@ func buildRootTemplate(cfg *config.Config) (string, error) {
 		for _, entry := range manifest {
 			if entry.IsEntry {
 				for _, css := range entry.CSS {
-					sb.WriteString(fmt.Sprintf(`<link rel="stylesheet" href="/build/%s">`, css))
-					sb.WriteByte('\n')
+					if _, err := fmt.Fprintf(&sb, "<link rel=\"stylesheet\" href=\"/build/%s\">\n", css); err != nil {
+						return "", fmt.Errorf("write CSS link: %w", err)
+					}
 				}
-				sb.WriteString(fmt.Sprintf(`<script type="module" src="/build/%s"></script>`, entry.File))
-				sb.WriteByte('\n')
+				if _, err := fmt.Fprintf(&sb, "<script type=\"module\" src=\"/build/%s\"></script>\n", entry.File); err != nil {
+					return "", fmt.Errorf("write script tag: %w", err)
+				}
 			}
 		}
 		viteScripts = sb.String()

@@ -97,7 +97,11 @@ func (s *FeedService) FetchFeed(ctx context.Context, feedURL string) (*FetchResu
 	if err != nil {
 		return nil, fmt.Errorf("fetch feed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			slog.WarnContext(ctx, "failed to close response body", "error", err)
+		}
+	}()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024)) // 2MB limit
 	if err != nil {

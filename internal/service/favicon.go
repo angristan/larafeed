@@ -58,7 +58,9 @@ func (s *FaviconService) GetFaviconURL(ctx context.Context, siteURL string) stri
 		if err != nil {
 			continue
 		}
-		resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			slog.WarnContext(ctx, "failed to close response body", "error", err)
+		}
 
 		if resp.StatusCode == 200 {
 			ct := resp.Header.Get("Content-Type")
@@ -92,7 +94,11 @@ func (s *FaviconService) AnalyzeBrightness(ctx context.Context, faviconURL strin
 	if err != nil {
 		return nil
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			slog.WarnContext(ctx, "failed to close response body", "error", err)
+		}
+	}()
 
 	if resp.StatusCode != 200 {
 		slog.WarnContext(ctx, "Failed to fetch favicon for brightness analysis",

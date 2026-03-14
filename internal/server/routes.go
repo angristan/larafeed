@@ -183,11 +183,13 @@ func RegisterRoutes(
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]any{
+			if err := json.NewEncoder(w).Encode(map[string]any{
 				"id":    user.ID,
 				"name":  user.Name,
 				"email": user.Email,
-			})
+			}); err != nil {
+				slog.ErrorContext(r.Context(), "failed to write JSON response", "error", err)
+			}
 		})
 
 		// Google Reader API

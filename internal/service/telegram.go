@@ -33,7 +33,9 @@ func (s *TelegramService) SendMessage(text string) error {
 	if err != nil {
 		return err
 	}
-	resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		return err
+	}
 	return nil
 }
 

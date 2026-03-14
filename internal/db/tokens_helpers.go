@@ -18,11 +18,3 @@ func HashToken(plaintext string) string {
 	return fmt.Sprintf("%x", h)
 }
 
-func randomToken(length int) string {
-	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = chars[i%len(chars)]
-	}
-	return string(b)
-}

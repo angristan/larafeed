@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -219,7 +220,9 @@ func (h *FeverHandler) updateItem(r *http.Request, user *db.User, q map[string][
 
 func feverResponse(w http.ResponseWriter, data map[string]any) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		slog.Error("failed to write Fever response", "error", err)
+	}
 }
 
 func joinIDs(ids []int64) string {
