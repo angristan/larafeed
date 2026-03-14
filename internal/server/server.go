@@ -88,6 +88,11 @@ func New(cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux, *Services, error) {
 	r.Use(authSvc.LoadUser)
 	r.Use(i.Middleware)
 
+	// Custom 404 handler renders an Inertia error page instead of plain text.
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		handler.RenderError(w, r, i, http.StatusNotFound)
+	})
+
 	// Serve static assets
 	publicDir := filepath.Join(".", "public")
 	fileServer := http.FileServer(http.Dir(publicDir))

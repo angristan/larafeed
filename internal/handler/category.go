@@ -58,7 +58,7 @@ func (h *CategoryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.categorySvc.Delete(r.Context(), user.ID, categoryID); err != nil {
 		if err.Error() == "category not found" {
-			http.Error(w, "Category not found", http.StatusNotFound)
+			renderError(w, r, h.inertia, http.StatusNotFound)
 		} else {
 			validationError(w, r, h.inertia, map[string]string{"category": err.Error()})
 		}

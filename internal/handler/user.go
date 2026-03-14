@@ -43,7 +43,7 @@ func (h *UserHandler) ShowSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.inertia.Render(w, r, "Settings/Index", props); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
 	}
 }
 
@@ -88,7 +88,7 @@ func (h *UserHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 
 	_ = h.authSvc.Logout(w, r)
 	if err := h.userSvc.DeleteAccount(r.Context(), user.ID); err != nil {
-		http.Error(w, "Failed to delete account", http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
 		return
 	}
 
@@ -99,7 +99,7 @@ func (h *UserHandler) WipeAccount(w http.ResponseWriter, r *http.Request) {
 	user := auth.UserFromRequest(r)
 
 	if err := h.userSvc.WipeAccount(r.Context(), user.ID); err != nil {
-		http.Error(w, "Failed to wipe account", http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
 		return
 	}
 
