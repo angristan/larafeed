@@ -99,7 +99,7 @@ func RegisterRoutes(
 		if err := i.Render(w, r, "Welcome", gonertia.Props{
 			"canRegister": cfg.RegistrationEnabled,
 		}); err != nil {
-			slog.Error("render error", "component", "Welcome", "error", err)
+			slog.ErrorContext(r.Context(), "render error", "component", "Welcome", "error", err)
 			handler.RenderError(w, r, i, http.StatusInternalServerError)
 		}
 	})

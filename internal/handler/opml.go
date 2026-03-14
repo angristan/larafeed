@@ -75,13 +75,13 @@ func (h *OPMLHandler) Import(w http.ResponseWriter, r *http.Request) {
 			FallbackName: imp.FallbackName,
 		}, nil)
 		if err != nil {
-			slog.Error("failed to enqueue OPML feed import", "feed_url", imp.FeedURL, "error", err)
+			slog.ErrorContext(r.Context(), "failed to enqueue OPML feed import", "feed_url", imp.FeedURL, "error", err)
 			continue
 		}
 		dispatched++
 	}
 
-	slog.Info("OPML import dispatched", "dispatched", dispatched, "total", len(imports), "user_id", user.ID)
+	slog.InfoContext(r.Context(), "OPML import dispatched", "dispatched", dispatched, "total", len(imports), "user_id", user.ID)
 
 	h.authSvc.SetFlash(w, r, "status", "OPML imported successfully. Feeds are being added in the background.")
 	http.Redirect(w, r, "/profile?section=opml", http.StatusFound)

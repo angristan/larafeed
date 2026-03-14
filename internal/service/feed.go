@@ -394,7 +394,7 @@ func (s *FeedService) Unsubscribe(ctx context.Context, userID int64, feedID int6
 	defer func() {
 		if !committed {
 			if rbErr := tx.Rollback(ctx); rbErr != nil {
-				slog.Error("failed to rollback transaction", "error", rbErr)
+				slog.ErrorContext(ctx, "failed to rollback transaction", "error", rbErr)
 			}
 		}
 	}()

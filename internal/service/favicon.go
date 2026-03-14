@@ -99,7 +99,7 @@ func (s *FaviconService) AnalyzeBrightness(ctx context.Context, faviconURL strin
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		slog.Warn("Failed to fetch favicon for brightness analysis",
+		slog.WarnContext(ctx, "Failed to fetch favicon for brightness analysis",
 			"favicon_url", faviconURL, "status", resp.StatusCode)
 		return nil
 	}
