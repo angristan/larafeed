@@ -3,12 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/auth"
 	"github.com/angristan/larafeed-go/internal/db"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -51,55 +51,36 @@ func (s *UserService) DeleteAccount(ctx context.Context, userID int64) error {
 // WipeAccount removes all user data (interactions, subscriptions, orphaned feeds,
 // categories) while keeping the account itself.
 func (s *UserService) WipeAccount(ctx context.Context, userID int64) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
-	}
-	committed := false
-	defer func() {
-		if !committed {
-			if rbErr := tx.Rollback(ctx); rbErr != nil {
-				slog.ErrorContext(ctx, "failed to rollback transaction", "error", rbErr)
-			}
+	return db.WithTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
+		qtx := db.New(tx)
+
+		if err := qtx.DeleteAllInteractionsForUser(ctx, userID); err != nil {
+			return err
 		}
-	}()
 
-	qtx := db.New(tx)
-
-	if err := qtx.DeleteAllInteractionsForUser(ctx, userID); err != nil {
-		return err
-	}
-
-	feedIDs, err := qtx.ListFeedIDsForUser(ctx, userID)
-	if err != nil {
-		return err
-	}
-
-	if err := qtx.DeleteAllSubscriptionsForUser(ctx, userID); err != nil {
-		return err
-	}
-
-	for _, feedID := range feedIDs {
-		count, err := qtx.CountFeedSubscribers(ctx, feedID)
+		feedIDs, err := qtx.ListFeedIDsForUser(ctx, userID)
 		if err != nil {
 			return err
 		}
-		if count == 0 {
-			if err := qtx.DeleteFeed(ctx, feedID); err != nil {
+
+		if err := qtx.DeleteAllSubscriptionsForUser(ctx, userID); err != nil {
+			return err
+		}
+
+		for _, feedID := range feedIDs {
+			count, err := qtx.CountFeedSubscribers(ctx, feedID)
+			if err != nil {
 				return err
 			}
+			if count == 0 {
+				if err := qtx.DeleteFeed(ctx, feedID); err != nil {
+					return err
+				}
+			}
 		}
-	}
 
-	if err := qtx.DeleteAllCategoriesForUser(ctx, userID); err != nil {
-		return err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit tx: %w", err)
-	}
-	committed = true
-	return nil
+		return qtx.DeleteAllCategoriesForUser(ctx, userID)
+	})
 }
 
 // FindUserByFeverApiKey looks up a user by their Fever API key.

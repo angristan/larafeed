@@ -467,40 +467,25 @@ func (s *FeedService) ResolveCategory(ctx context.Context, userID int64, categor
 
 // Unsubscribe removes a user's subscription and cleans up the feed if no subscribers remain.
 func (s *FeedService) Unsubscribe(ctx context.Context, userID int64, feedID int64) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
-	}
-	committed := false
-	defer func() {
-		if !committed {
-			if rbErr := tx.Rollback(ctx); rbErr != nil {
-				slog.ErrorContext(ctx, "failed to rollback transaction", "error", rbErr)
-			}
-		}
-	}()
-
-	qtx := db.New(tx)
-	if err := qtx.DeleteInteractionsForFeed(ctx, db.DeleteInteractionsForFeedParams{UserID: userID, FeedID: feedID}); err != nil {
-		return err
-	}
-	if err := qtx.Unsubscribe(ctx, db.UnsubscribeParams{UserID: userID, FeedID: feedID}); err != nil {
-		return err
-	}
-	count, err := qtx.CountFeedSubscribers(ctx, feedID)
-	if err != nil {
-		return err
-	}
-	if count == 0 {
-		if err := qtx.DeleteFeed(ctx, feedID); err != nil {
+	return db.WithTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
+		qtx := db.New(tx)
+		if err := qtx.DeleteInteractionsForFeed(ctx, db.DeleteInteractionsForFeedParams{UserID: userID, FeedID: feedID}); err != nil {
 			return err
 		}
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit tx: %w", err)
-	}
-	committed = true
-	return nil
+		if err := qtx.Unsubscribe(ctx, db.UnsubscribeParams{UserID: userID, FeedID: feedID}); err != nil {
+			return err
+		}
+		count, err := qtx.CountFeedSubscribers(ctx, feedID)
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			if err := qtx.DeleteFeed(ctx, feedID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // UpdateSubscription updates a subscription's category, name, and filter rules.
