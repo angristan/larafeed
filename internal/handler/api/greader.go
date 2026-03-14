@@ -13,11 +13,13 @@ import (
 )
 
 type GoogleReaderHandler struct {
-	q *db.Queries
+	authSvc greaderAuthService
+	reader  readerService
+	entries entryService
 }
 
-func NewGoogleReaderHandler(q *db.Queries) *GoogleReaderHandler {
-	return &GoogleReaderHandler{q: q}
+func NewGoogleReaderHandler(authSvc greaderAuthService, reader readerService, entries entryService) *GoogleReaderHandler {
+	return &GoogleReaderHandler{authSvc: authSvc, reader: reader, entries: entries}
 }
 
 // CheckToken is middleware that validates the Google Reader auth token.
@@ -30,21 +32,13 @@ func (h *GoogleReaderHandler) CheckToken(next http.Handler) http.Handler {
 		}
 
 		tokenStr := strings.TrimPrefix(authHeader, "GoogleLogin auth=")
-		token, err := h.q.FindPersonalAccessToken(r.Context(), db.HashToken(tokenStr))
-		if err != nil || token.Abilities == nil || !strings.Contains(*token.Abilities, "reader-api") {
-			http.Error(w, "Error=InvalidAuthToken", http.StatusForbidden)
-			return
-		}
-
-		_ = h.q.TouchTokenLastUsed(r.Context(), token.ID)
-
-		user, err := h.q.FindUserByID(r.Context(), token.TokenableID)
+		user, err := h.authSvc.AuthenticateReaderToken(r.Context(), db.HashToken(tokenStr))
 		if err != nil {
 			http.Error(w, "Error=InvalidAuthToken", http.StatusForbidden)
 			return
 		}
 
-		ctx := auth.SetUserInContext(r.Context(), &user)
+		ctx := auth.SetUserInContext(r.Context(), user)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -58,30 +52,9 @@ func (h *GoogleReaderHandler) ClientLogin(w http.ResponseWriter, r *http.Request
 	email := r.FormValue("Email")
 	password := r.FormValue("Passwd")
 
-	user, err := h.q.FindUserByEmail(r.Context(), email)
-	if err != nil || !auth.CheckPassword(user.Password, password) {
-		http.Error(w, "Error=BadAuthentication", http.StatusForbidden)
-		return
-	}
-
-	// Delete old tokens
-	_ = h.q.DeleteUserTokens(r.Context(), db.DeleteUserTokensParams{
-		TokenableType: "App\\Models\\User",
-		TokenableID:   user.ID,
-	})
-
-	// Create new token
-	plain := db.GeneratePlainToken(40)
-	abilities := "[\"reader-api\"]"
-	err = h.q.CreatePersonalAccessToken(r.Context(), db.CreatePersonalAccessTokenParams{
-		TokenableType: "App\\Models\\User",
-		TokenableID:   user.ID,
-		Name:          "reader-auth-token",
-		Token:         db.HashToken(plain),
-		Abilities:     &abilities,
-	})
+	plain, err := h.authSvc.CreateReaderSession(r.Context(), email, password)
 	if err != nil {
-		http.Error(w, "Error=ServerError", http.StatusInternalServerError)
+		http.Error(w, "Error=BadAuthentication", http.StatusForbidden)
 		return
 	}
 
@@ -113,7 +86,7 @@ func (h *GoogleReaderHandler) GetUserInfo(w http.ResponseWriter, r *http.Request
 
 func (h *GoogleReaderHandler) GetSubscriptionList(w http.ResponseWriter, r *http.Request) {
 	user := auth.UserFromRequest(r)
-	feeds, err := h.q.ListSubscriptionsForUser(r.Context(), user.ID)
+	feeds, err := h.reader.ListSubscriptions(r.Context(), user.ID)
 	if err != nil {
 		http.Error(w, "Error", http.StatusInternalServerError)
 		return
@@ -173,16 +146,14 @@ func (h *GoogleReaderHandler) GetStreamItemIds(w http.ResponseWriter, r *http.Re
 
 	switch {
 	case stream == "user/-/state/com.google/starred":
-		ids, err = h.q.StarredIDs(r.Context(), user.ID)
+		ids, err = h.reader.StarredIDs(r.Context(), user.ID)
 	case exclude == "user/-/state/com.google/read":
-		ids, err = h.q.UnreadIDs(r.Context(), user.ID)
+		ids, err = h.reader.UnreadIDs(r.Context(), user.ID)
 	default:
 		// All items - return entries for user
-		rows, err2 := h.q.ListForReaderByPublished(r.Context(), db.ListForReaderByPublishedParams{
-			UserID: user.ID, Filter: "all", PageOffset: 0, PageSize: 10000,
-		})
-		err = err2
-		for _, e := range rows {
+		var entries []db.ReaderEntry
+		entries, _, err = h.reader.ListEntries(r.Context(), user.ID, "all", 0, 10000)
+		for _, e := range entries {
 			ids = append(ids, e.ID)
 		}
 	}
@@ -214,18 +185,18 @@ func (h *GoogleReaderHandler) GetStreamContents(w http.ResponseWriter, r *http.R
 	hexIDs := r.Form["i"]
 
 	type Item struct {
-		ID              string            `json:"id"`
-		Title           string            `json:"title"`
-		TimestampUsec   string            `json:"timestampUsec"`
-		CrawlTimeMsec  string            `json:"crawlTimeMsec"`
-		Published       int64             `json:"published"`
-		Updated         int64             `json:"updated"`
-		Alternate       []map[string]string `json:"alternate"`
-		Content         map[string]string `json:"content"`
-		Origin          map[string]string `json:"origin"`
-		Categories      []string          `json:"categories"`
-		Canonical       []map[string]string `json:"canonical"`
-		Author          string            `json:"author,omitempty"`
+		ID             string              `json:"id"`
+		Title          string              `json:"title"`
+		TimestampUsec  string              `json:"timestampUsec"`
+		CrawlTimeMsec string              `json:"crawlTimeMsec"`
+		Published      int64               `json:"published"`
+		Updated        int64               `json:"updated"`
+		Alternate      []map[string]string `json:"alternate"`
+		Content        map[string]string   `json:"content"`
+		Origin         map[string]string   `json:"origin"`
+		Categories     []string            `json:"categories"`
+		Canonical      []map[string]string `json:"canonical"`
+		Author         string              `json:"author,omitempty"`
 	}
 
 	var items []Item
@@ -238,11 +209,10 @@ func (h *GoogleReaderHandler) GetStreamContents(w http.ResponseWriter, r *http.R
 			continue
 		}
 
-		row, err := h.q.FindReaderEntry(r.Context(), db.FindReaderEntryParams{UserID: user.ID, EntryID: entryID})
+		entry, err := h.reader.FindEntry(r.Context(), user.ID, entryID)
 		if err != nil {
 			continue
 		}
-		entry := db.ReaderEntryFromRow(&row)
 
 		content := ""
 		if entry.Content != nil {
@@ -265,14 +235,14 @@ func (h *GoogleReaderHandler) GetStreamContents(w http.ResponseWriter, r *http.R
 
 		hexEntryID := fmt.Sprintf("%016x", entry.ID)
 		items = append(items, Item{
-			ID:             fmt.Sprintf("tag:google.com,2005:reader/item/%s", hexEntryID),
-			Title:          entry.Title,
-			TimestampUsec:  fmt.Sprintf("%d", entry.PublishedAt.UnixMicro()),
+			ID:            fmt.Sprintf("tag:google.com,2005:reader/item/%s", hexEntryID),
+			Title:         entry.Title,
+			TimestampUsec: fmt.Sprintf("%d", entry.PublishedAt.UnixMicro()),
 			CrawlTimeMsec: fmt.Sprintf("%d", entry.PublishedAt.UnixMilli()),
-			Published:      entry.PublishedAt.Unix(),
-			Updated:        entry.PublishedAt.Unix(),
-			Alternate:      []map[string]string{{"href": entry.URL, "type": "text/html"}},
-			Content:        map[string]string{"direction": "ltr", "content": content},
+			Published:     entry.PublishedAt.Unix(),
+			Updated:       entry.PublishedAt.Unix(),
+			Alternate:     []map[string]string{{"href": entry.URL, "type": "text/html"}},
+			Content:       map[string]string{"direction": "ltr", "content": content},
 			Origin: map[string]string{
 				"streamId": fmt.Sprintf("feed/%d", entry.FeedID),
 				"title":    entry.FeedName,
@@ -310,16 +280,18 @@ func (h *GoogleReaderHandler) EditTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var read, starred *bool
 	switch {
 	case addTag == "user/-/state/com.google/read":
-		_ = h.q.MarkAsRead(r.Context(), db.MarkAsReadParams{UserID: user.ID, EntryID: entryID})
+		read = ptrBool(true)
 	case removeTag == "user/-/state/com.google/read":
-		_ = h.q.MarkAsUnread(r.Context(), db.MarkAsUnreadParams{UserID: user.ID, EntryID: entryID})
+		read = ptrBool(false)
 	case addTag == "user/-/state/com.google/starred":
-		_ = h.q.Favorite(r.Context(), db.FavoriteParams{UserID: user.ID, EntryID: entryID})
+		starred = ptrBool(true)
 	case removeTag == "user/-/state/com.google/starred":
-		_ = h.q.Unfavorite(r.Context(), db.UnfavoriteParams{UserID: user.ID, EntryID: entryID})
+		starred = ptrBool(false)
 	}
+	_ = h.entries.UpdateInteractions(r.Context(), user.ID, entryID, read, starred, nil)
 
 	w.Header().Set("Content-Type", "text/plain")
 	fmt.Fprint(w, "OK")

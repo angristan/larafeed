@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/angristan/larafeed-go/internal/apperr"
+	"github.com/angristan/larafeed-go/internal/auth"
 	"github.com/angristan/larafeed-go/internal/db"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -98,4 +100,59 @@ func (s *UserService) WipeAccount(ctx context.Context, userID int64) error {
 	}
 	committed = true
 	return nil
+}
+
+// FindUserByFeverApiKey looks up a user by their Fever API key.
+func (s *UserService) FindUserByFeverApiKey(ctx context.Context, apiKey *string) (*db.User, error) {
+	user, err := s.q.FindUserByFeverApiKey(ctx, apiKey)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// AuthenticateReaderToken validates a Google Reader API token and returns the associated user.
+func (s *UserService) AuthenticateReaderToken(ctx context.Context, tokenHash string) (*db.User, error) {
+	token, err := s.q.FindPersonalAccessToken(ctx, tokenHash)
+	if err != nil {
+		return nil, err
+	}
+	if token.Abilities == nil || !strings.Contains(*token.Abilities, "reader-api") {
+		return nil, fmt.Errorf("token does not have reader-api ability")
+	}
+	_ = s.q.TouchTokenLastUsed(ctx, token.ID)
+	user, err := s.q.FindUserByID(ctx, token.TokenableID)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// CreateReaderSession authenticates a user by email/password and creates a new
+// Google Reader API token, returning the plain token string.
+func (s *UserService) CreateReaderSession(ctx context.Context, email, password string) (string, error) {
+	user, err := s.q.FindUserByEmail(ctx, email)
+	if err != nil {
+		return "", fmt.Errorf("invalid credentials")
+	}
+	if !auth.CheckPassword(user.Password, password) {
+		return "", fmt.Errorf("invalid credentials")
+	}
+	_ = s.q.DeleteUserTokens(ctx, db.DeleteUserTokensParams{
+		TokenableType: "App\\Models\\User",
+		TokenableID:   user.ID,
+	})
+	plain := db.GeneratePlainToken(40)
+	abilities := "[\"reader-api\"]"
+	err = s.q.CreatePersonalAccessToken(ctx, db.CreatePersonalAccessTokenParams{
+		TokenableType: "App\\Models\\User",
+		TokenableID:   user.ID,
+		Name:          "reader-auth-token",
+		Token:         db.HashToken(plain),
+		Abilities:     &abilities,
+	})
+	if err != nil {
+		return "", err
+	}
+	return plain, nil
 }

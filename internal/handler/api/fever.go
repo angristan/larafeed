@@ -13,11 +13,13 @@ import (
 )
 
 type FeverHandler struct {
-	q *db.Queries
+	authSvc feverAuthService
+	reader  readerService
+	entries entryService
 }
 
-func NewFeverHandler(q *db.Queries) *FeverHandler {
-	return &FeverHandler{q: q}
+func NewFeverHandler(authSvc feverAuthService, reader readerService, entries entryService) *FeverHandler {
+	return &FeverHandler{authSvc: authSvc, reader: reader, entries: entries}
 }
 
 // CheckToken is middleware for Fever API authentication.
@@ -30,13 +32,13 @@ func (h *FeverHandler) CheckToken(next http.Handler) http.Handler {
 			return
 		}
 
-		user, err := h.q.FindUserByFeverApiKey(r.Context(), &apiKey)
+		user, err := h.authSvc.FindUserByFeverApiKey(r.Context(), &apiKey)
 		if err != nil {
 			feverResponse(w, map[string]any{"api_version": 3, "auth": 0})
 			return
 		}
 
-		ctx := auth.SetUserInContext(r.Context(), &user)
+		ctx := auth.SetUserInContext(r.Context(), user)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -47,8 +49,8 @@ func (h *FeverHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
 	base := map[string]any{
-		"api_version":          3,
-		"auth":                 1,
+		"api_version":            3,
+		"auth":                   1,
 		"last_refreshed_on_time": time.Now().Unix(),
 	}
 
@@ -59,7 +61,7 @@ func (h *FeverHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		h.getFeeds(r, user, base)
 	}
 	if q.Has("items") {
-		h.getItems(r, user, q, base)
+		h.getItems(r, user, base)
 	}
 	if q.Has("unread_item_ids") {
 		h.getUnreadItemIDs(r, user, base)
@@ -75,8 +77,8 @@ func (h *FeverHandler) Handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FeverHandler) getGroups(r *http.Request, user *db.User, base map[string]any) {
-	cats, _ := h.q.ListCategoriesForUser(r.Context(), user.ID)
-	feeds, _ := h.q.ListSubscriptionsForUser(r.Context(), user.ID)
+	cats := h.reader.ListCategories(r.Context(), user.ID)
+	feeds, _ := h.reader.ListSubscriptions(r.Context(), user.ID)
 
 	var groups []map[string]any
 	for _, c := range cats {
@@ -102,7 +104,7 @@ func (h *FeverHandler) getGroups(r *http.Request, user *db.User, base map[string
 }
 
 func (h *FeverHandler) getFeeds(r *http.Request, user *db.User, base map[string]any) {
-	feeds, _ := h.q.ListSubscriptionsForUser(r.Context(), user.ID)
+	feeds, _ := h.reader.ListSubscriptions(r.Context(), user.ID)
 
 	var result []map[string]any
 	for _, f := range feeds {
@@ -119,13 +121,13 @@ func (h *FeverHandler) getFeeds(r *http.Request, user *db.User, base map[string]
 			faviconID = *f.FaviconURL
 		}
 		result = append(result, map[string]any{
-			"id":                     f.ID,
-			"favicon_id":            faviconID,
-			"title":                 title,
-			"url":                   f.FeedURL,
-			"site_url":              f.SiteURL,
-			"is_spark":              0,
-			"last_updated_on_time":  lastUpdated,
+			"id":                    f.ID,
+			"favicon_id":           faviconID,
+			"title":                title,
+			"url":                  f.FeedURL,
+			"site_url":             f.SiteURL,
+			"is_spark":             0,
+			"last_updated_on_time": lastUpdated,
 		})
 	}
 
@@ -146,14 +148,8 @@ func (h *FeverHandler) getFeeds(r *http.Request, user *db.User, base map[string]
 	base["feeds_groups"] = feedsGroups
 }
 
-func (h *FeverHandler) getItems(r *http.Request, user *db.User, q map[string][]string, base map[string]any) {
-	rows, _ := h.q.ListForReaderByPublished(r.Context(), db.ListForReaderByPublishedParams{
-		UserID: user.ID, Filter: "all", PageOffset: 0, PageSize: 50,
-	})
-	entries := db.ReaderEntriesFromPublishedRows(rows)
-	total, _ := h.q.CountForReader(r.Context(), db.CountForReaderParams{
-		UserID: user.ID, Filter: "all",
-	})
+func (h *FeverHandler) getItems(r *http.Request, user *db.User, base map[string]any) {
+	entries, total, _ := h.reader.ListEntries(r.Context(), user.ID, "all", 0, 50)
 
 	var items []map[string]any
 	for _, e := range entries {
@@ -183,12 +179,12 @@ func (h *FeverHandler) getItems(r *http.Request, user *db.User, q map[string][]s
 }
 
 func (h *FeverHandler) getUnreadItemIDs(r *http.Request, user *db.User, base map[string]any) {
-	ids, _ := h.q.UnreadIDs(r.Context(), user.ID)
+	ids, _ := h.reader.UnreadIDs(r.Context(), user.ID)
 	base["unread_item_ids"] = joinIDs(ids)
 }
 
 func (h *FeverHandler) getSavedItemIDs(r *http.Request, user *db.User, base map[string]any) {
-	ids, _ := h.q.StarredIDs(r.Context(), user.ID)
+	ids, _ := h.reader.StarredIDs(r.Context(), user.ID)
 	base["saved_item_ids"] = joinIDs(ids)
 }
 
@@ -207,16 +203,18 @@ func (h *FeverHandler) updateItem(r *http.Request, user *db.User, q map[string][
 		return
 	}
 
+	var read, starred *bool
 	switch action {
 	case "saved":
-		_ = h.q.Favorite(r.Context(), db.FavoriteParams{UserID: user.ID, EntryID: entryID})
+		starred = ptrBool(true)
 	case "unsaved":
-		_ = h.q.Unfavorite(r.Context(), db.UnfavoriteParams{UserID: user.ID, EntryID: entryID})
+		starred = ptrBool(false)
 	case "read":
-		_ = h.q.MarkAsRead(r.Context(), db.MarkAsReadParams{UserID: user.ID, EntryID: entryID})
+		read = ptrBool(true)
 	case "unread":
-		_ = h.q.MarkAsUnread(r.Context(), db.MarkAsUnreadParams{UserID: user.ID, EntryID: entryID})
+		read = ptrBool(false)
 	}
+	_ = h.entries.UpdateInteractions(r.Context(), user.ID, entryID, read, starred, nil)
 }
 
 func feverResponse(w http.ResponseWriter, data map[string]any) {
@@ -238,3 +236,5 @@ func getFirst(q map[string][]string, key string) string {
 	}
 	return ""
 }
+
+func ptrBool(b bool) *bool { return &b }

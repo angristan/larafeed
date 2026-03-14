@@ -193,3 +193,46 @@ func (s *ReaderService) ListCategories(ctx context.Context, userID int64) []db.S
 	cats, _ := s.q.ListCategoriesForUser(ctx, userID)
 	return cats
 }
+
+// ListSubscriptions returns raw subscription rows for the user.
+func (s *ReaderService) ListSubscriptions(ctx context.Context, userID int64) ([]db.ListSubscriptionsForUserRow, error) {
+	return s.q.ListSubscriptionsForUser(ctx, userID)
+}
+
+// UnreadIDs returns the IDs of all unread entries for the user.
+func (s *ReaderService) UnreadIDs(ctx context.Context, userID int64) ([]int64, error) {
+	return s.q.UnreadIDs(ctx, userID)
+}
+
+// StarredIDs returns the IDs of all starred entries for the user.
+func (s *ReaderService) StarredIDs(ctx context.Context, userID int64) ([]int64, error) {
+	return s.q.StarredIDs(ctx, userID)
+}
+
+// ListEntries returns raw reader entries ordered by published date, with a total count.
+func (s *ReaderService) ListEntries(ctx context.Context, userID int64, filter string, offset, limit int32) ([]db.ReaderEntry, int64, error) {
+	rows, err := s.q.ListForReaderByPublished(ctx, db.ListForReaderByPublishedParams{
+		UserID: userID, Filter: filter, PageOffset: offset, PageSize: limit,
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	entries := db.ReaderEntriesFromPublishedRows(rows)
+	total, err := s.q.CountForReader(ctx, db.CountForReaderParams{
+		UserID: userID, Filter: filter,
+	})
+	if err != nil {
+		return entries, 0, err
+	}
+	return entries, total, nil
+}
+
+// FindEntry returns a single reader entry without proxifying images or marking read.
+func (s *ReaderService) FindEntry(ctx context.Context, userID int64, entryID int64) (*db.ReaderEntry, error) {
+	row, err := s.q.FindReaderEntry(ctx, db.FindReaderEntryParams{UserID: userID, EntryID: entryID})
+	if err != nil {
+		return nil, err
+	}
+	entry := db.ReaderEntryFromRow(&row)
+	return entry, nil
+}
