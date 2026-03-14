@@ -133,8 +133,8 @@ func New(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux,
 	chartsHandler := handler.NewChartsHandler(i, chartsSvc)
 
 	// API handlers
-	greaderHandler := api.NewGoogleReaderHandler(q)
-	feverHandler := api.NewFeverHandler(q)
+	greaderHandler := api.NewGoogleReaderHandler(userSvc, readerSvc, entrySvc)
+	feverHandler := api.NewFeverHandler(userSvc, readerSvc, entrySvc)
 
 	// Register routes
 	RegisterRoutes(r, i, cfg, authSvc, authHandler, readerHandler, feedHandler, entryHandler,
