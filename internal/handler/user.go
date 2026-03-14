@@ -9,8 +9,8 @@ import (
 )
 
 type updateProfileRequest struct {
-	Name  string `json:"name" validate:"required"`
-	Email string `json:"email" validate:"required"`
+	Name  string `json:"name" validate:"required,max=255"`
+	Email string `json:"email" validate:"required,max=255"`
 }
 
 type deleteAccountRequest struct {
