@@ -78,17 +78,7 @@ func New(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux,
 	// Must use func(context.Context) (any, error) signature to match gonertia's resolvePropVal.
 	i.ShareProp("auth", func(ctx context.Context) (any, error) {
 		user := auth.UserFromContext(ctx)
-		if user == nil {
-			return map[string]any{"user": nil}, nil
-		}
-		return map[string]any{
-			"user": map[string]any{
-				"id":                user.ID,
-				"name":              user.Name,
-				"email":             user.Email,
-				"email_verified_at": user.EmailVerifiedAt,
-			},
-		}, nil
+		return authProp(user), nil
 	})
 
 	// Load user from session into context for ALL routes (before Inertia middleware).
@@ -152,6 +142,23 @@ func New(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux,
 		greaderHandler, feverHandler)
 
 	return r, riverClient, nil
+}
+
+// authProp builds the shared "auth" Inertia prop from a user.
+// Only safe fields are included — db.User contains sensitive fields
+// (password, tokens, 2FA secrets) that must never be serialized.
+func authProp(user *db.User) map[string]any {
+	if user == nil {
+		return map[string]any{"user": nil}
+	}
+	return map[string]any{
+		"user": map[string]any{
+			"id":                user.ID,
+			"name":              user.Name,
+			"email":             user.Email,
+			"email_verified_at": user.EmailVerifiedAt,
+		},
+	}
 }
 
 func buildRootTemplate(cfg *config.Config) (string, error) {
