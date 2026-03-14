@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
+	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -50,7 +52,9 @@ func TestUpdateProfile_EmailTaken(t *testing.T) {
 	err := svc.UpdateProfile(context.Background(), 1, "alice@test.com", "Alice", "taken@test.com")
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "already been taken")
+	var validErr *apperr.ValidationError
+	assert.True(t, errors.As(err, &validErr))
+	assert.Equal(t, "email", validErr.Field)
 	q.AssertNotCalled(t, "UpdateUserProfile", mock.Anything, mock.Anything)
 }
 

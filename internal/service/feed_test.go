@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
+	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -134,7 +136,9 @@ func TestResolveCategory_NeitherIDNorName(t *testing.T) {
 
 	_, err := svc.ResolveCategory(context.Background(), 1, nil, "")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "category is required")
+	var validErr *apperr.ValidationError
+	assert.True(t, errors.As(err, &validErr))
+	assert.Equal(t, "category_id", validErr.Field)
 }
 
 func TestResolveCategory_CreateFails(t *testing.T) {
@@ -172,6 +176,9 @@ func TestFindFeedByID_NotFound(t *testing.T) {
 
 	_, err := svc.FindFeedByID(context.Background(), 99)
 	assert.Error(t, err)
+	var notFound *apperr.NotFoundError
+	assert.True(t, errors.As(err, &notFound))
+	assert.Equal(t, "feed", notFound.Resource)
 }
 
 func TestMarkAllAsRead(t *testing.T) {

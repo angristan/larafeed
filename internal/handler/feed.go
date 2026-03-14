@@ -99,7 +99,7 @@ func (h *FeedHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	feed, err := h.feedService.FindFeedByID(r.Context(), feedID)
 	if err != nil {
-		jsonResponse(w, http.StatusNotFound, map[string]string{"error": "Feed not found"})
+		handleServiceErrorJSON(w, err)
 		return
 	}
 
@@ -127,7 +127,7 @@ func (h *FeedHandler) RefreshFavicon(w http.ResponseWriter, r *http.Request) {
 
 	feed, err := h.feedService.FindFeedByID(r.Context(), feedID)
 	if err != nil {
-		jsonResponse(w, http.StatusNotFound, map[string]string{"error": "Feed not found"})
+		handleServiceErrorJSON(w, err)
 		return
 	}
 

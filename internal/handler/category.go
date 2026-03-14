@@ -41,7 +41,7 @@ func (h *CategoryHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	_, err = h.categorySvc.Create(r.Context(), user.ID, req.CategoryName)
 	if err != nil {
-		validationError(w, r, h.inertia, map[string]string{"categoryName": "A category with this name already exists."})
+		validationError(w, r, h.inertia, map[string]string{"categoryName": err.Error()})
 		return
 	}
 
@@ -57,10 +57,8 @@ func (h *CategoryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.categorySvc.Delete(r.Context(), user.ID, categoryID); err != nil {
-		if err.Error() == "category not found" {
-			renderError(w, r, h.inertia, http.StatusNotFound)
-		} else {
-			validationError(w, r, h.inertia, map[string]string{"category": err.Error()})
+		if !handleServiceError(w, r, h.inertia, err) {
+			renderError(w, r, h.inertia, http.StatusInternalServerError)
 		}
 		return
 	}
