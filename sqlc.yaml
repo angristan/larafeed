@@ -12,7 +12,7 @@ sql:
         emit_empty_slices: true
         emit_interface: true
         output_db_file_name: "sqlc_db.go"
-        output_models_file_name: "sqlc_models.go"
+        output_models_file_name: "models.go"
         output_querier_file_name: "sqlc_querier.go"
         overrides:
           # Non-nullable timestamptz → time.Time
