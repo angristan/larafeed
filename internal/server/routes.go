@@ -109,7 +109,7 @@ func RegisterRoutes(
 		r.Use(authSvc.RequireGuest)
 
 		r.Get("/login", authHandler.ShowLogin)
-		r.Post("/login", authHandler.Login)
+		r.With(RateLimitByIP(5, 1*time.Minute)).Post("/login", authHandler.Login)
 		r.Get("/register", authHandler.ShowRegister)
 		r.Post("/register", authHandler.Register)
 		r.Get("/forgot-password", authHandler.ShowForgotPassword)
