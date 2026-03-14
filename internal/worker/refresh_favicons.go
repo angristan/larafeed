@@ -28,6 +28,8 @@ type RefreshStaleFaviconsWorker struct {
 
 func (w *RefreshStaleFaviconsWorker) Work(ctx context.Context, job *river.Job[RefreshStaleFaviconsArgs]) error {
 	ctx = logging.WithRequestID(ctx, fmt.Sprintf("job-%d", job.ID))
+	ctx, span := startJobSpan(ctx, "refresh_stale_favicons", job.ID)
+	defer span.End()
 
 	// Refresh favicons older than 30 days or missing
 	feeds, err := w.q.FeedsWithOutdatedFavicons(ctx, pgtype.Interval{

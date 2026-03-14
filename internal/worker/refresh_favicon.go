@@ -27,6 +27,8 @@ type RefreshFaviconWorker struct {
 
 func (w *RefreshFaviconWorker) Work(ctx context.Context, job *river.Job[RefreshFaviconArgs]) error {
 	ctx = logging.WithRequestID(ctx, fmt.Sprintf("job-%d", job.ID))
+	ctx, span := startJobSpan(ctx, "refresh_favicon", job.ID)
+	defer span.End()
 
 	feed, err := w.q.FindFeedByID(ctx, job.Args.FeedID)
 	if err != nil {
