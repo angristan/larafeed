@@ -8,13 +8,14 @@ import (
 
 	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/db"
+	"github.com/angristan/larafeed-go/internal/db/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUpdateProfile_SameEmail(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("UpdateUserProfile", mock.Anything, db.UpdateUserProfileParams{
 		ID: 1, Name: "Alice Updated", Email: "alice@test.com",
 	}).Return(nil)
@@ -28,7 +29,7 @@ func TestUpdateProfile_SameEmail(t *testing.T) {
 }
 
 func TestUpdateProfile_EmailChanged(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("FindUserByEmail", mock.Anything, "new@test.com").
 		Return(db.User{}, fmt.Errorf("no rows"))
 	q.On("UpdateUserProfile", mock.Anything, db.UpdateUserProfileParams{
@@ -44,7 +45,7 @@ func TestUpdateProfile_EmailChanged(t *testing.T) {
 }
 
 func TestUpdateProfile_EmailTaken(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("FindUserByEmail", mock.Anything, "taken@test.com").
 		Return(db.User{ID: 2}, nil) // exists
 
@@ -59,12 +60,11 @@ func TestUpdateProfile_EmailTaken(t *testing.T) {
 }
 
 func TestDeleteAccount(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("DeleteUser", mock.Anything, int64(1)).Return(nil)
 
 	svc := NewUserService(q, nil)
 	err := svc.DeleteAccount(context.Background(), 1)
 
 	require.NoError(t, err)
-	q.AssertExpectations(t)
 }

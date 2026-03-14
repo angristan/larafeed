@@ -9,6 +9,7 @@ import (
 
 	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/db"
+	"github.com/angristan/larafeed-go/internal/db/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -107,7 +108,7 @@ func TestStringContainsAny(t *testing.T) {
 }
 
 func TestResolveCategory_ByID(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	svc := NewFeedService(q, nil, nil)
 
 	catID := int64(42)
@@ -117,7 +118,7 @@ func TestResolveCategory_ByID(t *testing.T) {
 }
 
 func TestResolveCategory_ByName(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("FindOrCreateCategory", mock.Anything, db.FindOrCreateCategoryParams{
 		UserID: 1, Name: "Tech",
 	}).Return(db.SubscriptionCategory{ID: 99, Name: "Tech"}, nil)
@@ -127,11 +128,10 @@ func TestResolveCategory_ByName(t *testing.T) {
 	id, err := svc.ResolveCategory(context.Background(), 1, nil, "Tech")
 	require.NoError(t, err)
 	assert.Equal(t, int64(99), id)
-	q.AssertExpectations(t)
 }
 
 func TestResolveCategory_NeitherIDNorName(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	svc := NewFeedService(q, nil, nil)
 
 	_, err := svc.ResolveCategory(context.Background(), 1, nil, "")
@@ -142,7 +142,7 @@ func TestResolveCategory_NeitherIDNorName(t *testing.T) {
 }
 
 func TestResolveCategory_CreateFails(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("FindOrCreateCategory", mock.Anything, mock.Anything).
 		Return(db.SubscriptionCategory{}, fmt.Errorf("db error"))
 
@@ -154,7 +154,7 @@ func TestResolveCategory_CreateFails(t *testing.T) {
 }
 
 func TestFindFeedByID(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("FindFeedByID", mock.Anything, int64(5)).
 		Return(db.Feed{ID: 5, Name: "Go Blog"}, nil)
 
@@ -164,11 +164,10 @@ func TestFindFeedByID(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(5), feed.ID)
 	assert.Equal(t, "Go Blog", feed.Name)
-	q.AssertExpectations(t)
 }
 
 func TestFindFeedByID_NotFound(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("FindFeedByID", mock.Anything, int64(99)).
 		Return(db.Feed{}, fmt.Errorf("no rows"))
 
@@ -182,7 +181,7 @@ func TestFindFeedByID_NotFound(t *testing.T) {
 }
 
 func TestMarkAllAsRead(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	q.On("MarkAllAsReadExisting", mock.Anything, db.MarkAllAsReadExistingParams{UserID: 1, FeedID: 5}).Return(nil)
 	q.On("MarkAllAsReadNew", mock.Anything, db.MarkAllAsReadNewParams{UserID: 1, FeedID: 5}).Return(nil)
 
@@ -190,11 +189,10 @@ func TestMarkAllAsRead(t *testing.T) {
 
 	err := svc.MarkAllAsRead(context.Background(), 1, 5)
 	require.NoError(t, err)
-	q.AssertExpectations(t)
 }
 
 func TestUpdateSubscription(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	filterSvc := NewFilterService(q)
 
 	customName := "My Blog"
@@ -207,11 +205,10 @@ func TestUpdateSubscription(t *testing.T) {
 
 	err := svc.UpdateSubscription(context.Background(), 1, 5, 2, &customName, nil)
 	require.NoError(t, err)
-	q.AssertExpectations(t)
 }
 
 func TestUpdateSubscription_WithFilters(t *testing.T) {
-	q := &mockQuerier{}
+	q := mocks.NewQuerier(t)
 	filterSvc := NewFilterService(q)
 
 	rules := FilterRules{ExcludeTitle: []string{"alpha"}}
@@ -226,5 +223,4 @@ func TestUpdateSubscription_WithFilters(t *testing.T) {
 
 	err := svc.UpdateSubscription(context.Background(), 1, 5, 2, nil, rulesJSON)
 	require.NoError(t, err)
-	q.AssertExpectations(t)
 }
