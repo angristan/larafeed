@@ -19,8 +19,7 @@ func newFeedHandler(t *testing.T, pool *db.Pool, q *db.Queries) *FeedHandler {
 	i := testInertia(t, authSvc)
 	filterSvc := service.NewFilterService(q)
 	feedSvc := service.NewFeedService(q, pool, filterSvc)
-	faviconSvc := service.NewFaviconService(q, service.NewImgProxyService("", "", ""))
-	return NewFeedHandler(i, feedSvc, faviconSvc)
+	return NewFeedHandler(i, feedSvc, nil)
 }
 
 func TestUnsubscribe_Success(t *testing.T) {

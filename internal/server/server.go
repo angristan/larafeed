@@ -16,9 +16,12 @@ import (
 	"github.com/angristan/larafeed-go/internal/handler"
 	"github.com/angristan/larafeed-go/internal/handler/api"
 	"github.com/angristan/larafeed-go/internal/service"
+	"github.com/angristan/larafeed-go/internal/worker"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river"
 	gonertia "github.com/romsar/gonertia/v2"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
@@ -31,15 +34,7 @@ type ViteManifestEntry struct {
 	Src     string   `json:"src"`
 }
 
-// Services holds services that are shared with the worker.
-type Services struct {
-	FeedService    *service.FeedService
-	FaviconService *service.FaviconService
-	Queries        *db.Queries
-	OPMLHandler    *handler.OPMLHandler
-}
-
-func New(cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux, *Services, error) {
+func New(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux, *river.Client[pgx.Tx], error) {
 	r := chi.NewRouter()
 	r.Use(func(next http.Handler) http.Handler {
 		return otelhttp.NewHandler(next, "",
@@ -130,14 +125,20 @@ func New(cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux, *Services, error) {
 	subsSvc := service.NewSubscriptionService(q, faviconSvc)
 	chartsSvc := service.NewChartsService(q, pool)
 
+	// Start River worker
+	riverClient, err := worker.Setup(ctx, pool, feedSvc, faviconSvc, q)
+	if err != nil {
+		return nil, nil, fmt.Errorf("start river worker: %w", err)
+	}
+
 	// Create handlers
 	authHandler := handler.NewAuthHandler(i, authSvc, q, cfg, telegramSvc)
 	readerHandler := handler.NewReaderHandler(i, readerSvc)
-	feedHandler := handler.NewFeedHandler(i, feedSvc, faviconSvc)
+	feedHandler := handler.NewFeedHandler(i, feedSvc, riverClient)
 	entryHandler := handler.NewEntryHandler(entrySvc)
 	categoryHandler := handler.NewCategoryHandler(i, categorySvc)
 	userHandler := handler.NewUserHandler(i, authSvc, userSvc)
-	opmlHandler := handler.NewOPMLHandler(i, opmlSvc, authSvc, feedSvc)
+	opmlHandler := handler.NewOPMLHandler(i, opmlSvc, authSvc, feedSvc, riverClient)
 	subsHandler := handler.NewSubscriptionsHandler(i, subsSvc)
 	chartsHandler := handler.NewChartsHandler(i, chartsSvc)
 
@@ -150,14 +151,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux, *Services, error) {
 		categoryHandler, userHandler, opmlHandler, subsHandler, chartsHandler,
 		greaderHandler, feverHandler)
 
-	svcs := &Services{
-		FeedService:    feedSvc,
-		FaviconService: faviconSvc,
-		Queries:        q,
-		OPMLHandler:    opmlHandler,
-	}
-
-	return r, svcs, nil
+	return r, riverClient, nil
 }
 
 func buildRootTemplate(cfg *config.Config) (string, error) {

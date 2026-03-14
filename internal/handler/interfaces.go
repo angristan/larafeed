@@ -31,11 +31,6 @@ type feedService interface {
 	MarkAllAsRead(ctx context.Context, userID, feedID int64) error
 }
 
-// faviconService defines the methods handlers need from the favicon service.
-type faviconService interface {
-	RefreshFavicon(ctx context.Context, feed *db.Feed) error
-}
-
 // entryService defines the methods the EntryHandler needs.
 type entryService interface {
 	UpdateInteractions(ctx context.Context, userID, entryID int64, read, starred, archived *bool) error
