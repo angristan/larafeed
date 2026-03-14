@@ -12,7 +12,21 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivermigrate"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("larafeed/worker")
+
+func startJobSpan(ctx context.Context, jobKind string, jobID int64) (context.Context, trace.Span) {
+	return tracer.Start(ctx, "worker."+jobKind,
+		trace.WithAttributes(
+			attribute.String("job.kind", jobKind),
+			attribute.Int64("job.id", jobID),
+		),
+	)
+}
 
 // Setup creates and starts the River client with all workers and periodic jobs.
 func Setup(ctx context.Context, pool *pgxpool.Pool, feedService *service.FeedService, faviconService *service.FaviconService, q *db.Queries) (*river.Client[pgx.Tx], error) {

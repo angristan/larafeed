@@ -20,6 +20,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 	gonertia "github.com/romsar/gonertia/v2"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // ViteManifestEntry represents one entry in the Vite build manifest.
@@ -40,6 +41,17 @@ type Services struct {
 
 func New(cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux, *Services, error) {
 	r := chi.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		return otelhttp.NewHandler(next, "",
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				routePattern := chi.RouteContext(r.Context()).RoutePattern()
+				if routePattern == "" {
+					return r.Method + " " + r.URL.Path
+				}
+				return r.Method + " " + routePattern
+			}),
+		)
+	})
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)

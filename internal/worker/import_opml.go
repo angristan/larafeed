@@ -35,6 +35,8 @@ type ImportOPMLWorker struct {
 
 func (w *ImportOPMLWorker) Work(ctx context.Context, job *river.Job[ImportOPMLFeedArgs]) error {
 	ctx = logging.WithRequestID(ctx, fmt.Sprintf("job-%d", job.ID))
+	ctx, span := startJobSpan(ctx, "import_opml_feed", job.ID)
+	defer span.End()
 	args := job.Args
 
 	feed, err := w.feedService.CreateFeed(ctx, args.UserID, args.FeedURL, args.CategoryID, args.FallbackName)

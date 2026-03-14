@@ -28,6 +28,8 @@ type RefreshStaleFeedsWorker struct {
 
 func (w *RefreshStaleFeedsWorker) Work(ctx context.Context, job *river.Job[RefreshStaleFeedsArgs]) error {
 	ctx = logging.WithRequestID(ctx, fmt.Sprintf("job-%d", job.ID))
+	ctx, span := startJobSpan(ctx, "refresh_stale_feeds", job.ID)
+	defer span.End()
 
 	staleFeeds, err := w.q.FeedsNeedingRefresh(ctx, db.FeedsNeedingRefreshParams{
 		StaleAfter: pgtype.Interval{Microseconds: int64(2 * time.Hour / time.Microsecond), Valid: true},

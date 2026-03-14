@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type contextKey string
@@ -36,6 +37,15 @@ func (h *ContextHandler) Handle(ctx context.Context, r slog.Record) error {
 	} else if id := middleware.GetReqID(ctx); id != "" {
 		r.AddAttrs(slog.String("request_id", id))
 	}
+
+	spanCtx := trace.SpanContextFromContext(ctx)
+	if spanCtx.HasTraceID() {
+		r.AddAttrs(slog.String("trace_id", spanCtx.TraceID().String()))
+	}
+	if spanCtx.HasSpanID() {
+		r.AddAttrs(slog.String("span_id", spanCtx.SpanID().String()))
+	}
+
 	return h.inner.Handle(ctx, r)
 }
 

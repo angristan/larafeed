@@ -14,6 +14,7 @@ import (
 	"github.com/angristan/larafeed-go/internal/db"
 	"github.com/angristan/larafeed-go/internal/logging"
 	"github.com/angristan/larafeed-go/internal/server"
+	"github.com/angristan/larafeed-go/internal/telemetry"
 	"github.com/angristan/larafeed-go/internal/worker"
 	"github.com/go-chi/chi/v5"
 	"riverqueue.com/riverui"
@@ -44,6 +45,14 @@ func main() {
 		slog.Error("invalid configuration", "error", err)
 		os.Exit(1)
 	}
+
+	// Initialize OpenTelemetry tracing (no-op if OTEL_EXPORTER_OTLP_ENDPOINT is unset)
+	otelShutdown, err := telemetry.Setup(ctx, cfg.AppName, cfg.AppEnv)
+	if err != nil {
+		slog.Error("failed to initialize telemetry", "error", err)
+		os.Exit(1)
+	}
+	defer otelShutdown(ctx)
 
 	// Connect to database
 	pool, err := db.NewPool(ctx, cfg.DatabaseURL)
