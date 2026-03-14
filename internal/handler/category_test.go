@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/angristan/larafeed-go/internal/db"
+	"github.com/angristan/larafeed-go/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +16,8 @@ func newCategoryHandler(t *testing.T, pool *db.Pool, q *db.Queries) *CategoryHan
 	t.Helper()
 	authSvc := testAuth(t, q)
 	i := testInertia(t, authSvc)
-	return NewCategoryHandler(i, q)
+	categorySvc := service.NewCategoryService(q)
+	return NewCategoryHandler(i, categorySvc)
 }
 
 func TestCreateCategory_Success(t *testing.T) {
@@ -32,7 +34,6 @@ func TestCreateCategory_Success(t *testing.T) {
 	assert.Equal(t, http.StatusFound, w.Code)
 	assert.Equal(t, "/feeds", w.Header().Get("Location"))
 
-	// Verify category exists
 	cats, err := q.ListCategoriesForUser(context.Background(), user.ID)
 	require.NoError(t, err)
 	require.Len(t, cats, 1)
@@ -92,7 +93,6 @@ func TestCreateCategory_Duplicate(t *testing.T) {
 	assert.Equal(t, http.StatusFound, w.Code)
 	assert.NotEqual(t, "/feeds", w.Header().Get("Location"))
 
-	// Should still have only one category
 	cats, err := q.ListCategoriesForUser(context.Background(), user.ID)
 	require.NoError(t, err)
 	assert.Len(t, cats, 1)

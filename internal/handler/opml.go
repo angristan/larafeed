@@ -6,8 +6,6 @@ import (
 	"net/http"
 
 	"github.com/angristan/larafeed-go/internal/auth"
-	"github.com/angristan/larafeed-go/internal/db"
-	"github.com/angristan/larafeed-go/internal/service"
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 	gonertia "github.com/romsar/gonertia/v2"
@@ -25,14 +23,14 @@ func (ImportOPMLFeedArgs) Kind() string { return "import_opml_feed" }
 
 type OPMLHandler struct {
 	inertia     *gonertia.Inertia
-	opml        *service.OPMLService
+	opml        opmlService
 	authSvc     *auth.Auth
-	q           *db.Queries
+	feedSvc     feedService
 	riverClient *river.Client[pgx.Tx]
 }
 
-func NewOPMLHandler(i *gonertia.Inertia, opml *service.OPMLService, a *auth.Auth, q *db.Queries) *OPMLHandler {
-	return &OPMLHandler{inertia: i, opml: opml, authSvc: a, q: q}
+func NewOPMLHandler(i *gonertia.Inertia, opml opmlService, a *auth.Auth, feedSvc feedService) *OPMLHandler {
+	return &OPMLHandler{inertia: i, opml: opml, authSvc: a, feedSvc: feedSvc}
 }
 
 // SetRiverClient sets the River client for async job dispatch.
@@ -57,20 +55,15 @@ func (h *OPMLHandler) Import(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Parse OPML to get feed list
 	imports, err := h.opml.ParseOPML(r.Context(), user.ID, file)
 	if err != nil {
 		validationError(w, r, h.inertia, map[string]string{"opml_file": "Failed to parse OPML: " + err.Error()})
 		return
 	}
 
-	// Dispatch async jobs for each feed
 	dispatched := 0
 	for _, imp := range imports {
-		cat, err := h.q.FindOrCreateCategory(r.Context(), db.FindOrCreateCategoryParams{
-			UserID: user.ID,
-			Name:   imp.CategoryName,
-		})
+		catID, err := h.feedSvc.ResolveCategory(r.Context(), user.ID, nil, imp.CategoryName)
 		if err != nil {
 			continue
 		}
@@ -78,7 +71,7 @@ func (h *OPMLHandler) Import(w http.ResponseWriter, r *http.Request) {
 		_, err = h.riverClient.Insert(context.Background(), ImportOPMLFeedArgs{
 			UserID:       user.ID,
 			FeedURL:      imp.FeedURL,
-			CategoryID:   cat.ID,
+			CategoryID:   catID,
 			FallbackName: imp.FallbackName,
 		}, nil)
 		if err != nil {

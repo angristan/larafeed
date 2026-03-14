@@ -9,7 +9,6 @@ import (
 	"github.com/angristan/larafeed-go/internal/auth"
 	"github.com/angristan/larafeed-go/internal/config"
 	"github.com/angristan/larafeed-go/internal/db"
-	"github.com/angristan/larafeed-go/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/pquerna/otp/totp"
 	gonertia "github.com/romsar/gonertia/v2"
@@ -57,12 +56,12 @@ type updatePasswordRequest struct {
 type AuthHandler struct {
 	inertia  *gonertia.Inertia
 	auth     *auth.Auth
-	q        *db.Queries
+	q        authQuerier
 	cfg      *config.Config
-	telegram *service.TelegramService
+	telegram telegramService
 }
 
-func NewAuthHandler(i *gonertia.Inertia, a *auth.Auth, q *db.Queries, cfg *config.Config, telegram *service.TelegramService) *AuthHandler {
+func NewAuthHandler(i *gonertia.Inertia, a *auth.Auth, q authQuerier, cfg *config.Config, telegram telegramService) *AuthHandler {
 	return &AuthHandler{inertia: i, auth: a, q: q, cfg: cfg, telegram: telegram}
 }
 

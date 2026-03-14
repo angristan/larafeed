@@ -104,23 +104,31 @@ func (m *mockQuerier) FindEntryByID(ctx context.Context, id int64) (db.Entry, er
 }
 
 // Remaining Querier methods — stubbed to satisfy the interface.
-func (m *mockQuerier) Archive(ctx context.Context, arg db.ArchiveParams) error { return nil }
+func (m *mockQuerier) Archive(ctx context.Context, arg db.ArchiveParams) error {
+	args := m.Called(ctx, arg)
+	return args.Error(0)
+}
 func (m *mockQuerier) CacheGet(ctx context.Context, key string) (db.CacheGetRow, error) {
 	return db.CacheGetRow{}, nil
 }
 func (m *mockQuerier) CacheSet(ctx context.Context, arg db.CacheSetParams) error { return nil }
 func (m *mockQuerier) CategoryHasSubscriptions(ctx context.Context, categoryID int64) (int64, error) {
-	return 0, nil
+	args := m.Called(ctx, categoryID)
+	return args.Get(0).(int64), args.Error(1)
 }
 func (m *mockQuerier) ClearFiltered(ctx context.Context, arg db.ClearFilteredParams) error {
 	return nil
 }
-func (m *mockQuerier) ClearUserEmailVerification(ctx context.Context, id int64) error { return nil }
+func (m *mockQuerier) ClearUserEmailVerification(ctx context.Context, id int64) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
 func (m *mockQuerier) CountFeedSubscribers(ctx context.Context, feedID int64) (int64, error) {
 	return 0, nil
 }
 func (m *mockQuerier) CreateCategory(ctx context.Context, arg db.CreateCategoryParams) (db.SubscriptionCategory, error) {
-	return db.SubscriptionCategory{}, nil
+	args := m.Called(ctx, arg)
+	return args.Get(0).(db.SubscriptionCategory), args.Error(1)
 }
 func (m *mockQuerier) CreateFeed(ctx context.Context, arg db.CreateFeedParams) (db.Feed, error) {
 	return db.Feed{}, nil
@@ -143,17 +151,26 @@ func (m *mockQuerier) DeleteAllInteractionsForUser(ctx context.Context, userID i
 func (m *mockQuerier) DeleteAllSubscriptionsForUser(ctx context.Context, userID int64) error {
 	return nil
 }
-func (m *mockQuerier) DeleteCategory(ctx context.Context, id int64) error    { return nil }
+func (m *mockQuerier) DeleteCategory(ctx context.Context, id int64) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
 func (m *mockQuerier) DeleteFeed(ctx context.Context, id int64) error        { return nil }
 func (m *mockQuerier) DeletePasswordReset(ctx context.Context, email string) error { return nil }
-func (m *mockQuerier) DeleteUser(ctx context.Context, id int64) error        { return nil }
+func (m *mockQuerier) DeleteUser(ctx context.Context, id int64) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
 func (m *mockQuerier) DeleteUserTokens(ctx context.Context, arg db.DeleteUserTokensParams) error {
 	return nil
 }
 func (m *mockQuerier) DeleteInteractionsForFeed(ctx context.Context, arg db.DeleteInteractionsForFeedParams) error {
 	return nil
 }
-func (m *mockQuerier) Favorite(ctx context.Context, arg db.FavoriteParams) error { return nil }
+func (m *mockQuerier) Favorite(ctx context.Context, arg db.FavoriteParams) error {
+	args := m.Called(ctx, arg)
+	return args.Error(0)
+}
 func (m *mockQuerier) FeedsMissingFavicons(ctx context.Context) ([]db.Feed, error) {
 	return nil, nil
 }
@@ -164,7 +181,8 @@ func (m *mockQuerier) FeedsWithOutdatedFavicons(ctx context.Context, olderThan p
 	return nil, nil
 }
 func (m *mockQuerier) FindCategoryByID(ctx context.Context, id int64) (db.SubscriptionCategory, error) {
-	return db.SubscriptionCategory{}, nil
+	args := m.Called(ctx, id)
+	return args.Get(0).(db.SubscriptionCategory), args.Error(1)
 }
 func (m *mockQuerier) FindFeedByURL(ctx context.Context, feedUrl string) (db.Feed, error) {
 	return db.Feed{}, nil
@@ -176,7 +194,8 @@ func (m *mockQuerier) FindPersonalAccessToken(ctx context.Context, token string)
 	return db.PersonalAccessToken{}, nil
 }
 func (m *mockQuerier) FindUserByEmail(ctx context.Context, email string) (db.User, error) {
-	return db.User{}, nil
+	args := m.Called(ctx, email)
+	return args.Get(0).(db.User), args.Error(1)
 }
 func (m *mockQuerier) FindUserByFeverApiKey(ctx context.Context, feverApiKey *string) (db.User, error) {
 	return db.User{}, nil
@@ -207,8 +226,14 @@ func (m *mockQuerier) SubscriptionsWithFilters(ctx context.Context, feedID int64
 	return nil, nil
 }
 func (m *mockQuerier) TouchTokenLastUsed(ctx context.Context, id int64) error { return nil }
-func (m *mockQuerier) Unarchive(ctx context.Context, arg db.UnarchiveParams) error { return nil }
-func (m *mockQuerier) Unfavorite(ctx context.Context, arg db.UnfavoriteParams) error { return nil }
+func (m *mockQuerier) Unarchive(ctx context.Context, arg db.UnarchiveParams) error {
+	args := m.Called(ctx, arg)
+	return args.Error(0)
+}
+func (m *mockQuerier) Unfavorite(ctx context.Context, arg db.UnfavoriteParams) error {
+	args := m.Called(ctx, arg)
+	return args.Error(0)
+}
 func (m *mockQuerier) UnreadIDs(ctx context.Context, userID int64) ([]int64, error) {
 	return nil, nil
 }
@@ -227,7 +252,8 @@ func (m *mockQuerier) UpdateUserPasswordAndFeverKey(ctx context.Context, arg db.
 	return nil
 }
 func (m *mockQuerier) UpdateUserProfile(ctx context.Context, arg db.UpdateUserProfileParams) error {
-	return nil
+	args := m.Called(ctx, arg)
+	return args.Error(0)
 }
 func (m *mockQuerier) UpdateUserTwoFactor(ctx context.Context, arg db.UpdateUserTwoFactorParams) error {
 	return nil

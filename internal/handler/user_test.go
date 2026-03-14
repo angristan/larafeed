@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/angristan/larafeed-go/internal/db"
+	"github.com/angristan/larafeed-go/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +16,8 @@ func newUserHandler(t *testing.T, pool *db.Pool, q *db.Queries) *UserHandler {
 	t.Helper()
 	authSvc := testAuth(t, q)
 	i := testInertia(t, authSvc)
-	return NewUserHandler(i, pool, authSvc, q)
+	userSvc := service.NewUserService(q, pool)
+	return NewUserHandler(i, authSvc, userSvc)
 }
 
 // --- UpdateProfile ---
@@ -59,7 +61,6 @@ func TestUpdateProfile_EmptyName(t *testing.T) {
 	assert.Equal(t, http.StatusFound, w.Code)
 	assert.NotEqual(t, "/profile", w.Header().Get("Location"))
 
-	// Name should not have changed
 	updated, err := q.FindUserByID(context.Background(), user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Alice", updated.Name)
@@ -83,7 +84,6 @@ func TestUpdateProfile_DuplicateEmail(t *testing.T) {
 	assert.Equal(t, http.StatusFound, w.Code)
 	assert.NotEqual(t, "/profile", w.Header().Get("Location"))
 
-	// Email should not have changed
 	updated, err := q.FindUserByID(context.Background(), user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "alice@test.com", updated.Email)
@@ -126,7 +126,6 @@ func TestDeleteAccount_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusFound, w.Code)
 
-	// User should be deleted
 	_, err := q.FindUserByID(context.Background(), user.ID)
 	assert.Error(t, err)
 }
@@ -144,8 +143,6 @@ func TestDeleteAccount_WrongPassword(t *testing.T) {
 
 	assert.Equal(t, http.StatusFound, w.Code)
 
-	// User should still exist
 	_, err := q.FindUserByID(context.Background(), user.ID)
 	assert.NoError(t, err)
 }
-
