@@ -51,7 +51,11 @@ func main() {
 		slog.Error("failed to initialize telemetry", "error", err)
 		os.Exit(1)
 	}
-	defer otelShutdown(ctx)
+	defer func() {
+		if err := otelShutdown(ctx); err != nil {
+			slog.Error("telemetry shutdown error", "error", err)
+		}
+	}()
 
 	// Connect to database
 	pool, err := db.NewPool(ctx, cfg.DatabaseURL)
@@ -78,7 +82,10 @@ func main() {
 		slog.Error("failed to create River UI handler", "error", err)
 		os.Exit(1)
 	}
-	riverHandler.Start(ctx)
+	if err := riverHandler.Start(ctx); err != nil {
+		slog.Error("failed to start River UI handler", "error", err)
+		os.Exit(1)
+	}
 	srv.Group(func(r chi.Router) {
 		r.Use(requireAuthAPI)
 		r.Mount("/jobs", riverHandler)

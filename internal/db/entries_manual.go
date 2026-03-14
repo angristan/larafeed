@@ -88,14 +88,7 @@ func ReaderEntryFromRow(r *FindReaderEntryRow) *ReaderEntry {
 func ReaderEntriesFromPublishedRows(rows []ListForReaderByPublishedRow) []ReaderEntry {
 	entries := make([]ReaderEntry, len(rows))
 	for i, r := range rows {
-		entries[i] = ReaderEntry{
-			ID: r.ID, FeedID: r.FeedID, Title: r.Title, URL: r.URL,
-			Author: r.Author, Content: r.Content, PublishedAt: r.PublishedAt,
-			ReadAt: r.ReadAt, StarredAt: r.StarredAt, ArchivedAt: r.ArchivedAt,
-			FilteredAt: r.FilteredAt, FeedName: r.FeedName,
-			CustomFeedName: r.CustomFeedName, FaviconURL: r.FaviconURL,
-			FaviconIsDark: r.FaviconIsDark,
-		}
+		entries[i] = ReaderEntry(r)
 	}
 	return entries
 }
@@ -104,14 +97,7 @@ func ReaderEntriesFromPublishedRows(rows []ListForReaderByPublishedRow) []Reader
 func ReaderEntriesFromCreatedRows(rows []ListForReaderByCreatedRow) []ReaderEntry {
 	entries := make([]ReaderEntry, len(rows))
 	for i, r := range rows {
-		entries[i] = ReaderEntry{
-			ID: r.ID, FeedID: r.FeedID, Title: r.Title, URL: r.URL,
-			Author: r.Author, Content: r.Content, PublishedAt: r.PublishedAt,
-			ReadAt: r.ReadAt, StarredAt: r.StarredAt, ArchivedAt: r.ArchivedAt,
-			FilteredAt: r.FilteredAt, FeedName: r.FeedName,
-			CustomFeedName: r.CustomFeedName, FaviconURL: r.FaviconURL,
-			FaviconIsDark: r.FaviconIsDark,
-		}
+		entries[i] = ReaderEntry(r)
 	}
 	return entries
 }

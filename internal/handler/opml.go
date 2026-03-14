@@ -47,7 +47,11 @@ func (h *OPMLHandler) Import(w http.ResponseWriter, r *http.Request) {
 		validationError(w, r, h.inertia, map[string]string{"opml_file": "Please select an OPML file."})
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			slog.ErrorContext(r.Context(), "failed to close uploaded file", "error", err)
+		}
+	}()
 
 	imports, err := h.opml.ParseOPML(r.Context(), user.ID, file)
 	if err != nil {
