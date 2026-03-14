@@ -104,17 +104,24 @@ func New(cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux, *Services, error) {
 	telegramSvc := service.NewTelegramService(cfg.TelegramToken, cfg.TelegramChatID)
 	opmlSvc := service.NewOPMLService(q, feedSvc)
 
+	// Create remaining services
+	readerSvc := service.NewReaderService(q, faviconSvc, imgProxySvc, llmSvc)
+	entrySvc := service.NewEntryService(q)
+	categorySvc := service.NewCategoryService(q)
+	userSvc := service.NewUserService(q, pool)
+	subsSvc := service.NewSubscriptionService(q, faviconSvc)
+	chartsSvc := service.NewChartsService(q, pool)
+
 	// Create handlers
 	authHandler := handler.NewAuthHandler(i, authSvc, q, cfg, telegramSvc)
-	readerSvc := service.NewReaderService(q, faviconSvc, imgProxySvc, llmSvc)
 	readerHandler := handler.NewReaderHandler(i, readerSvc)
 	feedHandler := handler.NewFeedHandler(i, feedSvc, faviconSvc)
-	entryHandler := handler.NewEntryHandler(q)
-	categoryHandler := handler.NewCategoryHandler(i, q)
-	userHandler := handler.NewUserHandler(i, pool, authSvc, q)
-	opmlHandler := handler.NewOPMLHandler(i, opmlSvc, authSvc, q)
-	subsHandler := handler.NewSubscriptionsHandler(i, q, faviconSvc)
-	chartsHandler := handler.NewChartsHandler(i, pool, q)
+	entryHandler := handler.NewEntryHandler(entrySvc)
+	categoryHandler := handler.NewCategoryHandler(i, categorySvc)
+	userHandler := handler.NewUserHandler(i, authSvc, userSvc)
+	opmlHandler := handler.NewOPMLHandler(i, opmlSvc, authSvc, feedSvc)
+	subsHandler := handler.NewSubscriptionsHandler(i, subsSvc)
+	chartsHandler := handler.NewChartsHandler(i, chartsSvc)
 
 	// API handlers
 	greaderHandler := api.NewGoogleReaderHandler(q)

@@ -1,13 +1,10 @@
 package handler
 
 import (
-	"context"
 	"net/http"
 	"strings"
 
 	"github.com/angristan/larafeed-go/internal/auth"
-	"github.com/angristan/larafeed-go/internal/db"
-	"github.com/jackc/pgx/v5"
 	gonertia "github.com/romsar/gonertia/v2"
 )
 
@@ -22,13 +19,12 @@ type deleteAccountRequest struct {
 
 type UserHandler struct {
 	inertia *gonertia.Inertia
-	pool    *db.Pool
 	authSvc *auth.Auth
-	q       *db.Queries
+	userSvc userService
 }
 
-func NewUserHandler(i *gonertia.Inertia, pool *db.Pool, a *auth.Auth, q *db.Queries) *UserHandler {
-	return &UserHandler{inertia: i, pool: pool, authSvc: a, q: q}
+func NewUserHandler(i *gonertia.Inertia, a *auth.Auth, userSvc userService) *UserHandler {
+	return &UserHandler{inertia: i, authSvc: a, userSvc: userSvc}
 }
 
 func (h *UserHandler) ShowSettings(w http.ResponseWriter, r *http.Request) {
@@ -68,19 +64,9 @@ func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	user := auth.UserFromRequest(r)
 
-	// Check if email changed and is taken
-	if req.Email != user.Email {
-		if _, err := h.q.FindUserByEmail(r.Context(), req.Email); err == nil {
-			validationError(w, r, h.inertia, map[string]string{"email": "The email has already been taken."})
-			return
-		}
-	}
-
-	_ = h.q.UpdateUserProfile(r.Context(), db.UpdateUserProfileParams{ID: user.ID, Name: req.Name, Email: req.Email})
-
-	// Clear verification if email changed
-	if req.Email != user.Email {
-		_ = h.q.ClearUserEmailVerification(r.Context(), user.ID)
+	if err := h.userSvc.UpdateProfile(r.Context(), user.ID, user.Email, req.Name, req.Email); err != nil {
+		validationError(w, r, h.inertia, map[string]string{"email": "The email has already been taken."})
+		return
 	}
 
 	http.Redirect(w, r, "/profile", http.StatusFound)
@@ -101,7 +87,10 @@ func (h *UserHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = h.authSvc.Logout(w, r)
-	_ = h.q.DeleteUser(r.Context(), user.ID)
+	if err := h.userSvc.DeleteAccount(r.Context(), user.ID); err != nil {
+		http.Error(w, "Failed to delete account", http.StatusInternalServerError)
+		return
+	}
 
 	http.Redirect(w, r, "/", http.StatusFound)
 }
@@ -109,54 +98,7 @@ func (h *UserHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 func (h *UserHandler) WipeAccount(w http.ResponseWriter, r *http.Request) {
 	user := auth.UserFromRequest(r)
 
-	err := db.WithTx(r.Context(), h.pool, func(ctx context.Context, tx pgx.Tx) error {
-		// Delete all interactions
-		if _, err := tx.Exec(ctx, `DELETE FROM entry_interactions WHERE user_id = $1`, user.ID); err != nil {
-			return err
-		}
-
-		// Get user's feeds
-		rows, err := tx.Query(ctx, `SELECT feed_id FROM feed_subscriptions WHERE user_id = $1`, user.ID)
-		if err != nil {
-			return err
-		}
-		var feedIDs []int64
-		for rows.Next() {
-			var id int64
-			if err := rows.Scan(&id); err != nil {
-				rows.Close()
-				return err
-			}
-			feedIDs = append(feedIDs, id)
-		}
-		rows.Close()
-
-		// Delete all subscriptions
-		if _, err := tx.Exec(ctx, `DELETE FROM feed_subscriptions WHERE user_id = $1`, user.ID); err != nil {
-			return err
-		}
-
-		// Delete feeds with no subscribers
-		for _, feedID := range feedIDs {
-			var count int
-			if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM feed_subscriptions WHERE feed_id = $1`, feedID).Scan(&count); err != nil {
-				return err
-			}
-			if count == 0 {
-				if _, err := tx.Exec(ctx, `DELETE FROM feeds WHERE id = $1`, feedID); err != nil {
-					return err
-				}
-			}
-		}
-
-		// Delete all categories
-		if _, err := tx.Exec(ctx, `DELETE FROM subscription_categories WHERE user_id = $1`, user.ID); err != nil {
-			return err
-		}
-
-		return nil
-	})
-	if err != nil {
+	if err := h.userSvc.WipeAccount(r.Context(), user.ID); err != nil {
 		http.Error(w, "Failed to wipe account", http.StatusInternalServerError)
 		return
 	}

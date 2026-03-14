@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/angristan/larafeed-go/internal/auth"
-	"github.com/angristan/larafeed-go/internal/db"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -16,11 +15,11 @@ type updateEntryRequest struct {
 }
 
 type EntryHandler struct {
-	q *db.Queries
+	entrySvc entryService
 }
 
-func NewEntryHandler(q *db.Queries) *EntryHandler {
-	return &EntryHandler{q: q}
+func NewEntryHandler(entrySvc entryService) *EntryHandler {
+	return &EntryHandler{entrySvc: entrySvc}
 }
 
 func (h *EntryHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -37,28 +36,9 @@ func (h *EntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Read != nil {
-		if *req.Read {
-			_ = h.q.MarkAsRead(r.Context(), db.MarkAsReadParams{UserID: user.ID, EntryID: entryID})
-		} else {
-			_ = h.q.MarkAsUnread(r.Context(), db.MarkAsUnreadParams{UserID: user.ID, EntryID: entryID})
-		}
-	}
-
-	if req.Starred != nil {
-		if *req.Starred {
-			_ = h.q.Favorite(r.Context(), db.FavoriteParams{UserID: user.ID, EntryID: entryID})
-		} else {
-			_ = h.q.Unfavorite(r.Context(), db.UnfavoriteParams{UserID: user.ID, EntryID: entryID})
-		}
-	}
-
-	if req.Archived != nil {
-		if *req.Archived {
-			_ = h.q.Archive(r.Context(), db.ArchiveParams{UserID: user.ID, EntryID: entryID})
-		} else {
-			_ = h.q.Unarchive(r.Context(), db.UnarchiveParams{UserID: user.ID, EntryID: entryID})
-		}
+	if err := h.entrySvc.UpdateInteractions(r.Context(), user.ID, entryID, req.Read, req.Starred, req.Archived); err != nil {
+		http.Error(w, "Failed to update entry", http.StatusInternalServerError)
+		return
 	}
 
 	http.Redirect(w, r, r.Header.Get("Referer"), http.StatusFound)
