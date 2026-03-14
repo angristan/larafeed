@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -17,12 +19,12 @@ import (
 )
 
 type FeedService struct {
-	q      *db.Queries
+	q      db.Querier
 	pool   *pgxpool.Pool
 	filter *FilterService
 }
 
-func NewFeedService(q *db.Queries, pool *pgxpool.Pool, filter *FilterService) *FeedService {
+func NewFeedService(q db.Querier, pool *pgxpool.Pool, filter *FilterService) *FeedService {
 	return &FeedService{
 		q:      q,
 		pool:   pool,
@@ -351,6 +353,96 @@ func Paginate(data any, total, page, perPage int) PaginatedResult {
 		PerPage:     perPage,
 		Total:       total,
 	}
+}
+
+// FindFeedByID returns a feed by its ID.
+func (s *FeedService) FindFeedByID(ctx context.Context, feedID int64) (*db.Feed, error) {
+	feed, err := s.q.FindFeedByID(ctx, feedID)
+	if err != nil {
+		return nil, err
+	}
+	return &feed, nil
+}
+
+// MarkAllAsRead marks all unread entries for a feed as read.
+func (s *FeedService) MarkAllAsRead(ctx context.Context, userID, feedID int64) error {
+	return db.MarkAllAsRead(ctx, s.q, userID, feedID)
+}
+
+// ResolveCategory resolves a category by ID or creates one by name.
+func (s *FeedService) ResolveCategory(ctx context.Context, userID int64, categoryID *int64, categoryName string) (int64, error) {
+	if categoryID != nil {
+		return *categoryID, nil
+	}
+	if categoryName != "" {
+		cat, err := s.q.FindOrCreateCategory(ctx, db.FindOrCreateCategoryParams{UserID: userID, Name: categoryName})
+		if err != nil {
+			return 0, fmt.Errorf("create category: %w", err)
+		}
+		return cat.ID, nil
+	}
+	return 0, fmt.Errorf("a category is required")
+}
+
+// Unsubscribe removes a user's subscription and cleans up the feed if no subscribers remain.
+func (s *FeedService) Unsubscribe(ctx context.Context, userID int64, feedID int64) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			if rbErr := tx.Rollback(ctx); rbErr != nil {
+				slog.Error("failed to rollback transaction", "error", rbErr)
+			}
+		}
+	}()
+
+	qtx := db.New(tx)
+	if err := qtx.DeleteInteractionsForFeed(ctx, db.DeleteInteractionsForFeedParams{UserID: userID, FeedID: feedID}); err != nil {
+		return err
+	}
+	if err := qtx.Unsubscribe(ctx, db.UnsubscribeParams{UserID: userID, FeedID: feedID}); err != nil {
+		return err
+	}
+	count, err := qtx.CountFeedSubscribers(ctx, feedID)
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		if err := qtx.DeleteFeed(ctx, feedID); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	committed = true
+	return nil
+}
+
+// UpdateSubscription updates a subscription's category, name, and filter rules.
+// If filterRulesJSON is non-nil, filters are re-applied to all existing entries.
+func (s *FeedService) UpdateSubscription(ctx context.Context, userID, feedID, categoryID int64, customName *string, filterRulesJSON json.RawMessage) error {
+	err := s.q.UpdateSubscription(ctx, db.UpdateSubscriptionParams{
+		UserID: userID, FeedID: feedID, CategoryID: categoryID,
+		CustomFeedName: customName, FilterRules: filterRulesJSON,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Re-apply filters if rules were provided
+	if filterRulesJSON != nil {
+		sub, err := s.q.GetSubscription(ctx, db.GetSubscriptionParams{UserID: userID, FeedID: feedID})
+		if err == nil {
+			allEntries, _ := s.q.EntriesForFeed(ctx, feedID)
+			s.filter.ApplyFilters(ctx, sub, allEntries)
+		}
+	}
+
+	return nil
 }
 
 // Helpers

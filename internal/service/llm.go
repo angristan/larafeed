@@ -12,10 +12,10 @@ import (
 
 type LLMService struct {
 	apiKey string
-	q      *db.Queries
+	q      db.Querier
 }
 
-func NewLLMService(apiKey string, q *db.Queries) *LLMService {
+func NewLLMService(apiKey string, q db.Querier) *LLMService {
 	return &LLMService{apiKey: apiKey, q: q}
 }
 

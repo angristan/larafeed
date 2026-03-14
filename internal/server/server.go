@@ -106,8 +106,9 @@ func New(cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux, *Services, error) {
 
 	// Create handlers
 	authHandler := handler.NewAuthHandler(i, authSvc, q, cfg, telegramSvc)
-	readerHandler := handler.NewReaderHandler(i, q, llmSvc, imgProxySvc, faviconSvc)
-	feedHandler := handler.NewFeedHandler(i, pool, q, feedSvc, faviconSvc, filterSvc)
+	readerSvc := service.NewReaderService(q, faviconSvc, imgProxySvc, llmSvc)
+	readerHandler := handler.NewReaderHandler(i, readerSvc)
+	feedHandler := handler.NewFeedHandler(i, feedSvc, faviconSvc)
 	entryHandler := handler.NewEntryHandler(q)
 	categoryHandler := handler.NewCategoryHandler(i, q)
 	userHandler := handler.NewUserHandler(i, pool, authSvc, q)

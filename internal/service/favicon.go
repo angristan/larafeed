@@ -19,11 +19,11 @@ import (
 const brightnessThreshold = 80
 
 type FaviconService struct {
-	q        *db.Queries
+	q        db.Querier
 	imgProxy *ImgProxyService
 }
 
-func NewFaviconService(q *db.Queries, imgProxy *ImgProxyService) *FaviconService {
+func NewFaviconService(q db.Querier, imgProxy *ImgProxyService) *FaviconService {
 	return &FaviconService{q: q, imgProxy: imgProxy}
 }
 
