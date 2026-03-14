@@ -41,19 +41,15 @@ func (s *FaviconService) GetFaviconURL(ctx context.Context, siteURL string) stri
 		fmt.Sprintf("%s://%s/apple-touch-icon.png", u.Scheme, u.Host),
 	}
 
-	client := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 3 {
-				return fmt.Errorf("too many redirects")
-			}
-			return nil
-		},
+	client := safeHTTPClient()
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 3 {
+			return fmt.Errorf("too many redirects")
+		}
+		return nil
 	}
 
 	for _, candidate := range candidates {
-		if err := ValidateURL(candidate); err != nil {
-			continue
-		}
 		req, err := http.NewRequestWithContext(ctx, "HEAD", candidate, nil)
 		if err != nil {
 			continue

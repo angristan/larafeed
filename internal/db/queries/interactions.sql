@@ -31,7 +31,12 @@ ON CONFLICT (user_id, entry_id) DO UPDATE SET archived_at = NULL, updated_at = N
 -- name: MarkFiltered :exec
 INSERT INTO entry_interactions (user_id, entry_id, filtered_at, created_at, updated_at)
 VALUES ($1, $2, NOW(), NOW(), NOW())
-ON CONFLICT (user_id, entry_id) DO UPDATE SET filtered_at = NOW(), updated_at = NOW();
+ON CONFLICT (user_id, entry_id) DO UPDATE SET
+    filtered_at = NOW(),
+    read_at = NULL,
+    starred_at = NULL,
+    archived_at = NULL,
+    updated_at = NOW();
 
 -- name: ClearFiltered :exec
 INSERT INTO entry_interactions (user_id, entry_id, filtered_at, created_at, updated_at)

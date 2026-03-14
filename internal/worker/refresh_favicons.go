@@ -45,8 +45,8 @@ func (w *RefreshStaleFaviconsWorker) Work(ctx context.Context, job *river.Job[Re
 		return nil
 	}
 
-	// Limit to 5 per run to avoid overloading
-	limit := 5
+	// Limit to 1 per run to avoid overloading
+	limit := 1
 	if len(feeds) < limit {
 		limit = len(feeds)
 	}

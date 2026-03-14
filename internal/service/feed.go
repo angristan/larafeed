@@ -15,8 +15,10 @@ import (
 
 	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/db"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mmcdole/gofeed"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 type FeedService struct {
@@ -40,13 +42,49 @@ type FetchResult struct {
 	Items   []*gofeed.Item
 }
 
+// safeHTTPClient returns an HTTP client that prevents SSRF by validating
+// resolved IPs at dial time, eliminating the TOCTOU gap between DNS
+// resolution and connection (DNS rebinding protection).
+func safeHTTPClient() *http.Client {
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, fmt.Errorf("split host port: %w", err)
+			}
+			ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+			if err != nil {
+				return nil, fmt.Errorf("DNS lookup: %w", err)
+			}
+			if len(ips) == 0 {
+				return nil, fmt.Errorf("no IPs resolved for %s", host)
+			}
+			for _, ipAddr := range ips {
+				if isPrivateIP(ipAddr.IP) {
+					return nil, fmt.Errorf("private IP not allowed: %s", ipAddr.IP)
+				}
+			}
+			// Dial the first resolved IP directly — no second lookup.
+			pinnedAddr := net.JoinHostPort(ips[0].IP.String(), port)
+			return dialer.DialContext(ctx, network, pinnedAddr)
+		},
+	}
+	return &http.Client{
+		Transport: otelhttp.NewTransport(transport),
+		Timeout:   30 * time.Second,
+	}
+}
+
 // FetchFeed fetches and parses a feed URL. If the URL points to an HTML page,
 // it attempts to discover feed links via <link rel="alternate"> tags.
 // The initial fetch is reused for both parsing and discovery to avoid duplicate requests.
 func (s *FeedService) FetchFeed(ctx context.Context, feedURL string) (*FetchResult, error) {
-	if err := ValidateURL(feedURL); err != nil {
+	if err := validateScheme(feedURL); err != nil {
 		return nil, fmt.Errorf("unsafe URL: %w", err)
 	}
+
+	client := safeHTTPClient()
 
 	// Single fetch — reuse the body for both feed parsing and discovery.
 	req, err := http.NewRequestWithContext(ctx, "GET", feedURL, nil)
@@ -55,7 +93,7 @@ func (s *FeedService) FetchFeed(ctx context.Context, feedURL string) (*FetchResu
 	}
 	req.Header.Set("User-Agent", "Larafeed/1.0")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch feed: %w", err)
 	}
@@ -68,6 +106,7 @@ func (s *FeedService) FetchFeed(ctx context.Context, feedURL string) (*FetchResu
 
 	parser := gofeed.NewParser()
 	parser.UserAgent = "Larafeed/1.0"
+	parser.Client = safeHTTPClient()
 	actualFeedURL := feedURL
 
 	// Try parsing the body as a feed directly.
@@ -82,7 +121,7 @@ func (s *FeedService) FetchFeed(ctx context.Context, feedURL string) (*FetchResu
 		if discovered == "" {
 			return nil, fmt.Errorf("parse feed: %w", err)
 		}
-		if err := ValidateURL(discovered); err != nil {
+		if err := validateScheme(discovered); err != nil {
 			return nil, fmt.Errorf("unsafe discovered URL: %w", err)
 		}
 		feed, err = parser.ParseURLWithContext(discovered, ctx)
@@ -159,6 +198,7 @@ func probeFeedPaths(ctx context.Context, pageURL string) string {
 		candidate := base.ResolveReference(&url.URL{Path: path}).String()
 		parser := gofeed.NewParser()
 		parser.UserAgent = "Larafeed/1.0"
+		parser.Client = safeHTTPClient()
 		if _, err := parser.ParseURLWithContext(candidate, ctx); err == nil {
 			return candidate
 		}
@@ -167,7 +207,9 @@ func probeFeedPaths(ctx context.Context, pageURL string) string {
 }
 
 // IngestEntries converts feed items to entries and bulk-inserts them.
-func (s *FeedService) IngestEntries(ctx context.Context, feedID int64, items []*gofeed.Item, limit int) ([]db.Entry, error) {
+// The dbtx parameter allows callers to pass either the pool (for standalone use)
+// or a transaction (for use within RefreshFeed).
+func (s *FeedService) IngestEntries(ctx context.Context, dbtx db.DBTX, feedID int64, items []*gofeed.Item, limit int) ([]db.Entry, error) {
 	if limit > 0 && len(items) > limit {
 		items = items[:limit]
 	}
@@ -209,10 +251,10 @@ func (s *FeedService) IngestEntries(ctx context.Context, feedID int64, items []*
 		})
 	}
 
-	return db.BulkCreate(ctx, s.pool, toInsert)
+	return db.BulkCreate(ctx, dbtx, toInsert)
 }
 
-// RefreshFeed fetches a feed and ingests new entries.
+// RefreshFeed fetches a feed and ingests new entries inside a transaction.
 func (s *FeedService) RefreshFeed(ctx context.Context, feed *db.Feed) (int, error) {
 	result, err := s.FetchFeed(ctx, feed.FeedURL)
 	if err != nil {
@@ -223,16 +265,26 @@ func (s *FeedService) RefreshFeed(ctx context.Context, feed *db.Feed) (int, erro
 		return 0, err
 	}
 
-	newEntries, err := s.IngestEntries(ctx, feed.ID, result.Items, 0)
+	var newEntries []db.Entry
+	err = db.WithTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
+		var ingestErr error
+		newEntries, ingestErr = s.IngestEntries(ctx, tx, feed.ID, result.Items, 0)
+		if ingestErr != nil {
+			return fmt.Errorf("ingest entries: %w", ingestErr)
+		}
+
+		qtx := db.New(tx)
+		if err := qtx.UpdateFeedRefreshSuccess(ctx, feed.ID); err != nil {
+			return err
+		}
+		count := len(newEntries)
+		return qtx.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: true, EntriesCreated: &count})
+	})
 	if err != nil {
-		return 0, fmt.Errorf("ingest entries: %w", err)
+		return 0, err
 	}
 
-	_ = s.q.UpdateFeedRefreshSuccess(ctx, feed.ID)
-	count := len(newEntries)
-	_ = s.q.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: true, EntriesCreated: &count})
-
-	// Apply subscription filters to new entries
+	// Apply subscription filters outside the transaction (best-effort)
 	if len(newEntries) > 0 {
 		subs, _ := s.q.SubscriptionsWithFilters(ctx, feed.ID)
 		for _, sub := range subs {
@@ -288,7 +340,7 @@ func (s *FeedService) CreateFeed(ctx context.Context, userID int64, feedURL stri
 	_ = s.q.Subscribe(ctx, db.SubscribeParams{UserID: userID, FeedID: feed.ID, CategoryID: categoryID})
 
 	// Ingest initial entries (limit 20)
-	newEntries, _ := s.IngestEntries(ctx, feed.ID, result.Items, 20)
+	newEntries, _ := s.IngestEntries(ctx, s.pool, feed.ID, result.Items, 20)
 	count := len(newEntries)
 	_ = s.q.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: true, EntriesCreated: &count})
 	_ = s.q.UpdateFeedRefreshSuccess(ctx, feed.ID)
@@ -296,8 +348,9 @@ func (s *FeedService) CreateFeed(ctx context.Context, userID int64, feedURL stri
 	return &feed, nil
 }
 
-// ValidateURL checks if a URL is safe (no SSRF).
-func ValidateURL(rawURL string) error {
+// validateScheme checks that a URL uses http or https.
+// Full SSRF protection (private IP, DNS rebinding) is handled by safeHTTPClient.
+func validateScheme(rawURL string) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return fmt.Errorf("invalid URL: %w", err)
@@ -307,6 +360,17 @@ func ValidateURL(rawURL string) error {
 		return fmt.Errorf("invalid scheme: %s", u.Scheme)
 	}
 
+	return nil
+}
+
+// ValidateURL checks if a URL is safe (scheme + DNS resolution + private IP check).
+// Used by favicon service and other callers that don't go through safeHTTPClient.
+func ValidateURL(rawURL string) error {
+	if err := validateScheme(rawURL); err != nil {
+		return err
+	}
+
+	u, _ := url.Parse(rawURL)
 	host := u.Hostname()
 	ips, err := net.LookupIP(host)
 	if err != nil {

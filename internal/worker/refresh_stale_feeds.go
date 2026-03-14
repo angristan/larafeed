@@ -33,7 +33,7 @@ func (w *RefreshStaleFeedsWorker) Work(ctx context.Context, job *river.Job[Refre
 
 	staleFeeds, err := w.q.FeedsNeedingRefresh(ctx, db.FeedsNeedingRefreshParams{
 		StaleAfter: pgtype.Interval{Microseconds: int64(2 * time.Hour / time.Microsecond), Valid: true},
-		MaxFeeds:   10,
+		MaxFeeds:   1,
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get stale feeds", "error", err)

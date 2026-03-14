@@ -1,6 +1,7 @@
 # Go
 larafeed
 tmp/
+internal/db/sqlc_models.go
 
 # Node
 node_modules/
