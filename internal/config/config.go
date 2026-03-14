@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 )
 
@@ -61,6 +62,24 @@ func Load() *Config {
 
 func (c *Config) IsDev() bool {
 	return c.AppEnv == "development" || c.AppEnv == "local"
+}
+
+// Validate checks that critical configuration is set for non-dev environments.
+// In development mode, defaults are acceptable.
+func (c *Config) Validate() error {
+	if c.IsDev() {
+		return nil
+	}
+
+	if c.SessionKey == "change-me-to-a-32-byte-secret!!" {
+		return fmt.Errorf("SESSION_SECRET must be changed from the default value in %s environment", c.AppEnv)
+	}
+
+	if c.DatabaseURL == "" {
+		return fmt.Errorf("DATABASE_URL is required in %s environment", c.AppEnv)
+	}
+
+	return nil
 }
 
 func getEnv(key, fallback string) string {

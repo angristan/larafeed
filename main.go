@@ -34,6 +34,10 @@ func main() {
 	defer cancel()
 
 	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		slog.Error("invalid configuration", "error", err)
+		os.Exit(1)
+	}
 
 	// Connect to database
 	pool, err := db.NewPool(ctx, cfg.DatabaseURL)
