@@ -92,7 +92,7 @@ func (h *OPMLHandler) Export(w http.ResponseWriter, r *http.Request) {
 
 	data, err := h.opml.Export(r.Context(), user.ID)
 	if err != nil {
-		http.Error(w, "Failed to export OPML", http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
 		return
 	}
 

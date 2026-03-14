@@ -83,7 +83,7 @@ func (h *FeedHandler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.feedService.Unsubscribe(r.Context(), user.ID, feedID); err != nil {
-		http.Error(w, "Failed to unsubscribe", http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
 		return
 	}
 
@@ -185,7 +185,7 @@ func (h *FeedHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.feedService.UpdateSubscription(r.Context(), user.ID, feedID, req.CategoryID, customName, filterRulesJSON); err != nil {
-		http.Error(w, "Could not update feed", http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
 		return
 	}
 

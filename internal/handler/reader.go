@@ -124,6 +124,6 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.inertia.Render(w, r, "Reader/Reader", props); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
 	}
 }

@@ -115,7 +115,7 @@ func (h *AuthHandler) ShowRegister(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if !h.cfg.RegistrationEnabled {
-		http.Error(w, "Registration is disabled", http.StatusForbidden)
+		renderError(w, r, h.inertia, http.StatusForbidden)
 		return
 	}
 
@@ -140,7 +140,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	hashedPassword, err := auth.HashPassword(req.Password)
 	if err != nil {
-		http.Error(w, "Internal error", http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
 		return
 	}
 
@@ -154,7 +154,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:   &now,
 	})
 	if err != nil {
-		http.Error(w, "Could not create account", http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
 		return
 	}
 

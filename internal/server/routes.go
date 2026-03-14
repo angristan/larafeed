@@ -100,7 +100,7 @@ func RegisterRoutes(
 			"canRegister": cfg.RegistrationEnabled,
 		}); err != nil {
 			slog.Error("render error", "component", "Welcome", "error", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			handler.RenderError(w, r, i, http.StatusInternalServerError)
 		}
 	})
 
