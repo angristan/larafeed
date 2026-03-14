@@ -94,7 +94,7 @@ func truncateAll(t *testing.T, pool *pgxpool.Pool) {
 // testAuth creates an Auth instance with a test session key.
 func testAuth(t *testing.T, q *db.Queries) *auth.Auth {
 	t.Helper()
-	return auth.New("test-session-key-32chars!!!!!!!!!", q)
+	return auth.New("test-session-key-32chars!!!!!!!!!", q, false)
 }
 
 // testInertia creates a minimal gonertia instance suitable for handler tests.

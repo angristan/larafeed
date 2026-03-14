@@ -62,7 +62,7 @@ func New(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux,
 	q := db.New(pool)
 
 	// Create auth service early (needed for LoadUser middleware and FlashProvider)
-	authSvc := auth.New(cfg.SessionKey, q)
+	authSvc := auth.New(cfg.SessionKey, q, !cfg.IsDev())
 	flashProvider := auth.NewFlashProvider(authSvc.Store(), authSvc.SessionName())
 
 	i, err := gonertia.New(
