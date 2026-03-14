@@ -41,19 +41,44 @@ type FetchResult struct {
 
 // FetchFeed fetches and parses a feed URL. If the URL points to an HTML page,
 // it attempts to discover feed links via <link rel="alternate"> tags.
+// The initial fetch is reused for both parsing and discovery to avoid duplicate requests.
 func (s *FeedService) FetchFeed(ctx context.Context, feedURL string) (*FetchResult, error) {
 	if err := ValidateURL(feedURL); err != nil {
 		return nil, fmt.Errorf("unsafe URL: %w", err)
 	}
 
+	// Single fetch — reuse the body for both feed parsing and discovery.
+	req, err := http.NewRequestWithContext(ctx, "GET", feedURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("User-Agent", "Larafeed/1.0")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch feed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024)) // 2MB limit
+	if err != nil {
+		return nil, fmt.Errorf("read body: %w", err)
+	}
+
 	parser := gofeed.NewParser()
 	parser.UserAgent = "Larafeed/1.0"
 	actualFeedURL := feedURL
-	feed, err := parser.ParseURLWithContext(feedURL, ctx)
+
+	// Try parsing the body as a feed directly.
+	feed, err := parser.ParseString(string(body))
 	if err != nil {
-		// Direct parsing failed — try feed discovery from HTML
-		discovered, discoverErr := discoverFeedURL(ctx, feedURL)
-		if discoverErr != nil || discovered == "" {
+		// Not a feed — try discovering a feed URL from the HTML body.
+		discovered := discoverFeedFromHTML(feedURL, string(body))
+		if discovered == "" {
+			// Fallback: probe common feed paths.
+			discovered = probeFeedPaths(ctx, feedURL)
+		}
+		if discovered == "" {
 			return nil, fmt.Errorf("parse feed: %w", err)
 		}
 		if err := ValidateURL(discovered); err != nil {
@@ -82,36 +107,12 @@ func (s *FeedService) FetchFeed(ctx context.Context, feedURL string) (*FetchResu
 	}, nil
 }
 
-// discoverFeedURL fetches an HTML page and looks for feed <link> tags.
-func discoverFeedURL(ctx context.Context, pageURL string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", pageURL, nil)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("User-Agent", "Larafeed/1.0")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	// Only process HTML responses
-	ct := resp.Header.Get("Content-Type")
-	if !strings.Contains(ct, "text/html") {
-		return "", fmt.Errorf("not HTML: %s", ct)
-	}
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 512*1024)) // 512KB limit
-	if err != nil {
-		return "", err
-	}
-
+// discoverFeedFromHTML looks for feed <link> tags in an already-fetched HTML body.
+func discoverFeedFromHTML(pageURL, body string) string {
 	// Look for <link rel="alternate" type="application/rss+xml" href="...">
 	// or type="application/atom+xml" or type="application/feed+json"
-	// Handles both quoted and unquoted attribute values
 	re := regexp.MustCompile(`(?i)<link[^>]+rel=["']?alternate["']?[^>]*>`)
-	matches := re.FindAllString(string(body), -1)
+	matches := re.FindAllString(body, -1)
 
 	feedTypes := []string{"application/rss+xml", "application/atom+xml", "application/feed+json"}
 	hrefRe := regexp.MustCompile(`(?i)href=["']?([^\s"'>]+)["']?`)
@@ -138,16 +139,19 @@ func discoverFeedURL(ctx context.Context, pageURL string) (string, error) {
 		}
 
 		href := hrefMatch[1]
-		// Resolve relative URLs
 		base, _ := url.Parse(pageURL)
 		ref, err := url.Parse(href)
 		if err != nil {
 			continue
 		}
-		return base.ResolveReference(ref).String(), nil
+		return base.ResolveReference(ref).String()
 	}
 
-	// Also try common feed paths as fallback
+	return ""
+}
+
+// probeFeedPaths tries common feed paths as a last resort.
+func probeFeedPaths(ctx context.Context, pageURL string) string {
 	commonPaths := []string{"/feed", "/rss", "/atom.xml", "/feed.xml", "/rss.xml", "/index.xml"}
 	base, _ := url.Parse(pageURL)
 	for _, path := range commonPaths {
@@ -155,11 +159,10 @@ func discoverFeedURL(ctx context.Context, pageURL string) (string, error) {
 		parser := gofeed.NewParser()
 		parser.UserAgent = "Larafeed/1.0"
 		if _, err := parser.ParseURLWithContext(candidate, ctx); err == nil {
-			return candidate, nil
+			return candidate
 		}
 	}
-
-	return "", fmt.Errorf("no feed found")
+	return ""
 }
 
 // IngestEntries converts feed items to entries and bulk-inserts them.
