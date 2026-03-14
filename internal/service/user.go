@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/db"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -23,7 +24,7 @@ func NewUserService(q db.Querier, pool *pgxpool.Pool) *UserService {
 func (s *UserService) UpdateProfile(ctx context.Context, userID int64, currentEmail, name, email string) error {
 	if email != currentEmail {
 		if _, err := s.q.FindUserByEmail(ctx, email); err == nil {
-			return fmt.Errorf("the email has already been taken")
+			return apperr.NewValidation("email", "The email has already been taken.")
 		}
 	}
 

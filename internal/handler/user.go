@@ -65,7 +65,9 @@ func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	user := auth.UserFromRequest(r)
 
 	if err := h.userSvc.UpdateProfile(r.Context(), user.ID, user.Email, req.Name, req.Email); err != nil {
-		validationError(w, r, h.inertia, map[string]string{"email": "The email has already been taken."})
+		if !handleServiceError(w, r, h.inertia, err) {
+			renderError(w, r, h.inertia, http.StatusInternalServerError)
+		}
 		return
 	}
 

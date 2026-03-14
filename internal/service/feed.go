@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/db"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mmcdole/gofeed"
@@ -362,7 +363,7 @@ func Paginate(data any, total, page, perPage int) PaginatedResult {
 func (s *FeedService) FindFeedByID(ctx context.Context, feedID int64) (*db.Feed, error) {
 	feed, err := s.q.FindFeedByID(ctx, feedID)
 	if err != nil {
-		return nil, err
+		return nil, apperr.NewNotFound("feed")
 	}
 	return &feed, nil
 }
@@ -384,7 +385,7 @@ func (s *FeedService) ResolveCategory(ctx context.Context, userID int64, categor
 		}
 		return cat.ID, nil
 	}
-	return 0, fmt.Errorf("a category is required")
+	return 0, apperr.NewValidation("category_id", "A category is required.")
 }
 
 // Unsubscribe removes a user's subscription and cleans up the feed if no subscribers remain.

@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
+	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -48,7 +50,9 @@ func TestCategoryDelete_NotOwned(t *testing.T) {
 	err := svc.Delete(context.Background(), 1, 5)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
+	var notFound *apperr.NotFoundError
+	assert.True(t, errors.As(err, &notFound))
+	assert.Equal(t, "category", notFound.Resource)
 }
 
 func TestCategoryDelete_NotFound(t *testing.T) {
@@ -60,6 +64,22 @@ func TestCategoryDelete_NotFound(t *testing.T) {
 	err := svc.Delete(context.Background(), 1, 5)
 
 	assert.Error(t, err)
+	var notFound *apperr.NotFoundError
+	assert.True(t, errors.As(err, &notFound))
+}
+
+func TestCategoryCreate_Conflict(t *testing.T) {
+	q := &mockQuerier{}
+	q.On("CreateCategory", mock.Anything, db.CreateCategoryParams{UserID: 1, Name: "Tech"}).
+		Return(db.SubscriptionCategory{}, fmt.Errorf("unique constraint violation"))
+
+	svc := NewCategoryService(q)
+	_, err := svc.Create(context.Background(), 1, "Tech")
+
+	assert.Error(t, err)
+	var conflict *apperr.ConflictError
+	assert.True(t, errors.As(err, &conflict))
+	assert.Equal(t, "category", conflict.Resource)
 }
 
 func TestCategoryDelete_HasSubscriptions(t *testing.T) {
@@ -72,6 +92,8 @@ func TestCategoryDelete_HasSubscriptions(t *testing.T) {
 	err := svc.Delete(context.Background(), 1, 5)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "has feed subscriptions")
+	var validErr *apperr.ValidationError
+	assert.True(t, errors.As(err, &validErr))
+	assert.Equal(t, "category", validErr.Field)
 	q.AssertNotCalled(t, "DeleteCategory", mock.Anything, mock.Anything)
 }
