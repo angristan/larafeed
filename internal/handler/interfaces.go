@@ -11,13 +11,13 @@ import (
 
 // readerService defines the methods the ReaderHandler needs.
 type readerService interface {
-	ListFeeds(ctx context.Context, userID int64) []service.ReaderFeed
-	FetchEntriesPage(ctx context.Context, userID int64, params service.ReaderQuery) service.PaginatedResult
+	ListFeeds(ctx context.Context, userID int64) ([]service.ReaderFeed, error)
+	FetchEntriesPage(ctx context.Context, userID int64, params service.ReaderQuery) (service.PaginatedResult, error)
 	FetchCurrentEntry(ctx context.Context, userID int64, entryID int64, markRead *bool) (*db.ReaderEntry, error)
-	CountUnread(ctx context.Context, userID int64) int64
-	CountRead(ctx context.Context, userID int64) int64
+	CountUnread(ctx context.Context, userID int64) (int64, error)
+	CountRead(ctx context.Context, userID int64) (int64, error)
 	SummarizeEntry(ctx context.Context, entryID int64) (any, error)
-	ListCategories(ctx context.Context, userID int64) []db.SubscriptionCategory
+	ListCategories(ctx context.Context, userID int64) ([]db.SubscriptionCategory, error)
 }
 
 // feedService defines the methods the FeedHandler needs.
@@ -51,8 +51,8 @@ type userService interface {
 
 // subscriptionService defines the methods the SubscriptionsHandler needs.
 type subscriptionService interface {
-	ListSubscriptions(ctx context.Context, userID int64) []service.SubscriptionFeed
-	ListCategories(ctx context.Context, userID int64) []db.SubscriptionCategory
+	ListSubscriptions(ctx context.Context, userID int64) ([]service.SubscriptionFeed, error)
+	ListCategories(ctx context.Context, userID int64) ([]db.SubscriptionCategory, error)
 }
 
 // chartsService defines the methods the ChartsHandler needs.

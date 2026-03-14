@@ -8,7 +8,7 @@ import (
 
 // readerService provides read-only access to reader data for API handlers.
 type readerService interface {
-	ListCategories(ctx context.Context, userID int64) []db.SubscriptionCategory
+	ListCategories(ctx context.Context, userID int64) ([]db.SubscriptionCategory, error)
 	ListSubscriptions(ctx context.Context, userID int64) ([]db.ListSubscriptionsForUserRow, error)
 	UnreadIDs(ctx context.Context, userID int64) ([]int64, error)
 	StarredIDs(ctx context.Context, userID int64) ([]int64, error)

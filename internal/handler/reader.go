@@ -58,7 +58,11 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 	props := gonertia.Props{}
 
 	// Feeds
-	feeds := h.readerSvc.ListFeeds(r.Context(), user.ID)
+	feeds, err := h.readerSvc.ListFeeds(r.Context(), user.ID)
+	if err != nil {
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		return
+	}
 	if feeds == nil {
 		props["feeds"] = []any{}
 	} else {
@@ -66,7 +70,12 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Entries (paginated)
-	props["entries"] = h.readerSvc.FetchEntriesPage(r.Context(), user.ID, params)
+	entries, err := h.readerSvc.FetchEntriesPage(r.Context(), user.ID, params)
+	if err != nil {
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		return
+	}
+	props["entries"] = entries
 
 	// Current entry (deferred)
 	props["currententry"] = gonertia.Defer(func() (any, error) {
@@ -96,8 +105,18 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// Counts
-	props["unreadEntriesCount"] = h.readerSvc.CountUnread(r.Context(), user.ID)
-	props["readEntriesCount"] = h.readerSvc.CountRead(r.Context(), user.ID)
+	unread, err := h.readerSvc.CountUnread(r.Context(), user.ID)
+	if err != nil {
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		return
+	}
+	read, err := h.readerSvc.CountRead(r.Context(), user.ID)
+	if err != nil {
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		return
+	}
+	props["unreadEntriesCount"] = unread
+	props["readEntriesCount"] = read
 
 	// Summary (deferred)
 	props["summary"] = gonertia.Defer(func() (any, error) {
@@ -116,7 +135,11 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// Categories
-	cats := h.readerSvc.ListCategories(r.Context(), user.ID)
+	cats, err := h.readerSvc.ListCategories(r.Context(), user.ID)
+	if err != nil {
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		return
+	}
 	if cats == nil {
 		props["categories"] = []any{}
 	} else {

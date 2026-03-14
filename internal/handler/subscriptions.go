@@ -19,8 +19,19 @@ func NewSubscriptionsHandler(i *gonertia.Inertia, subsSvc subscriptionService) *
 func (h *SubscriptionsHandler) Show(w http.ResponseWriter, r *http.Request) {
 	user := auth.UserFromRequest(r)
 
+	feeds, err := h.subsSvc.ListSubscriptions(r.Context(), user.ID)
+	if err != nil {
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		return
+	}
+	cats, err := h.subsSvc.ListCategories(r.Context(), user.ID)
+	if err != nil {
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		return
+	}
+
 	render(w, r, h.inertia, "Subscriptions", gonertia.Props{
-		"feeds":      h.subsSvc.ListSubscriptions(r.Context(), user.ID),
-		"categories": h.subsSvc.ListCategories(r.Context(), user.ID),
+		"feeds":      feeds,
+		"categories": cats,
 	})
 }

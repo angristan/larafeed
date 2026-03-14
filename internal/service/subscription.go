@@ -47,10 +47,10 @@ type SubscriptionRefDTO struct {
 }
 
 // ListSubscriptions returns all subscriptions for the user with refresh history.
-func (s *SubscriptionService) ListSubscriptions(ctx context.Context, userID int64) []SubscriptionFeed {
+func (s *SubscriptionService) ListSubscriptions(ctx context.Context, userID int64) ([]SubscriptionFeed, error) {
 	feeds, err := s.q.ListSubscriptionsForUser(ctx, userID)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	dtos := make([]SubscriptionFeed, len(feeds))
@@ -103,11 +103,10 @@ func (s *SubscriptionService) ListSubscriptions(ctx context.Context, userID int6
 			Refreshes:               refreshes,
 		}
 	}
-	return dtos
+	return dtos, nil
 }
 
 // ListCategories returns all subscription categories for the user.
-func (s *SubscriptionService) ListCategories(ctx context.Context, userID int64) []db.SubscriptionCategory {
-	cats, _ := s.q.ListCategoriesForUser(ctx, userID)
-	return cats
+func (s *SubscriptionService) ListCategories(ctx context.Context, userID int64) ([]db.SubscriptionCategory, error) {
+	return s.q.ListCategoriesForUser(ctx, userID)
 }

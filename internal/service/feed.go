@@ -305,7 +305,9 @@ func (s *FeedService) CreateFeed(ctx context.Context, userID int64, feedURL stri
 	existing, err := s.q.FindFeedByURL(ctx, feedURL)
 	if err == nil {
 		// Subscribe user to existing feed
-		_ = s.q.Subscribe(ctx, db.SubscribeParams{UserID: userID, FeedID: existing.ID, CategoryID: categoryID})
+		if err := s.q.Subscribe(ctx, db.SubscribeParams{UserID: userID, FeedID: existing.ID, CategoryID: categoryID}); err != nil {
+			return nil, fmt.Errorf("subscribe to existing feed: %w", err)
+		}
 		return &existing, nil
 	}
 
@@ -322,7 +324,9 @@ func (s *FeedService) CreateFeed(ctx context.Context, userID int64, feedURL stri
 	if actualURL != feedURL {
 		existing, err := s.q.FindFeedByURL(ctx, actualURL)
 		if err == nil {
-			_ = s.q.Subscribe(ctx, db.SubscribeParams{UserID: userID, FeedID: existing.ID, CategoryID: categoryID})
+			if err := s.q.Subscribe(ctx, db.SubscribeParams{UserID: userID, FeedID: existing.ID, CategoryID: categoryID}); err != nil {
+				return nil, fmt.Errorf("subscribe to discovered feed: %w", err)
+			}
 			return &existing, nil
 		}
 	}
@@ -341,10 +345,15 @@ func (s *FeedService) CreateFeed(ctx context.Context, userID int64, feedURL stri
 		return nil, fmt.Errorf("create feed: %w", err)
 	}
 
-	_ = s.q.Subscribe(ctx, db.SubscribeParams{UserID: userID, FeedID: feed.ID, CategoryID: categoryID})
+	if err := s.q.Subscribe(ctx, db.SubscribeParams{UserID: userID, FeedID: feed.ID, CategoryID: categoryID}); err != nil {
+		return nil, fmt.Errorf("subscribe to new feed: %w", err)
+	}
 
 	// Ingest initial entries (limit 20)
-	newEntries, _ := s.IngestEntries(ctx, s.pool, feed.ID, result.Items, 20)
+	newEntries, err := s.IngestEntries(ctx, s.pool, feed.ID, result.Items, 20)
+	if err != nil {
+		return nil, fmt.Errorf("ingest initial entries: %w", err)
+	}
 	count := len(newEntries)
 	_ = s.q.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: true, EntriesCreated: &count})
 	_ = s.q.UpdateFeedRefreshSuccess(ctx, feed.ID)

@@ -25,7 +25,8 @@ func TestListFeeds_Empty(t *testing.T) {
 		Return([]db.ListSubscriptionsForUserRow(nil), nil)
 
 	svc := newTestReaderService(q)
-	feeds := svc.ListFeeds(context.Background(), 1)
+	feeds, err := svc.ListFeeds(context.Background(), 1)
+	require.NoError(t, err)
 	assert.Nil(t, feeds)
 }
 
@@ -41,7 +42,8 @@ func TestListFeeds_WithSubscriptions(t *testing.T) {
 		}, nil)
 
 	svc := newTestReaderService(q)
-	feeds := svc.ListFeeds(context.Background(), 1)
+	feeds, err := svc.ListFeeds(context.Background(), 1)
+	require.NoError(t, err)
 
 	require.Len(t, feeds, 1)
 	assert.Equal(t, int64(10), feeds[0].ID)
@@ -59,7 +61,8 @@ func TestListFeeds_CustomNameOverridesOriginal(t *testing.T) {
 		}, nil)
 
 	svc := newTestReaderService(q)
-	feeds := svc.ListFeeds(context.Background(), 1)
+	feeds, err := svc.ListFeeds(context.Background(), 1)
+	require.NoError(t, err)
 
 	require.Len(t, feeds, 1)
 	assert.Equal(t, "My Go Blog", feeds[0].Name)
@@ -73,9 +76,10 @@ func TestFetchEntriesPage_Empty(t *testing.T) {
 		Return([]db.ListForReaderByPublishedRow(nil), nil)
 
 	svc := newTestReaderService(q)
-	result := svc.FetchEntriesPage(context.Background(), 1, ReaderQuery{
+	result, err := svc.FetchEntriesPage(context.Background(), 1, ReaderQuery{
 		Filter: "all", OrderBy: "published_at", Page: 1,
 	})
+	require.NoError(t, err)
 
 	assert.Equal(t, 0, result.Total)
 	assert.Equal(t, 1, result.CurrentPage)
@@ -90,9 +94,10 @@ func TestFetchEntriesPage_UsesCreatedOrderBy(t *testing.T) {
 		}, nil)
 
 	svc := newTestReaderService(q)
-	result := svc.FetchEntriesPage(context.Background(), 1, ReaderQuery{
+	result, err := svc.FetchEntriesPage(context.Background(), 1, ReaderQuery{
 		Filter: "all", OrderBy: "created_at", Page: 1,
 	})
+	require.NoError(t, err)
 
 	assert.Equal(t, 1, result.Total)
 	// Verify ListForReaderByCreated was called, not ListForReaderByPublished
@@ -152,7 +157,8 @@ func TestCountUnread(t *testing.T) {
 	q.On("CountUnread", mock.Anything, int64(1)).Return(int64(42), nil)
 
 	svc := newTestReaderService(q)
-	count := svc.CountUnread(context.Background(), 1)
+	count, err := svc.CountUnread(context.Background(), 1)
+	require.NoError(t, err)
 
 	assert.Equal(t, int64(42), count)
 }
@@ -162,7 +168,8 @@ func TestCountRead(t *testing.T) {
 	q.On("CountRead", mock.Anything, int64(1)).Return(int64(10), nil)
 
 	svc := newTestReaderService(q)
-	count := svc.CountRead(context.Background(), 1)
+	count, err := svc.CountRead(context.Background(), 1)
+	require.NoError(t, err)
 
 	assert.Equal(t, int64(10), count)
 }
@@ -176,7 +183,8 @@ func TestListCategories(t *testing.T) {
 		}, nil)
 
 	svc := newTestReaderService(q)
-	cats := svc.ListCategories(context.Background(), 1)
+	cats, err := svc.ListCategories(context.Background(), 1)
+	require.NoError(t, err)
 
 	assert.Len(t, cats, 2)
 	assert.Equal(t, "Tech", cats[0].Name)
