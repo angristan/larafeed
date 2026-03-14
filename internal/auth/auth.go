@@ -179,12 +179,19 @@ func (a *Auth) RequireAuth(next http.Handler) http.Handler {
 }
 
 // RequireGuest middleware redirects to feeds if authenticated.
+// It verifies the user exists in the DB to avoid redirect loops when
+// the session references a deleted user.
 func (a *Auth) RequireGuest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session, _ := a.store.Get(r, sessionName)
-		if _, ok := session.Values["user_id"].(int64); ok {
-			http.Redirect(w, r, "/feeds", http.StatusFound)
-			return
+		if userID, ok := session.Values["user_id"].(int64); ok {
+			if _, err := a.q.FindUserByID(r.Context(), userID); err == nil {
+				http.Redirect(w, r, "/feeds", http.StatusFound)
+				return
+			}
+			// User no longer exists — clear the stale session
+			session.Options.MaxAge = -1
+			_ = session.Save(r, w)
 		}
 		next.ServeHTTP(w, r)
 	})
