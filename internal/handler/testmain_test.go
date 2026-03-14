@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -163,4 +164,46 @@ func callHandler(handler http.HandlerFunc, w *httptest.ResponseRecorder, r *http
 func withUser(r *http.Request, user *db.User) *http.Request {
 	ctx := auth.SetUserInContext(r.Context(), user)
 	return r.WithContext(ctx)
+}
+
+func itoa(i int64) string { return strconv.FormatInt(i, 10) }
+
+// createFeed creates a feed in the test database.
+func createFeed(t *testing.T, q *db.Queries, name, feedURL, siteURL string) *db.Feed {
+	t.Helper()
+	now := time.Now()
+	feed, err := q.CreateFeed(context.Background(), db.CreateFeedParams{
+		Name: name, FeedURL: feedURL, SiteURL: siteURL, CreatedAt: &now,
+	})
+	if err != nil {
+		t.Fatalf("create feed: %v", err)
+	}
+	return &feed
+}
+
+// subscribe subscribes a user to a feed.
+func subscribe(t *testing.T, q *db.Queries, userID, feedID, categoryID int64) {
+	t.Helper()
+	err := q.Subscribe(context.Background(), db.SubscribeParams{
+		UserID: userID, FeedID: feedID, CategoryID: categoryID,
+	})
+	if err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+}
+
+// createEntry creates an entry for a feed.
+func createEntry(t *testing.T, pool *db.Pool, feedID int64, title, url string) *db.Entry {
+	t.Helper()
+	entries := []db.Entry{{
+		FeedID: feedID, Title: title, URL: url, PublishedAt: time.Now(),
+	}}
+	created, err := db.BulkCreate(context.Background(), pool, entries)
+	if err != nil {
+		t.Fatalf("create entry: %v", err)
+	}
+	if len(created) == 0 {
+		t.Fatal("no entry created (possible duplicate)")
+	}
+	return &created[0]
 }
