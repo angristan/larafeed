@@ -48,15 +48,18 @@ func (w *ImportOPMLWorker) Work(ctx context.Context, job *river.Job[ImportOPMLFe
 	// Enqueue favicon refresh for the new feed
 	client, err := river.NewClient(riverpgxv5.New(w.pool), &river.Config{})
 	if err != nil {
+		slog.ErrorContext(ctx, "OPML import: failed to create River client for favicon refresh", "feed_id", feed.ID, "error", err)
 		return nil
 	}
 
-	_, _ = client.Insert(ctx, RefreshFaviconArgs{FeedID: feed.ID}, &river.InsertOpts{
+	if _, err := client.Insert(ctx, RefreshFaviconArgs{FeedID: feed.ID}, &river.InsertOpts{
 		UniqueOpts: river.UniqueOpts{
 			ByArgs:   true,
 			ByPeriod: 1 * time.Hour,
 		},
-	})
+	}); err != nil {
+		slog.ErrorContext(ctx, "OPML import: failed to enqueue favicon refresh", "feed_id", feed.ID, "error", err)
+	}
 
 	return nil
 }
