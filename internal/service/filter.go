@@ -24,14 +24,62 @@ type FilterRules struct {
 	ExcludeAuthor  []string `json:"exclude_author"`
 }
 
-// EvaluateFilter checks if an entry should be filtered based on the rules.
-func EvaluateFilter(entry db.Entry, rules *FilterRules) bool {
+// compiledPattern holds either a compiled regex or a lowercase substring for fallback matching.
+type compiledPattern struct {
+	re        *regexp.Regexp
+	substring string // non-empty when regex compilation failed
+}
+
+func (p *compiledPattern) matches(text string) bool {
+	if p.re != nil {
+		return p.re.MatchString(text)
+	}
+	return strings.Contains(strings.ToLower(text), p.substring)
+}
+
+// CompiledFilterRules holds pre-compiled patterns for efficient repeated evaluation.
+type CompiledFilterRules struct {
+	excludeTitle   []compiledPattern
+	excludeContent []compiledPattern
+	excludeAuthor  []compiledPattern
+}
+
+// CompileFilterRules compiles string patterns into regexes (or substring fallbacks) once,
+// so they can be reused across many entries without recompilation.
+func CompileFilterRules(rules *FilterRules) *CompiledFilterRules {
+	if rules == nil {
+		return nil
+	}
+	compile := func(patterns []string) []compiledPattern {
+		var compiled []compiledPattern
+		for _, p := range patterns {
+			if p == "" {
+				continue
+			}
+			re, err := regexp.Compile("(?i)" + p)
+			if err != nil {
+				compiled = append(compiled, compiledPattern{substring: strings.ToLower(p)})
+			} else {
+				compiled = append(compiled, compiledPattern{re: re})
+			}
+		}
+		return compiled
+	}
+	return &CompiledFilterRules{
+		excludeTitle:   compile(rules.ExcludeTitle),
+		excludeContent: compile(rules.ExcludeContent),
+		excludeAuthor:  compile(rules.ExcludeAuthor),
+	}
+}
+
+// EvaluateFilter checks if an entry should be filtered based on the compiled rules.
+func EvaluateFilter(entry db.Entry, rules *CompiledFilterRules) bool {
 	if rules == nil {
 		return false
 	}
 
-	for _, pattern := range rules.ExcludeTitle {
-		if pattern != "" && matchesPattern(pattern, entry.Title) {
+	for i := range rules.excludeTitle {
+		if rules.excludeTitle[i].matches(entry.Title) {
 			return true
 		}
 	}
@@ -40,8 +88,8 @@ func EvaluateFilter(entry db.Entry, rules *FilterRules) bool {
 	if entry.Content != nil {
 		content = *entry.Content
 	}
-	for _, pattern := range rules.ExcludeContent {
-		if pattern != "" && matchesPattern(pattern, content) {
+	for i := range rules.excludeContent {
+		if rules.excludeContent[i].matches(content) {
 			return true
 		}
 	}
@@ -50,23 +98,13 @@ func EvaluateFilter(entry db.Entry, rules *FilterRules) bool {
 	if entry.Author != nil {
 		author = *entry.Author
 	}
-	for _, pattern := range rules.ExcludeAuthor {
-		if pattern != "" && matchesPattern(pattern, author) {
+	for i := range rules.excludeAuthor {
+		if rules.excludeAuthor[i].matches(author) {
 			return true
 		}
 	}
 
 	return false
-}
-
-func matchesPattern(pattern, text string) bool {
-	// Try regex first
-	re, err := regexp.Compile("(?i)" + pattern)
-	if err == nil {
-		return re.MatchString(text)
-	}
-	// Fall back to substring match
-	return strings.Contains(strings.ToLower(text), strings.ToLower(pattern))
 }
 
 // ApplyFilters applies filter rules to entries for a subscription.
@@ -83,8 +121,9 @@ func (s *FilterService) ApplyFilters(ctx context.Context, sub db.FeedSubscriptio
 		return
 	}
 
+	compiled := CompileFilterRules(&rules)
 	for _, entry := range entries {
-		if EvaluateFilter(entry, &rules) {
+		if EvaluateFilter(entry, compiled) {
 			_ = s.q.MarkFiltered(ctx, db.MarkFilteredParams{UserID: sub.UserID, EntryID: entry.ID})
 		} else {
 			_ = s.q.ClearFiltered(ctx, db.ClearFilteredParams{UserID: sub.UserID, EntryID: entry.ID})
