@@ -37,8 +37,7 @@ func (w *RefreshStaleFaviconsWorker) Work(ctx context.Context, job *river.Job[Re
 		Valid:        true,
 	})
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get feeds with outdated favicons", "error", err)
-		return nil
+		return fmt.Errorf("get feeds with outdated favicons: %w", err)
 	}
 
 	if len(feeds) == 0 {

@@ -36,8 +36,7 @@ func (w *RefreshStaleFeedsWorker) Work(ctx context.Context, job *river.Job[Refre
 		MaxFeeds:   1,
 	})
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get stale feeds", "error", err)
-		return nil
+		return fmt.Errorf("get stale feeds: %w", err)
 	}
 
 	if len(staleFeeds) == 0 {
