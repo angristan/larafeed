@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -88,7 +89,9 @@ func (h *UserHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.authSvc.Logout(w, r)
+	if err := h.authSvc.Logout(w, r); err != nil {
+		slog.ErrorContext(r.Context(), "failed to logout user during account deletion", "error", err)
+	}
 	if err := h.userSvc.DeleteAccount(r.Context(), user.ID); err != nil {
 		renderError(w, r, h.inertia, http.StatusInternalServerError)
 		return
