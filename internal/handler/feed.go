@@ -223,7 +223,9 @@ func (h *FeedHandler) MarkRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.feedService.MarkAllAsRead(r.Context(), user.ID, feedID)
+	if err := h.feedService.MarkAllAsRead(r.Context(), user.ID, feedID); err != nil {
+		slog.ErrorContext(r.Context(), "failed to mark all as read", "user_id", user.ID, "feed_id", feedID, "error", err)
+	}
 	http.Redirect(w, r, r.Header.Get("Referer"), http.StatusFound)
 }
 

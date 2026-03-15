@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -96,12 +97,20 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	// Check for 2FA
 	if user.TwoFactorSecret != nil && *user.TwoFactorSecret != "" {
-		_ = h.auth.Set2FAChallenge(w, r, user.ID, req.Remember)
+		if err := h.auth.Set2FAChallenge(w, r, user.ID, req.Remember); err != nil {
+			slog.ErrorContext(r.Context(), "failed to set 2FA challenge", "error", err)
+			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			return
+		}
 		http.Redirect(w, r, "/two-factor-challenge", http.StatusFound)
 		return
 	}
 
-	_ = h.auth.Login(w, r, user.ID)
+	if err := h.auth.Login(w, r, user.ID); err != nil {
+		slog.ErrorContext(r.Context(), "failed to login user", "user_id", user.ID, "error", err)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		return
+	}
 	http.Redirect(w, r, "/feeds", http.StatusFound)
 }
 
@@ -160,12 +169,18 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	go h.telegram.NotifyRegistration(req.Name, req.Email)
 
-	_ = h.auth.Login(w, r, user.ID)
+	if err := h.auth.Login(w, r, user.ID); err != nil {
+		slog.ErrorContext(r.Context(), "failed to login user after registration", "user_id", user.ID, "error", err)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		return
+	}
 	http.Redirect(w, r, "/feeds", http.StatusFound)
 }
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
-	_ = h.auth.Logout(w, r)
+	if err := h.auth.Logout(w, r); err != nil {
+		slog.ErrorContext(r.Context(), "failed to logout user", "error", err)
+	}
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
@@ -205,7 +220,11 @@ func (h *AuthHandler) TwoFactorChallenge(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		var codes []string
-		_ = json.Unmarshal([]byte(*user.TwoFactorRecoveryCodes), &codes)
+		if err := json.Unmarshal([]byte(*user.TwoFactorRecoveryCodes), &codes); err != nil {
+			slog.ErrorContext(r.Context(), "failed to unmarshal recovery codes", "user_id", user.ID, "error", err)
+			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			return
+		}
 		found := false
 		var remaining []string
 		for _, c := range codes {
@@ -220,20 +239,33 @@ func (h *AuthHandler) TwoFactorChallenge(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		// Update remaining codes
-		codesJSON, _ := json.Marshal(remaining)
+		codesJSON, err := json.Marshal(remaining)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to marshal recovery codes", "user_id", user.ID, "error", err)
+			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			return
+		}
 		codesStr := string(codesJSON)
-		_ = h.q.UpdateUserTwoFactor(r.Context(), db.UpdateUserTwoFactorParams{
+		if err := h.q.UpdateUserTwoFactor(r.Context(), db.UpdateUserTwoFactorParams{
 			ID:                     user.ID,
 			TwoFactorSecret:        user.TwoFactorSecret,
 			TwoFactorRecoveryCodes: &codesStr,
 			TwoFactorConfirmedAt:   user.TwoFactorConfirmedAt,
-		})
+		}); err != nil {
+			slog.ErrorContext(r.Context(), "failed to update 2FA after recovery code use", "user_id", user.ID, "error", err)
+			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			return
+		}
 	} else {
 		validationError(w, r, h.inertia, map[string]string{"code": "Please provide a code or recovery code."})
 		return
 	}
 
-	_ = h.auth.Login(w, r, user.ID)
+	if err := h.auth.Login(w, r, user.ID); err != nil {
+		slog.ErrorContext(r.Context(), "failed to login user after 2FA", "user_id", user.ID, "error", err)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		return
+	}
 	http.Redirect(w, r, "/feeds", http.StatusFound)
 }
 
@@ -261,7 +293,9 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	_, err = h.q.FindUserByEmail(r.Context(), req.Email)
 	if err == nil {
 		token := generatePlainToken(64)
-		_ = h.q.CreatePasswordReset(r.Context(), db.CreatePasswordResetParams{Email: req.Email, Token: db.HashToken(token)})
+		if err := h.q.CreatePasswordReset(r.Context(), db.CreatePasswordResetParams{Email: req.Email, Token: db.HashToken(token)}); err != nil {
+			slog.ErrorContext(r.Context(), "failed to create password reset", "error", err)
+		}
 		// TODO: Send email with reset link
 	}
 
@@ -304,14 +338,25 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hashedPassword, _ := auth.HashPassword(req.Password)
+	hashedPassword, err := auth.HashPassword(req.Password)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to hash password", "error", err)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		return
+	}
 	feverKey := auth.FeverAPIKey(req.Email, req.Password)
-	_ = h.q.UpdateUserPasswordAndFeverKey(r.Context(), db.UpdateUserPasswordAndFeverKeyParams{
+	if err := h.q.UpdateUserPasswordAndFeverKey(r.Context(), db.UpdateUserPasswordAndFeverKeyParams{
 		ID:          user.ID,
 		Password:    hashedPassword,
 		FeverAPIKey: &feverKey,
-	})
-	_ = h.q.DeletePasswordReset(r.Context(), req.Email)
+	}); err != nil {
+		slog.ErrorContext(r.Context(), "failed to update password", "user_id", user.ID, "error", err)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		return
+	}
+	if err := h.q.DeletePasswordReset(r.Context(), req.Email); err != nil {
+		slog.ErrorContext(r.Context(), "failed to delete password reset token", "error", err)
+	}
 
 	h.auth.SetFlash(w, r, "status", "Your password has been reset.")
 	http.Redirect(w, r, "/login", http.StatusFound)
@@ -346,7 +391,11 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// TODO: Verify signed URL
-	_ = h.q.VerifyUserEmail(r.Context(), user.ID)
+	if err := h.q.VerifyUserEmail(r.Context(), user.ID); err != nil {
+		slog.ErrorContext(r.Context(), "failed to verify user email", "user_id", user.ID, "error", err)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		return
+	}
 	http.Redirect(w, r, "/feeds?verified=1", http.StatusFound)
 }
 
@@ -371,7 +420,11 @@ func (h *AuthHandler) ConfirmPassword(w http.ResponseWriter, r *http.Request) {
 	// Store confirmation in session
 	session := h.auth.GetSession(r)
 	session.Values["password_confirmed"] = true
-	_ = session.Save(r, w)
+	if err := session.Save(r, w); err != nil {
+		slog.ErrorContext(r.Context(), "failed to save session", "error", err)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		return
+	}
 
 	http.Redirect(w, r, "/feeds", http.StatusFound)
 }
@@ -395,8 +448,17 @@ func (h *AuthHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hashedPassword, _ := auth.HashPassword(req.Password)
-	_ = h.q.UpdateUserPassword(r.Context(), db.UpdateUserPasswordParams{ID: user.ID, Password: hashedPassword})
+	hashedPassword, err := auth.HashPassword(req.Password)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to hash password", "error", err)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		return
+	}
+	if err := h.q.UpdateUserPassword(r.Context(), db.UpdateUserPasswordParams{ID: user.ID, Password: hashedPassword}); err != nil {
+		slog.ErrorContext(r.Context(), "failed to update password", "user_id", user.ID, "error", err)
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		return
+	}
 
 	http.Redirect(w, r, "/profile", http.StatusFound)
 }
