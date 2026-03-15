@@ -67,6 +67,42 @@ func TestCategoryDelete_NotFound(t *testing.T) {
 	assert.True(t, errors.As(err, &notFound))
 }
 
+func TestCategoryCreate_EmptyName(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	svc := NewCategoryService(q)
+
+	_, err := svc.Create(context.Background(), 1, "")
+	assert.Error(t, err)
+	var validErr *apperr.ValidationError
+	assert.True(t, errors.As(err, &validErr))
+	assert.Equal(t, "category_name", validErr.Field)
+	q.AssertNotCalled(t, "CreateCategory", mock.Anything, mock.Anything)
+}
+
+func TestCategoryCreate_WhitespaceName(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	svc := NewCategoryService(q)
+
+	_, err := svc.Create(context.Background(), 1, "   ")
+	assert.Error(t, err)
+	var validErr *apperr.ValidationError
+	assert.True(t, errors.As(err, &validErr))
+	assert.Equal(t, "category_name", validErr.Field)
+	q.AssertNotCalled(t, "CreateCategory", mock.Anything, mock.Anything)
+}
+
+func TestCategoryCreate_TooLong(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	svc := NewCategoryService(q)
+
+	_, err := svc.Create(context.Background(), 1, "This name is way too long!")
+	assert.Error(t, err)
+	var validErr *apperr.ValidationError
+	assert.True(t, errors.As(err, &validErr))
+	assert.Equal(t, "category_name", validErr.Field)
+	q.AssertNotCalled(t, "CreateCategory", mock.Anything, mock.Anything)
+}
+
 func TestCategoryCreate_Conflict(t *testing.T) {
 	q := mocks.NewQuerier(t)
 	q.On("CreateCategory", mock.Anything, db.CreateCategoryParams{UserID: 1, Name: "Tech"}).

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 
 	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/db"
@@ -17,6 +18,15 @@ func NewCategoryService(q db.Querier) *CategoryService {
 
 // Create creates a new subscription category for the user.
 func (s *CategoryService) Create(ctx context.Context, userID int64, name string) (db.SubscriptionCategory, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return db.SubscriptionCategory{}, apperr.NewValidation("category_name", "A category name is required.")
+	}
+	const maxCategoryName = 20
+	if len(name) > maxCategoryName {
+		return db.SubscriptionCategory{}, apperr.NewValidation("category_name", "Category name must not exceed 20 characters.")
+	}
+
 	cat, err := s.q.CreateCategory(ctx, db.CreateCategoryParams{UserID: userID, Name: name})
 	if err != nil {
 		return cat, apperr.NewConflict("category", "A category with this name already exists.")

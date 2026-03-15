@@ -306,6 +306,13 @@ func (s *FeedService) RefreshFeed(ctx context.Context, feed *db.Feed) (int, erro
 
 // CreateFeed creates a new feed or returns existing, subscribes the user.
 func (s *FeedService) CreateFeed(ctx context.Context, userID int64, feedURL string, categoryID int64, fallbackName string) (*db.Feed, error) {
+	if strings.TrimSpace(feedURL) == "" {
+		return nil, apperr.NewValidation("feed_url", "A feed URL is required.")
+	}
+	if err := validateScheme(feedURL); err != nil {
+		return nil, apperr.NewValidation("feed_url", "The feed URL must use http or https.")
+	}
+
 	// Check if feed exists
 	existing, err := s.q.FindFeedByURL(ctx, feedURL)
 	if err == nil {
@@ -496,6 +503,19 @@ func (s *FeedService) Unsubscribe(ctx context.Context, userID int64, feedID int6
 // UpdateSubscription updates a subscription's category, name, and filter rules.
 // If filterRulesJSON is non-nil, filters are re-applied to all existing entries.
 func (s *FeedService) UpdateSubscription(ctx context.Context, userID, feedID, categoryID int64, customName *string, filterRulesJSON json.RawMessage) error {
+	if filterRulesJSON != nil {
+		var rules FilterRules
+		if err := json.Unmarshal(filterRulesJSON, &rules); err != nil {
+			return apperr.NewValidation("filter_rules", "Invalid filter rules format.")
+		}
+		allPatterns := append(append(rules.ExcludeTitle, rules.ExcludeContent...), rules.ExcludeAuthor...)
+		for _, pattern := range allPatterns {
+			if pattern != "" && !ValidateFilterPattern(pattern) {
+				return apperr.NewValidation("filter_rules", "Invalid or unsafe filter pattern.")
+			}
+		}
+	}
+
 	err := s.q.UpdateSubscription(ctx, db.UpdateSubscriptionParams{
 		UserID: userID, FeedID: feedID, CategoryID: categoryID,
 		CustomFeedName: customName, FilterRules: filterRulesJSON,

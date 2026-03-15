@@ -191,6 +191,55 @@ func TestMarkAllAsRead(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCreateFeed_EmptyURL(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	svc := NewFeedService(q, nil, nil)
+
+	_, err := svc.CreateFeed(context.Background(), 1, "", 1, "fallback")
+	assert.Error(t, err)
+	var validErr *apperr.ValidationError
+	assert.True(t, errors.As(err, &validErr))
+	assert.Equal(t, "feed_url", validErr.Field)
+}
+
+func TestCreateFeed_InvalidScheme(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	svc := NewFeedService(q, nil, nil)
+
+	_, err := svc.CreateFeed(context.Background(), 1, "ftp://example.com/feed", 1, "")
+	assert.Error(t, err)
+	var validErr *apperr.ValidationError
+	assert.True(t, errors.As(err, &validErr))
+	assert.Equal(t, "feed_url", validErr.Field)
+}
+
+func TestUpdateSubscription_InvalidFilterJSON(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	svc := NewFeedService(q, nil, NewFilterService(q))
+
+	err := svc.UpdateSubscription(context.Background(), 1, 5, 2, nil, json.RawMessage(`{bad json`))
+	assert.Error(t, err)
+	var validErr *apperr.ValidationError
+	assert.True(t, errors.As(err, &validErr))
+	assert.Equal(t, "filter_rules", validErr.Field)
+	q.AssertNotCalled(t, "UpdateSubscription", mock.Anything, mock.Anything)
+}
+
+func TestUpdateSubscription_UnsafePattern(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	svc := NewFeedService(q, nil, NewFilterService(q))
+
+	rules := FilterRules{ExcludeTitle: []string{"(a+)+"}}
+	rulesJSON, _ := json.Marshal(rules)
+
+	err := svc.UpdateSubscription(context.Background(), 1, 5, 2, nil, rulesJSON)
+	assert.Error(t, err)
+	var validErr *apperr.ValidationError
+	assert.True(t, errors.As(err, &validErr))
+	assert.Equal(t, "filter_rules", validErr.Field)
+	q.AssertNotCalled(t, "UpdateSubscription", mock.Anything, mock.Anything)
+}
+
 func TestUpdateSubscription(t *testing.T) {
 	q := mocks.NewQuerier(t)
 	filterSvc := NewFilterService(q)
