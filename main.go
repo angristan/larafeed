@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/angristan/larafeed-go/internal/auth"
 	"github.com/angristan/larafeed-go/internal/config"
@@ -91,25 +93,46 @@ func main() {
 		r.Mount("/jobs", riverHandler)
 	})
 
+	addr := fmt.Sprintf(":%s", cfg.Port)
+	httpServer := &http.Server{Addr: addr, Handler: srv}
+
 	// Graceful shutdown
+	shutdownDone := make(chan struct{})
 	go func() {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-		<-sigCh
-		slog.Info("shutting down...")
+		sig := <-sigCh
+		slog.Info("shutting down...", "signal", sig)
 
-		if err := riverClient.Stop(ctx); err != nil {
-			slog.Error("river shutdown error", "error", err)
+		// 1. Stop accepting new HTTP connections; finish in-flight requests.
+		httpCtx, httpCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer httpCancel()
+		if err := httpServer.Shutdown(httpCtx); err != nil {
+			slog.Error("http server shutdown error", "error", err)
 		}
 
+		// 2. Drain River workers — let in-progress jobs finish within 30s.
+		//    If the deadline expires, Stop cancels remaining jobs.
+		slog.Info("draining river workers...")
+		drainCtx, drainCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer drainCancel()
+		if err := riverClient.Stop(drainCtx); err != nil {
+			slog.Error("river shutdown error", "error", err)
+		}
+		slog.Info("river workers drained")
+
+		// 3. Cancel root context for remaining cleanup.
 		cancel()
+		close(shutdownDone)
 	}()
 
-	addr := fmt.Sprintf(":%s", cfg.Port)
 	slog.Info("larafeed starting", "addr", addr, "env", cfg.AppEnv)
 
-	if err := http.ListenAndServe(addr, srv); err != nil {
+	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("server failed", "error", err)
 		os.Exit(1)
 	}
+
+	// Wait for shutdown goroutine to finish draining before deferred cleanups.
+	<-shutdownDone
 }
