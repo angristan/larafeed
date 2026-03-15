@@ -59,6 +59,30 @@ func TestUpdateProfile_EmailTaken(t *testing.T) {
 	q.AssertNotCalled(t, "UpdateUserProfile", mock.Anything, mock.Anything)
 }
 
+func TestUpdateProfile_EmptyName(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	svc := NewUserService(q, nil)
+	err := svc.UpdateProfile(context.Background(), 1, "alice@test.com", "", "alice@test.com")
+
+	assert.Error(t, err)
+	var validErr *apperr.ValidationError
+	assert.True(t, errors.As(err, &validErr))
+	assert.Equal(t, "name", validErr.Field)
+	q.AssertNotCalled(t, "UpdateUserProfile", mock.Anything, mock.Anything)
+}
+
+func TestUpdateProfile_EmptyEmail(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	svc := NewUserService(q, nil)
+	err := svc.UpdateProfile(context.Background(), 1, "alice@test.com", "Alice", "")
+
+	assert.Error(t, err)
+	var validErr *apperr.ValidationError
+	assert.True(t, errors.As(err, &validErr))
+	assert.Equal(t, "email", validErr.Field)
+	q.AssertNotCalled(t, "UpdateUserProfile", mock.Anything, mock.Anything)
+}
+
 func TestDeleteAccount(t *testing.T) {
 	q := mocks.NewQuerier(t)
 	q.On("DeleteUser", mock.Anything, int64(1)).Return(nil)

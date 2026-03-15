@@ -24,6 +24,15 @@ func NewUserService(q db.Querier, pool *pgxpool.Pool) *UserService {
 // UpdateProfile updates a user's name and email. If the email changes,
 // the email verification is cleared. Returns an error if the new email is taken.
 func (s *UserService) UpdateProfile(ctx context.Context, userID int64, currentEmail, name, email string) error {
+	name = strings.TrimSpace(name)
+	email = strings.TrimSpace(email)
+	if name == "" {
+		return apperr.NewValidation("name", "A name is required.")
+	}
+	if email == "" {
+		return apperr.NewValidation("email", "An email is required.")
+	}
+
 	if email != currentEmail {
 		if _, err := s.q.FindUserByEmail(ctx, email); err == nil {
 			return apperr.NewValidation("email", "The email has already been taken.")
@@ -112,6 +121,10 @@ func (s *UserService) AuthenticateReaderToken(ctx context.Context, tokenHash str
 // CreateReaderSession authenticates a user by email/password and creates a new
 // Google Reader API token, returning the plain token string.
 func (s *UserService) CreateReaderSession(ctx context.Context, email, password string) (string, error) {
+	if strings.TrimSpace(email) == "" || password == "" {
+		return "", fmt.Errorf("invalid credentials")
+	}
+
 	user, err := s.q.FindUserByEmail(ctx, email)
 	if err != nil {
 		return "", fmt.Errorf("invalid credentials")
