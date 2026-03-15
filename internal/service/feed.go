@@ -80,6 +80,11 @@ func safeHTTPClient() *http.Client {
 // it attempts to discover feed links via <link rel="alternate"> tags.
 // The initial fetch is reused for both parsing and discovery to avoid duplicate requests.
 func (s *FeedService) FetchFeed(ctx context.Context, feedURL string) (*FetchResult, error) {
+	// Bound the entire operation (initial fetch + discovery probes + parse)
+	// which can chain multiple HTTP calls, each with its own 30s client timeout.
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
 	if err := validateScheme(feedURL); err != nil {
 		return nil, fmt.Errorf("unsafe URL: %w", err)
 	}

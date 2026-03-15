@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/angristan/larafeed-go/internal/db"
 )
@@ -150,6 +151,10 @@ func (s *FaviconService) AnalyzeBrightness(ctx context.Context, faviconURL strin
 
 // RefreshFavicon fetches and analyzes a feed's favicon.
 func (s *FaviconService) RefreshFavicon(ctx context.Context, feed *db.Feed) error {
+	// Bound the entire operation (up to 3 HEAD probes + 1 GET for brightness).
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	faviconURL := s.GetFaviconURL(ctx, feed.SiteURL)
 	var faviconPtr *string
 	if faviconURL != "" {
