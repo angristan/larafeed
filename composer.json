@@ -23,7 +23,7 @@
         "laravel/pulse": "^1.3",
         "laravel/sanctum": "^4.0",
         "laravel/telescope": "^5.2",
-        "laravel/tinker": "^2.9",
+        "laravel/tinker": "^3.0",
         "lorisleiva/laravel-actions": "^2.8",
         "onliner/imgproxy-php": "^0.2",
         "sentry/sentry-laravel": "^4.10",
