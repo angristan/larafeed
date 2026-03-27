@@ -97,6 +97,7 @@ CREATE TABLE feed_refreshes (
     updated_at TIMESTAMPTZ NULL DEFAULT NOW()
 );
 CREATE INDEX idx_fr_refreshed_at ON feed_refreshes(refreshed_at);
+CREATE INDEX idx_fr_was_successful ON feed_refreshes(was_successful);
 
 CREATE TABLE personal_access_tokens (
     id BIGSERIAL PRIMARY KEY,
