@@ -7,9 +7,7 @@ linters:
   settings:
     errcheck:
       check-blank: true
-
-issues:
-  exclude-dirs:
-    - vendor
-  exclude-files:
-    - ".*\\.sql\\.go$"
+  exclusions:
+    paths:
+      - vendor
+      - ".*\\.sql\\.go$"
