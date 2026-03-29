@@ -56,7 +56,8 @@ func (h *CategoryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.categorySvc.Delete(r.Context(), user.ID, categoryID); err != nil {
+	err = h.categorySvc.Delete(r.Context(), user.ID, categoryID)
+	if err != nil {
 		if !handleServiceError(w, r, h.inertia, err) {
 			renderError(w, r, h.inertia, http.StatusInternalServerError)
 		}

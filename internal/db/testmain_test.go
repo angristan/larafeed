@@ -42,7 +42,8 @@ func TestMain(m *testing.M) {
 
 	code := m.Run()
 
-	if err := container.Terminate(ctx); err != nil {
+	err = container.Terminate(ctx)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to terminate container: %v\n", err)
 	}
 	os.Exit(code)
@@ -84,7 +85,8 @@ func truncateAll(t *testing.T, pool *pgxpool.Pool) {
 		"users",
 	}
 	for _, table := range tables {
-		if _, err := pool.Exec(ctx, "DELETE FROM "+table); err != nil {
+		_, err := pool.Exec(ctx, "DELETE FROM "+table)
+		if err != nil {
 			t.Logf("warning: failed to truncate %s: %v", table, err)
 		}
 	}

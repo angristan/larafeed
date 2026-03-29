@@ -34,7 +34,8 @@ func (w *RefreshFaviconWorker) Work(ctx context.Context, job *river.Job[RefreshF
 		return fmt.Errorf("find feed %d: %w", job.Args.FeedID, err)
 	}
 
-	if err := w.faviconService.RefreshFavicon(ctx, &feed); err != nil {
+	err = w.faviconService.RefreshFavicon(ctx, &feed)
+	if err != nil {
 		return fmt.Errorf("refresh favicon for feed %d: %w", feed.ID, err)
 	}
 

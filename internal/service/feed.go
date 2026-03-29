@@ -85,7 +85,8 @@ func (s *FeedService) FetchFeed(ctx context.Context, feedURL string) (*FetchResu
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	if err := validateScheme(feedURL); err != nil {
+	err := validateScheme(feedURL)
+	if err != nil {
 		return nil, fmt.Errorf("unsafe URL: %w", err)
 	}
 
@@ -103,8 +104,9 @@ func (s *FeedService) FetchFeed(ctx context.Context, feedURL string) (*FetchResu
 		return nil, fmt.Errorf("fetch feed: %w", err)
 	}
 	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			slog.WarnContext(ctx, "failed to close response body", "error", err)
+		closeErr := resp.Body.Close()
+		if closeErr != nil {
+			slog.WarnContext(ctx, "failed to close response body", "error", closeErr)
 		}
 	}()
 
@@ -130,7 +132,8 @@ func (s *FeedService) FetchFeed(ctx context.Context, feedURL string) (*FetchResu
 		if discovered == "" {
 			return nil, fmt.Errorf("parse feed: %w", err)
 		}
-		if err := validateScheme(discovered); err != nil {
+		err = validateScheme(discovered)
+		if err != nil {
 			return nil, fmt.Errorf("unsafe discovered URL: %w", err)
 		}
 		feed, err = parser.ParseURLWithContext(discovered, ctx)
@@ -214,7 +217,8 @@ func probeFeedPaths(ctx context.Context, pageURL string) string {
 		parser := gofeed.NewParser()
 		parser.UserAgent = "Larafeed/1.0"
 		parser.Client = safeHTTPClient()
-		if _, err := parser.ParseURLWithContext(candidate, ctx); err == nil {
+		_, parseErr := parser.ParseURLWithContext(candidate, ctx)
+		if parseErr == nil {
 			return candidate
 		}
 	}
@@ -274,11 +278,13 @@ func (s *FeedService) RefreshFeed(ctx context.Context, feed *db.Feed) (int, erro
 	result, err := s.FetchFeed(ctx, feed.FeedURL)
 	if err != nil {
 		errMsg := err.Error()
-		if dbErr := s.q.UpdateFeedRefreshFailure(ctx, db.UpdateFeedRefreshFailureParams{ID: feed.ID, LastErrorMessage: &errMsg}); dbErr != nil {
+		dbErr := s.q.UpdateFeedRefreshFailure(ctx, db.UpdateFeedRefreshFailureParams{ID: feed.ID, LastErrorMessage: &errMsg})
+		if dbErr != nil {
 			slog.WarnContext(ctx, "failed to record refresh failure", "error", dbErr, "feed_id", feed.ID)
 		}
 		zero := 0
-		if dbErr := s.q.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: false, EntriesCreated: &zero, ErrorMessage: &errMsg}); dbErr != nil {
+		dbErr = s.q.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: false, EntriesCreated: &zero, ErrorMessage: &errMsg})
+		if dbErr != nil {
 			slog.WarnContext(ctx, "failed to record refresh", "error", dbErr, "feed_id", feed.ID)
 		}
 		return 0, err
@@ -293,8 +299,9 @@ func (s *FeedService) RefreshFeed(ctx context.Context, feed *db.Feed) (int, erro
 		}
 
 		qtx := db.New(tx)
-		if err := qtx.UpdateFeedRefreshSuccess(ctx, feed.ID); err != nil {
-			return err
+		refreshErr := qtx.UpdateFeedRefreshSuccess(ctx, feed.ID)
+		if refreshErr != nil {
+			return refreshErr
 		}
 		count := len(newEntries)
 		return qtx.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: true, EntriesCreated: &count})
@@ -322,7 +329,8 @@ func (s *FeedService) CreateFeed(ctx context.Context, userID int64, feedURL stri
 	if strings.TrimSpace(feedURL) == "" {
 		return nil, apperr.NewValidation("feed_url", "A feed URL is required.")
 	}
-	if err := validateScheme(feedURL); err != nil {
+	err := validateScheme(feedURL)
+	if err != nil {
 		return nil, apperr.NewValidation("feed_url", "The feed URL must use http or https.")
 	}
 
@@ -330,8 +338,9 @@ func (s *FeedService) CreateFeed(ctx context.Context, userID int64, feedURL stri
 	existing, err := s.q.FindFeedByURL(ctx, feedURL)
 	if err == nil {
 		// Subscribe user to existing feed
-		if err := s.q.Subscribe(ctx, db.SubscribeParams{UserID: userID, FeedID: existing.ID, CategoryID: categoryID}); err != nil {
-			return nil, fmt.Errorf("subscribe to existing feed: %w", err)
+		subErr := s.q.Subscribe(ctx, db.SubscribeParams{UserID: userID, FeedID: existing.ID, CategoryID: categoryID})
+		if subErr != nil {
+			return nil, fmt.Errorf("subscribe to existing feed: %w", subErr)
 		}
 		return &existing, nil
 	}
@@ -347,10 +356,11 @@ func (s *FeedService) CreateFeed(ctx context.Context, userID int64, feedURL stri
 
 	// Check again with discovered URL in case it already exists
 	if actualURL != feedURL {
-		existing, err := s.q.FindFeedByURL(ctx, actualURL)
-		if err == nil {
-			if err := s.q.Subscribe(ctx, db.SubscribeParams{UserID: userID, FeedID: existing.ID, CategoryID: categoryID}); err != nil {
-				return nil, fmt.Errorf("subscribe to discovered feed: %w", err)
+		existing, findErr := s.q.FindFeedByURL(ctx, actualURL)
+		if findErr == nil {
+			subErr := s.q.Subscribe(ctx, db.SubscribeParams{UserID: userID, FeedID: existing.ID, CategoryID: categoryID})
+			if subErr != nil {
+				return nil, fmt.Errorf("subscribe to discovered feed: %w", subErr)
 			}
 			return &existing, nil
 		}
@@ -370,7 +380,8 @@ func (s *FeedService) CreateFeed(ctx context.Context, userID int64, feedURL stri
 		return nil, fmt.Errorf("create feed: %w", err)
 	}
 
-	if err := s.q.Subscribe(ctx, db.SubscribeParams{UserID: userID, FeedID: feed.ID, CategoryID: categoryID}); err != nil {
+	err = s.q.Subscribe(ctx, db.SubscribeParams{UserID: userID, FeedID: feed.ID, CategoryID: categoryID})
+	if err != nil {
 		return nil, fmt.Errorf("subscribe to new feed: %w", err)
 	}
 
@@ -380,10 +391,12 @@ func (s *FeedService) CreateFeed(ctx context.Context, userID int64, feedURL stri
 		return nil, fmt.Errorf("ingest initial entries: %w", err)
 	}
 	count := len(newEntries)
-	if err := s.q.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: true, EntriesCreated: &count}); err != nil {
+	err = s.q.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: true, EntriesCreated: &count})
+	if err != nil {
 		slog.WarnContext(ctx, "failed to record refresh", "error", err, "feed_id", feed.ID)
 	}
-	if err := s.q.UpdateFeedRefreshSuccess(ctx, feed.ID); err != nil {
+	err = s.q.UpdateFeedRefreshSuccess(ctx, feed.ID)
+	if err != nil {
 		slog.WarnContext(ctx, "failed to update refresh success", "error", err, "feed_id", feed.ID)
 	}
 
@@ -408,7 +421,8 @@ func validateScheme(rawURL string) error {
 // ValidateURL checks if a URL is safe (scheme + DNS resolution + private IP check).
 // Used by favicon service and other callers that don't go through safeHTTPClient.
 func ValidateURL(rawURL string) error {
-	if err := validateScheme(rawURL); err != nil {
+	err := validateScheme(rawURL)
+	if err != nil {
 		return err
 	}
 
@@ -511,10 +525,12 @@ func (s *FeedService) ResolveCategory(ctx context.Context, userID int64, categor
 func (s *FeedService) Unsubscribe(ctx context.Context, userID int64, feedID int64) error {
 	return db.WithTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
 		qtx := db.New(tx)
-		if err := qtx.DeleteInteractionsForFeed(ctx, db.DeleteInteractionsForFeedParams{UserID: userID, FeedID: feedID}); err != nil {
+		err := qtx.DeleteInteractionsForFeed(ctx, db.DeleteInteractionsForFeedParams{UserID: userID, FeedID: feedID})
+		if err != nil {
 			return err
 		}
-		if err := qtx.Unsubscribe(ctx, db.UnsubscribeParams{UserID: userID, FeedID: feedID}); err != nil {
+		err = qtx.Unsubscribe(ctx, db.UnsubscribeParams{UserID: userID, FeedID: feedID})
+		if err != nil {
 			return err
 		}
 		count, err := qtx.CountFeedSubscribers(ctx, feedID)
@@ -522,7 +538,8 @@ func (s *FeedService) Unsubscribe(ctx context.Context, userID int64, feedID int6
 			return err
 		}
 		if count == 0 {
-			if err := qtx.DeleteFeed(ctx, feedID); err != nil {
+			err = qtx.DeleteFeed(ctx, feedID)
+			if err != nil {
 				return err
 			}
 		}
@@ -535,7 +552,8 @@ func (s *FeedService) Unsubscribe(ctx context.Context, userID int64, feedID int6
 func (s *FeedService) UpdateSubscription(ctx context.Context, userID, feedID, categoryID int64, customName *string, filterRulesJSON json.RawMessage) error {
 	if filterRulesJSON != nil {
 		var rules FilterRules
-		if err := json.Unmarshal(filterRulesJSON, &rules); err != nil {
+		unmarshalErr := json.Unmarshal(filterRulesJSON, &rules)
+		if unmarshalErr != nil {
 			return apperr.NewValidation("filter_rules", "Invalid filter rules format.")
 		}
 		allPatterns := append(append(rules.ExcludeTitle, rules.ExcludeContent...), rules.ExcludeAuthor...)

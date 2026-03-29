@@ -192,7 +192,8 @@ func buildRootTemplate(cfg *config.Config) (string, error) {
 		}
 
 		var manifest map[string]ViteManifestEntry
-		if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		err = json.Unmarshal(manifestData, &manifest)
+		if err != nil {
 			return "", fmt.Errorf("parse vite manifest: %w", err)
 		}
 
@@ -200,11 +201,13 @@ func buildRootTemplate(cfg *config.Config) (string, error) {
 		for _, entry := range manifest {
 			if entry.IsEntry {
 				for _, css := range entry.CSS {
-					if _, err := fmt.Fprintf(&sb, "<link rel=\"stylesheet\" href=\"/build/%s\">\n", css); err != nil {
+					_, err = fmt.Fprintf(&sb, "<link rel=\"stylesheet\" href=\"/build/%s\">\n", css)
+					if err != nil {
 						return "", fmt.Errorf("write CSS link: %w", err)
 					}
 				}
-				if _, err := fmt.Fprintf(&sb, "<script type=\"module\" src=\"/build/%s\"></script>\n", entry.File); err != nil {
+				_, err = fmt.Fprintf(&sb, "<script type=\"module\" src=\"/build/%s\"></script>\n", entry.File)
+				if err != nil {
 					return "", fmt.Errorf("write script tag: %w", err)
 				}
 			}
@@ -229,7 +232,8 @@ func buildRootTemplate(cfg *config.Config) (string, error) {
 </body>
 </html>`, cfg.AppName, string(ziggyJSON), viteScripts)
 
-	if _, err := template.New("root").Parse(tmpl); err != nil {
+	_, err = template.New("root").Parse(tmpl)
+	if err != nil {
 		return "", fmt.Errorf("parse template: %w", err)
 	}
 

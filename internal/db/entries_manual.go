@@ -159,7 +159,8 @@ func BulkCreate(ctx context.Context, db DBTX, entries []Entry) ([]Entry, error) 
 
 // MarkAllAsRead marks all unread entries for a feed as read (combines two sqlc queries).
 func MarkAllAsRead(ctx context.Context, q Querier, userID, feedID int64) error {
-	if err := q.MarkAllAsReadExisting(ctx, MarkAllAsReadExistingParams{UserID: userID, FeedID: feedID}); err != nil {
+	err := q.MarkAllAsReadExisting(ctx, MarkAllAsReadExistingParams{UserID: userID, FeedID: feedID})
+	if err != nil {
 		return err
 	}
 	return q.MarkAllAsReadNew(ctx, MarkAllAsReadNewParams{UserID: userID, FeedID: feedID})

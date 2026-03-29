@@ -132,7 +132,8 @@ func (s *ChartsService) queryDailyCounts(ctx context.Context, userID int64, feed
 	for rows.Next() {
 		var d time.Time
 		var c int
-		if err := rows.Scan(&d, &c); err != nil {
+		err := rows.Scan(&d, &c)
+		if err != nil {
 			continue
 		}
 		counts = append(counts, DailyCount{Date: d.Format("2006-01-02"), Count: c})
@@ -160,7 +161,8 @@ func (s *ChartsService) queryDailyRefreshes(ctx context.Context, userID int64, f
 	for rows.Next() {
 		var d time.Time
 		var dr DailyRefresh
-		if err := rows.Scan(&d, &dr.Successes, &dr.Failures, &dr.EntriesCreated); err != nil {
+		err := rows.Scan(&d, &dr.Successes, &dr.Failures, &dr.EntriesCreated)
+		if err != nil {
 			continue
 		}
 		dr.Date = d.Format("2006-01-02")

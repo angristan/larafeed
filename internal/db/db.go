@@ -29,12 +29,14 @@ func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("create pool: %w", err)
 	}
 
-	if err := pool.Ping(ctx); err != nil {
+	err = pool.Ping(ctx)
+	if err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
-	if err := migrate(config.ConnString()); err != nil {
+	err = migrate(config.ConnString())
+	if err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("run migrations: %w", err)
 	}
@@ -50,7 +52,8 @@ func WithTx(ctx context.Context, pool *pgxpool.Pool, fn func(ctx context.Context
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	if err := fn(ctx, tx); err != nil {
+	err = fn(ctx, tx)
+	if err != nil {
 		return err
 	}
 
@@ -63,13 +66,15 @@ func migrate(connString string) error {
 		return err
 	}
 	defer func() {
-		if err := sqlDB.Close(); err != nil {
+		err := sqlDB.Close()
+		if err != nil {
 			slog.Error("failed to close migration DB connection", "error", err)
 		}
 	}()
 
 	goose.SetBaseFS(migrationsFS)
-	if err := goose.SetDialect("postgres"); err != nil {
+	err = goose.SetDialect("postgres")
+	if err != nil {
 		return err
 	}
 	return goose.Up(sqlDB, "migrations", goose.WithAllowMissing())

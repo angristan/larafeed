@@ -52,12 +52,13 @@ func (w *ImportOPMLWorker) Work(ctx context.Context, job *river.Job[ImportOPMLFe
 		return nil
 	}
 
-	if _, err := client.Insert(ctx, RefreshFaviconArgs{FeedID: feed.ID}, &river.InsertOpts{
+	_, err = client.Insert(ctx, RefreshFaviconArgs{FeedID: feed.ID}, &river.InsertOpts{
 		UniqueOpts: river.UniqueOpts{
 			ByArgs:   true,
 			ByPeriod: 1 * time.Hour,
 		},
-	}); err != nil {
+	})
+	if err != nil {
 		slog.ErrorContext(ctx, "OPML import: failed to enqueue favicon refresh", "feed_id", feed.ID, "error", err)
 	}
 

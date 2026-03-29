@@ -71,13 +71,15 @@ func (f *FlashProvider) GetErrors(ctx context.Context) (gonertia.ValidationError
 		return nil, nil
 	}
 	// Save to clear the flash
-	if err := session.Save(r, w); err != nil {
+	err = session.Save(r, w)
+	if err != nil {
 		slog.WarnContext(ctx, "failed to save session", "error", err)
 	}
 
 	var errors gonertia.ValidationErrors
 	if s, ok := flashes[0].(string); ok {
-		if err := json.Unmarshal([]byte(s), &errors); err != nil {
+		err = json.Unmarshal([]byte(s), &errors)
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -97,7 +99,8 @@ func (f *FlashProvider) ShouldClearHistory(ctx context.Context) (bool, error) {
 	if len(flashes) == 0 {
 		return false, nil
 	}
-	if err := session.Save(r, w); err != nil {
+	err = session.Save(r, w)
+	if err != nil {
 		slog.WarnContext(ctx, "failed to save session", "error", err)
 	}
 	if v, ok := flashes[0].(bool); ok {

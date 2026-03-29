@@ -78,12 +78,13 @@ func (h *FeedHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Enqueue favicon refresh as a River job
-	if _, err := h.riverClient.Insert(context.Background(), RefreshFaviconArgs{FeedID: feed.ID}, &river.InsertOpts{
+	_, err = h.riverClient.Insert(context.Background(), RefreshFaviconArgs{FeedID: feed.ID}, &river.InsertOpts{
 		UniqueOpts: river.UniqueOpts{
 			ByArgs:   true,
 			ByPeriod: 1 * time.Hour,
 		},
-	}); err != nil {
+	})
+	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to enqueue favicon refresh", "feed_id", feed.ID, "error", err)
 	}
 
@@ -98,7 +99,8 @@ func (h *FeedHandler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.feedService.Unsubscribe(r.Context(), user.ID, feedID); err != nil {
+	err = h.feedService.Unsubscribe(r.Context(), user.ID, feedID)
+	if err != nil {
 		renderError(w, r, h.inertia, http.StatusInternalServerError)
 		return
 	}
@@ -148,12 +150,13 @@ func (h *FeedHandler) RefreshFavicon(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Enqueue favicon refresh as a River job
-	if _, err := h.riverClient.Insert(context.Background(), RefreshFaviconArgs{FeedID: feed.ID}, &river.InsertOpts{
+	_, err = h.riverClient.Insert(context.Background(), RefreshFaviconArgs{FeedID: feed.ID}, &river.InsertOpts{
 		UniqueOpts: river.UniqueOpts{
 			ByArgs:   true,
 			ByPeriod: 1 * time.Hour,
 		},
-	}); err != nil {
+	})
+	if err != nil {
 		jsonResponse(w, http.StatusInternalServerError, map[string]string{"error": "failed to enqueue favicon refresh"})
 		return
 	}
@@ -213,7 +216,8 @@ func (h *FeedHandler) Update(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.feedService.UpdateSubscription(r.Context(), user.ID, feedID, req.CategoryID, customName, filterRulesJSON); err != nil {
+	err = h.feedService.UpdateSubscription(r.Context(), user.ID, feedID, req.CategoryID, customName, filterRulesJSON)
+	if err != nil {
 		renderError(w, r, h.inertia, http.StatusInternalServerError)
 		return
 	}
@@ -229,7 +233,8 @@ func (h *FeedHandler) MarkRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.feedService.MarkAllAsRead(r.Context(), user.ID, feedID); err != nil {
+	err = h.feedService.MarkAllAsRead(r.Context(), user.ID, feedID)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to mark all as read", "user_id", user.ID, "feed_id", feedID, "error", err)
 	}
 	http.Redirect(w, r, r.Header.Get("Referer"), http.StatusFound)
@@ -238,7 +243,8 @@ func (h *FeedHandler) MarkRead(w http.ResponseWriter, r *http.Request) {
 func jsonResponse(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(data); err != nil {
+	err := json.NewEncoder(w).Encode(data)
+	if err != nil {
 		slog.Error("failed to write JSON response", "error", err)
 	}
 }

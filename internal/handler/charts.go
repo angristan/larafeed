@@ -56,14 +56,16 @@ func (h *ChartsHandler) Show(w http.ResponseWriter, r *http.Request) {
 
 	rangeDays := 30
 	if v := q.Get("range"); v != "" {
-		if d, err := strconv.Atoi(v); err == nil && d > 0 {
+		d, parseErr := strconv.Atoi(v)
+		if parseErr == nil && d > 0 {
 			rangeDays = d
 		}
 	}
 
 	var feedIDFilter *int64
 	if v := q.Get("feedId"); v != "" {
-		if id, err := strconv.ParseInt(v, 10, 64); err == nil {
+		id, parseErr := strconv.ParseInt(v, 10, 64)
+		if parseErr == nil {
 			feedIDFilter = &id
 		}
 	}

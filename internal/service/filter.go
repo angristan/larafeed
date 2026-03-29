@@ -115,7 +115,8 @@ func (s *FilterService) ApplyFilters(ctx context.Context, sub db.FeedSubscriptio
 	}
 
 	var rules FilterRules
-	if err := json.Unmarshal(sub.FilterRules, &rules); err != nil {
+	err := json.Unmarshal(sub.FilterRules, &rules)
+	if err != nil {
 		return
 	}
 	if len(rules.ExcludeTitle) == 0 && len(rules.ExcludeContent) == 0 && len(rules.ExcludeAuthor) == 0 {
@@ -125,11 +126,13 @@ func (s *FilterService) ApplyFilters(ctx context.Context, sub db.FeedSubscriptio
 	compiled := CompileFilterRules(&rules)
 	for _, entry := range entries {
 		if EvaluateFilter(entry, compiled) {
-			if err := s.q.MarkFiltered(ctx, db.MarkFilteredParams{UserID: sub.UserID, EntryID: entry.ID}); err != nil {
+			err = s.q.MarkFiltered(ctx, db.MarkFilteredParams{UserID: sub.UserID, EntryID: entry.ID})
+			if err != nil {
 				slog.WarnContext(ctx, "failed to mark entry filtered", "error", err, "entry_id", entry.ID)
 			}
 		} else {
-			if err := s.q.ClearFiltered(ctx, db.ClearFilteredParams{UserID: sub.UserID, EntryID: entry.ID}); err != nil {
+			err = s.q.ClearFiltered(ctx, db.ClearFilteredParams{UserID: sub.UserID, EntryID: entry.ID})
+			if err != nil {
 				slog.WarnContext(ctx, "failed to clear entry filtered", "error", err, "entry_id", entry.ID)
 			}
 		}

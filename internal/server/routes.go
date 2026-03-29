@@ -96,9 +96,10 @@ func RegisterRoutes(
 			http.Redirect(w, r, "/feeds", http.StatusFound)
 			return
 		}
-		if err := i.Render(w, r, "Welcome", gonertia.Props{
+		err := i.Render(w, r, "Welcome", gonertia.Props{
 			"canRegister": cfg.RegistrationEnabled,
-		}); err != nil {
+		})
+		if err != nil {
 			slog.ErrorContext(r.Context(), "render error", "component", "Welcome", "error", err)
 			handler.RenderError(w, r, i, http.StatusInternalServerError)
 		}
@@ -183,11 +184,12 @@ func RegisterRoutes(
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode(map[string]any{
+			err := json.NewEncoder(w).Encode(map[string]any{
 				"id":    user.ID,
 				"name":  user.Name,
 				"email": user.Email,
-			}); err != nil {
+			})
+			if err != nil {
 				slog.ErrorContext(r.Context(), "failed to write JSON response", "error", err)
 			}
 		})

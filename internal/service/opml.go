@@ -118,7 +118,8 @@ func (s *OPMLService) ParseOPML(ctx context.Context, userID int64, reader io.Rea
 	}
 
 	var opml OPML
-	if err := xml.Unmarshal(data, &opml); err != nil {
+	err = xml.Unmarshal(data, &opml)
+	if err != nil {
 		return nil, fmt.Errorf("parse OPML: %w", err)
 	}
 
@@ -126,7 +127,8 @@ func (s *OPMLService) ParseOPML(ctx context.Context, userID int64, reader io.Rea
 
 	for _, outline := range opml.Body.Outlines {
 		if outline.XMLURL != "" {
-			if err := ValidateURL(outline.XMLURL); err != nil {
+			err = ValidateURL(outline.XMLURL)
+			if err != nil {
 				continue
 			}
 			imports = append(imports, OPMLFeedImport{
@@ -146,7 +148,8 @@ func (s *OPMLService) ParseOPML(ctx context.Context, userID int64, reader io.Rea
 			if child.XMLURL == "" {
 				continue
 			}
-			if err := ValidateURL(child.XMLURL); err != nil {
+			err = ValidateURL(child.XMLURL)
+			if err != nil {
 				continue
 			}
 			imports = append(imports, OPMLFeedImport{
@@ -173,8 +176,9 @@ func (s *OPMLService) Import(ctx context.Context, userID int64, reader io.Reader
 		if err != nil {
 			continue
 		}
-		if _, err := s.feedService.CreateFeed(ctx, userID, imp.FeedURL, cat.ID, imp.FallbackName); err != nil {
-			slog.WarnContext(ctx, "failed to create feed from OPML", "error", err, "feed_url", imp.FeedURL)
+		_, createErr := s.feedService.CreateFeed(ctx, userID, imp.FeedURL, cat.ID, imp.FallbackName)
+		if createErr != nil {
+			slog.WarnContext(ctx, "failed to create feed from OPML", "error", createErr, "feed_url", imp.FeedURL)
 		}
 	}
 

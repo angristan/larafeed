@@ -43,7 +43,8 @@ func (h *UserHandler) ShowSettings(w http.ResponseWriter, r *http.Request) {
 		"twoFactorConfirmed": user.TwoFactorConfirmedAt != nil,
 	}
 
-	if err := h.inertia.Render(w, r, "Settings/Index", props); err != nil {
+	err := h.inertia.Render(w, r, "Settings/Index", props)
+	if err != nil {
 		renderError(w, r, h.inertia, http.StatusInternalServerError)
 	}
 }
@@ -65,7 +66,8 @@ func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	user := auth.UserFromRequest(r)
 
-	if err := h.userSvc.UpdateProfile(r.Context(), user.ID, user.Email, req.Name, req.Email); err != nil {
+	err = h.userSvc.UpdateProfile(r.Context(), user.ID, user.Email, req.Name, req.Email)
+	if err != nil {
 		if !handleServiceError(w, r, h.inertia, err) {
 			renderError(w, r, h.inertia, http.StatusInternalServerError)
 		}
@@ -89,10 +91,12 @@ func (h *UserHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.authSvc.Logout(w, r); err != nil {
+	err = h.authSvc.Logout(w, r)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to logout user during account deletion", "error", err)
 	}
-	if err := h.userSvc.DeleteAccount(r.Context(), user.ID); err != nil {
+	err = h.userSvc.DeleteAccount(r.Context(), user.ID)
+	if err != nil {
 		renderError(w, r, h.inertia, http.StatusInternalServerError)
 		return
 	}
@@ -103,7 +107,8 @@ func (h *UserHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 func (h *UserHandler) WipeAccount(w http.ResponseWriter, r *http.Request) {
 	user := auth.UserFromRequest(r)
 
-	if err := h.userSvc.WipeAccount(r.Context(), user.ID); err != nil {
+	err := h.userSvc.WipeAccount(r.Context(), user.ID)
+	if err != nil {
 		renderError(w, r, h.inertia, http.StatusInternalServerError)
 		return
 	}

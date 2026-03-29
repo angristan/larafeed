@@ -102,7 +102,8 @@ func (a *Auth) SetFlash(w http.ResponseWriter, r *http.Request, key, value strin
 		slog.WarnContext(r.Context(), "session decode error", "error", err)
 	}
 	session.AddFlash(value, key)
-	if err := session.Save(r, w); err != nil {
+	err = session.Save(r, w)
+	if err != nil {
 		slog.WarnContext(r.Context(), "failed to save session", "error", err)
 	}
 }
@@ -114,7 +115,8 @@ func (a *Auth) GetFlash(w http.ResponseWriter, r *http.Request, key string) stri
 		slog.WarnContext(r.Context(), "session decode error", "error", err)
 	}
 	flashes := session.Flashes(key)
-	if err := session.Save(r, w); err != nil {
+	err = session.Save(r, w)
+	if err != nil {
 		slog.WarnContext(r.Context(), "failed to save session", "error", err)
 	}
 	if len(flashes) > 0 {
@@ -184,8 +186,9 @@ func (a *Auth) LoadUser(next http.Handler) http.Handler {
 			} else {
 				// User no longer exists — clear the stale session
 				session.Options.MaxAge = -1
-				if err := session.Save(r, w); err != nil {
-					slog.WarnContext(r.Context(), "failed to save session", "error", err)
+				saveErr := session.Save(r, w)
+				if saveErr != nil {
+					slog.WarnContext(r.Context(), "failed to save session", "error", saveErr)
 				}
 			}
 		}

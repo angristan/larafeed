@@ -55,8 +55,9 @@ func (s *LLMService) SummarizeEntry(ctx context.Context, entry *db.Entry) (strin
 		return "", fmt.Errorf("create genai client: %w", err)
 	}
 	defer func() {
-		if err := client.Close(); err != nil {
-			slog.WarnContext(ctx, "failed to close genai client", "error", err)
+		closeErr := client.Close()
+		if closeErr != nil {
+			slog.WarnContext(ctx, "failed to close genai client", "error", closeErr)
 		}
 	}()
 
@@ -80,7 +81,8 @@ Content: %s`, entry.Title, content)
 	summary := fmt.Sprintf("%v", resp.Candidates[0].Content.Parts[0])
 
 	// Cache for 30 days
-	if err := s.q.CacheSet(ctx, db.CacheSetParams{Key: cacheKey, Value: summary, Expiration: int(time.Now().Add(30 * 24 * time.Hour).Unix())}); err != nil {
+	err = s.q.CacheSet(ctx, db.CacheSetParams{Key: cacheKey, Value: summary, Expiration: int(time.Now().Add(30 * 24 * time.Hour).Unix())})
+	if err != nil {
 		slog.WarnContext(ctx, "failed to cache summary", "error", err, "key", cacheKey)
 	}
 

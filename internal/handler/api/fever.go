@@ -26,7 +26,8 @@ func NewFeverHandler(authSvc feverAuthService, reader readerService, entries ent
 // CheckToken is middleware for Fever API authentication.
 func (h *FeverHandler) CheckToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := r.ParseForm(); err != nil {
+		err := r.ParseForm()
+		if err != nil {
 			feverResponse(w, map[string]any{"api_version": 3, "auth": 0})
 			return
 		}
@@ -48,7 +49,8 @@ func (h *FeverHandler) CheckToken(next http.Handler) http.Handler {
 }
 
 func (h *FeverHandler) Handle(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
+	err := r.ParseForm()
+	if err != nil {
 		slog.WarnContext(r.Context(), "failed to parse form", "error", err)
 	}
 	user := auth.UserFromRequest(r)
@@ -238,14 +240,16 @@ func (h *FeverHandler) updateItem(r *http.Request, user *db.User, q map[string][
 	case "unread":
 		read = ptrBool(false)
 	}
-	if err := h.entries.UpdateInteractions(r.Context(), user.ID, entryID, read, starred, nil); err != nil {
+	err = h.entries.UpdateInteractions(r.Context(), user.ID, entryID, read, starred, nil)
+	if err != nil {
 		slog.WarnContext(r.Context(), "fever: failed to update interactions", "error", err, "entry_id", entryID)
 	}
 }
 
 func feverResponse(w http.ResponseWriter, data map[string]any) {
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(data); err != nil {
+	err := json.NewEncoder(w).Encode(data)
+	if err != nil {
 		slog.Error("failed to write Fever response", "error", err)
 	}
 }

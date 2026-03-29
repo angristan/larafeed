@@ -45,7 +45,8 @@ func (h *GoogleReaderHandler) CheckToken(next http.Handler) http.Handler {
 }
 
 func (h *GoogleReaderHandler) ClientLogin(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
+	err := r.ParseForm()
+	if err != nil {
 		http.Error(w, "Error=BadAuthentication", http.StatusForbidden)
 		return
 	}
@@ -70,7 +71,8 @@ func (h *GoogleReaderHandler) GetToken(w http.ResponseWriter, r *http.Request) {
 	authHeader := r.Header.Get("Authorization")
 	token := strings.TrimPrefix(authHeader, "GoogleLogin auth=")
 	w.Header().Set("Content-Type", "text/plain")
-	if _, err := fmt.Fprint(w, token); err != nil {
+	_, err := fmt.Fprint(w, token)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to write response", "error", err)
 	}
 }
@@ -175,7 +177,8 @@ func (h *GoogleReaderHandler) GetStreamItemIds(w http.ResponseWriter, r *http.Re
 }
 
 func (h *GoogleReaderHandler) GetStreamContents(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
+	err := r.ParseForm()
+	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
@@ -263,7 +266,8 @@ func (h *GoogleReaderHandler) GetStreamContents(w http.ResponseWriter, r *http.R
 }
 
 func (h *GoogleReaderHandler) EditTag(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
+	err := r.ParseForm()
+	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
@@ -299,19 +303,22 @@ func (h *GoogleReaderHandler) EditTag(w http.ResponseWriter, r *http.Request) {
 		starred = ptrBool(false)
 	}
 
-	if err := h.entries.UpdateInteractions(r.Context(), user.ID, entryID, read, starred, nil); err != nil {
+	err = h.entries.UpdateInteractions(r.Context(), user.ID, entryID, read, starred, nil)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to update entry interactions", "entry_id", entryID, "error", err)
 	}
 
 	w.Header().Set("Content-Type", "text/plain")
-	if _, err := fmt.Fprint(w, "OK"); err != nil {
+	_, err = fmt.Fprint(w, "OK")
+	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to write response", "error", err)
 	}
 }
 
 func greaderJSON(w http.ResponseWriter, r *http.Request, data any) {
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(data); err != nil {
+	err := json.NewEncoder(w).Encode(data)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to write Google Reader response", "error", err)
 	}
 }

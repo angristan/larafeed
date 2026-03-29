@@ -84,7 +84,8 @@ func (s *ImgProxyService) ProxifyImagesInHTML(htmlContent string) string {
 	// Render back to HTML
 	var buf bytes.Buffer
 	for _, n := range nodes {
-		if err := html.Render(&buf, n); err != nil {
+		err := html.Render(&buf, n)
+		if err != nil {
 			return htmlContent
 		}
 	}

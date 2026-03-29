@@ -48,7 +48,8 @@ func (h *OPMLHandler) Import(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() {
-		if err := file.Close(); err != nil {
+		err := file.Close()
+		if err != nil {
 			slog.ErrorContext(r.Context(), "failed to close uploaded file", "error", err)
 		}
 	}()
@@ -96,7 +97,8 @@ func (h *OPMLHandler) Export(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/xml")
 	w.Header().Set("Content-Disposition", "attachment; filename=feeds.opml")
-	if _, err := w.Write(data); err != nil {
+	_, err = w.Write(data)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to write OPML export", "error", err)
 	}
 }

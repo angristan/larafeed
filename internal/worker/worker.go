@@ -81,7 +81,8 @@ func Setup(ctx context.Context, pool *pgxpool.Pool, feedService *service.FeedSer
 		return nil, err
 	}
 
-	if err := client.Start(ctx); err != nil {
+	err = client.Start(ctx)
+	if err != nil {
 		return nil, err
 	}
 

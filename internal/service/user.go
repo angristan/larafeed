@@ -35,17 +35,20 @@ func (s *UserService) UpdateProfile(ctx context.Context, userID int64, currentEm
 	}
 
 	if email != currentEmail {
-		if _, err := s.q.FindUserByEmail(ctx, email); err == nil {
+		_, findErr := s.q.FindUserByEmail(ctx, email)
+		if findErr == nil {
 			return apperr.NewValidation("email", "The email has already been taken.")
 		}
 	}
 
-	if err := s.q.UpdateUserProfile(ctx, db.UpdateUserProfileParams{ID: userID, Name: name, Email: email}); err != nil {
+	err := s.q.UpdateUserProfile(ctx, db.UpdateUserProfileParams{ID: userID, Name: name, Email: email})
+	if err != nil {
 		return err
 	}
 
 	if email != currentEmail {
-		if err := s.q.ClearUserEmailVerification(ctx, userID); err != nil {
+		err = s.q.ClearUserEmailVerification(ctx, userID)
+		if err != nil {
 			return err
 		}
 	}
@@ -64,7 +67,8 @@ func (s *UserService) WipeAccount(ctx context.Context, userID int64) error {
 	return db.WithTx(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
 		qtx := db.New(tx)
 
-		if err := qtx.DeleteAllInteractionsForUser(ctx, userID); err != nil {
+		err := qtx.DeleteAllInteractionsForUser(ctx, userID)
+		if err != nil {
 			return err
 		}
 
@@ -73,7 +77,8 @@ func (s *UserService) WipeAccount(ctx context.Context, userID int64) error {
 			return err
 		}
 
-		if err := qtx.DeleteAllSubscriptionsForUser(ctx, userID); err != nil {
+		err = qtx.DeleteAllSubscriptionsForUser(ctx, userID)
+		if err != nil {
 			return err
 		}
 
@@ -83,7 +88,8 @@ func (s *UserService) WipeAccount(ctx context.Context, userID int64) error {
 				return err
 			}
 			if count == 0 {
-				if err := qtx.DeleteFeed(ctx, feedID); err != nil {
+				err = qtx.DeleteFeed(ctx, feedID)
+				if err != nil {
 					return err
 				}
 			}
@@ -111,7 +117,8 @@ func (s *UserService) AuthenticateReaderToken(ctx context.Context, tokenHash str
 	if token.Abilities == nil || !strings.Contains(*token.Abilities, "reader-api") {
 		return nil, fmt.Errorf("token does not have reader-api ability")
 	}
-	if err := s.q.TouchTokenLastUsed(ctx, token.ID); err != nil {
+	err = s.q.TouchTokenLastUsed(ctx, token.ID)
+	if err != nil {
 		slog.WarnContext(ctx, "failed to touch token last used", "error", err, "token_id", token.ID)
 	}
 	user, err := s.q.FindUserByID(ctx, token.TokenableID)
@@ -135,10 +142,11 @@ func (s *UserService) CreateReaderSession(ctx context.Context, email, password s
 	if !auth.CheckPassword(user.Password, password) {
 		return "", fmt.Errorf("invalid credentials")
 	}
-	if err := s.q.DeleteUserTokens(ctx, db.DeleteUserTokensParams{
+	err = s.q.DeleteUserTokens(ctx, db.DeleteUserTokensParams{
 		TokenableType: "App\\Models\\User",
 		TokenableID:   user.ID,
-	}); err != nil {
+	})
+	if err != nil {
 		slog.WarnContext(ctx, "failed to delete user tokens", "error", err, "user_id", user.ID)
 	}
 	plain := db.GeneratePlainToken(40)

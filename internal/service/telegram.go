@@ -34,7 +34,8 @@ func (s *TelegramService) SendMessage(text string) error {
 	if err != nil {
 		return err
 	}
-	if err := resp.Body.Close(); err != nil {
+	err = resp.Body.Close()
+	if err != nil {
 		return err
 	}
 	return nil
@@ -42,14 +43,16 @@ func (s *TelegramService) SendMessage(text string) error {
 
 // NotifyRegistration sends a notification about a new user registration.
 func (s *TelegramService) NotifyRegistration(name, email string) {
-	if err := s.SendMessage(fmt.Sprintf("🆕 New user registered: %s (%s)", name, email)); err != nil {
+	err := s.SendMessage(fmt.Sprintf("🆕 New user registered: %s (%s)", name, email))
+	if err != nil {
 		slog.Error("failed to send Telegram registration notification", "email", email, "error", err)
 	}
 }
 
 // NotifyLoginFailure sends a notification about a failed login attempt.
 func (s *TelegramService) NotifyLoginFailure(email, ip string) {
-	if err := s.SendMessage(fmt.Sprintf("⚠️ Failed login attempt: %s from %s", email, ip)); err != nil {
+	err := s.SendMessage(fmt.Sprintf("⚠️ Failed login attempt: %s from %s", email, ip))
+	if err != nil {
 		slog.Error("failed to send Telegram login failure notification", "email", email, "error", err)
 	}
 }

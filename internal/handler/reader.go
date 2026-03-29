@@ -25,12 +25,14 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters
 	var feedID, categoryID *int64
 	if v := q.Get("feed"); v != "" {
-		if id, err := strconv.ParseInt(v, 10, 64); err == nil {
+		id, parseErr := strconv.ParseInt(v, 10, 64)
+		if parseErr == nil {
 			feedID = &id
 		}
 	}
 	if v := q.Get("category"); v != "" {
-		if id, err := strconv.ParseInt(v, 10, 64); err == nil {
+		id, parseErr := strconv.ParseInt(v, 10, 64)
+		if parseErr == nil {
 			categoryID = &id
 		}
 	}
@@ -45,7 +47,8 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 	}
 	page := 1
 	if v := q.Get("page"); v != "" {
-		if p, err := strconv.Atoi(v); err == nil && p > 0 {
+		p, parseErr := strconv.Atoi(v)
+		if parseErr == nil && p > 0 {
 			page = p
 		}
 	}
@@ -146,7 +149,8 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 		props["categories"] = cats
 	}
 
-	if err := h.inertia.Render(w, r, "Reader/Reader", props); err != nil {
+	err = h.inertia.Render(w, r, "Reader/Reader", props)
+	if err != nil {
 		renderError(w, r, h.inertia, http.StatusInternalServerError)
 	}
 }

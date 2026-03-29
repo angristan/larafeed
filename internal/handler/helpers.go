@@ -39,7 +39,8 @@ func renderError(w http.ResponseWriter, r *http.Request, i *gonertia.Inertia, st
 	if !gonertia.IsInertiaRequest(r) {
 		w.WriteHeader(status)
 	}
-	if err := i.Render(w, r, "Error", gonertia.Props{"status": status}); err != nil {
+	err := i.Render(w, r, "Error", gonertia.Props{"status": status})
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render error page failed", "status", status, "error", err)
 		http.Error(w, http.StatusText(status), status)
 	}
@@ -106,7 +107,8 @@ func handleServiceErrorJSON(w http.ResponseWriter, err error) bool {
 // All Inertia POST/PUT/PATCH/DELETE requests send JSON.
 func decodeRequest[T any](r *http.Request) (T, error) {
 	var req T
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
 		return req, fmt.Errorf("decode request: %w", err)
 	}
 	return req, nil

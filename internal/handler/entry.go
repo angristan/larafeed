@@ -36,7 +36,8 @@ func (h *EntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.entrySvc.UpdateInteractions(r.Context(), user.ID, entryID, req.Read, req.Starred, req.Archived); err != nil {
+	err = h.entrySvc.UpdateInteractions(r.Context(), user.ID, entryID, req.Read, req.Starred, req.Archived)
+	if err != nil {
 		http.Error(w, "Failed to update entry", http.StatusInternalServerError)
 		return
 	}

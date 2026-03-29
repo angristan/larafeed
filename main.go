@@ -42,7 +42,8 @@ func main() {
 	defer cancel()
 
 	cfg := config.Load()
-	if err := cfg.Validate(); err != nil {
+	err := cfg.Validate()
+	if err != nil {
 		slog.Error("invalid configuration", "error", err)
 		os.Exit(1)
 	}
@@ -54,7 +55,8 @@ func main() {
 		os.Exit(1)
 	}
 	defer func() {
-		if err := otelShutdown(ctx); err != nil {
+		err := otelShutdown(ctx)
+		if err != nil {
 			slog.Error("telemetry shutdown error", "error", err)
 		}
 	}()
@@ -84,7 +86,8 @@ func main() {
 		slog.Error("failed to create River UI handler", "error", err)
 		os.Exit(1)
 	}
-	if err := riverHandler.Start(ctx); err != nil {
+	err = riverHandler.Start(ctx)
+	if err != nil {
 		slog.Error("failed to start River UI handler", "error", err)
 		os.Exit(1)
 	}
@@ -107,7 +110,8 @@ func main() {
 		// 1. Stop accepting new HTTP connections; finish in-flight requests.
 		httpCtx, httpCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer httpCancel()
-		if err := httpServer.Shutdown(httpCtx); err != nil {
+		err := httpServer.Shutdown(httpCtx)
+		if err != nil {
 			slog.Error("http server shutdown error", "error", err)
 		}
 
@@ -116,7 +120,8 @@ func main() {
 		slog.Info("draining river workers...")
 		drainCtx, drainCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer drainCancel()
-		if err := riverClient.Stop(drainCtx); err != nil {
+		err = riverClient.Stop(drainCtx)
+		if err != nil {
 			slog.Error("river shutdown error", "error", err)
 		}
 		slog.Info("river workers drained")
@@ -128,7 +133,8 @@ func main() {
 
 	slog.Info("larafeed starting", "addr", addr, "env", cfg.AppEnv)
 
-	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	err = httpServer.ListenAndServe()
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("server failed", "error", err)
 		os.Exit(1)
 	}

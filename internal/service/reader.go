@@ -161,13 +161,15 @@ func (s *ReaderService) FetchCurrentEntry(ctx context.Context, userID int64, ent
 	// Mark as read/unread
 	if markRead != nil {
 		if *markRead {
-			if err := s.q.MarkAsRead(ctx, db.MarkAsReadParams{UserID: userID, EntryID: entryID}); err != nil {
+			err = s.q.MarkAsRead(ctx, db.MarkAsReadParams{UserID: userID, EntryID: entryID})
+			if err != nil {
 				return nil, err
 			}
 			now := time.Now()
 			entry.ReadAt = &now
 		} else {
-			if err := s.q.MarkAsUnread(ctx, db.MarkAsUnreadParams{UserID: userID, EntryID: entryID}); err != nil {
+			err = s.q.MarkAsUnread(ctx, db.MarkAsUnreadParams{UserID: userID, EntryID: entryID})
+			if err != nil {
 				return nil, err
 			}
 			entry.ReadAt = nil

@@ -68,7 +68,8 @@ func TestAnalyzeBrightness_DarkImage(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
 		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write(blackPNG); err != nil {
+		_, err := w.Write(blackPNG)
+		if err != nil {
 			t.Errorf("failed to write test response: %v", err)
 		}
 	}))
@@ -88,7 +89,8 @@ func TestAnalyzeBrightness_LightImage(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
 		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write(whitePNG); err != nil {
+		_, err := w.Write(whitePNG)
+		if err != nil {
 			t.Errorf("failed to write test response: %v", err)
 		}
 	}))

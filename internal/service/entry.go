@@ -18,11 +18,13 @@ func NewEntryService(q db.Querier) *EntryService {
 func (s *EntryService) UpdateInteractions(ctx context.Context, userID, entryID int64, read, starred, archived *bool) error {
 	if read != nil {
 		if *read {
-			if err := s.q.MarkAsRead(ctx, db.MarkAsReadParams{UserID: userID, EntryID: entryID}); err != nil {
+			err := s.q.MarkAsRead(ctx, db.MarkAsReadParams{UserID: userID, EntryID: entryID})
+			if err != nil {
 				return err
 			}
 		} else {
-			if err := s.q.MarkAsUnread(ctx, db.MarkAsUnreadParams{UserID: userID, EntryID: entryID}); err != nil {
+			err := s.q.MarkAsUnread(ctx, db.MarkAsUnreadParams{UserID: userID, EntryID: entryID})
+			if err != nil {
 				return err
 			}
 		}
@@ -30,11 +32,13 @@ func (s *EntryService) UpdateInteractions(ctx context.Context, userID, entryID i
 
 	if starred != nil {
 		if *starred {
-			if err := s.q.Favorite(ctx, db.FavoriteParams{UserID: userID, EntryID: entryID}); err != nil {
+			err := s.q.Favorite(ctx, db.FavoriteParams{UserID: userID, EntryID: entryID})
+			if err != nil {
 				return err
 			}
 		} else {
-			if err := s.q.Unfavorite(ctx, db.UnfavoriteParams{UserID: userID, EntryID: entryID}); err != nil {
+			err := s.q.Unfavorite(ctx, db.UnfavoriteParams{UserID: userID, EntryID: entryID})
+			if err != nil {
 				return err
 			}
 		}
@@ -42,11 +46,13 @@ func (s *EntryService) UpdateInteractions(ctx context.Context, userID, entryID i
 
 	if archived != nil {
 		if *archived {
-			if err := s.q.Archive(ctx, db.ArchiveParams{UserID: userID, EntryID: entryID}); err != nil {
+			err := s.q.Archive(ctx, db.ArchiveParams{UserID: userID, EntryID: entryID})
+			if err != nil {
 				return err
 			}
 		} else {
-			if err := s.q.Unarchive(ctx, db.UnarchiveParams{UserID: userID, EntryID: entryID}); err != nil {
+			err := s.q.Unarchive(ctx, db.UnarchiveParams{UserID: userID, EntryID: entryID})
+			if err != nil {
 				return err
 			}
 		}

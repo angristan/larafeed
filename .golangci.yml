@@ -2,6 +2,14 @@ version: "2"
 
 linters:
   default: standard
+  enable:
+    - noinlineerr
   settings:
     errcheck:
       check-blank: true
+
+issues:
+  exclude-dirs:
+    - vendor
+  exclude-files:
+    - ".*\\.sql\\.go$"
