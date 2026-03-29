@@ -36,7 +36,7 @@ type Config struct {
 func Load() *Config {
 	return &Config{
 		AppName:     getEnv("APP_NAME", "Larafeed"),
-		AppURL:      getEnv("APP_URL", "http://localhost:3333"),
+		AppURL:      getEnv("APP_URL", "http://localhost:3000"),
 		AppEnv:      getEnv("APP_ENV", "development"),
 		Port:        getEnv("PORT", "3000"),
 		ViteDev:     getEnv("VITE_DEV_URL", "http://localhost:5173"),
