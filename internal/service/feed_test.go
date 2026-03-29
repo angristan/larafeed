@@ -10,6 +10,7 @@ import (
 	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/db"
 	"github.com/angristan/larafeed-go/internal/db/mocks"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -189,6 +190,30 @@ func TestMarkAllAsRead(t *testing.T) {
 
 	err := svc.MarkAllAsRead(context.Background(), 1, 5)
 	require.NoError(t, err)
+}
+
+func TestIsUserSubscribed(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	q.On("GetSubscription", mock.Anything, db.GetSubscriptionParams{UserID: 1, FeedID: 5}).
+		Return(db.FeedSubscription{UserID: 1, FeedID: 5}, nil)
+
+	svc := NewFeedService(q, nil, nil)
+
+	subscribed, err := svc.IsUserSubscribed(context.Background(), 1, 5)
+	require.NoError(t, err)
+	assert.True(t, subscribed)
+}
+
+func TestIsUserSubscribed_NotSubscribed(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	q.On("GetSubscription", mock.Anything, db.GetSubscriptionParams{UserID: 1, FeedID: 99}).
+		Return(db.FeedSubscription{}, pgx.ErrNoRows)
+
+	svc := NewFeedService(q, nil, nil)
+
+	subscribed, err := svc.IsUserSubscribed(context.Background(), 1, 99)
+	require.NoError(t, err)
+	assert.False(t, subscribed)
 }
 
 func TestCreateFeed_EmptyURL(t *testing.T) {

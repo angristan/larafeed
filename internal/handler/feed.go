@@ -109,9 +109,20 @@ func (h *FeedHandler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FeedHandler) Refresh(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromRequest(r)
 	feedID, err := strconv.ParseInt(chi.URLParam(r, "feed_id"), 10, 64)
 	if err != nil {
 		http.Error(w, "Invalid feed ID", http.StatusBadRequest)
+		return
+	}
+
+	subscribed, err := h.feedService.IsUserSubscribed(r.Context(), user.ID, feedID)
+	if err != nil {
+		handleServiceErrorJSON(w, err)
+		return
+	}
+	if !subscribed {
+		jsonResponse(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
 		return
 	}
 
@@ -137,9 +148,20 @@ func (h *FeedHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FeedHandler) RefreshFavicon(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromRequest(r)
 	feedID, err := strconv.ParseInt(chi.URLParam(r, "feed_id"), 10, 64)
 	if err != nil {
 		http.Error(w, "Invalid feed ID", http.StatusBadRequest)
+		return
+	}
+
+	subscribed, err := h.feedService.IsUserSubscribed(r.Context(), user.ID, feedID)
+	if err != nil {
+		handleServiceErrorJSON(w, err)
+		return
+	}
+	if !subscribed {
+		jsonResponse(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
 		return
 	}
 

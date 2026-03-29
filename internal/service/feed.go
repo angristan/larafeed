@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -586,6 +587,17 @@ func (s *FeedService) UpdateSubscription(ctx context.Context, userID, feedID, ca
 	}
 
 	return nil
+}
+
+func (s *FeedService) IsUserSubscribed(ctx context.Context, userID, feedID int64) (bool, error) {
+	_, err := s.q.GetSubscription(ctx, db.GetSubscriptionParams{UserID: userID, FeedID: feedID})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // Helpers

@@ -29,6 +29,7 @@ type feedService interface {
 	Unsubscribe(ctx context.Context, userID int64, feedID int64) error
 	UpdateSubscription(ctx context.Context, userID, feedID, categoryID int64, customName *string, filterRulesJSON json.RawMessage) error
 	MarkAllAsRead(ctx context.Context, userID, feedID int64) error
+	IsUserSubscribed(ctx context.Context, userID, feedID int64) (bool, error)
 }
 
 // entryService defines the methods the EntryHandler needs.
