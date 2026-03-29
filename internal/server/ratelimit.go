@@ -1,6 +1,7 @@
 package server
 
 import (
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -52,9 +53,9 @@ func RateLimitByIP(limit int, window time.Duration) func(http.Handler) http.Hand
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := r.RemoteAddr
-			if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-				ip = forwarded
+			ip, _, err := net.SplitHostPort(r.RemoteAddr)
+			if err != nil {
+				ip = r.RemoteAddr
 			}
 
 			if !rl.allow(ip) {
