@@ -212,11 +212,12 @@ func probeFeedPaths(ctx context.Context, pageURL string) string {
 	if err != nil {
 		return ""
 	}
+	client := safeHTTPClient()
 	for _, path := range commonPaths {
 		candidate := base.ResolveReference(&url.URL{Path: path}).String()
 		parser := gofeed.NewParser()
 		parser.UserAgent = "Larafeed/1.0"
-		parser.Client = safeHTTPClient()
+		parser.Client = client
 		_, parseErr := parser.ParseURLWithContext(candidate, ctx)
 		if parseErr == nil {
 			return candidate
