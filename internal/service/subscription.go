@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/angristan/larafeed-go/internal/db"
@@ -60,7 +61,10 @@ func (s *SubscriptionService) ListSubscriptions(ctx context.Context, userID int6
 			displayName = *f.CustomFeedName
 		}
 
-		refreshRows, _ := s.q.ListFeedRefreshes(ctx, f.ID)
+		refreshRows, err := s.q.ListFeedRefreshes(ctx, f.ID)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to list feed refreshes", "error", err, "feed_id", f.ID)
+		}
 		refreshes := make([]SubscriptionRefDTO, len(refreshRows))
 		for j, rr := range refreshRows {
 			var refreshedAt *string

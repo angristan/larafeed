@@ -142,8 +142,8 @@ func (s *FeedService) FetchFeed(ctx context.Context, feedURL string) (*FetchResu
 
 	siteURL := feed.Link
 	if siteURL == "" {
-		u, _ := url.Parse(feedURL)
-		if u != nil {
+		u, err := url.Parse(feedURL)
+		if err == nil {
 			siteURL = fmt.Sprintf("%s://%s", u.Scheme, u.Host)
 		}
 	}
@@ -188,7 +188,10 @@ func discoverFeedFromHTML(pageURL, body string) string {
 		}
 
 		href := hrefMatch[1]
-		base, _ := url.Parse(pageURL)
+		base, err := url.Parse(pageURL)
+		if err != nil {
+			return ""
+		}
 		ref, err := url.Parse(href)
 		if err != nil {
 			continue
@@ -202,7 +205,10 @@ func discoverFeedFromHTML(pageURL, body string) string {
 // probeFeedPaths tries common feed paths as a last resort.
 func probeFeedPaths(ctx context.Context, pageURL string) string {
 	commonPaths := []string{"/feed", "/rss", "/atom.xml", "/feed.xml", "/rss.xml", "/index.xml"}
-	base, _ := url.Parse(pageURL)
+	base, err := url.Parse(pageURL)
+	if err != nil {
+		return ""
+	}
 	for _, path := range commonPaths {
 		candidate := base.ResolveReference(&url.URL{Path: path}).String()
 		parser := gofeed.NewParser()
@@ -268,9 +274,13 @@ func (s *FeedService) RefreshFeed(ctx context.Context, feed *db.Feed) (int, erro
 	result, err := s.FetchFeed(ctx, feed.FeedURL)
 	if err != nil {
 		errMsg := err.Error()
-		_ = s.q.UpdateFeedRefreshFailure(ctx, db.UpdateFeedRefreshFailureParams{ID: feed.ID, LastErrorMessage: &errMsg})
+		if dbErr := s.q.UpdateFeedRefreshFailure(ctx, db.UpdateFeedRefreshFailureParams{ID: feed.ID, LastErrorMessage: &errMsg}); dbErr != nil {
+			slog.WarnContext(ctx, "failed to record refresh failure", "error", dbErr, "feed_id", feed.ID)
+		}
 		zero := 0
-		_ = s.q.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: false, EntriesCreated: &zero, ErrorMessage: &errMsg})
+		if dbErr := s.q.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: false, EntriesCreated: &zero, ErrorMessage: &errMsg}); dbErr != nil {
+			slog.WarnContext(ctx, "failed to record refresh", "error", dbErr, "feed_id", feed.ID)
+		}
 		return 0, err
 	}
 
@@ -295,7 +305,10 @@ func (s *FeedService) RefreshFeed(ctx context.Context, feed *db.Feed) (int, erro
 
 	// Apply subscription filters outside the transaction (best-effort)
 	if len(newEntries) > 0 {
-		subs, _ := s.q.SubscriptionsWithFilters(ctx, feed.ID)
+		subs, err := s.q.SubscriptionsWithFilters(ctx, feed.ID)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to get subscriptions for filtering", "error", err, "feed_id", feed.ID)
+		}
 		for _, sub := range subs {
 			s.filter.ApplyFilters(ctx, sub, newEntries)
 		}
@@ -367,8 +380,12 @@ func (s *FeedService) CreateFeed(ctx context.Context, userID int64, feedURL stri
 		return nil, fmt.Errorf("ingest initial entries: %w", err)
 	}
 	count := len(newEntries)
-	_ = s.q.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: true, EntriesCreated: &count})
-	_ = s.q.UpdateFeedRefreshSuccess(ctx, feed.ID)
+	if err := s.q.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: true, EntriesCreated: &count}); err != nil {
+		slog.WarnContext(ctx, "failed to record refresh", "error", err, "feed_id", feed.ID)
+	}
+	if err := s.q.UpdateFeedRefreshSuccess(ctx, feed.ID); err != nil {
+		slog.WarnContext(ctx, "failed to update refresh success", "error", err, "feed_id", feed.ID)
+	}
 
 	return &feed, nil
 }
@@ -395,7 +412,10 @@ func ValidateURL(rawURL string) error {
 		return err
 	}
 
-	u, _ := url.Parse(rawURL)
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
 	host := u.Hostname()
 	ips, err := net.LookupIP(host)
 	if err != nil {
@@ -411,13 +431,23 @@ func ValidateURL(rawURL string) error {
 	return nil
 }
 
-func isPrivateIP(ip net.IP) bool {
-	privateRanges := []string{
+var privateNetworks []*net.IPNet
+
+func init() {
+	for _, cidr := range []string{
 		"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
 		"127.0.0.0/8", "169.254.0.0/16", "::1/128", "fc00::/7",
+	} {
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			panic(fmt.Sprintf("invalid private CIDR %q: %v", cidr, err))
+		}
+		privateNetworks = append(privateNetworks, network)
 	}
-	for _, cidr := range privateRanges {
-		_, network, _ := net.ParseCIDR(cidr)
+}
+
+func isPrivateIP(ip net.IP) bool {
+	for _, network := range privateNetworks {
 		if network.Contains(ip) {
 			return true
 		}
@@ -528,7 +558,10 @@ func (s *FeedService) UpdateSubscription(ctx context.Context, userID, feedID, ca
 	if filterRulesJSON != nil {
 		sub, err := s.q.GetSubscription(ctx, db.GetSubscriptionParams{UserID: userID, FeedID: feedID})
 		if err == nil {
-			allEntries, _ := s.q.EntriesForFeed(ctx, feedID)
+			allEntries, err := s.q.EntriesForFeed(ctx, feedID)
+			if err != nil {
+				slog.WarnContext(ctx, "failed to get entries for filtering", "error", err, "feed_id", feedID)
+			}
 			s.filter.ApplyFilters(ctx, sub, allEntries)
 		}
 	}

@@ -230,9 +230,10 @@ func TestUpdateSubscription_UnsafePattern(t *testing.T) {
 	svc := NewFeedService(q, nil, NewFilterService(q))
 
 	rules := FilterRules{ExcludeTitle: []string{"(a+)+"}}
-	rulesJSON, _ := json.Marshal(rules)
+	rulesJSON, err := json.Marshal(rules)
+	require.NoError(t, err)
 
-	err := svc.UpdateSubscription(context.Background(), 1, 5, 2, nil, rulesJSON)
+	err = svc.UpdateSubscription(context.Background(), 1, 5, 2, nil, rulesJSON)
 	assert.Error(t, err)
 	var validErr *apperr.ValidationError
 	assert.True(t, errors.As(err, &validErr))
@@ -261,7 +262,8 @@ func TestUpdateSubscription_WithFilters(t *testing.T) {
 	filterSvc := NewFilterService(q)
 
 	rules := FilterRules{ExcludeTitle: []string{"alpha"}}
-	rulesJSON, _ := json.Marshal(rules)
+	rulesJSON, err := json.Marshal(rules)
+	require.NoError(t, err)
 
 	q.On("UpdateSubscription", mock.Anything, mock.Anything).Return(nil)
 	q.On("GetSubscription", mock.Anything, db.GetSubscriptionParams{UserID: 1, FeedID: 5}).
@@ -270,7 +272,7 @@ func TestUpdateSubscription_WithFilters(t *testing.T) {
 
 	svc := NewFeedService(q, nil, filterSvc)
 
-	err := svc.UpdateSubscription(context.Background(), 1, 5, 2, nil, rulesJSON)
+	err = svc.UpdateSubscription(context.Background(), 1, 5, 2, nil, rulesJSON)
 	require.NoError(t, err)
 }
 

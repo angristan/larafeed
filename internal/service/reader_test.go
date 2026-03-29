@@ -12,8 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestReaderService(q *mocks.Querier) *ReaderService {
-	imgProxy := NewImgProxyService("", "", "")
+func newTestReaderService(t *testing.T, q *mocks.Querier) *ReaderService {
+	t.Helper()
+	imgProxy, err := NewImgProxyService("", "", "")
+	require.NoError(t, err)
 	faviconSvc := NewFaviconService(q, imgProxy)
 	llm := NewLLMService("", q)
 	return NewReaderService(q, faviconSvc, imgProxy, llm)
@@ -24,7 +26,7 @@ func TestListFeeds_Empty(t *testing.T) {
 	q.On("ListSubscriptionsForUser", mock.Anything, int64(1)).
 		Return([]db.ListSubscriptionsForUserRow(nil), nil)
 
-	svc := newTestReaderService(q)
+	svc := newTestReaderService(t, q)
 	feeds, err := svc.ListFeeds(context.Background(), 1)
 	require.NoError(t, err)
 	assert.Nil(t, feeds)
@@ -41,7 +43,7 @@ func TestListFeeds_WithSubscriptions(t *testing.T) {
 			},
 		}, nil)
 
-	svc := newTestReaderService(q)
+	svc := newTestReaderService(t, q)
 	feeds, err := svc.ListFeeds(context.Background(), 1)
 	require.NoError(t, err)
 
@@ -60,7 +62,7 @@ func TestListFeeds_CustomNameOverridesOriginal(t *testing.T) {
 			{ID: 10, Name: "Go Blog", CustomFeedName: &custom, CategoryID: 2},
 		}, nil)
 
-	svc := newTestReaderService(q)
+	svc := newTestReaderService(t, q)
 	feeds, err := svc.ListFeeds(context.Background(), 1)
 	require.NoError(t, err)
 
@@ -75,7 +77,7 @@ func TestFetchEntriesPage_Empty(t *testing.T) {
 	q.On("ListForReaderByPublished", mock.Anything, mock.Anything).
 		Return([]db.ListForReaderByPublishedRow(nil), nil)
 
-	svc := newTestReaderService(q)
+	svc := newTestReaderService(t, q)
 	result, err := svc.FetchEntriesPage(context.Background(), 1, ReaderQuery{
 		Filter: "all", OrderBy: "published_at", Page: 1,
 	})
@@ -93,7 +95,7 @@ func TestFetchEntriesPage_UsesCreatedOrderBy(t *testing.T) {
 			{ID: 1, Title: "Entry 1", PublishedAt: time.Now()},
 		}, nil)
 
-	svc := newTestReaderService(q)
+	svc := newTestReaderService(t, q)
 	result, err := svc.FetchEntriesPage(context.Background(), 1, ReaderQuery{
 		Filter: "all", OrderBy: "created_at", Page: 1,
 	})
@@ -113,7 +115,7 @@ func TestFetchCurrentEntry(t *testing.T) {
 			PublishedAt: time.Now(),
 		}, nil)
 
-	svc := newTestReaderService(q)
+	svc := newTestReaderService(t, q)
 	entry, err := svc.FetchCurrentEntry(context.Background(), 1, 42, nil)
 
 	require.NoError(t, err)
@@ -127,7 +129,7 @@ func TestFetchCurrentEntry_MarkAsRead(t *testing.T) {
 		Return(db.FindReaderEntryRow{ID: 42, FeedID: 10, Title: "Test", FeedName: "Blog", PublishedAt: time.Now()}, nil)
 	q.On("MarkAsRead", mock.Anything, db.MarkAsReadParams{UserID: 1, EntryID: 42}).Return(nil)
 
-	svc := newTestReaderService(q)
+	svc := newTestReaderService(t, q)
 	markRead := true
 	entry, err := svc.FetchCurrentEntry(context.Background(), 1, 42, &markRead)
 
@@ -143,7 +145,7 @@ func TestFetchCurrentEntry_MarkAsUnread(t *testing.T) {
 		Return(db.FindReaderEntryRow{ID: 42, FeedID: 10, Title: "Test", FeedName: "Blog", PublishedAt: time.Now(), ReadAt: &now}, nil)
 	q.On("MarkAsUnread", mock.Anything, db.MarkAsUnreadParams{UserID: 1, EntryID: 42}).Return(nil)
 
-	svc := newTestReaderService(q)
+	svc := newTestReaderService(t, q)
 	markRead := false
 	entry, err := svc.FetchCurrentEntry(context.Background(), 1, 42, &markRead)
 
@@ -156,7 +158,7 @@ func TestCountUnread(t *testing.T) {
 	q := mocks.NewQuerier(t)
 	q.On("CountUnread", mock.Anything, int64(1)).Return(int64(42), nil)
 
-	svc := newTestReaderService(q)
+	svc := newTestReaderService(t, q)
 	count, err := svc.CountUnread(context.Background(), 1)
 	require.NoError(t, err)
 
@@ -167,7 +169,7 @@ func TestCountRead(t *testing.T) {
 	q := mocks.NewQuerier(t)
 	q.On("CountRead", mock.Anything, int64(1)).Return(int64(10), nil)
 
-	svc := newTestReaderService(q)
+	svc := newTestReaderService(t, q)
 	count, err := svc.CountRead(context.Background(), 1)
 	require.NoError(t, err)
 
@@ -182,7 +184,7 @@ func TestListCategories(t *testing.T) {
 			{ID: 2, Name: "News"},
 		}, nil)
 
-	svc := newTestReaderService(q)
+	svc := newTestReaderService(t, q)
 	cats, err := svc.ListCategories(context.Background(), 1)
 	require.NoError(t, err)
 

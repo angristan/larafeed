@@ -47,7 +47,9 @@ func TestMain(m *testing.M) {
 
 	code := m.Run()
 
-	_ = container.Terminate(ctx)
+	if err := container.Terminate(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to terminate container: %v\n", err)
+	}
 	os.Exit(code)
 }
 

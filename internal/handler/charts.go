@@ -68,10 +68,14 @@ func (h *ChartsHandler) Show(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	data := h.chartsSvc.GetChartsData(r.Context(), user.ID, service.ChartsQuery{
+	data, err := h.chartsSvc.GetChartsData(r.Context(), user.ID, service.ChartsQuery{
 		RangeDays:    rangeDays,
 		FeedIDFilter: feedIDFilter,
 	})
+	if err != nil {
+		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		return
+	}
 
 	// Transform to frontend-expected shapes
 	readsDTO := make([]dailyReadsDTO, len(data.DailyReads))

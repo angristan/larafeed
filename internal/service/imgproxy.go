@@ -19,10 +19,16 @@ type ImgProxyService struct {
 	salt []byte
 }
 
-func NewImgProxyService(proxyURL, keyHex, saltHex string) *ImgProxyService {
-	key, _ := hex.DecodeString(keyHex)
-	salt, _ := hex.DecodeString(saltHex)
-	return &ImgProxyService{url: proxyURL, key: key, salt: salt}
+func NewImgProxyService(proxyURL, keyHex, saltHex string) (*ImgProxyService, error) {
+	key, err := hex.DecodeString(keyHex)
+	if err != nil {
+		return nil, fmt.Errorf("decode imgproxy key: %w", err)
+	}
+	salt, err := hex.DecodeString(saltHex)
+	if err != nil {
+		return nil, fmt.Errorf("decode imgproxy salt: %w", err)
+	}
+	return &ImgProxyService{url: proxyURL, key: key, salt: salt}, nil
 }
 
 func (s *ImgProxyService) Enabled() bool {

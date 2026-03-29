@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"time"
 
@@ -60,7 +61,7 @@ type ChartsData struct {
 }
 
 // GetChartsData fetches all analytics data for the charts page.
-func (s *ChartsService) GetChartsData(ctx context.Context, userID int64, params ChartsQuery) ChartsData {
+func (s *ChartsService) GetChartsData(ctx context.Context, userID int64, params ChartsQuery) (ChartsData, error) {
 	since := time.Now().AddDate(0, 0, -params.RangeDays)
 
 	dailyEntries := s.queryDailyCounts(ctx, userID, params.FeedIDFilter, since, `
@@ -94,9 +95,18 @@ func (s *ChartsService) GetChartsData(ctx context.Context, userID int64, params 
 	readThrough := ComputeReadThrough(dailyEntries, dailyReads, since, params.RangeDays)
 	dailyRefreshes := s.queryDailyRefreshes(ctx, userID, params.FeedIDFilter, since, params.RangeDays)
 
-	stats, _ := s.q.GetRefreshStats(ctx, db.GetRefreshStatsParams{UserID: userID, RefreshedAt: since})
-	feeds, _ := s.q.ListSubscriptionsForUser(ctx, userID)
-	cats, _ := s.q.ListCategoriesForUser(ctx, userID)
+	stats, err := s.q.GetRefreshStats(ctx, db.GetRefreshStatsParams{UserID: userID, RefreshedAt: since})
+	if err != nil {
+		return ChartsData{}, fmt.Errorf("get refresh stats: %w", err)
+	}
+	feeds, err := s.q.ListSubscriptionsForUser(ctx, userID)
+	if err != nil {
+		return ChartsData{}, fmt.Errorf("list subscriptions: %w", err)
+	}
+	cats, err := s.q.ListCategoriesForUser(ctx, userID)
+	if err != nil {
+		return ChartsData{}, fmt.Errorf("list categories: %w", err)
+	}
 
 	return ChartsData{
 		DailyEntries:   dailyEntries,
@@ -108,7 +118,7 @@ func (s *ChartsService) GetChartsData(ctx context.Context, userID int64, params 
 		RefreshStats:   stats,
 		Feeds:          feeds,
 		Categories:     cats,
-	}
+	}, nil
 }
 
 func (s *ChartsService) queryDailyCounts(ctx context.Context, userID int64, feedID *int64, since time.Time, query string) []DailyCount {

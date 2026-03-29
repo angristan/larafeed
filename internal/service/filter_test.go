@@ -9,6 +9,7 @@ import (
 	"github.com/angristan/larafeed-go/internal/db/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateFilterPattern(t *testing.T) {
@@ -67,7 +68,8 @@ func TestApplyFilters(t *testing.T) {
 		svc := NewFilterService(q)
 
 		rules := FilterRules{ExcludeTitle: []string{"alpha"}}
-		rulesJSON, _ := json.Marshal(rules)
+		rulesJSON, err := json.Marshal(rules)
+		require.NoError(t, err)
 
 		sub := db.FeedSubscription{UserID: 1, FeedID: 5, FilterRules: rulesJSON}
 		entries := []db.Entry{
@@ -89,7 +91,8 @@ func TestApplyFilters(t *testing.T) {
 		svc := NewFilterService(q)
 
 		rules := FilterRules{ExcludeTitle: []string{"nonexistent"}}
-		rulesJSON, _ := json.Marshal(rules)
+		rulesJSON, err := json.Marshal(rules)
+		require.NoError(t, err)
 
 		sub := db.FeedSubscription{UserID: 1, FeedID: 5, FilterRules: rulesJSON}
 		entries := []db.Entry{
@@ -136,7 +139,8 @@ func TestApplyFilters(t *testing.T) {
 		svc := NewFilterService(q)
 
 		rules := FilterRules{}
-		rulesJSON, _ := json.Marshal(rules)
+		rulesJSON, err := json.Marshal(rules)
+		require.NoError(t, err)
 
 		sub := db.FeedSubscription{UserID: 1, FeedID: 5, FilterRules: rulesJSON}
 		entries := []db.Entry{makeEntry(10, "Post")}
@@ -156,7 +160,8 @@ func TestApplyFilters(t *testing.T) {
 			ExcludeTitle:  []string{"sponsored"},
 			ExcludeAuthor: []string{"bot"},
 		}
-		rulesJSON, _ := json.Marshal(rules)
+		rulesJSON, err := json.Marshal(rules)
+		require.NoError(t, err)
 
 		sub := db.FeedSubscription{UserID: 1, FeedID: 5, FilterRules: rulesJSON}
 		entries := []db.Entry{

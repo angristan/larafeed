@@ -43,8 +43,9 @@ func TestMarkAsUnread(t *testing.T) {
 	entry := createEntry(t, pool, feed.ID, "Entry 1", "https://example.com/1")
 
 	// Mark as read then unread
-	_ = queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry.ID})
-	err := queries.MarkAsUnread(ctx, db.MarkAsUnreadParams{UserID: user.ID, EntryID: entry.ID})
+	err := queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry.ID})
+	require.NoError(t, err)
+	err = queries.MarkAsUnread(ctx, db.MarkAsUnreadParams{UserID: user.ID, EntryID: entry.ID})
 	require.NoError(t, err)
 
 	row, err := queries.FindReaderEntry(ctx, db.FindReaderEntryParams{UserID: user.ID, EntryID: entry.ID})
@@ -125,8 +126,10 @@ func TestMultipleInteractionsPreserveEachOther(t *testing.T) {
 	entry := createEntry(t, pool, feed.ID, "Entry 1", "https://example.com/1")
 
 	// Star then mark as read
-	_ = queries.Favorite(ctx, db.FavoriteParams{UserID: user.ID, EntryID: entry.ID})
-	_ = queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry.ID})
+	err := queries.Favorite(ctx, db.FavoriteParams{UserID: user.ID, EntryID: entry.ID})
+	require.NoError(t, err)
+	err = queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry.ID})
+	require.NoError(t, err)
 
 	row, err := queries.FindReaderEntry(ctx, db.FindReaderEntryParams{UserID: user.ID, EntryID: entry.ID})
 	require.NoError(t, err)
@@ -174,10 +177,11 @@ func TestMarkAllAsRead_PreservesStarred(t *testing.T) {
 	entry := createEntry(t, pool, feed.ID, "Entry 1", "https://example.com/1")
 
 	// Star first
-	_ = queries.Favorite(ctx, db.FavoriteParams{UserID: user.ID, EntryID: entry.ID})
+	err := queries.Favorite(ctx, db.FavoriteParams{UserID: user.ID, EntryID: entry.ID})
+	require.NoError(t, err)
 
 	// Then mark all as read
-	err := db.MarkAllAsRead(ctx, queries, user.ID, feed.ID)
+	err = db.MarkAllAsRead(ctx, queries, user.ID, feed.ID)
 	require.NoError(t, err)
 
 	row, err := queries.FindReaderEntry(ctx, db.FindReaderEntryParams{UserID: user.ID, EntryID: entry.ID})
@@ -225,10 +229,11 @@ func TestDeleteForFeed(t *testing.T) {
 	entry := createEntry(t, pool, feed.ID, "Entry 1", "https://example.com/1")
 
 	// Create interaction
-	_ = queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry.ID})
+	err := queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry.ID})
+	require.NoError(t, err)
 
 	// Delete interactions for feed
-	err := queries.DeleteInteractionsForFeed(ctx, db.DeleteInteractionsForFeedParams{UserID: user.ID, FeedID: feed.ID})
+	err = queries.DeleteInteractionsForFeed(ctx, db.DeleteInteractionsForFeedParams{UserID: user.ID, FeedID: feed.ID})
 	require.NoError(t, err)
 
 	// Verify deleted

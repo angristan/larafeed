@@ -59,9 +59,10 @@ func TestDeleteCategory(t *testing.T) {
 	queries := db.New(pool)
 
 	user := createUser(t, pool, "Test", "test@test.com", "password")
-	cat, _ := queries.CreateCategory(ctx, db.CreateCategoryParams{UserID: user.ID, Name: "Tech"})
+	cat, err := queries.CreateCategory(ctx, db.CreateCategoryParams{UserID: user.ID, Name: "Tech"})
+	require.NoError(t, err)
 
-	err := queries.DeleteCategory(ctx, cat.ID)
+	err = queries.DeleteCategory(ctx, cat.ID)
 	require.NoError(t, err)
 
 	_, err = queries.FindCategoryByID(ctx, cat.ID)
@@ -114,8 +115,10 @@ func TestListForUser(t *testing.T) {
 	queries := db.New(pool)
 
 	user := createUser(t, pool, "Test", "test@test.com", "password")
-	_, _ = queries.CreateCategory(ctx, db.CreateCategoryParams{UserID: user.ID, Name: "News"})
-	_, _ = queries.CreateCategory(ctx, db.CreateCategoryParams{UserID: user.ID, Name: "Tech"})
+	_, err := queries.CreateCategory(ctx, db.CreateCategoryParams{UserID: user.ID, Name: "News"})
+	require.NoError(t, err)
+	_, err = queries.CreateCategory(ctx, db.CreateCategoryParams{UserID: user.ID, Name: "Tech"})
+	require.NoError(t, err)
 
 	cats, err := queries.ListCategoriesForUser(ctx, user.ID)
 	require.NoError(t, err)

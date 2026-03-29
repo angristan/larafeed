@@ -96,5 +96,7 @@ func (h *OPMLHandler) Export(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/xml")
 	w.Header().Set("Content-Disposition", "attachment; filename=feeds.opml")
-	_, _ = w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		slog.ErrorContext(r.Context(), "failed to write OPML export", "error", err)
+	}
 }

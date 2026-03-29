@@ -57,7 +57,7 @@ type subscriptionService interface {
 
 // chartsService defines the methods the ChartsHandler needs.
 type chartsService interface {
-	GetChartsData(ctx context.Context, userID int64, params service.ChartsQuery) service.ChartsData
+	GetChartsData(ctx context.Context, userID int64, params service.ChartsQuery) (service.ChartsData, error)
 }
 
 // opmlService defines the methods the OPMLHandler needs.

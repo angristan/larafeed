@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"log/slog"
 	"time"
 
 	"github.com/angristan/larafeed-go/internal/db"
@@ -172,7 +173,9 @@ func (s *OPMLService) Import(ctx context.Context, userID int64, reader io.Reader
 		if err != nil {
 			continue
 		}
-		_, _ = s.feedService.CreateFeed(ctx, userID, imp.FeedURL, cat.ID, imp.FallbackName)
+		if _, err := s.feedService.CreateFeed(ctx, userID, imp.FeedURL, cat.ID, imp.FallbackName); err != nil {
+			slog.WarnContext(ctx, "failed to create feed from OPML", "error", err, "feed_url", imp.FeedURL)
+		}
 	}
 
 	return nil

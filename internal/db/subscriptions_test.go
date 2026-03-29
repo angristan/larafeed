@@ -127,7 +127,8 @@ func TestFeedHasSubscribers(t *testing.T) {
 	assert.True(t, count > 0)
 
 	// Unsubscribe
-	_ = queries.Unsubscribe(ctx, db.UnsubscribeParams{UserID: user.ID, FeedID: feed.ID})
+	err = queries.Unsubscribe(ctx, db.UnsubscribeParams{UserID: user.ID, FeedID: feed.ID})
+	require.NoError(t, err)
 
 	count, err = queries.CountFeedSubscribers(ctx, feed.ID)
 	require.NoError(t, err)

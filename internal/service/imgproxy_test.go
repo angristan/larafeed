@@ -5,11 +5,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProxifyImagesInHTML(t *testing.T) {
 	// Create a service with dummy keys (so Enabled() returns true)
-	svc := NewImgProxyService("https://imgproxy.example.com", "0123456789abcdef", "fedcba9876543210")
+	svc, err := NewImgProxyService("https://imgproxy.example.com", "0123456789abcdef", "fedcba9876543210")
+	require.NoError(t, err)
 
 	t.Run("proxifies img src", func(t *testing.T) {
 		html := `<p>Hello</p><img src="https://example.com/photo.jpg" alt="test">`
@@ -49,7 +51,8 @@ func TestProxifyImagesInHTML(t *testing.T) {
 	})
 
 	t.Run("returns original when disabled", func(t *testing.T) {
-		disabled := NewImgProxyService("", "", "")
+		disabled, err := NewImgProxyService("", "", "")
+		require.NoError(t, err)
 		html := `<img src="https://example.com/photo.jpg">`
 		assert.Equal(t, html, disabled.ProxifyImagesInHTML(html))
 	})

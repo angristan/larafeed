@@ -23,8 +23,10 @@ func TestHashPassword(t *testing.T) {
 	})
 
 	t.Run("different hashes for same password", func(t *testing.T) {
-		hash1, _ := HashPassword("password")
-		hash2, _ := HashPassword("password")
+		hash1, err := HashPassword("password")
+		require.NoError(t, err)
+		hash2, err := HashPassword("password")
+		require.NoError(t, err)
 		assert.NotEqual(t, hash1, hash2) // bcrypt uses random salt
 	})
 }

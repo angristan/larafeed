@@ -80,7 +80,9 @@ Content: %s`, entry.Title, content)
 	summary := fmt.Sprintf("%v", resp.Candidates[0].Content.Parts[0])
 
 	// Cache for 30 days
-	_ = s.q.CacheSet(ctx, db.CacheSetParams{Key: cacheKey, Value: summary, Expiration: int(time.Now().Add(30 * 24 * time.Hour).Unix())})
+	if err := s.q.CacheSet(ctx, db.CacheSetParams{Key: cacheKey, Value: summary, Expiration: int(time.Now().Add(30 * 24 * time.Hour).Unix())}); err != nil {
+		slog.WarnContext(ctx, "failed to cache summary", "error", err, "key", cacheKey)
+	}
 
 	return summary, nil
 }

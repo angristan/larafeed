@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/gorilla/sessions"
@@ -44,7 +45,10 @@ func (f *FlashProvider) FlashErrors(ctx context.Context, errors gonertia.Validat
 	if r == nil {
 		return nil
 	}
-	session, _ := f.store.Get(r, f.sessionName)
+	session, storeErr := f.store.Get(r, f.sessionName)
+	if storeErr != nil {
+		slog.WarnContext(ctx, "session decode error", "error", storeErr)
+	}
 	b, err := json.Marshal(errors)
 	if err != nil {
 		return err
@@ -58,13 +62,18 @@ func (f *FlashProvider) GetErrors(ctx context.Context) (gonertia.ValidationError
 	if r == nil {
 		return nil, nil
 	}
-	session, _ := f.store.Get(r, f.sessionName)
+	session, err := f.store.Get(r, f.sessionName)
+	if err != nil {
+		slog.WarnContext(ctx, "session decode error", "error", err)
+	}
 	flashes := session.Flashes(flashKeyErrors)
 	if len(flashes) == 0 {
 		return nil, nil
 	}
 	// Save to clear the flash
-	_ = session.Save(r, w)
+	if err := session.Save(r, w); err != nil {
+		slog.WarnContext(ctx, "failed to save session", "error", err)
+	}
 
 	var errors gonertia.ValidationErrors
 	if s, ok := flashes[0].(string); ok {
@@ -80,12 +89,17 @@ func (f *FlashProvider) ShouldClearHistory(ctx context.Context) (bool, error) {
 	if r == nil {
 		return false, nil
 	}
-	session, _ := f.store.Get(r, f.sessionName)
+	session, err := f.store.Get(r, f.sessionName)
+	if err != nil {
+		slog.WarnContext(ctx, "session decode error", "error", err)
+	}
 	flashes := session.Flashes(flashKeyClearHistory)
 	if len(flashes) == 0 {
 		return false, nil
 	}
-	_ = session.Save(r, w)
+	if err := session.Save(r, w); err != nil {
+		slog.WarnContext(ctx, "failed to save session", "error", err)
+	}
 	if v, ok := flashes[0].(bool); ok {
 		return v, nil
 	}
@@ -97,7 +111,10 @@ func (f *FlashProvider) FlashClearHistory(ctx context.Context) error {
 	if r == nil {
 		return nil
 	}
-	session, _ := f.store.Get(r, f.sessionName)
+	session, err := f.store.Get(r, f.sessionName)
+	if err != nil {
+		slog.WarnContext(ctx, "session decode error", "error", err)
+	}
 	session.AddFlash(true, flashKeyClearHistory)
 	return session.Save(r, w)
 }

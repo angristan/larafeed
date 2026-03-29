@@ -37,13 +37,14 @@ func TestFindByEmail(t *testing.T) {
 
 	now := time.Now()
 	feverKey := "key"
-	_, _ = queries.CreateUser(ctx, db.CreateUserParams{
+	_, err := queries.CreateUser(ctx, db.CreateUserParams{
 		Name:        "Test",
 		Email:       "test@test.com",
 		Password:    "pass",
 		FeverAPIKey: &feverKey,
 		CreatedAt:   &now,
 	})
+	require.NoError(t, err)
 
 	user, err := queries.FindUserByEmail(ctx, "test@test.com")
 	require.NoError(t, err)
@@ -84,14 +85,16 @@ func TestClearEmailVerification(t *testing.T) {
 	err := queries.VerifyUserEmail(ctx, user.ID)
 	require.NoError(t, err)
 
-	verified, _ := queries.FindUserByID(ctx, user.ID)
+	verified, err := queries.FindUserByID(ctx, user.ID)
+	require.NoError(t, err)
 	assert.NotNil(t, verified.EmailVerifiedAt)
 
 	// Clear verification
 	err = queries.ClearUserEmailVerification(ctx, user.ID)
 	require.NoError(t, err)
 
-	cleared, _ := queries.FindUserByID(ctx, user.ID)
+	cleared, err := queries.FindUserByID(ctx, user.ID)
+	require.NoError(t, err)
 	assert.Nil(t, cleared.EmailVerifiedAt)
 }
 
@@ -122,12 +125,16 @@ func TestWipeAccount_DeletesUserData(t *testing.T) {
 	queries := db.New(pool)
 
 	// Create interaction
-	_ = queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry.ID})
+	err := queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry.ID})
+	require.NoError(t, err)
 
 	// Wipe
-	_ = queries.DeleteAllInteractionsForUser(ctx, user.ID)
-	_ = queries.DeleteAllSubscriptionsForUser(ctx, user.ID)
-	_ = queries.DeleteAllCategoriesForUser(ctx, user.ID)
+	err = queries.DeleteAllInteractionsForUser(ctx, user.ID)
+	require.NoError(t, err)
+	err = queries.DeleteAllSubscriptionsForUser(ctx, user.ID)
+	require.NoError(t, err)
+	err = queries.DeleteAllCategoriesForUser(ctx, user.ID)
+	require.NoError(t, err)
 
 	// Verify
 	feeds, err := queries.ListSubscriptionsForUser(ctx, user.ID)
@@ -154,10 +161,12 @@ func TestWipeAccount_DeletesOrphanedFeeds(t *testing.T) {
 	subscribe(t, pool, user.ID, feed.ID, cat.ID)
 
 	queries := db.New(pool)
-	_ = queries.DeleteAllSubscriptionsForUser(ctx, user.ID)
+	err := queries.DeleteAllSubscriptionsForUser(ctx, user.ID)
+	require.NoError(t, err)
 
 	// Feed has no more subscribers, should be deletable
-	count, _ := queries.CountFeedSubscribers(ctx, feed.ID)
+	count, err := queries.CountFeedSubscribers(ctx, feed.ID)
+	require.NoError(t, err)
 	assert.Equal(t, int64(0), count)
 }
 
@@ -176,10 +185,12 @@ func TestWipeAccount_PreservesFeedsWithOtherSubscribers(t *testing.T) {
 	queries := db.New(pool)
 
 	// Wipe user1
-	_ = queries.DeleteAllSubscriptionsForUser(ctx, user1.ID)
+	err := queries.DeleteAllSubscriptionsForUser(ctx, user1.ID)
+	require.NoError(t, err)
 
 	// Feed should still have user2 as subscriber
-	count, _ := queries.CountFeedSubscribers(ctx, feed.ID)
+	count, err := queries.CountFeedSubscribers(ctx, feed.ID)
+	require.NoError(t, err)
 	assert.True(t, count > 0)
 
 	// User2's subscription should be intact

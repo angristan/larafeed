@@ -29,20 +29,23 @@ func createTestPNG(t *testing.T, c color.Color) []byte {
 
 func TestBuildProxifiedFaviconURL(t *testing.T) {
 	t.Run("returns /rss.svg when URL is nil", func(t *testing.T) {
-		imgProxy := NewImgProxyService("", "", "")
+		imgProxy, err := NewImgProxyService("", "", "")
+	require.NoError(t, err)
 		svc := NewFaviconService(nil, imgProxy)
 		assert.Equal(t, "/rss.svg", svc.BuildProxifiedFaviconURL(nil))
 	})
 
 	t.Run("returns /rss.svg when URL is empty", func(t *testing.T) {
-		imgProxy := NewImgProxyService("", "", "")
+		imgProxy, err := NewImgProxyService("", "", "")
+	require.NoError(t, err)
 		svc := NewFaviconService(nil, imgProxy)
 		empty := ""
 		assert.Equal(t, "/rss.svg", svc.BuildProxifiedFaviconURL(&empty))
 	})
 
 	t.Run("returns original URL when proxy is disabled", func(t *testing.T) {
-		imgProxy := NewImgProxyService("", "", "")
+		imgProxy, err := NewImgProxyService("", "", "")
+	require.NoError(t, err)
 		svc := NewFaviconService(nil, imgProxy)
 		url := "https://example.com/favicon.ico"
 		assert.Equal(t, "https://example.com/favicon.ico", svc.BuildProxifiedFaviconURL(&url))
@@ -50,7 +53,8 @@ func TestBuildProxifiedFaviconURL(t *testing.T) {
 
 	t.Run("returns proxified URL when proxy is enabled", func(t *testing.T) {
 		// "secret" and "salt" in hex
-		imgProxy := NewImgProxyService("https://imgproxy.example.com", "736563726574", "73616c74")
+		imgProxy, err := NewImgProxyService("https://imgproxy.example.com", "736563726574", "73616c74")
+		require.NoError(t, err)
 		svc := NewFaviconService(nil, imgProxy)
 		url := "https://example.com/favicon.ico"
 		result := svc.BuildProxifiedFaviconURL(&url)
@@ -70,7 +74,8 @@ func TestAnalyzeBrightness_DarkImage(t *testing.T) {
 	}))
 	defer server.Close()
 
-	imgProxy := NewImgProxyService("", "", "")
+	imgProxy, err := NewImgProxyService("", "", "")
+	require.NoError(t, err)
 	svc := NewFaviconService(nil, imgProxy)
 
 	result := svc.AnalyzeBrightness(context.Background(), server.URL+"/favicon.png")
@@ -89,7 +94,8 @@ func TestAnalyzeBrightness_LightImage(t *testing.T) {
 	}))
 	defer server.Close()
 
-	imgProxy := NewImgProxyService("", "", "")
+	imgProxy, err := NewImgProxyService("", "", "")
+	require.NoError(t, err)
 	svc := NewFaviconService(nil, imgProxy)
 
 	result := svc.AnalyzeBrightness(context.Background(), server.URL+"/favicon.png")
@@ -98,7 +104,8 @@ func TestAnalyzeBrightness_LightImage(t *testing.T) {
 }
 
 func TestAnalyzeBrightness_EmptyURL(t *testing.T) {
-	imgProxy := NewImgProxyService("", "", "")
+	imgProxy, err := NewImgProxyService("", "", "")
+	require.NoError(t, err)
 	svc := NewFaviconService(nil, imgProxy)
 
 	result := svc.AnalyzeBrightness(context.Background(), "")

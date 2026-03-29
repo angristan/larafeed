@@ -9,7 +9,9 @@ import (
 
 func GeneratePlainToken(length int) string {
 	b := make([]byte, length)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic(fmt.Sprintf("crypto/rand.Read failed: %v", err))
+	}
 	return hex.EncodeToString(b)[:length]
 }
 

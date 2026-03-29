@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/angristan/larafeed-go/internal/db"
@@ -47,7 +48,10 @@ func (a *Auth) SessionName() string {
 
 // Login stores the user ID in the session.
 func (a *Auth) Login(w http.ResponseWriter, r *http.Request, userID int64) error {
-	session, _ := a.store.Get(r, sessionName)
+	session, err := a.store.Get(r, sessionName)
+	if err != nil {
+		slog.WarnContext(r.Context(), "session decode error", "error", err)
+	}
 	session.Values["user_id"] = userID
 	delete(session.Values, "login_id")
 	delete(session.Values, "login_remember")
@@ -56,7 +60,10 @@ func (a *Auth) Login(w http.ResponseWriter, r *http.Request, userID int64) error
 
 // Logout removes the user from the session.
 func (a *Auth) Logout(w http.ResponseWriter, r *http.Request) error {
-	session, _ := a.store.Get(r, sessionName)
+	session, err := a.store.Get(r, sessionName)
+	if err != nil {
+		slog.WarnContext(r.Context(), "session decode error", "error", err)
+	}
 	session.Options.MaxAge = -1
 	return session.Save(r, w)
 }
@@ -81,22 +88,35 @@ func SetUserInContext(ctx context.Context, user *db.User) context.Context {
 
 // GetSession returns the session.
 func (a *Auth) GetSession(r *http.Request) *sessions.Session {
-	session, _ := a.store.Get(r, sessionName)
+	session, err := a.store.Get(r, sessionName)
+	if err != nil {
+		slog.WarnContext(r.Context(), "session decode error", "error", err)
+	}
 	return session
 }
 
 // SetFlash sets a flash message in the session.
 func (a *Auth) SetFlash(w http.ResponseWriter, r *http.Request, key, value string) {
-	session, _ := a.store.Get(r, sessionName)
+	session, err := a.store.Get(r, sessionName)
+	if err != nil {
+		slog.WarnContext(r.Context(), "session decode error", "error", err)
+	}
 	session.AddFlash(value, key)
-	_ = session.Save(r, w)
+	if err := session.Save(r, w); err != nil {
+		slog.WarnContext(r.Context(), "failed to save session", "error", err)
+	}
 }
 
 // GetFlash returns and clears a flash message.
 func (a *Auth) GetFlash(w http.ResponseWriter, r *http.Request, key string) string {
-	session, _ := a.store.Get(r, sessionName)
+	session, err := a.store.Get(r, sessionName)
+	if err != nil {
+		slog.WarnContext(r.Context(), "session decode error", "error", err)
+	}
 	flashes := session.Flashes(key)
-	_ = session.Save(r, w)
+	if err := session.Save(r, w); err != nil {
+		slog.WarnContext(r.Context(), "failed to save session", "error", err)
+	}
 	if len(flashes) > 0 {
 		if s, ok := flashes[0].(string); ok {
 			return s
@@ -107,7 +127,10 @@ func (a *Auth) GetFlash(w http.ResponseWriter, r *http.Request, key string) stri
 
 // Set2FAChallenge stores the user ID for 2FA challenge.
 func (a *Auth) Set2FAChallenge(w http.ResponseWriter, r *http.Request, userID int64, remember bool) error {
-	session, _ := a.store.Get(r, sessionName)
+	session, err := a.store.Get(r, sessionName)
+	if err != nil {
+		slog.WarnContext(r.Context(), "session decode error", "error", err)
+	}
 	session.Values["login_id"] = userID
 	session.Values["login_remember"] = remember
 	delete(session.Values, "user_id")
@@ -116,7 +139,10 @@ func (a *Auth) Set2FAChallenge(w http.ResponseWriter, r *http.Request, userID in
 
 // Get2FAChallenge returns the user ID for 2FA challenge.
 func (a *Auth) Get2FAChallenge(r *http.Request) (int64, bool, bool) {
-	session, _ := a.store.Get(r, sessionName)
+	session, err := a.store.Get(r, sessionName)
+	if err != nil {
+		slog.WarnContext(r.Context(), "session decode error", "error", err)
+	}
 	id, ok := session.Values["login_id"].(int64)
 	if !ok {
 		return 0, false, false
@@ -145,7 +171,10 @@ func FeverAPIKey(email, password string) string {
 // Unlike RequireAuth, it does not redirect — it just makes the user available if logged in.
 func (a *Auth) LoadUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		session, _ := a.store.Get(r, sessionName)
+		session, err := a.store.Get(r, sessionName)
+		if err != nil {
+			slog.WarnContext(r.Context(), "session decode error", "error", err)
+		}
 		userID, ok := session.Values["user_id"].(int64)
 		if ok && a.q != nil {
 			user, err := a.q.FindUserByID(r.Context(), userID)
@@ -155,7 +184,9 @@ func (a *Auth) LoadUser(next http.Handler) http.Handler {
 			} else {
 				// User no longer exists — clear the stale session
 				session.Options.MaxAge = -1
-				_ = session.Save(r, w)
+				if err := session.Save(r, w); err != nil {
+					slog.WarnContext(r.Context(), "failed to save session", "error", err)
+				}
 			}
 		}
 		next.ServeHTTP(w, r)

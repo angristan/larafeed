@@ -26,7 +26,10 @@ func NewFeverHandler(authSvc feverAuthService, reader readerService, entries ent
 // CheckToken is middleware for Fever API authentication.
 func (h *FeverHandler) CheckToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = r.ParseForm()
+		if err := r.ParseForm(); err != nil {
+			feverResponse(w, map[string]any{"api_version": 3, "auth": 0})
+			return
+		}
 		apiKey := r.FormValue("api_key")
 		if apiKey == "" {
 			feverResponse(w, map[string]any{"api_version": 3, "auth": 0})
@@ -45,7 +48,9 @@ func (h *FeverHandler) CheckToken(next http.Handler) http.Handler {
 }
 
 func (h *FeverHandler) Handle(w http.ResponseWriter, r *http.Request) {
-	_ = r.ParseForm()
+	if err := r.ParseForm(); err != nil {
+		slog.WarnContext(r.Context(), "failed to parse form", "error", err)
+	}
 	user := auth.UserFromRequest(r)
 	q := r.URL.Query()
 
@@ -78,8 +83,14 @@ func (h *FeverHandler) Handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FeverHandler) getGroups(r *http.Request, user *db.User, base map[string]any) {
-	cats, _ := h.reader.ListCategories(r.Context(), user.ID)
-	feeds, _ := h.reader.ListSubscriptions(r.Context(), user.ID)
+	cats, err := h.reader.ListCategories(r.Context(), user.ID)
+	if err != nil {
+		slog.WarnContext(r.Context(), "fever: failed to list categories", "error", err)
+	}
+	feeds, err := h.reader.ListSubscriptions(r.Context(), user.ID)
+	if err != nil {
+		slog.WarnContext(r.Context(), "fever: failed to list subscriptions", "error", err)
+	}
 
 	var groups []map[string]any
 	for _, c := range cats {
@@ -105,7 +116,10 @@ func (h *FeverHandler) getGroups(r *http.Request, user *db.User, base map[string
 }
 
 func (h *FeverHandler) getFeeds(r *http.Request, user *db.User, base map[string]any) {
-	feeds, _ := h.reader.ListSubscriptions(r.Context(), user.ID)
+	feeds, err := h.reader.ListSubscriptions(r.Context(), user.ID)
+	if err != nil {
+		slog.WarnContext(r.Context(), "fever: failed to list subscriptions", "error", err)
+	}
 
 	var result []map[string]any
 	for _, f := range feeds {
@@ -150,7 +164,10 @@ func (h *FeverHandler) getFeeds(r *http.Request, user *db.User, base map[string]
 }
 
 func (h *FeverHandler) getItems(r *http.Request, user *db.User, base map[string]any) {
-	entries, total, _ := h.reader.ListEntries(r.Context(), user.ID, "all", 0, 50)
+	entries, total, err := h.reader.ListEntries(r.Context(), user.ID, "all", 0, 50)
+	if err != nil {
+		slog.WarnContext(r.Context(), "fever: failed to list entries", "error", err)
+	}
 
 	var items []map[string]any
 	for _, e := range entries {
@@ -180,12 +197,18 @@ func (h *FeverHandler) getItems(r *http.Request, user *db.User, base map[string]
 }
 
 func (h *FeverHandler) getUnreadItemIDs(r *http.Request, user *db.User, base map[string]any) {
-	ids, _ := h.reader.UnreadIDs(r.Context(), user.ID)
+	ids, err := h.reader.UnreadIDs(r.Context(), user.ID)
+	if err != nil {
+		slog.WarnContext(r.Context(), "fever: failed to get unread IDs", "error", err)
+	}
 	base["unread_item_ids"] = joinIDs(ids)
 }
 
 func (h *FeverHandler) getSavedItemIDs(r *http.Request, user *db.User, base map[string]any) {
-	ids, _ := h.reader.StarredIDs(r.Context(), user.ID)
+	ids, err := h.reader.StarredIDs(r.Context(), user.ID)
+	if err != nil {
+		slog.WarnContext(r.Context(), "fever: failed to get starred IDs", "error", err)
+	}
 	base["saved_item_ids"] = joinIDs(ids)
 }
 
@@ -215,7 +238,9 @@ func (h *FeverHandler) updateItem(r *http.Request, user *db.User, q map[string][
 	case "unread":
 		read = ptrBool(false)
 	}
-	_ = h.entries.UpdateInteractions(r.Context(), user.ID, entryID, read, starred, nil)
+	if err := h.entries.UpdateInteractions(r.Context(), user.ID, entryID, read, starred, nil); err != nil {
+		slog.WarnContext(r.Context(), "fever: failed to update interactions", "error", err, "entry_id", entryID)
+	}
 }
 
 func feverResponse(w http.ResponseWriter, data map[string]any) {

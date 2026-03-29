@@ -71,7 +71,8 @@ func TestListForReader_FilterUnread(t *testing.T) {
 
 	// Mark one as read
 	queries := db.New(pool)
-	_ = queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry1.ID})
+	err := queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry1.ID})
+	require.NoError(t, err)
 
 	total, err := queries.CountForReader(ctx, db.CountForReaderParams{
 		UserID: user.ID,
@@ -105,7 +106,8 @@ func TestListForReader_FilterFavorites(t *testing.T) {
 	_ = createEntry(t, pool, feed.ID, "Not Starred", "https://example.com/2")
 
 	queries := db.New(pool)
-	_ = queries.Favorite(ctx, db.FavoriteParams{UserID: user.ID, EntryID: entry1.ID})
+	err := queries.Favorite(ctx, db.FavoriteParams{UserID: user.ID, EntryID: entry1.ID})
+	require.NoError(t, err)
 
 	total, err := queries.CountForReader(ctx, db.CountForReaderParams{
 		UserID: user.ID,
@@ -220,7 +222,8 @@ func TestListForReader_ExcludesFilteredEntries(t *testing.T) {
 
 	// Mark entry2 as filtered
 	queries := db.New(pool)
-	_ = queries.MarkFiltered(ctx, db.MarkFilteredParams{UserID: user.ID, EntryID: entry2.ID})
+	err := queries.MarkFiltered(ctx, db.MarkFilteredParams{UserID: user.ID, EntryID: entry2.ID})
+	require.NoError(t, err)
 
 	total, err := queries.CountForReader(ctx, db.CountForReaderParams{
 		UserID: user.ID,
@@ -265,7 +268,8 @@ func TestCountUnreadAndRead(t *testing.T) {
 	assert.Equal(t, int64(0), read)
 
 	// Mark one as read
-	_ = queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry1.ID})
+	err = queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry1.ID})
+	require.NoError(t, err)
 
 	unread, err = queries.CountUnread(ctx, user.ID)
 	require.NoError(t, err)

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/angristan/larafeed-go/internal/apperr"
@@ -110,7 +111,9 @@ func (s *UserService) AuthenticateReaderToken(ctx context.Context, tokenHash str
 	if token.Abilities == nil || !strings.Contains(*token.Abilities, "reader-api") {
 		return nil, fmt.Errorf("token does not have reader-api ability")
 	}
-	_ = s.q.TouchTokenLastUsed(ctx, token.ID)
+	if err := s.q.TouchTokenLastUsed(ctx, token.ID); err != nil {
+		slog.WarnContext(ctx, "failed to touch token last used", "error", err, "token_id", token.ID)
+	}
 	user, err := s.q.FindUserByID(ctx, token.TokenableID)
 	if err != nil {
 		return nil, err
@@ -132,10 +135,12 @@ func (s *UserService) CreateReaderSession(ctx context.Context, email, password s
 	if !auth.CheckPassword(user.Password, password) {
 		return "", fmt.Errorf("invalid credentials")
 	}
-	_ = s.q.DeleteUserTokens(ctx, db.DeleteUserTokensParams{
+	if err := s.q.DeleteUserTokens(ctx, db.DeleteUserTokensParams{
 		TokenableType: "App\\Models\\User",
 		TokenableID:   user.ID,
-	})
+	}); err != nil {
+		slog.WarnContext(ctx, "failed to delete user tokens", "error", err, "user_id", user.ID)
+	}
 	plain := db.GeneratePlainToken(40)
 	abilities := "[\"reader-api\"]"
 	err = s.q.CreatePersonalAccessToken(ctx, db.CreatePersonalAccessTokenParams{

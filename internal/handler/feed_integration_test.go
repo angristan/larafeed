@@ -34,7 +34,8 @@ func TestUnsubscribe_Success(t *testing.T) {
 	entry := createEntry(t, pool, feed.ID, "Entry 1", "https://go.dev/1")
 
 	// Create an interaction
-	_ = q.MarkAsRead(context.Background(), db.MarkAsReadParams{UserID: user.ID, EntryID: entry.ID})
+	err := q.MarkAsRead(context.Background(), db.MarkAsReadParams{UserID: user.ID, EntryID: entry.ID})
+	require.NoError(t, err)
 
 	// Build request with chi URL params
 	r := jsonRequest("DELETE", "/feeds/"+itoa(feed.ID), "")
@@ -49,7 +50,7 @@ func TestUnsubscribe_Success(t *testing.T) {
 	assert.Equal(t, http.StatusFound, w.Code)
 
 	// Feed should be deleted (no other subscribers)
-	_, err := q.FindFeedByID(context.Background(), feed.ID)
+	_, err = q.FindFeedByID(context.Background(), feed.ID)
 	assert.Error(t, err)
 }
 

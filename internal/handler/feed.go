@@ -204,7 +204,13 @@ func (h *FeedHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	var filterRulesJSON json.RawMessage
 	if req.FilterRules != nil {
-		filterRulesJSON, _ = json.Marshal(req.FilterRules)
+		var marshalErr error
+		filterRulesJSON, marshalErr = json.Marshal(req.FilterRules)
+		if marshalErr != nil {
+			slog.ErrorContext(r.Context(), "failed to marshal filter rules", "error", marshalErr)
+			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			return
+		}
 	}
 
 	if err := h.feedService.UpdateSubscription(r.Context(), user.ID, feedID, req.CategoryID, customName, filterRulesJSON); err != nil {

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"regexp"
 	"strings"
 
@@ -124,9 +125,13 @@ func (s *FilterService) ApplyFilters(ctx context.Context, sub db.FeedSubscriptio
 	compiled := CompileFilterRules(&rules)
 	for _, entry := range entries {
 		if EvaluateFilter(entry, compiled) {
-			_ = s.q.MarkFiltered(ctx, db.MarkFilteredParams{UserID: sub.UserID, EntryID: entry.ID})
+			if err := s.q.MarkFiltered(ctx, db.MarkFilteredParams{UserID: sub.UserID, EntryID: entry.ID}); err != nil {
+				slog.WarnContext(ctx, "failed to mark entry filtered", "error", err, "entry_id", entry.ID)
+			}
 		} else {
-			_ = s.q.ClearFiltered(ctx, db.ClearFilteredParams{UserID: sub.UserID, EntryID: entry.ID})
+			if err := s.q.ClearFiltered(ctx, db.ClearFilteredParams{UserID: sub.UserID, EntryID: entry.ID}); err != nil {
+				slog.WarnContext(ctx, "failed to clear entry filtered", "error", err, "entry_id", entry.ID)
+			}
 		}
 	}
 }
