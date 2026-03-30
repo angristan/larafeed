@@ -45,8 +45,8 @@ func Setup(ctx context.Context, pool *pgxpool.Pool, feedService *service.FeedSer
 	}
 
 	workers := river.NewWorkers()
-	river.AddWorker(workers, &RefreshFeedWorker{feedService: feedService, q: q})
-	river.AddWorker(workers, &RefreshFaviconWorker{faviconService: faviconService, q: q})
+	river.AddWorker(workers, &RefreshFeedWorker{finder: q, refresher: feedService})
+	river.AddWorker(workers, &RefreshFaviconWorker{finder: q, refresher: faviconService})
 	river.AddWorker(workers, &RefreshStaleFeedsWorker{q: q, pool: pool})
 	river.AddWorker(workers, &RefreshStaleFaviconsWorker{q: q, pool: pool})
 	river.AddWorker(workers, &ImportOPMLWorker{feedService: feedService, faviconService: faviconService, q: q, pool: pool})
