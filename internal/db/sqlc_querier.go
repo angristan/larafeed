@@ -74,8 +74,10 @@ type Querier interface {
 	UnreadIDs(ctx context.Context, userID int64) ([]int64, error)
 	Unsubscribe(ctx context.Context, arg UnsubscribeParams) error
 	UpdateFeedFavicon(ctx context.Context, arg UpdateFeedFaviconParams) error
+	UpdateFeedGone(ctx context.Context, id int64) error
 	UpdateFeedRefreshFailure(ctx context.Context, arg UpdateFeedRefreshFailureParams) error
-	UpdateFeedRefreshSuccess(ctx context.Context, id int64) error
+	UpdateFeedRefreshSuccess(ctx context.Context, arg UpdateFeedRefreshSuccessParams) error
+	UpdateFeedRetryAfter(ctx context.Context, arg UpdateFeedRetryAfterParams) error
 	UpdateSubscription(ctx context.Context, arg UpdateSubscriptionParams) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	UpdateUserPasswordAndFeverKey(ctx context.Context, arg UpdateUserPasswordAndFeverKeyParams) error

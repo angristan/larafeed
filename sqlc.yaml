@@ -127,3 +127,7 @@ sql:
           expires_at: "ExpiresAt"
           html_url: "HTMLURL"
           xml_url: "XMLURL"
+          etag: "ETag"
+          is_gone: "IsGone"
+          consecutive_failures: "ConsecutiveFailures"
+          retry_after: "RetryAfter"

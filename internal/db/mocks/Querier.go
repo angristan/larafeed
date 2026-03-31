@@ -3360,6 +3360,53 @@ func (_c *Querier_UpdateFeedFavicon_Call) RunAndReturn(run func(context.Context,
 	return _c
 }
 
+// UpdateFeedGone provides a mock function with given fields: ctx, id
+func (_m *Querier) UpdateFeedGone(ctx context.Context, id int64) error {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateFeedGone")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) error); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// Querier_UpdateFeedGone_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateFeedGone'
+type Querier_UpdateFeedGone_Call struct {
+	*mock.Call
+}
+
+// UpdateFeedGone is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id int64
+func (_e *Querier_Expecter) UpdateFeedGone(ctx interface{}, id interface{}) *Querier_UpdateFeedGone_Call {
+	return &Querier_UpdateFeedGone_Call{Call: _e.mock.On("UpdateFeedGone", ctx, id)}
+}
+
+func (_c *Querier_UpdateFeedGone_Call) Run(run func(ctx context.Context, id int64)) *Querier_UpdateFeedGone_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *Querier_UpdateFeedGone_Call) Return(_a0 error) *Querier_UpdateFeedGone_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Querier_UpdateFeedGone_Call) RunAndReturn(run func(context.Context, int64) error) *Querier_UpdateFeedGone_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateFeedRefreshFailure provides a mock function with given fields: ctx, arg
 func (_m *Querier) UpdateFeedRefreshFailure(ctx context.Context, arg db.UpdateFeedRefreshFailureParams) error {
 	ret := _m.Called(ctx, arg)
@@ -3407,17 +3454,17 @@ func (_c *Querier_UpdateFeedRefreshFailure_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
-// UpdateFeedRefreshSuccess provides a mock function with given fields: ctx, id
-func (_m *Querier) UpdateFeedRefreshSuccess(ctx context.Context, id int64) error {
-	ret := _m.Called(ctx, id)
+// UpdateFeedRefreshSuccess provides a mock function with given fields: ctx, arg
+func (_m *Querier) UpdateFeedRefreshSuccess(ctx context.Context, arg db.UpdateFeedRefreshSuccessParams) error {
+	ret := _m.Called(ctx, arg)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateFeedRefreshSuccess")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64) error); ok {
-		r0 = rf(ctx, id)
+	if rf, ok := ret.Get(0).(func(context.Context, db.UpdateFeedRefreshSuccessParams) error); ok {
+		r0 = rf(ctx, arg)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -3432,14 +3479,14 @@ type Querier_UpdateFeedRefreshSuccess_Call struct {
 
 // UpdateFeedRefreshSuccess is a helper method to define mock.On call
 //   - ctx context.Context
-//   - id int64
-func (_e *Querier_Expecter) UpdateFeedRefreshSuccess(ctx interface{}, id interface{}) *Querier_UpdateFeedRefreshSuccess_Call {
-	return &Querier_UpdateFeedRefreshSuccess_Call{Call: _e.mock.On("UpdateFeedRefreshSuccess", ctx, id)}
+//   - arg db.UpdateFeedRefreshSuccessParams
+func (_e *Querier_Expecter) UpdateFeedRefreshSuccess(ctx interface{}, arg interface{}) *Querier_UpdateFeedRefreshSuccess_Call {
+	return &Querier_UpdateFeedRefreshSuccess_Call{Call: _e.mock.On("UpdateFeedRefreshSuccess", ctx, arg)}
 }
 
-func (_c *Querier_UpdateFeedRefreshSuccess_Call) Run(run func(ctx context.Context, id int64)) *Querier_UpdateFeedRefreshSuccess_Call {
+func (_c *Querier_UpdateFeedRefreshSuccess_Call) Run(run func(ctx context.Context, arg db.UpdateFeedRefreshSuccessParams)) *Querier_UpdateFeedRefreshSuccess_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(int64))
+		run(args[0].(context.Context), args[1].(db.UpdateFeedRefreshSuccessParams))
 	})
 	return _c
 }
@@ -3449,7 +3496,54 @@ func (_c *Querier_UpdateFeedRefreshSuccess_Call) Return(_a0 error) *Querier_Upda
 	return _c
 }
 
-func (_c *Querier_UpdateFeedRefreshSuccess_Call) RunAndReturn(run func(context.Context, int64) error) *Querier_UpdateFeedRefreshSuccess_Call {
+func (_c *Querier_UpdateFeedRefreshSuccess_Call) RunAndReturn(run func(context.Context, db.UpdateFeedRefreshSuccessParams) error) *Querier_UpdateFeedRefreshSuccess_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateFeedRetryAfter provides a mock function with given fields: ctx, arg
+func (_m *Querier) UpdateFeedRetryAfter(ctx context.Context, arg db.UpdateFeedRetryAfterParams) error {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateFeedRetryAfter")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, db.UpdateFeedRetryAfterParams) error); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// Querier_UpdateFeedRetryAfter_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateFeedRetryAfter'
+type Querier_UpdateFeedRetryAfter_Call struct {
+	*mock.Call
+}
+
+// UpdateFeedRetryAfter is a helper method to define mock.On call
+//   - ctx context.Context
+//   - arg db.UpdateFeedRetryAfterParams
+func (_e *Querier_Expecter) UpdateFeedRetryAfter(ctx interface{}, arg interface{}) *Querier_UpdateFeedRetryAfter_Call {
+	return &Querier_UpdateFeedRetryAfter_Call{Call: _e.mock.On("UpdateFeedRetryAfter", ctx, arg)}
+}
+
+func (_c *Querier_UpdateFeedRetryAfter_Call) Run(run func(ctx context.Context, arg db.UpdateFeedRetryAfterParams)) *Querier_UpdateFeedRetryAfter_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(db.UpdateFeedRetryAfterParams))
+	})
+	return _c
+}
+
+func (_c *Querier_UpdateFeedRetryAfter_Call) Return(_a0 error) *Querier_UpdateFeedRetryAfter_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Querier_UpdateFeedRetryAfter_Call) RunAndReturn(run func(context.Context, db.UpdateFeedRetryAfterParams) error) *Querier_UpdateFeedRetryAfter_Call {
 	_c.Call.Return(run)
 	return _c
 }

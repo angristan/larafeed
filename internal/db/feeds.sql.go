@@ -28,7 +28,8 @@ INSERT INTO feeds (name, feed_url, site_url, favicon_url, favicon_is_dark, favic
 VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
 RETURNING id, name, feed_url, site_url, favicon_url, favicon_is_dark,
     favicon_updated_at, last_successful_refresh_at, last_failed_refresh_at,
-    last_error_message, created_at, updated_at
+    last_error_message, created_at, updated_at,
+    etag, last_modified, is_gone, consecutive_failures, retry_after
 `
 
 type CreateFeedParams struct {
@@ -65,6 +66,11 @@ func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, e
 		&i.LastErrorMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ETag,
+		&i.LastModified,
+		&i.IsGone,
+		&i.ConsecutiveFailures,
+		&i.RetryAfter,
 	)
 	return i, err
 }
@@ -81,7 +87,8 @@ func (q *Queries) DeleteFeed(ctx context.Context, id int64) error {
 const feedsMissingFavicons = `-- name: FeedsMissingFavicons :many
 SELECT id, name, feed_url, site_url, favicon_url, favicon_is_dark,
     favicon_updated_at, last_successful_refresh_at, last_failed_refresh_at,
-    last_error_message, created_at, updated_at
+    last_error_message, created_at, updated_at,
+    etag, last_modified, is_gone, consecutive_failures, retry_after
 FROM feeds WHERE favicon_url IS NULL
 `
 
@@ -107,6 +114,11 @@ func (q *Queries) FeedsMissingFavicons(ctx context.Context) ([]Feed, error) {
 			&i.LastErrorMessage,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ETag,
+			&i.LastModified,
+			&i.IsGone,
+			&i.ConsecutiveFailures,
+			&i.RetryAfter,
 		); err != nil {
 			return nil, err
 		}
@@ -121,11 +133,14 @@ func (q *Queries) FeedsMissingFavicons(ctx context.Context) ([]Feed, error) {
 const feedsNeedingRefresh = `-- name: FeedsNeedingRefresh :many
 SELECT f.id, f.name, f.feed_url, f.site_url, f.favicon_url, f.favicon_is_dark,
     f.favicon_updated_at, f.last_successful_refresh_at, f.last_failed_refresh_at,
-    f.last_error_message, f.created_at, f.updated_at
+    f.last_error_message, f.created_at, f.updated_at,
+    f.etag, f.last_modified, f.is_gone, f.consecutive_failures, f.retry_after
 FROM feeds f
 JOIN feed_subscriptions fs ON fs.feed_id = f.id
-WHERE f.last_successful_refresh_at IS NULL
-    OR f.last_successful_refresh_at < NOW() - $1::interval
+WHERE f.is_gone = FALSE
+    AND (f.retry_after IS NULL OR f.retry_after <= NOW())
+    AND (f.last_successful_refresh_at IS NULL
+        OR f.last_successful_refresh_at < NOW() - $1::interval)
 GROUP BY f.id
 ORDER BY
     CASE WHEN f.last_successful_refresh_at IS NULL THEN 0
@@ -165,6 +180,11 @@ func (q *Queries) FeedsNeedingRefresh(ctx context.Context, arg FeedsNeedingRefre
 			&i.LastErrorMessage,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ETag,
+			&i.LastModified,
+			&i.IsGone,
+			&i.ConsecutiveFailures,
+			&i.RetryAfter,
 		); err != nil {
 			return nil, err
 		}
@@ -179,7 +199,8 @@ func (q *Queries) FeedsNeedingRefresh(ctx context.Context, arg FeedsNeedingRefre
 const feedsWithOutdatedFavicons = `-- name: FeedsWithOutdatedFavicons :many
 SELECT id, name, feed_url, site_url, favicon_url, favicon_is_dark,
     favicon_updated_at, last_successful_refresh_at, last_failed_refresh_at,
-    last_error_message, created_at, updated_at
+    last_error_message, created_at, updated_at,
+    etag, last_modified, is_gone, consecutive_failures, retry_after
 FROM feeds
 WHERE favicon_url IS NULL
     OR favicon_updated_at IS NULL
@@ -208,6 +229,11 @@ func (q *Queries) FeedsWithOutdatedFavicons(ctx context.Context, olderThan pgtyp
 			&i.LastErrorMessage,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ETag,
+			&i.LastModified,
+			&i.IsGone,
+			&i.ConsecutiveFailures,
+			&i.RetryAfter,
 		); err != nil {
 			return nil, err
 		}
@@ -222,7 +248,8 @@ func (q *Queries) FeedsWithOutdatedFavicons(ctx context.Context, olderThan pgtyp
 const findFeedByID = `-- name: FindFeedByID :one
 SELECT id, name, feed_url, site_url, favicon_url, favicon_is_dark,
     favicon_updated_at, last_successful_refresh_at, last_failed_refresh_at,
-    last_error_message, created_at, updated_at
+    last_error_message, created_at, updated_at,
+    etag, last_modified, is_gone, consecutive_failures, retry_after
 FROM feeds WHERE id = $1
 `
 
@@ -242,6 +269,11 @@ func (q *Queries) FindFeedByID(ctx context.Context, id int64) (Feed, error) {
 		&i.LastErrorMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ETag,
+		&i.LastModified,
+		&i.IsGone,
+		&i.ConsecutiveFailures,
+		&i.RetryAfter,
 	)
 	return i, err
 }
@@ -249,7 +281,8 @@ func (q *Queries) FindFeedByID(ctx context.Context, id int64) (Feed, error) {
 const findFeedByURL = `-- name: FindFeedByURL :one
 SELECT id, name, feed_url, site_url, favicon_url, favicon_is_dark,
     favicon_updated_at, last_successful_refresh_at, last_failed_refresh_at,
-    last_error_message, created_at, updated_at
+    last_error_message, created_at, updated_at,
+    etag, last_modified, is_gone, consecutive_failures, retry_after
 FROM feeds WHERE feed_url = $1
 `
 
@@ -269,6 +302,11 @@ func (q *Queries) FindFeedByURL(ctx context.Context, feedUrl string) (Feed, erro
 		&i.LastErrorMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ETag,
+		&i.LastModified,
+		&i.IsGone,
+		&i.ConsecutiveFailures,
+		&i.RetryAfter,
 	)
 	return i, err
 }
@@ -289,8 +327,21 @@ func (q *Queries) UpdateFeedFavicon(ctx context.Context, arg UpdateFeedFaviconPa
 	return err
 }
 
+const updateFeedGone = `-- name: UpdateFeedGone :exec
+UPDATE feeds SET is_gone = TRUE, updated_at = NOW()
+WHERE id = $1
+`
+
+func (q *Queries) UpdateFeedGone(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, updateFeedGone, id)
+	return err
+}
+
 const updateFeedRefreshFailure = `-- name: UpdateFeedRefreshFailure :exec
-UPDATE feeds SET last_failed_refresh_at = NOW(), last_error_message = $2, updated_at = NOW()
+UPDATE feeds SET last_failed_refresh_at = NOW(), last_error_message = $2,
+    consecutive_failures = consecutive_failures + 1,
+    retry_after = NOW() + LEAST(15 * POWER(2, consecutive_failures), 480) * INTERVAL '1 minute',
+    updated_at = NOW()
 WHERE id = $1
 `
 
@@ -305,11 +356,34 @@ func (q *Queries) UpdateFeedRefreshFailure(ctx context.Context, arg UpdateFeedRe
 }
 
 const updateFeedRefreshSuccess = `-- name: UpdateFeedRefreshSuccess :exec
-UPDATE feeds SET last_successful_refresh_at = NOW(), last_error_message = NULL, updated_at = NOW()
+UPDATE feeds SET last_successful_refresh_at = NOW(), last_error_message = NULL,
+    etag = $2, last_modified = $3,
+    consecutive_failures = 0, retry_after = NULL, updated_at = NOW()
 WHERE id = $1
 `
 
-func (q *Queries) UpdateFeedRefreshSuccess(ctx context.Context, id int64) error {
-	_, err := q.db.Exec(ctx, updateFeedRefreshSuccess, id)
+type UpdateFeedRefreshSuccessParams struct {
+	ID           int64   `json:"id"`
+	ETag         *string `json:"etag"`
+	LastModified *string `json:"last_modified"`
+}
+
+func (q *Queries) UpdateFeedRefreshSuccess(ctx context.Context, arg UpdateFeedRefreshSuccessParams) error {
+	_, err := q.db.Exec(ctx, updateFeedRefreshSuccess, arg.ID, arg.ETag, arg.LastModified)
+	return err
+}
+
+const updateFeedRetryAfter = `-- name: UpdateFeedRetryAfter :exec
+UPDATE feeds SET retry_after = $2, updated_at = NOW()
+WHERE id = $1
+`
+
+type UpdateFeedRetryAfterParams struct {
+	ID         int64      `json:"id"`
+	RetryAfter *time.Time `json:"retry_after"`
+}
+
+func (q *Queries) UpdateFeedRetryAfter(ctx context.Context, arg UpdateFeedRetryAfterParams) error {
+	_, err := q.db.Exec(ctx, updateFeedRetryAfter, arg.ID, arg.RetryAfter)
 	return err
 }

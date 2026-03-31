@@ -132,6 +132,11 @@ func (h *FeedHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if feed.IsGone {
+		jsonResponse(w, http.StatusGone, map[string]string{"error": "This feed has been permanently removed by its server."})
+		return
+	}
+
 	// Rate limit: 5 minutes between refreshes
 	if feed.LastSuccessfulRefreshAt != nil && time.Since(*feed.LastSuccessfulRefreshAt) < 5*time.Minute {
 		jsonResponse(w, http.StatusTooManyRequests, map[string]string{"message": "Feed has already been refreshed less than 5min ago"})

@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/db"
@@ -380,4 +383,176 @@ func TestDiscoverFeedFromHTML(t *testing.T) {
 		got := discoverFeedFromHTML("https://example.com", html)
 		assert.Equal(t, "https://example.com/rss", got)
 	})
+}
+
+// validRSSFeed returns a minimal valid RSS feed for testing.
+func validRSSFeed() string {
+	return `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Feed</title>
+    <link>https://example.com</link>
+    <item>
+      <title>Test Entry</title>
+      <link>https://example.com/1</link>
+    </item>
+  </channel>
+</rss>`
+}
+
+func TestFetchForRefresh_200_WithConditionalHeaders(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Larafeed/1.0", r.Header.Get("User-Agent"))
+		assert.Equal(t, `"etag-abc"`, r.Header.Get("If-None-Match"))
+		assert.Equal(t, "Mon, 01 Jan 2024 00:00:00 GMT", r.Header.Get("If-Modified-Since"))
+
+		w.Header().Set("ETag", `"etag-def"`)
+		w.Header().Set("Last-Modified", "Tue, 02 Jan 2024 00:00:00 GMT")
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte(validRSSFeed()))
+		require.NoError(t, err)
+	}))
+	defer srv.Close()
+
+	svc := &FeedService{httpClient: srv.Client()}
+	etag := `"etag-abc"`
+	lastMod := "Mon, 01 Jan 2024 00:00:00 GMT"
+	feed := &db.Feed{
+		ID:           1,
+		FeedURL:      srv.URL,
+		ETag:         &etag,
+		LastModified: &lastMod,
+	}
+
+	result, err := svc.fetchForRefresh(context.Background(), feed)
+	require.NoError(t, err)
+	assert.Equal(t, "Test Feed", result.Title)
+	assert.Equal(t, `"etag-def"`, result.ETag)
+	assert.Equal(t, "Tue, 02 Jan 2024 00:00:00 GMT", result.LastModified)
+	assert.Len(t, result.Items, 1)
+}
+
+func TestFetchForRefresh_304_NotModified(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotModified)
+	}))
+	defer srv.Close()
+
+	svc := &FeedService{httpClient: srv.Client()}
+	feed := &db.Feed{ID: 1, FeedURL: srv.URL}
+
+	_, err := svc.fetchForRefresh(context.Background(), feed)
+	assert.ErrorIs(t, err, ErrNotModified)
+}
+
+func TestFetchForRefresh_410_Gone(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusGone)
+	}))
+	defer srv.Close()
+
+	svc := &FeedService{httpClient: srv.Client()}
+	feed := &db.Feed{ID: 1, FeedURL: srv.URL}
+
+	_, err := svc.fetchForRefresh(context.Background(), feed)
+	assert.ErrorIs(t, err, ErrFeedGone)
+}
+
+func TestFetchForRefresh_429_TooManyRequests(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "3600")
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer srv.Close()
+
+	svc := &FeedService{httpClient: srv.Client()}
+	feed := &db.Feed{ID: 1, FeedURL: srv.URL}
+
+	_, err := svc.fetchForRefresh(context.Background(), feed)
+	assert.ErrorIs(t, err, ErrTooManyReqs)
+
+	var raErr *retryAfterError
+	require.ErrorAs(t, err, &raErr)
+	assert.WithinDuration(t, time.Now().Add(1*time.Hour), raErr.retryAt, 5*time.Second)
+}
+
+func TestFetchForRefresh_500_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	svc := &FeedService{httpClient: srv.Client()}
+	feed := &db.Feed{ID: 1, FeedURL: srv.URL}
+
+	_, err := svc.fetchForRefresh(context.Background(), feed)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unexpected status 500")
+}
+
+func TestFetchForRefresh_NoConditionalHeaders_WhenEmpty(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Empty(t, r.Header.Get("If-None-Match"))
+		assert.Empty(t, r.Header.Get("If-Modified-Since"))
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte(validRSSFeed()))
+		require.NoError(t, err)
+	}))
+	defer srv.Close()
+
+	svc := &FeedService{httpClient: srv.Client()}
+	feed := &db.Feed{ID: 1, FeedURL: srv.URL}
+
+	result, err := svc.fetchForRefresh(context.Background(), feed)
+	require.NoError(t, err)
+	assert.Equal(t, "Test Feed", result.Title)
+}
+
+func TestParseRetryAfter(t *testing.T) {
+	t.Run("parses seconds", func(t *testing.T) {
+		retryAt := parseRetryAfter("120")
+		assert.WithinDuration(t, time.Now().Add(120*time.Second), retryAt, 2*time.Second)
+	})
+
+	t.Run("parses HTTP-date", func(t *testing.T) {
+		future := time.Now().Add(2 * time.Hour).UTC()
+		httpDate := future.Format(http.TimeFormat)
+		retryAt := parseRetryAfter(httpDate)
+		assert.WithinDuration(t, future, retryAt, 2*time.Second)
+	})
+
+	t.Run("caps at 24 hours", func(t *testing.T) {
+		retryAt := parseRetryAfter("100000")
+		assert.WithinDuration(t, time.Now().Add(24*time.Hour), retryAt, 2*time.Second)
+	})
+
+	t.Run("defaults to 1 hour on empty", func(t *testing.T) {
+		retryAt := parseRetryAfter("")
+		assert.WithinDuration(t, time.Now().Add(1*time.Hour), retryAt, 2*time.Second)
+	})
+
+	t.Run("defaults to 1 hour on garbage", func(t *testing.T) {
+		retryAt := parseRetryAfter("not-a-number-or-date")
+		assert.WithinDuration(t, time.Now().Add(1*time.Hour), retryAt, 2*time.Second)
+	})
+}
+
+func TestStrPtr(t *testing.T) {
+	t.Run("returns nil for empty string", func(t *testing.T) {
+		assert.Nil(t, strPtr(""))
+	})
+
+	t.Run("returns pointer for non-empty string", func(t *testing.T) {
+		p := strPtr("hello")
+		require.NotNil(t, p)
+		assert.Equal(t, "hello", *p)
+	})
+}
+
+func TestRetryAfterError(t *testing.T) {
+	retryAt := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
+	err := &retryAfterError{retryAt: retryAt}
+
+	assert.Contains(t, err.Error(), "429")
+	assert.ErrorIs(t, err, ErrTooManyReqs)
 }

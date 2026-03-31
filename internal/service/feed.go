@@ -23,25 +23,47 @@ import (
 )
 
 type FeedService struct {
-	q      db.Querier
-	pool   *pgxpool.Pool
-	filter *FilterService
+	q          db.Querier
+	pool       *pgxpool.Pool
+	filter     *FilterService
+	httpClient *http.Client
 }
 
 func NewFeedService(q db.Querier, pool *pgxpool.Pool, filter *FilterService) *FeedService {
 	return &FeedService{
-		q:      q,
-		pool:   pool,
-		filter: filter,
+		q:          q,
+		pool:       pool,
+		filter:     filter,
+		httpClient: safeHTTPClient(),
 	}
 }
 
 type FetchResult struct {
-	Title   string
-	FeedURL string // actual feed URL (may differ from input if discovered)
-	SiteURL string
-	Items   []*gofeed.Item
+	Title        string
+	FeedURL      string // actual feed URL (may differ from input if discovered)
+	SiteURL      string
+	Items        []*gofeed.Item
+	ETag         string // ETag response header (for conditional GET)
+	LastModified string // Last-Modified response header (for conditional GET)
 }
+
+// Sentinel errors for HTTP status codes during feed refresh.
+var (
+	ErrNotModified    = errors.New("feed not modified (304)")
+	ErrFeedGone       = errors.New("feed permanently removed (410)")
+	ErrTooManyReqs    = errors.New("rate limited by server (429)")
+)
+
+// retryAfterError wraps ErrTooManyReqs and carries the parsed Retry-After time.
+type retryAfterError struct {
+	retryAt time.Time
+}
+
+func (e *retryAfterError) Error() string {
+	return fmt.Sprintf("rate limited by server (429), retry after %s", e.retryAt.Format(time.RFC3339))
+}
+
+func (e *retryAfterError) Unwrap() error { return ErrTooManyReqs }
 
 // safeHTTPClient returns an HTTP client that prevents SSRF by validating
 // resolved IPs at dial time, eliminating the TOCTOU gap between DNS
@@ -91,7 +113,7 @@ func (s *FeedService) FetchFeed(ctx context.Context, feedURL string) (*FetchResu
 		return nil, fmt.Errorf("unsafe URL: %w", err)
 	}
 
-	client := safeHTTPClient()
+	client := s.httpClient
 
 	// Single fetch — reuse the body for both feed parsing and discovery.
 	req, err := http.NewRequestWithContext(ctx, "GET", feedURL, nil)
@@ -118,7 +140,7 @@ func (s *FeedService) FetchFeed(ctx context.Context, feedURL string) (*FetchResu
 
 	parser := gofeed.NewParser()
 	parser.UserAgent = "Larafeed/1.0"
-	parser.Client = safeHTTPClient()
+	parser.Client = s.httpClient
 	actualFeedURL := feedURL
 
 	// Try parsing the body as a feed directly.
@@ -227,6 +249,109 @@ func probeFeedPaths(ctx context.Context, pageURL string) string {
 	return ""
 }
 
+// fetchForRefresh fetches a known feed URL with conditional GET support.
+// It sends If-None-Match / If-Modified-Since headers when the feed has
+// cached ETag / Last-Modified values, and handles 304, 410, and 429 responses.
+func (s *FeedService) fetchForRefresh(ctx context.Context, feed *db.Feed) (*FetchResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	client := s.httpClient
+
+	req, err := http.NewRequestWithContext(ctx, "GET", feed.FeedURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("User-Agent", "Larafeed/1.0")
+
+	if feed.ETag != nil && *feed.ETag != "" {
+		req.Header.Set("If-None-Match", *feed.ETag)
+	}
+	if feed.LastModified != nil && *feed.LastModified != "" {
+		req.Header.Set("If-Modified-Since", *feed.LastModified)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch feed: %w", err)
+	}
+	defer func() {
+		closeErr := resp.Body.Close()
+		if closeErr != nil {
+			slog.WarnContext(ctx, "failed to close response body", "error", closeErr)
+		}
+	}()
+
+	switch resp.StatusCode {
+	case http.StatusNotModified:
+		return nil, ErrNotModified
+	case http.StatusGone:
+		return nil, ErrFeedGone
+	case http.StatusTooManyRequests:
+		retryAt := parseRetryAfter(resp.Header.Get("Retry-After"))
+		return nil, &retryAfterError{retryAt: retryAt}
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("unexpected status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024))
+	if err != nil {
+		return nil, fmt.Errorf("read body: %w", err)
+	}
+
+	parser := gofeed.NewParser()
+	parser.UserAgent = "Larafeed/1.0"
+	parsedFeed, err := parser.ParseString(string(body))
+	if err != nil {
+		return nil, fmt.Errorf("parse feed: %w", err)
+	}
+
+	siteURL := parsedFeed.Link
+	if siteURL == "" {
+		u, parseErr := url.Parse(feed.FeedURL)
+		if parseErr == nil {
+			siteURL = fmt.Sprintf("%s://%s", u.Scheme, u.Host)
+		}
+	}
+
+	return &FetchResult{
+		Title:        parsedFeed.Title,
+		FeedURL:      feed.FeedURL,
+		SiteURL:      siteURL,
+		Items:        parsedFeed.Items,
+		ETag:         resp.Header.Get("ETag"),
+		LastModified: resp.Header.Get("Last-Modified"),
+	}, nil
+}
+
+// parseRetryAfter parses a Retry-After header value, which can be either
+// a number of seconds or an HTTP-date (RFC 7231 §7.1.3).
+func parseRetryAfter(value string) time.Time {
+	if value == "" {
+		return time.Now().Add(1 * time.Hour) // default: 1 hour
+	}
+
+	// Try as seconds first.
+	var n int
+	_, scanErr := fmt.Sscan(value, &n)
+	if scanErr == nil && n > 0 {
+		if n > 86400 { // cap at 24h
+			n = 86400
+		}
+		return time.Now().Add(time.Duration(n) * time.Second)
+	}
+
+	// Try as HTTP-date.
+	t, parseErr := http.ParseTime(value)
+	if parseErr == nil {
+		return t
+	}
+
+	return time.Now().Add(1 * time.Hour) // fallback
+}
+
 // IngestEntries converts feed items to entries and bulk-inserts them.
 // The dbtx parameter allows callers to pass either the pool (for standalone use)
 // or a transaction (for use within RefreshFeed).
@@ -276,20 +401,12 @@ func (s *FeedService) IngestEntries(ctx context.Context, dbtx db.DBTX, feedID in
 }
 
 // RefreshFeed fetches a feed and ingests new entries inside a transaction.
+// Handles conditional GET (304), gone feeds (410), rate limiting (429),
+// and exponential backoff on consecutive failures.
 func (s *FeedService) RefreshFeed(ctx context.Context, feed *db.Feed) (int, error) {
-	result, err := s.FetchFeed(ctx, feed.FeedURL)
+	result, err := s.fetchForRefresh(ctx, feed)
 	if err != nil {
-		errMsg := err.Error()
-		dbErr := s.q.UpdateFeedRefreshFailure(ctx, db.UpdateFeedRefreshFailureParams{ID: feed.ID, LastErrorMessage: &errMsg})
-		if dbErr != nil {
-			slog.WarnContext(ctx, "failed to record refresh failure", "error", dbErr, "feed_id", feed.ID)
-		}
-		zero := 0
-		dbErr = s.q.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: false, EntriesCreated: &zero, ErrorMessage: &errMsg})
-		if dbErr != nil {
-			slog.WarnContext(ctx, "failed to record refresh", "error", dbErr, "feed_id", feed.ID)
-		}
-		return 0, err
+		return s.handleRefreshError(ctx, feed, err)
 	}
 
 	var newEntries []db.Entry
@@ -301,7 +418,11 @@ func (s *FeedService) RefreshFeed(ctx context.Context, feed *db.Feed) (int, erro
 		}
 
 		qtx := db.New(tx)
-		refreshErr := qtx.UpdateFeedRefreshSuccess(ctx, feed.ID)
+		refreshErr := qtx.UpdateFeedRefreshSuccess(ctx, db.UpdateFeedRefreshSuccessParams{
+			ID:           feed.ID,
+			ETag:         strPtr(result.ETag),
+			LastModified: strPtr(result.LastModified),
+		})
 		if refreshErr != nil {
 			return refreshErr
 		}
@@ -324,6 +445,88 @@ func (s *FeedService) RefreshFeed(ctx context.Context, feed *db.Feed) (int, erro
 	}
 
 	return len(newEntries), nil
+}
+
+// handleRefreshError processes errors from fetchForRefresh, recording the
+// appropriate state in the database depending on the error type.
+func (s *FeedService) handleRefreshError(ctx context.Context, feed *db.Feed, err error) (int, error) {
+	switch {
+	case errors.Is(err, ErrNotModified):
+		// 304: Feed unchanged — treat as success (reset failures, update timestamp).
+		dbErr := s.q.UpdateFeedRefreshSuccess(ctx, db.UpdateFeedRefreshSuccessParams{
+			ID:           feed.ID,
+			ETag:         feed.ETag,
+			LastModified: feed.LastModified,
+		})
+		if dbErr != nil {
+			slog.WarnContext(ctx, "failed to record 304 success", "error", dbErr, "feed_id", feed.ID)
+		}
+		zero := 0
+		dbErr = s.q.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: true, EntriesCreated: &zero})
+		if dbErr != nil {
+			slog.WarnContext(ctx, "failed to record refresh", "error", dbErr, "feed_id", feed.ID)
+		}
+		return 0, nil // not an error from caller's perspective
+
+	case errors.Is(err, ErrFeedGone):
+		// 410: Feed permanently removed — mark as gone, stop refreshing.
+		dbErr := s.q.UpdateFeedGone(ctx, feed.ID)
+		if dbErr != nil {
+			slog.WarnContext(ctx, "failed to mark feed as gone", "error", dbErr, "feed_id", feed.ID)
+		}
+		errMsg := err.Error()
+		dbErr = s.q.UpdateFeedRefreshFailure(ctx, db.UpdateFeedRefreshFailureParams{ID: feed.ID, LastErrorMessage: &errMsg})
+		if dbErr != nil {
+			slog.WarnContext(ctx, "failed to record refresh failure", "error", dbErr, "feed_id", feed.ID)
+		}
+		zero := 0
+		dbErr = s.q.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: false, EntriesCreated: &zero, ErrorMessage: &errMsg})
+		if dbErr != nil {
+			slog.WarnContext(ctx, "failed to record refresh", "error", dbErr, "feed_id", feed.ID)
+		}
+		return 0, err
+
+	case errors.Is(err, ErrTooManyReqs):
+		// 429: Rate limited — set retry_after from server's Retry-After header.
+		var raErr *retryAfterError
+		if errors.As(err, &raErr) {
+			retryAt := raErr.retryAt
+			dbErr := s.q.UpdateFeedRetryAfter(ctx, db.UpdateFeedRetryAfterParams{ID: feed.ID, RetryAfter: &retryAt})
+			if dbErr != nil {
+				slog.WarnContext(ctx, "failed to set retry_after", "error", dbErr, "feed_id", feed.ID)
+			}
+		}
+		errMsg := err.Error()
+		zero := 0
+		dbErr := s.q.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: false, EntriesCreated: &zero, ErrorMessage: &errMsg})
+		if dbErr != nil {
+			slog.WarnContext(ctx, "failed to record refresh", "error", dbErr, "feed_id", feed.ID)
+		}
+		return 0, err
+
+	default:
+		// Generic error — record failure with exponential backoff
+		// (backoff is computed in SQL via consecutive_failures).
+		errMsg := err.Error()
+		dbErr := s.q.UpdateFeedRefreshFailure(ctx, db.UpdateFeedRefreshFailureParams{ID: feed.ID, LastErrorMessage: &errMsg})
+		if dbErr != nil {
+			slog.WarnContext(ctx, "failed to record refresh failure", "error", dbErr, "feed_id", feed.ID)
+		}
+		zero := 0
+		dbErr = s.q.RecordRefresh(ctx, db.RecordRefreshParams{FeedID: feed.ID, WasSuccessful: false, EntriesCreated: &zero, ErrorMessage: &errMsg})
+		if dbErr != nil {
+			slog.WarnContext(ctx, "failed to record refresh", "error", dbErr, "feed_id", feed.ID)
+		}
+		return 0, err
+	}
+}
+
+// strPtr returns a pointer to the string, or nil if empty.
+func strPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 // CreateFeed creates a new feed or returns existing, subscribes the user.
@@ -397,7 +600,7 @@ func (s *FeedService) CreateFeed(ctx context.Context, userID int64, feedURL stri
 	if err != nil {
 		slog.WarnContext(ctx, "failed to record refresh", "error", err, "feed_id", feed.ID)
 	}
-	err = s.q.UpdateFeedRefreshSuccess(ctx, feed.ID)
+	err = s.q.UpdateFeedRefreshSuccess(ctx, db.UpdateFeedRefreshSuccessParams{ID: feed.ID})
 	if err != nil {
 		slog.WarnContext(ctx, "failed to update refresh success", "error", err, "feed_id", feed.ID)
 	}

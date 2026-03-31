@@ -122,7 +122,13 @@ func TestUpdateFeedRefreshSuccess(t *testing.T) {
 
 	feed := createFeed(t, pool, "Refresh Success", "https://example.com/success.xml", "https://example.com")
 
-	err := q.UpdateFeedRefreshSuccess(ctx, feed.ID)
+	etag := `"abc123"`
+	lastMod := "Tue, 01 Jan 2025 00:00:00 GMT"
+	err := q.UpdateFeedRefreshSuccess(ctx, db.UpdateFeedRefreshSuccessParams{
+		ID:           feed.ID,
+		ETag:         &etag,
+		LastModified: &lastMod,
+	})
 	require.NoError(t, err)
 
 	updated, err := q.FindFeedByID(ctx, feed.ID)
@@ -130,6 +136,12 @@ func TestUpdateFeedRefreshSuccess(t *testing.T) {
 
 	assert.NotNil(t, updated.LastSuccessfulRefreshAt)
 	assert.Nil(t, updated.LastErrorMessage)
+	require.NotNil(t, updated.ETag)
+	assert.Equal(t, `"abc123"`, *updated.ETag)
+	require.NotNil(t, updated.LastModified)
+	assert.Equal(t, "Tue, 01 Jan 2025 00:00:00 GMT", *updated.LastModified)
+	assert.Equal(t, 0, updated.ConsecutiveFailures)
+	assert.Nil(t, updated.RetryAfter)
 }
 
 func TestUpdateFeedRefreshFailure(t *testing.T) {
@@ -152,6 +164,108 @@ func TestUpdateFeedRefreshFailure(t *testing.T) {
 	assert.NotNil(t, updated.LastFailedRefreshAt)
 	require.NotNil(t, updated.LastErrorMessage)
 	assert.Equal(t, "connection timeout", *updated.LastErrorMessage)
+	assert.Equal(t, 1, updated.ConsecutiveFailures)
+	assert.NotNil(t, updated.RetryAfter)
+
+	// Second failure should increase consecutive_failures and push retry_after further.
+	err = q.UpdateFeedRefreshFailure(ctx, db.UpdateFeedRefreshFailureParams{
+		ID:               feed.ID,
+		LastErrorMessage: &errMsg,
+	})
+	require.NoError(t, err)
+
+	updated2, err := q.FindFeedByID(ctx, feed.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 2, updated2.ConsecutiveFailures)
+	assert.True(t, updated2.RetryAfter.After(*updated.RetryAfter))
+}
+
+func TestUpdateFeedGone(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	q := db.New(pool)
+
+	feed := createFeed(t, pool, "Gone Feed", "https://example.com/gone.xml", "https://example.com")
+	assert.False(t, feed.IsGone)
+
+	err := q.UpdateFeedGone(ctx, feed.ID)
+	require.NoError(t, err)
+
+	updated, err := q.FindFeedByID(ctx, feed.ID)
+	require.NoError(t, err)
+	assert.True(t, updated.IsGone)
+}
+
+func TestUpdateFeedRetryAfter(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	q := db.New(pool)
+
+	feed := createFeed(t, pool, "Retry Feed", "https://example.com/retry.xml", "https://example.com")
+
+	retryAt := time.Now().Add(1 * time.Hour).Truncate(time.Microsecond)
+	err := q.UpdateFeedRetryAfter(ctx, db.UpdateFeedRetryAfterParams{
+		ID:         feed.ID,
+		RetryAfter: &retryAt,
+	})
+	require.NoError(t, err)
+
+	updated, err := q.FindFeedByID(ctx, feed.ID)
+	require.NoError(t, err)
+	require.NotNil(t, updated.RetryAfter)
+	assert.WithinDuration(t, retryAt, *updated.RetryAfter, time.Second)
+}
+
+func TestFeedsNeedingRefresh_ExcludesGoneFeeds(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	q := db.New(pool)
+
+	user := createUser(t, pool, "gone user", "gone@example.com", "password123")
+	cat := createCategory(t, pool, user.ID, "default")
+	feed := createFeed(t, pool, "Gone Stale", "https://example.com/gonestale.xml", "https://example.com")
+	subscribe(t, pool, user.ID, feed.ID, cat.ID)
+
+	err := q.UpdateFeedGone(ctx, feed.ID)
+	require.NoError(t, err)
+
+	feeds, err := q.FeedsNeedingRefresh(ctx, db.FeedsNeedingRefreshParams{
+		StaleAfter: pgtype.Interval{Microseconds: int64(time.Hour / time.Microsecond), Valid: true},
+		MaxFeeds:   10,
+	})
+	require.NoError(t, err)
+
+	for _, f := range feeds {
+		assert.NotEqual(t, feed.ID, f.ID, "gone feed should not appear in stale feeds")
+	}
+}
+
+func TestFeedsNeedingRefresh_ExcludesRetryAfterFeeds(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	q := db.New(pool)
+
+	user := createUser(t, pool, "retry user", "retry@example.com", "password123")
+	cat := createCategory(t, pool, user.ID, "default")
+	feed := createFeed(t, pool, "Retry Stale", "https://example.com/retrystale.xml", "https://example.com")
+	subscribe(t, pool, user.ID, feed.ID, cat.ID)
+
+	retryAt := time.Now().Add(1 * time.Hour)
+	err := q.UpdateFeedRetryAfter(ctx, db.UpdateFeedRetryAfterParams{
+		ID:         feed.ID,
+		RetryAfter: &retryAt,
+	})
+	require.NoError(t, err)
+
+	feeds, err := q.FeedsNeedingRefresh(ctx, db.FeedsNeedingRefreshParams{
+		StaleAfter: pgtype.Interval{Microseconds: int64(time.Hour / time.Microsecond), Valid: true},
+		MaxFeeds:   10,
+	})
+	require.NoError(t, err)
+
+	for _, f := range feeds {
+		assert.NotEqual(t, feed.ID, f.ID, "feed with future retry_after should not appear")
+	}
 }
 
 func TestFeedsMissingFavicons(t *testing.T) {

@@ -51,6 +51,11 @@ type Feed struct {
 	LastErrorMessage        *string    `json:"last_error_message"`
 	CreatedAt               *time.Time `json:"created_at"`
 	UpdatedAt               *time.Time `json:"updated_at"`
+	ETag                    *string    `json:"etag"`
+	LastModified            *string    `json:"last_modified"`
+	IsGone                  bool       `json:"is_gone"`
+	ConsecutiveFailures     int        `json:"consecutive_failures"`
+	RetryAfter              *time.Time `json:"retry_after"`
 }
 
 type FeedRefresh struct {
