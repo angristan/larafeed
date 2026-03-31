@@ -1,7 +1,0 @@
-{
-  "enabledMcpjsonServers": [
-    "laravel-boost",
-    "playwriter"
-  ],
-  "enableAllProjectMcpServers": true
-}
