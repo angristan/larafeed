@@ -19,7 +19,7 @@ COPY . .
 RUN CGO_ENABLED=0 go build -o larafeed ./main.go
 
 # --- Final image ---
-FROM alpine:3.21
+FROM alpine:3.23
 
 RUN apk add --no-cache ca-certificates tzdata \
     && adduser -D -u 1000 larafeed
