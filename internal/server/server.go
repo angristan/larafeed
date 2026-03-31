@@ -43,7 +43,12 @@ func New(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux,
 				if routePattern == "" {
 					return r.Method + " " + r.URL.Path
 				}
-				return r.Method + " " + routePattern
+				name := r.Method + " " + routePattern
+				// Distinguish partial entry loads from full page loads.
+				if routePattern == "/feeds" && r.URL.Query().Has("entry") {
+					name += "?entry"
+				}
+				return name
 			}),
 		)
 	})
