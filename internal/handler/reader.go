@@ -60,96 +60,116 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 
 	props := gonertia.Props{}
 
-	// Feeds
-	feeds, err := h.readerSvc.ListFeeds(r.Context(), user.ID)
-	if err != nil {
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
-		return
+	// Determine which props the client actually needs.
+	// On partial reloads (prefetch/click), Inertia sends X-Inertia-Partial-Data
+	// with only the requested prop names, so we skip expensive queries for the rest.
+	partialOnly := partialProps(r)
+
+	needsProp := func(name string) bool {
+		if len(partialOnly) == 0 {
+			return true // full page load — compute everything
+		}
+		_, ok := partialOnly[name]
+		return ok
 	}
-	if feeds == nil {
-		props["feeds"] = []any{}
-	} else {
-		props["feeds"] = feeds
+
+	// Feeds
+	if needsProp("feeds") {
+		feeds, err := h.readerSvc.ListFeeds(r.Context(), user.ID)
+		if err != nil {
+			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			return
+		}
+		if feeds == nil {
+			props["feeds"] = []any{}
+		} else {
+			props["feeds"] = feeds
+		}
 	}
 
 	// Entries (paginated)
-	entries, err := h.readerSvc.FetchEntriesPage(r.Context(), user.ID, params)
-	if err != nil {
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
-		return
+	if needsProp("entries") {
+		entries, err := h.readerSvc.FetchEntriesPage(r.Context(), user.ID, params)
+		if err != nil {
+			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			return
+		}
+		props["entries"] = entries
 	}
-	props["entries"] = entries
 
-	// Current entry (deferred)
-	props["currententry"] = gonertia.Defer(func() (any, error) {
-		entryIDStr := q.Get("entry")
-		if entryIDStr == "" {
-			return nil, nil
-		}
-		entryID, err := strconv.ParseInt(entryIDStr, 10, 64)
-		if err != nil {
-			return nil, nil
-		}
+	// Current entry
+	if needsProp("currententry") {
+		var currentEntry any
+		if entryIDStr := q.Get("entry"); entryIDStr != "" {
+			entryID, parseErr := strconv.ParseInt(entryIDStr, 10, 64)
+			if parseErr == nil {
+				var markRead *bool
+				if readParam := q.Get("read"); readParam == "true" {
+					t := true
+					markRead = &t
+				} else if readParam == "false" {
+					f := false
+					markRead = &f
+				}
 
-		var markRead *bool
-		if readParam := q.Get("read"); readParam == "true" {
-			t := true
-			markRead = &t
-		} else if readParam == "false" {
-			f := false
-			markRead = &f
+				entry, fetchErr := h.readerSvc.FetchCurrentEntry(r.Context(), user.ID, entryID, markRead)
+				if fetchErr == nil {
+					currentEntry = entry
+				}
+			}
 		}
-
-		entry, err := h.readerSvc.FetchCurrentEntry(r.Context(), user.ID, entryID, markRead)
-		if err != nil {
-			return nil, nil
-		}
-		return entry, nil
-	})
+		props["currententry"] = currentEntry
+	}
 
 	// Counts
-	unread, err := h.readerSvc.CountUnread(r.Context(), user.ID)
-	if err != nil {
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
-		return
+	if needsProp("unreadEntriesCount") || needsProp("readEntriesCount") {
+		unread, err := h.readerSvc.CountUnread(r.Context(), user.ID)
+		if err != nil {
+			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			return
+		}
+		read, err := h.readerSvc.CountRead(r.Context(), user.ID)
+		if err != nil {
+			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			return
+		}
+		props["unreadEntriesCount"] = unread
+		props["readEntriesCount"] = read
 	}
-	read, err := h.readerSvc.CountRead(r.Context(), user.ID)
-	if err != nil {
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
-		return
-	}
-	props["unreadEntriesCount"] = unread
-	props["readEntriesCount"] = read
 
 	// Summary (deferred)
-	props["summary"] = gonertia.Defer(func() (any, error) {
-		if q.Get("summarize") != "true" {
-			return nil, nil
-		}
-		entryIDStr := q.Get("entry")
-		if entryIDStr == "" {
-			return nil, nil
-		}
-		entryID, err := strconv.ParseInt(entryIDStr, 10, 64)
-		if err != nil {
-			return nil, nil
-		}
-		return h.readerSvc.SummarizeEntry(r.Context(), entryID)
-	})
+	if needsProp("summary") {
+		props["summary"] = gonertia.Defer(func() (any, error) {
+			if q.Get("summarize") != "true" {
+				return nil, nil
+			}
+			entryIDStr := q.Get("entry")
+			if entryIDStr == "" {
+				return nil, nil
+			}
+			entryID, err := strconv.ParseInt(entryIDStr, 10, 64)
+			if err != nil {
+				return nil, nil
+			}
+			return h.readerSvc.SummarizeEntry(r.Context(), entryID)
+		})
+	}
 
 	// Categories
-	cats, err := h.readerSvc.ListCategories(r.Context(), user.ID)
-	if err != nil {
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
-		return
-	}
-	if cats == nil {
-		props["categories"] = []any{}
-	} else {
-		props["categories"] = cats
+	if needsProp("categories") {
+		cats, err := h.readerSvc.ListCategories(r.Context(), user.ID)
+		if err != nil {
+			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			return
+		}
+		if cats == nil {
+			props["categories"] = []any{}
+		} else {
+			props["categories"] = cats
+		}
 	}
 
-	err = h.inertia.Render(w, r, "Reader/Reader", props)
+	err := h.inertia.Render(w, r, "Reader/Reader", props)
 	if err != nil {
 		renderError(w, r, h.inertia, http.StatusInternalServerError)
 	}

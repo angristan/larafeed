@@ -6,10 +6,29 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/angristan/larafeed-go/internal/apperr"
 	gonertia "github.com/romsar/gonertia/v2"
 )
+
+// partialProps returns the set of prop names requested by an Inertia partial
+// reload (via X-Inertia-Partial-Data). Returns nil for full page loads.
+func partialProps(r *http.Request) map[string]struct{} {
+	header := r.Header.Get("X-Inertia-Partial-Data")
+	if header == "" {
+		return nil
+	}
+	parts := strings.Split(header, ",")
+	m := make(map[string]struct{}, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			m[p] = struct{}{}
+		}
+	}
+	return m
+}
 
 // render is a helper that logs and responds with 500 if Inertia rendering fails.
 func render(w http.ResponseWriter, r *http.Request, i *gonertia.Inertia, component string, props ...gonertia.Props) {

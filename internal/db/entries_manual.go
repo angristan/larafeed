@@ -115,7 +115,7 @@ func BulkCreate(ctx context.Context, db DBTX, entries []Entry) ([]Entry, error) 
 		INSERT INTO entries (feed_id, title, url, author, content, published_at, created_at, updated_at)
 		SELECT * FROM UNNEST($1::bigint[], $2::text[], $3::text[], $4::text[], $5::text[], $6::timestamptz[], $7::timestamptz[], $8::timestamptz[])
 		ON CONFLICT (feed_id, url, published_at) DO NOTHING
-		RETURNING *`
+		RETURNING id, feed_id, title, url, author, content, published_at, created_at, updated_at`
 
 	feedIDs := make([]int64, len(entries))
 	titles := make([]string, len(entries))
