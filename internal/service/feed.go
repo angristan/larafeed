@@ -360,17 +360,22 @@ func (s *FeedService) IngestEntries(ctx context.Context, dbtx db.DBTX, feedID in
 		items = items[:limit]
 	}
 
+	now := time.Now()
 	var toInsert []db.Entry
 	for _, item := range items {
 		if item.Link == "" || item.Title == "" {
 			continue
 		}
 
-		publishedAt := time.Now()
+		publishedAt := now
 		if item.PublishedParsed != nil {
 			publishedAt = *item.PublishedParsed
 		} else if item.UpdatedParsed != nil {
 			publishedAt = *item.UpdatedParsed
+		}
+
+		if publishedAt.After(now) {
+			continue
 		}
 
 		var author *string
