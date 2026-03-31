@@ -44,9 +44,9 @@ func New(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux,
 					return r.Method + " " + r.URL.Path
 				}
 				name := r.Method + " " + routePattern
-				// Distinguish partial entry loads from full page loads.
-				if routePattern == "/feeds" && r.URL.Query().Has("entry") {
-					name += "?entry"
+				// Distinguish Inertia partial reloads from full page loads.
+				if r.Header.Get("X-Inertia-Partial-Data") != "" {
+					name += " (partial)"
 				}
 				return name
 			}),
