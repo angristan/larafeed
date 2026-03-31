@@ -14,6 +14,7 @@ require (
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/riverqueue/river v0.31.0
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.31.0
+	github.com/riverqueue/river/rivertype v0.31.0
 	github.com/romsar/gonertia/v2 v2.1.1
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.41.0
@@ -98,7 +99,6 @@ require (
 	github.com/riverqueue/apiframe v0.0.0-20251229202423-2b52ce1c482e // indirect
 	github.com/riverqueue/river/riverdriver v0.31.0 // indirect
 	github.com/riverqueue/river/rivershared v0.31.0 // indirect
-	github.com/riverqueue/river/rivertype v0.31.0 // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.2 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
@@ -124,7 +124,7 @@ require (
 	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260209200024-4cfbd4190f57 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect
-	google.golang.org/grpc v1.79.2 // indirect
+	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
