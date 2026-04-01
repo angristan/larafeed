@@ -315,6 +315,78 @@ func TestFeedsNeedingRefresh(t *testing.T) {
 	assert.Equal(t, feed.ID, feeds[0].ID)
 }
 
+func TestFeedsNeedingRefresh_ExcludesRecentlyFailedFeeds(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	q := db.New(pool)
+
+	user := createUser(t, pool, "failfeed user", "failfeed@example.com", "password123")
+	cat := createCategory(t, pool, user.ID, "default")
+	feed := createFeed(t, pool, "Failing Feed", "https://example.com/failing.xml", "https://example.com")
+	subscribe(t, pool, user.ID, feed.ID, cat.ID)
+
+	// Simulate a recent failure (sets last_failed_refresh_at = NOW())
+	errMsg := "value too long for type character varying(255)"
+	err := q.UpdateFeedRefreshFailure(ctx, db.UpdateFeedRefreshFailureParams{
+		ID:              feed.ID,
+		LastErrorMessage: &errMsg,
+	})
+	require.NoError(t, err)
+
+	// With a 2-hour stale window, the recently-failed feed should be excluded
+	feeds, err := q.FeedsNeedingRefresh(ctx, db.FeedsNeedingRefreshParams{
+		StaleAfter: pgtype.Interval{Microseconds: int64(2 * time.Hour / time.Microsecond), Valid: true},
+		MaxFeeds:   10,
+	})
+	require.NoError(t, err)
+
+	for _, f := range feeds {
+		assert.NotEqual(t, feed.ID, f.ID, "recently failed feed should not appear in stale feeds")
+	}
+}
+
+func TestFeedsNeedingRefresh_IncludesOldFailedFeeds(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	q := db.New(pool)
+
+	user := createUser(t, pool, "oldfail user", "oldfail@example.com", "password123")
+	cat := createCategory(t, pool, user.ID, "default")
+	feed := createFeed(t, pool, "Old Fail Feed", "https://example.com/oldfail.xml", "https://example.com")
+	subscribe(t, pool, user.ID, feed.ID, cat.ID)
+
+	// Simulate a failure, then backdate last_failed_refresh_at to 3 hours ago
+	errMsg := "connection refused"
+	err := q.UpdateFeedRefreshFailure(ctx, db.UpdateFeedRefreshFailureParams{
+		ID:              feed.ID,
+		LastErrorMessage: &errMsg,
+	})
+	require.NoError(t, err)
+
+	// Backdate the failure and clear retry_after so the feed is eligible
+	threeHoursAgo := time.Now().Add(-3 * time.Hour)
+	_, err = pool.Exec(ctx,
+		"UPDATE feeds SET last_failed_refresh_at = $1, retry_after = NULL WHERE id = $2",
+		threeHoursAgo, feed.ID)
+	require.NoError(t, err)
+
+	// With a 2-hour stale window, a feed that failed 3 hours ago should be included
+	feeds, err := q.FeedsNeedingRefresh(ctx, db.FeedsNeedingRefreshParams{
+		StaleAfter: pgtype.Interval{Microseconds: int64(2 * time.Hour / time.Microsecond), Valid: true},
+		MaxFeeds:   10,
+	})
+	require.NoError(t, err)
+
+	found := false
+	for _, f := range feeds {
+		if f.ID == feed.ID {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "feed that failed 3 hours ago should appear in stale feeds")
+}
+
 func TestCountFeedSubscribers(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()

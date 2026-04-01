@@ -139,12 +139,14 @@ FROM feeds f
 JOIN feed_subscriptions fs ON fs.feed_id = f.id
 WHERE f.is_gone = FALSE
     AND (f.retry_after IS NULL OR f.retry_after <= NOW())
-    AND (f.last_successful_refresh_at IS NULL
-        OR f.last_successful_refresh_at < NOW() - $1::interval)
+    AND (
+        GREATEST(f.last_successful_refresh_at, f.last_failed_refresh_at) IS NULL
+        OR GREATEST(f.last_successful_refresh_at, f.last_failed_refresh_at) < NOW() - $1::interval
+    )
 GROUP BY f.id
 ORDER BY
-    CASE WHEN f.last_successful_refresh_at IS NULL THEN 0
-    ELSE EXTRACT(EPOCH FROM NOW() - f.last_successful_refresh_at)
+    CASE WHEN GREATEST(f.last_successful_refresh_at, f.last_failed_refresh_at) IS NULL THEN 0
+    ELSE EXTRACT(EPOCH FROM NOW() - GREATEST(f.last_successful_refresh_at, f.last_failed_refresh_at))
         / GREATEST(EXTRACT(EPOCH FROM NOW() - COALESCE(
             (SELECT MAX(e.published_at) FROM entries e WHERE e.feed_id = f.id),
             f.created_at - INTERVAL '3650 days'
