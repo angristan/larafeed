@@ -179,15 +179,15 @@ func buildRootTemplate(cfg *config.Config) (string, error) {
 	var viteScripts string
 	if cfg.IsDev() {
 		viteScripts = fmt.Sprintf(`
-		<script type="module" src="%s/@vite/client"></script>
+		<script type="module" src="%s/build/@vite/client"></script>
 		<script type="module">
-			import RefreshRuntime from '%s/@react-refresh'
+			import RefreshRuntime from '%s/build/@react-refresh'
 			RefreshRuntime.injectIntoGlobalHook(window)
 			window.$RefreshReg$ = () => {}
 			window.$RefreshSig$ = () => (type) => type
 			window.__vite_plugin_react_preamble_installed__ = true
 		</script>
-		<script type="module" src="%s/resources/js/app.tsx"></script>`,
+		<script type="module" src="%s/build/resources/js/app.tsx"></script>`,
 			cfg.ViteDev, cfg.ViteDev, cfg.ViteDev)
 	} else {
 		manifestPath := filepath.Join(".", "public", "build", ".vite", "manifest.json")
