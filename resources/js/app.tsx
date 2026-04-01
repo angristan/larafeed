@@ -24,7 +24,8 @@ async function resolvePageComponent(name: string) {
     if (!loader) {
         throw new Error(`Page not found: ${path}`);
     }
-    return loader();
+    const module = await loader();
+    return (module as { default: React.ComponentType }).default;
 }
 
 const theme = createTheme({
@@ -51,6 +52,10 @@ const theme = createTheme({
 });
 
 createInertiaApp({
+    id: 'app',
+    page: JSON.parse(
+        (document.getElementById('app') as HTMLElement).dataset.page as string,
+    ),
     title: (title) => `${title} - ${appName}`,
     resolve: (name) => resolvePageComponent(name),
     setup({ el, App, props }) {
