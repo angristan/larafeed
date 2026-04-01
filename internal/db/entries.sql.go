@@ -114,6 +114,30 @@ func (q *Queries) EntriesForFeed(ctx context.Context, feedID int64) ([]Entry, er
 	return items, nil
 }
 
+const entryURLsForFeed = `-- name: EntryURLsForFeed :many
+SELECT url FROM entries WHERE feed_id = $1
+`
+
+func (q *Queries) EntryURLsForFeed(ctx context.Context, feedID int64) ([]string, error) {
+	rows, err := q.db.Query(ctx, entryURLsForFeed, feedID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var url string
+		if err := rows.Scan(&url); err != nil {
+			return nil, err
+		}
+		items = append(items, url)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findEntryByID = `-- name: FindEntryByID :one
 SELECT id, feed_id, title, url, author, content, published_at, created_at, updated_at
 FROM entries WHERE id = $1

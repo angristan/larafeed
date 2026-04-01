@@ -90,3 +90,6 @@ WHERE (ei.filtered_at IS NULL) AND (ei.read_at IS NOT NULL);
 -- name: EntriesForFeed :many
 SELECT id, feed_id, title, url, author, content, published_at, created_at, updated_at
 FROM entries WHERE feed_id = $1;
+
+-- name: EntryURLsForFeed :many
+SELECT url FROM entries WHERE feed_id = $1;

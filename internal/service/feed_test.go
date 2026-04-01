@@ -401,35 +401,30 @@ func validRSSFeed() string {
 </rss>`
 }
 
+func mockQuerier(t *testing.T, existingURLs []string) *mocks.Querier {
+	t.Helper()
+	q := mocks.NewQuerier(t)
+	q.On("EntryURLsForFeed", mock.Anything, mock.AnythingOfType("int64")).
+		Return(existingURLs, nil)
+	return q
+}
+
 func TestIngestEntries_SkipsFutureEntries(t *testing.T) {
+	q := mockQuerier(t, nil)
 	svc := &FeedService{}
-	past := time.Now().Add(-1 * time.Hour)
 	future := time.Now().Add(24 * time.Hour)
 
 	items := []*gofeed.Item{
-		{Title: "Past entry", Link: "https://example.com/1", PublishedParsed: &past},
-		{Title: "Future entry", Link: "https://example.com/2", PublishedParsed: &future},
-	}
-
-	// Only the past entry should be ingested; BulkCreate is called with 1 entry.
-	// We pass nil as dbtx — BulkCreate will be called with a non-empty slice,
-	// which will panic on nil dbtx. So we need to verify the filtering differently.
-	// Instead, test with ALL future items so BulkCreate gets an empty slice and returns nil.
-	allFuture := []*gofeed.Item{
 		{Title: "Future 1", Link: "https://example.com/f1", PublishedParsed: &future},
 		{Title: "Future 2", Link: "https://example.com/f2", PublishedParsed: &future},
 	}
-	entries, err := svc.IngestEntries(context.Background(), nil, 1, allFuture, 0)
+	entries, err := svc.ingestEntries(context.Background(), q, nil, 1, items, 0)
 	require.NoError(t, err)
 	assert.Empty(t, entries)
-
-	// Also verify mixed case: only future items should be filtered.
-	// We verify indirectly by checking all-past items would need a real DB.
-	allPast := []*gofeed.Item{items[0]}
-	_ = allPast // Would need a real DBTX to test; covered by integration tests.
 }
 
 func TestIngestEntries_SkipsEmptyTitleOrLink(t *testing.T) {
+	q := mockQuerier(t, nil)
 	svc := &FeedService{}
 	items := []*gofeed.Item{
 		{Title: "", Link: "https://example.com/1"},
@@ -437,26 +432,27 @@ func TestIngestEntries_SkipsEmptyTitleOrLink(t *testing.T) {
 		{Title: "", Link: ""},
 	}
 
-	entries, err := svc.IngestEntries(context.Background(), nil, 1, items, 0)
+	entries, err := svc.ingestEntries(context.Background(), q, nil, 1, items, 0)
 	require.NoError(t, err)
 	assert.Empty(t, entries)
 }
 
 func TestIngestEntries_UsesUpdatedParsedAsFallback(t *testing.T) {
+	q := mockQuerier(t, nil)
 	svc := &FeedService{}
 	future := time.Now().Add(24 * time.Hour)
 
-	// No PublishedParsed but UpdatedParsed is in the future — should be skipped.
 	items := []*gofeed.Item{
 		{Title: "Future via updated", Link: "https://example.com/1", UpdatedParsed: &future},
 	}
 
-	entries, err := svc.IngestEntries(context.Background(), nil, 1, items, 0)
+	entries, err := svc.ingestEntries(context.Background(), q, nil, 1, items, 0)
 	require.NoError(t, err)
 	assert.Empty(t, entries)
 }
 
 func TestIngestEntries_RespectsLimit(t *testing.T) {
+	q := mockQuerier(t, nil)
 	svc := &FeedService{}
 	future := time.Now().Add(24 * time.Hour)
 
@@ -466,8 +462,40 @@ func TestIngestEntries_RespectsLimit(t *testing.T) {
 		{Title: "C", Link: "https://example.com/3", PublishedParsed: &future},
 	}
 
-	// Limit to 1 — only first item processed, but it's future so still empty.
-	entries, err := svc.IngestEntries(context.Background(), nil, 1, items, 1)
+	entries, err := svc.ingestEntries(context.Background(), q, nil, 1, items, 1)
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+}
+
+func TestIngestEntries_SkipsExistingURLs(t *testing.T) {
+	q := mockQuerier(t, []string{"https://example.com/existing"})
+	svc := &FeedService{}
+	past := time.Now().Add(-1 * time.Hour)
+
+	items := []*gofeed.Item{
+		{Title: "Existing", Link: "https://example.com/existing", PublishedParsed: &past},
+		{Title: "Also existing", Link: "https://example.com/existing", PublishedParsed: &past},
+	}
+
+	// All items have URLs that already exist — nothing to insert.
+	entries, err := svc.ingestEntries(context.Background(), q, nil, 1, items, 0)
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+}
+
+func TestIngestEntries_DedupsWithinBatch(t *testing.T) {
+	q := mockQuerier(t, nil)
+	svc := &FeedService{}
+	future := time.Now().Add(24 * time.Hour)
+
+	// Two items with the same URL — second should be deduped within the batch.
+	// Both are future so result is empty, but the dedup logic still runs.
+	items := []*gofeed.Item{
+		{Title: "First", Link: "https://example.com/dup", PublishedParsed: &future},
+		{Title: "Second", Link: "https://example.com/dup", PublishedParsed: &future},
+	}
+
+	entries, err := svc.ingestEntries(context.Background(), q, nil, 1, items, 0)
 	require.NoError(t, err)
 	assert.Empty(t, entries)
 }

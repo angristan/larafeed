@@ -356,8 +356,24 @@ func parseRetryAfter(value string) time.Time {
 // The dbtx parameter allows callers to pass either the pool (for standalone use)
 // or a transaction (for use within RefreshFeed).
 func (s *FeedService) IngestEntries(ctx context.Context, dbtx db.DBTX, feedID int64, items []*gofeed.Item, limit int) ([]db.Entry, error) {
+	return s.ingestEntries(ctx, db.New(dbtx), dbtx, feedID, items, limit)
+}
+
+func (s *FeedService) ingestEntries(ctx context.Context, q db.Querier, dbtx db.DBTX, feedID int64, items []*gofeed.Item, limit int) ([]db.Entry, error) {
 	if limit > 0 && len(items) > limit {
 		items = items[:limit]
+	}
+
+	// Pre-fetch existing URLs to deduplicate, matching Laravel's approach.
+	// The DB unique constraint is (feed_id, url, published_at), which doesn't
+	// catch entries whose published_at falls back to time.Now() on each refresh.
+	existingURLs := make(map[string]struct{})
+	urls, err := q.EntryURLsForFeed(ctx, feedID)
+	if err != nil {
+		return nil, fmt.Errorf("fetch existing URLs: %w", err)
+	}
+	for _, u := range urls {
+		existingURLs[u] = struct{}{}
 	}
 
 	now := time.Now()
@@ -366,6 +382,11 @@ func (s *FeedService) IngestEntries(ctx context.Context, dbtx db.DBTX, feedID in
 		if item.Link == "" || item.Title == "" {
 			continue
 		}
+
+		if _, exists := existingURLs[item.Link]; exists {
+			continue
+		}
+		existingURLs[item.Link] = struct{}{} // prevent dupes within the batch
 
 		publishedAt := now
 		if item.PublishedParsed != nil {
