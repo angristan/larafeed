@@ -2,9 +2,11 @@ package logging
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -38,7 +40,8 @@ func (h *ContextHandler) Handle(ctx context.Context, r slog.Record) error {
 		r.AddAttrs(slog.String("request_id", id))
 	}
 
-	spanCtx := trace.SpanContextFromContext(ctx)
+	span := trace.SpanFromContext(ctx)
+	spanCtx := span.SpanContext()
 	if spanCtx.HasTraceID() {
 		r.AddAttrs(slog.String("trace_id", spanCtx.TraceID().String()))
 	}
@@ -46,7 +49,32 @@ func (h *ContextHandler) Handle(ctx context.Context, r slog.Record) error {
 		r.AddAttrs(slog.String("span_id", spanCtx.SpanID().String()))
 	}
 
+	// Record error-level logs on the active span so they appear in Tempo.
+	if r.Level >= slog.LevelError && spanCtx.IsValid() {
+		span.SetStatus(codes.Error, r.Message)
+		span.RecordError(errFromRecord(r))
+	}
+
 	return h.inner.Handle(ctx, r)
+}
+
+// errFromRecord extracts an error value from the slog record attributes,
+// falling back to the message if none is found.
+func errFromRecord(r slog.Record) error {
+	var found error
+	r.Attrs(func(a slog.Attr) bool {
+		if a.Key == "error" || a.Key == "err" {
+			if e, ok := a.Value.Any().(error); ok {
+				found = e
+				return false
+			}
+		}
+		return true
+	})
+	if found != nil {
+		return found
+	}
+	return errors.New(r.Message)
 }
 
 func (h *ContextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
