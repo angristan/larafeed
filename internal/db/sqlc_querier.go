@@ -36,7 +36,7 @@ type Querier interface {
 	DeleteUser(ctx context.Context, id int64) error
 	DeleteUserTokens(ctx context.Context, arg DeleteUserTokensParams) error
 	EntriesForFeed(ctx context.Context, feedID int64) ([]Entry, error)
-	EntryURLsForFeed(ctx context.Context, feedID int64) ([]string, error)
+	EntryURLsForFeedIn(ctx context.Context, arg EntryURLsForFeedInParams) ([]string, error)
 	Favorite(ctx context.Context, arg FavoriteParams) error
 	FeedsMissingFavicons(ctx context.Context) ([]Feed, error)
 	FeedsNeedingRefresh(ctx context.Context, arg FeedsNeedingRefreshParams) ([]Feed, error)

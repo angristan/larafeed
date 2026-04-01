@@ -404,7 +404,7 @@ func validRSSFeed() string {
 func mockQuerier(t *testing.T, existingURLs []string) *mocks.Querier {
 	t.Helper()
 	q := mocks.NewQuerier(t)
-	q.On("EntryURLsForFeed", mock.Anything, mock.AnythingOfType("int64")).
+	q.On("EntryURLsForFeedIn", mock.Anything, mock.Anything).
 		Return(existingURLs, nil)
 	return q
 }

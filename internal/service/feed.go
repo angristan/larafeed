@@ -364,19 +364,36 @@ func (s *FeedService) ingestEntries(ctx context.Context, q db.Querier, dbtx db.D
 		items = items[:limit]
 	}
 
-	// Pre-fetch existing URLs to deduplicate, matching Laravel's approach.
-	// The DB unique constraint is (feed_id, url, published_at), which doesn't
-	// catch entries whose published_at falls back to time.Now() on each refresh.
-	existingURLs := make(map[string]struct{})
-	urls, err := q.EntryURLsForFeed(ctx, feedID)
-	if err != nil {
-		return nil, fmt.Errorf("fetch existing URLs: %w", err)
+	// Collect candidate URLs from the batch, then check which already exist.
+	// Only sends the batch's URLs to PG instead of fetching all URLs for the feed.
+	candidateURLs := make([]string, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		if item.Link == "" {
+			continue
+		}
+		if _, ok := seen[item.Link]; !ok {
+			seen[item.Link] = struct{}{}
+			candidateURLs = append(candidateURLs, item.Link)
+		}
 	}
-	for _, u := range urls {
-		existingURLs[u] = struct{}{}
+
+	existingURLs := make(map[string]struct{})
+	if len(candidateURLs) > 0 {
+		existing, err := q.EntryURLsForFeedIn(ctx, db.EntryURLsForFeedInParams{
+			FeedID: feedID,
+			Urls:   candidateURLs,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("check existing URLs: %w", err)
+		}
+		for _, u := range existing {
+			existingURLs[u] = struct{}{}
+		}
 	}
 
 	now := time.Now()
+	seenInBatch := make(map[string]struct{}, len(items))
 	var toInsert []db.Entry
 	for _, item := range items {
 		if item.Link == "" || item.Title == "" {
@@ -386,7 +403,10 @@ func (s *FeedService) ingestEntries(ctx context.Context, q db.Querier, dbtx db.D
 		if _, exists := existingURLs[item.Link]; exists {
 			continue
 		}
-		existingURLs[item.Link] = struct{}{} // prevent dupes within the batch
+		if _, exists := seenInBatch[item.Link]; exists {
+			continue
+		}
+		seenInBatch[item.Link] = struct{}{}
 
 		publishedAt := now
 		if item.PublishedParsed != nil {

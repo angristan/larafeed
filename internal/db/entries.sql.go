@@ -114,12 +114,17 @@ func (q *Queries) EntriesForFeed(ctx context.Context, feedID int64) ([]Entry, er
 	return items, nil
 }
 
-const entryURLsForFeed = `-- name: EntryURLsForFeed :many
-SELECT url FROM entries WHERE feed_id = $1
+const entryURLsForFeedIn = `-- name: EntryURLsForFeedIn :many
+SELECT DISTINCT url FROM entries WHERE feed_id = $1 AND url = ANY($2::text[])
 `
 
-func (q *Queries) EntryURLsForFeed(ctx context.Context, feedID int64) ([]string, error) {
-	rows, err := q.db.Query(ctx, entryURLsForFeed, feedID)
+type EntryURLsForFeedInParams struct {
+	FeedID int64    `json:"feed_id"`
+	Urls   []string `json:"urls"`
+}
+
+func (q *Queries) EntryURLsForFeedIn(ctx context.Context, arg EntryURLsForFeedInParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, entryURLsForFeedIn, arg.FeedID, arg.Urls)
 	if err != nil {
 		return nil, err
 	}
