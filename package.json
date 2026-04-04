@@ -34,7 +34,7 @@
         "reading-time-estimator": "^1.14.0",
         "recharts": "^3.8.0",
         "typescript": "^5.9.3",
-        "vite": "^7.3",
+        "vite": "^8.0",
         "ziggy-js": "^2.0"
     }
 }
