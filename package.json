@@ -10,7 +10,7 @@
     "devDependencies": {
         "@biomejs/biome": "^2.4.10",
         "@gfazioli/mantine-split-pane": "^1.1.5",
-        "@headlessui/react": "^2.2.9",
+        "@headlessui/react": "^2.2.10",
         "@inertiajs/react": "^3.0.1",
         "@mantine/charts": "^8.3.16",
         "@mantine/core": "^8.3.16",
@@ -19,7 +19,7 @@
         "@mantine/notifications": "^8.3.16",
         "@mantine/spotlight": "^8.3.16",
         "@tabler/icons-react": "^3.41.1",
-        "@types/node": "^25.5.0",
+        "@types/node": "^25.5.2",
         "@types/react": "^19.2.14",
         "@types/react-dom": "^19.2.3",
         "@vitejs/plugin-react": "^5.1.4",
@@ -31,7 +31,7 @@
         "postcss-simple-vars": "^7.0.1",
         "react": "^19.2.4",
         "react-dom": "^19.2.4",
-        "recharts": "^3.8.0",
+        "recharts": "^3.8.1",
         "typescript": "^5.9.3",
         "vite": "^7.3",
         "ziggy-js": "^2.0"
