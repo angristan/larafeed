@@ -180,6 +180,9 @@ func (s *ReaderService) FetchCurrentEntry(ctx context.Context, userID int64, ent
 	if entry.Content != nil {
 		proxified := s.imgProxy.ProxifyImagesInHTML(*entry.Content)
 		entry.Content = &proxified
+		entry.ReadingTimeText = ReadingTimeTextFromHTML(proxified)
+	} else {
+		entry.ReadingTimeText = ReadingTimeTextFromHTML("")
 	}
 
 	return entry, nil

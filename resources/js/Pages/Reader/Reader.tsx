@@ -25,7 +25,7 @@ dayjs.extend(utc);
 interface ReaderProps extends PageProps {
     feeds: Feed[];
     entries: PaginatedEntries;
-    currententry?: Entry;
+    currententry?: CurrentEntry;
     unreadEntriesCount: number;
     readEntriesCount: number;
     summary?: string;
@@ -109,7 +109,7 @@ const Main = function Main({
     categories,
 }: {
     entries: PaginatedEntries;
-    currententry?: Entry;
+    currententry?: CurrentEntry;
     summary?: string;
     feeds: Feed[];
     categories: Category[];

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -109,10 +110,11 @@ func TestFetchEntriesPage_UsesCreatedOrderBy(t *testing.T) {
 
 func TestFetchCurrentEntry(t *testing.T) {
 	q := mocks.NewQuerier(t)
+	content := strings.Repeat("word ", 150)
 	q.On("FindReaderEntry", mock.Anything, db.FindReaderEntryParams{UserID: 1, EntryID: 42}).
 		Return(db.FindReaderEntryRow{
 			ID: 42, FeedID: 10, Title: "Test Entry", FeedName: "Go Blog",
-			PublishedAt: time.Now(),
+			Content: &content, PublishedAt: time.Now(),
 		}, nil)
 
 	svc := newTestReaderService(t, q)
@@ -121,6 +123,7 @@ func TestFetchCurrentEntry(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(42), entry.ID)
 	assert.Equal(t, "Test Entry", entry.Title)
+	assert.Equal(t, "1 min read", entry.ReadingTimeText)
 }
 
 func TestFetchCurrentEntry_MarkAsRead(t *testing.T) {

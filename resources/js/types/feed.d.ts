@@ -49,6 +49,10 @@ interface Entry extends Timestamps {
     };
 }
 
+interface CurrentEntry extends Entry {
+    reading_time_text: string;
+}
+
 interface Category extends Timestamps {
     id: number;
     name: string;

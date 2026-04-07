@@ -33,7 +33,6 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { readingTime } from 'reading-time-estimator';
 import { FaviconImage } from '@/Components/FaviconImage/FaviconImage';
 import { FeedMenu } from '@/Components/FeedMenu';
 import classes from './CurrentEntryPane.module.css';
@@ -47,7 +46,7 @@ export default function CurrentEntryPane({
     feeds,
     categories,
 }: {
-    currententry: Entry;
+    currententry: CurrentEntry;
     summary?: string;
     feeds: Feed[];
     categories: Category[];
@@ -364,7 +363,7 @@ export default function CurrentEntryPane({
                         </Title>
                         <Flex justify={'space-between'}>
                             <Text size="sm" c="dimmed">
-                                {readingTime(currententry.content ?? '').text}
+                                {currententry.reading_time_text}
                             </Text>
                             <Flex>
                                 <Text size="sm" c="dimmed">

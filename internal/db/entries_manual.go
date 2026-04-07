@@ -8,21 +8,22 @@ import (
 
 // ReaderEntry is an entry with interaction data and feed info for the reader view.
 type ReaderEntry struct {
-	ID             int64      `json:"id"`
-	FeedID         int64      `json:"-"` // included in nested feed object
-	Title          string     `json:"title"`
-	URL            string     `json:"url"`
-	Author         *string    `json:"author"`
-	Content        *string    `json:"content"`
-	PublishedAt    time.Time  `json:"published_at"`
-	ReadAt         *time.Time `json:"read_at"`
-	StarredAt      *time.Time `json:"starred_at"`
-	ArchivedAt     *time.Time `json:"archived_at"`
-	FilteredAt     *time.Time `json:"filtered_at"`
-	FeedName       string     `json:"-"` // included in nested feed object
-	CustomFeedName *string    `json:"-"` // included in nested feed object
-	FaviconURL     *string    `json:"-"` // included in nested feed object
-	FaviconIsDark  *bool      `json:"-"` // included in nested feed object
+	ID              int64      `json:"id"`
+	FeedID          int64      `json:"-"` // included in nested feed object
+	Title           string     `json:"title"`
+	URL             string     `json:"url"`
+	Author          *string    `json:"author"`
+	Content         *string    `json:"content"`
+	PublishedAt     time.Time  `json:"published_at"`
+	ReadAt          *time.Time `json:"read_at"`
+	StarredAt       *time.Time `json:"starred_at"`
+	ArchivedAt      *time.Time `json:"archived_at"`
+	FilteredAt      *time.Time `json:"filtered_at"`
+	ReadingTimeText string     `json:"reading_time_text,omitempty"`
+	FeedName        string     `json:"-"` // included in nested feed object
+	CustomFeedName  *string    `json:"-"` // included in nested feed object
+	FaviconURL      *string    `json:"-"` // included in nested feed object
+	FaviconIsDark   *bool      `json:"-"` // included in nested feed object
 }
 
 // MarshalJSON nests feed-related fields into a "feed" sub-object to match
@@ -34,17 +35,18 @@ func (e ReaderEntry) MarshalJSON() ([]byte, error) {
 	}
 
 	type entryJSON struct {
-		ID          int64      `json:"id"`
-		Title       string     `json:"title"`
-		URL         string     `json:"url"`
-		Author      *string    `json:"author"`
-		Content     *string    `json:"content"`
-		PublishedAt time.Time  `json:"published_at"`
-		ReadAt      *time.Time `json:"read_at"`
-		StarredAt   *time.Time `json:"starred_at"`
-		ArchivedAt  *time.Time `json:"archived_at"`
-		FilteredAt  *time.Time `json:"filtered_at"`
-		Feed        struct {
+		ID              int64      `json:"id"`
+		Title           string     `json:"title"`
+		URL             string     `json:"url"`
+		Author          *string    `json:"author"`
+		Content         *string    `json:"content"`
+		PublishedAt     time.Time  `json:"published_at"`
+		ReadAt          *time.Time `json:"read_at"`
+		StarredAt       *time.Time `json:"starred_at"`
+		ArchivedAt      *time.Time `json:"archived_at"`
+		FilteredAt      *time.Time `json:"filtered_at"`
+		ReadingTimeText string     `json:"reading_time_text,omitempty"`
+		Feed            struct {
 			ID            int64   `json:"id"`
 			Name          string  `json:"name"`
 			FaviconURL    *string `json:"favicon_url"`
@@ -53,16 +55,17 @@ func (e ReaderEntry) MarshalJSON() ([]byte, error) {
 	}
 
 	out := entryJSON{
-		ID:          e.ID,
-		Title:       e.Title,
-		URL:         e.URL,
-		Author:      e.Author,
-		Content:     e.Content,
-		PublishedAt: e.PublishedAt,
-		ReadAt:      e.ReadAt,
-		StarredAt:   e.StarredAt,
-		ArchivedAt:  e.ArchivedAt,
-		FilteredAt:  e.FilteredAt,
+		ID:              e.ID,
+		Title:           e.Title,
+		URL:             e.URL,
+		Author:          e.Author,
+		Content:         e.Content,
+		PublishedAt:     e.PublishedAt,
+		ReadAt:          e.ReadAt,
+		StarredAt:       e.StarredAt,
+		ArchivedAt:      e.ArchivedAt,
+		FilteredAt:      e.FilteredAt,
+		ReadingTimeText: e.ReadingTimeText,
 	}
 	out.Feed.ID = e.FeedID
 	out.Feed.Name = feedName
@@ -88,7 +91,23 @@ func ReaderEntryFromRow(r *FindReaderEntryRow) *ReaderEntry {
 func ReaderEntriesFromPublishedRows(rows []ListForReaderByPublishedRow) []ReaderEntry {
 	entries := make([]ReaderEntry, len(rows))
 	for i, r := range rows {
-		entries[i] = ReaderEntry(r)
+		entries[i] = ReaderEntry{
+			ID:             r.ID,
+			FeedID:         r.FeedID,
+			Title:          r.Title,
+			URL:            r.URL,
+			Author:         r.Author,
+			Content:        r.Content,
+			PublishedAt:    r.PublishedAt,
+			ReadAt:         r.ReadAt,
+			StarredAt:      r.StarredAt,
+			ArchivedAt:     r.ArchivedAt,
+			FilteredAt:     r.FilteredAt,
+			FeedName:       r.FeedName,
+			CustomFeedName: r.CustomFeedName,
+			FaviconURL:     r.FaviconURL,
+			FaviconIsDark:  r.FaviconIsDark,
+		}
 	}
 	return entries
 }
@@ -97,7 +116,23 @@ func ReaderEntriesFromPublishedRows(rows []ListForReaderByPublishedRow) []Reader
 func ReaderEntriesFromCreatedRows(rows []ListForReaderByCreatedRow) []ReaderEntry {
 	entries := make([]ReaderEntry, len(rows))
 	for i, r := range rows {
-		entries[i] = ReaderEntry(r)
+		entries[i] = ReaderEntry{
+			ID:             r.ID,
+			FeedID:         r.FeedID,
+			Title:          r.Title,
+			URL:            r.URL,
+			Author:         r.Author,
+			Content:        r.Content,
+			PublishedAt:    r.PublishedAt,
+			ReadAt:         r.ReadAt,
+			StarredAt:      r.StarredAt,
+			ArchivedAt:     r.ArchivedAt,
+			FilteredAt:     r.FilteredAt,
+			FeedName:       r.FeedName,
+			CustomFeedName: r.CustomFeedName,
+			FaviconURL:     r.FaviconURL,
+			FaviconIsDark:  r.FaviconIsDark,
+		}
 	}
 	return entries
 }
