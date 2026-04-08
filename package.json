@@ -9,7 +9,7 @@
     },
     "devDependencies": {
         "@biomejs/biome": "^2.4.10",
-        "@gfazioli/mantine-split-pane": "^1.1.5",
+        "@gfazioli/mantine-split-pane": "^4.0.7",
         "@headlessui/react": "^2.2.10",
         "@inertiajs/react": "^3.0.1",
         "@mantine/charts": "^9.0.0",
