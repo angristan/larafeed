@@ -49,6 +49,7 @@ const theme = createTheme({
             h1: { fontSize: rem(32) },
         },
     },
+    defaultRadius: 'sm',
 });
 
 createInertiaApp({
@@ -64,7 +65,7 @@ createInertiaApp({
         root.render(
             <MantineProvider theme={theme}>
                 <ModalsProvider>
-                    <Notifications />
+                    <Notifications pauseResetOnHover="notification" />
                     <App {...props} />
                 </ModalsProvider>
             </MantineProvider>,

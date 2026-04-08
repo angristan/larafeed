@@ -15,7 +15,7 @@ import {
     Text,
     Title,
     Tooltip,
-    TypographyStylesProvider,
+    Typography,
     useMantineTheme,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -357,7 +357,7 @@ export default function CurrentEntryPane({
             <Divider mb={20} />
             <ScrollArea style={{ height: '100%' }} viewportRef={viewport}>
                 <Box pr={20} pl={20}>
-                    <TypographyStylesProvider className={classes.entry}>
+                    <Typography className={classes.entry}>
                         <Title className={classes.entryTitle}>
                             {currententry.title}
                         </Title>
@@ -477,7 +477,7 @@ export default function CurrentEntryPane({
                                 )}
                             </Paper>
                         )}
-                    </TypographyStylesProvider>
+                    </Typography>
                 </Box>
             </ScrollArea>
         </Flex>
