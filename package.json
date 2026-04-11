@@ -11,7 +11,7 @@
         "@biomejs/biome": "^2.4.11",
         "@gfazioli/mantine-split-pane": "^1.1.5",
         "@headlessui/react": "^2.2.10",
-        "@inertiajs/react": "^3.0.1",
+        "@inertiajs/react": "^3.0.3",
         "@mantine/charts": "^9.0.0",
         "@mantine/core": "^9.0.0",
         "@mantine/hooks": "^9.0.0",
