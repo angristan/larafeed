@@ -500,6 +500,57 @@ func TestIngestEntries_DedupsWithinBatch(t *testing.T) {
 	assert.Empty(t, entries)
 }
 
+func TestItemLink(t *testing.T) {
+	tests := []struct {
+		name string
+		item *gofeed.Item
+		want string
+	}{
+		{"uses Link when present", &gofeed.Item{Link: "https://example.com/1"}, "https://example.com/1"},
+		{"falls back to GUID when Link is empty", &gofeed.Item{GUID: "https://example.com#entry-1"}, "https://example.com#entry-1"},
+		{"prefers Link over GUID", &gofeed.Item{Link: "https://example.com/1", GUID: "https://example.com#other"}, "https://example.com/1"},
+		{"ignores non-URL GUID", &gofeed.Item{GUID: "some-opaque-id"}, ""},
+		{"empty item", &gofeed.Item{}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, itemLink(tt.item))
+		})
+	}
+}
+
+func TestIngestEntries_GUIDFallbackSkipsExisting(t *testing.T) {
+	// Item has no Link but has a GUID URL — the GUID should be used for dedup.
+	q := mockQuerier(t, []string{"https://example.com#entry-1"})
+	svc := &FeedService{}
+	past := time.Now().Add(-1 * time.Hour)
+
+	items := []*gofeed.Item{
+		{Title: "No link, has GUID", GUID: "https://example.com#entry-1", PublishedParsed: &past},
+	}
+
+	entries, err := svc.ingestEntries(context.Background(), q, nil, 1, items, 0)
+	require.NoError(t, err)
+	assert.Empty(t, entries) // Already exists via GUID URL, so nothing to insert
+}
+
+func TestIngestEntries_GUIDFallbackIgnoresNonURL(t *testing.T) {
+	// Non-URL GUID should not be used as a fallback — item should be skipped.
+	q := mocks.NewQuerier(t)
+	q.On("EntryURLsForFeedIn", mock.Anything, mock.Anything).
+		Return([]string(nil), nil).Maybe()
+	svc := &FeedService{}
+	past := time.Now().Add(-1 * time.Hour)
+
+	items := []*gofeed.Item{
+		{Title: "No link, opaque GUID", GUID: "some-opaque-id", PublishedParsed: &past},
+	}
+
+	entries, err := svc.ingestEntries(context.Background(), q, nil, 1, items, 0)
+	require.NoError(t, err)
+	assert.Empty(t, entries) // Opaque GUID is not a valid link, item skipped
+}
+
 func TestFetchForRefresh_200_WithConditionalHeaders(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "Larafeed/1.0", r.Header.Get("User-Agent"))

@@ -369,12 +369,13 @@ func (s *FeedService) ingestEntries(ctx context.Context, q db.Querier, dbtx db.D
 	candidateURLs := make([]string, 0, len(items))
 	seen := make(map[string]struct{}, len(items))
 	for _, item := range items {
-		if item.Link == "" {
+		link := itemLink(item)
+		if link == "" {
 			continue
 		}
-		if _, ok := seen[item.Link]; !ok {
-			seen[item.Link] = struct{}{}
-			candidateURLs = append(candidateURLs, item.Link)
+		if _, ok := seen[link]; !ok {
+			seen[link] = struct{}{}
+			candidateURLs = append(candidateURLs, link)
 		}
 	}
 
@@ -396,17 +397,18 @@ func (s *FeedService) ingestEntries(ctx context.Context, q db.Querier, dbtx db.D
 	seenInBatch := make(map[string]struct{}, len(items))
 	var toInsert []db.Entry
 	for _, item := range items {
-		if item.Link == "" || item.Title == "" {
+		link := itemLink(item)
+		if link == "" || item.Title == "" {
 			continue
 		}
 
-		if _, exists := existingURLs[item.Link]; exists {
+		if _, exists := existingURLs[link]; exists {
 			continue
 		}
-		if _, exists := seenInBatch[item.Link]; exists {
+		if _, exists := seenInBatch[link]; exists {
 			continue
 		}
-		seenInBatch[item.Link] = struct{}{}
+		seenInBatch[link] = struct{}{}
 
 		publishedAt := now
 		if item.PublishedParsed != nil {
@@ -436,7 +438,7 @@ func (s *FeedService) ingestEntries(ctx context.Context, q db.Querier, dbtx db.D
 		toInsert = append(toInsert, db.Entry{
 			FeedID:      feedID,
 			Title:       item.Title,
-			URL:         item.Link,
+			URL:         link,
 			Author:      author,
 			Content:     contentPtr,
 			PublishedAt: publishedAt,
@@ -444,6 +446,19 @@ func (s *FeedService) ingestEntries(ctx context.Context, q db.Querier, dbtx db.D
 	}
 
 	return db.BulkCreate(ctx, dbtx, toInsert)
+}
+
+// itemLink returns the effective URL for a feed item, falling back to the
+// GUID when no explicit link is present (some feeds use <guid isPermaLink="true">
+// as the only URL).
+func itemLink(item *gofeed.Item) string {
+	if item.Link != "" {
+		return item.Link
+	}
+	if item.GUID != "" && strings.HasPrefix(item.GUID, "http") {
+		return item.GUID
+	}
+	return ""
 }
 
 // RefreshFeed fetches a feed and ingests new entries inside a transaction.
