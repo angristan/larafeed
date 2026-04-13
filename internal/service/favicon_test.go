@@ -30,14 +30,14 @@ func createTestPNG(t *testing.T, c color.Color) []byte {
 func TestBuildProxifiedFaviconURL(t *testing.T) {
 	t.Run("returns /rss.svg when URL is nil", func(t *testing.T) {
 		imgProxy, err := NewImgProxyService("", "", "")
-	require.NoError(t, err)
+		require.NoError(t, err)
 		svc := NewFaviconService(nil, imgProxy)
 		assert.Equal(t, "/rss.svg", svc.BuildProxifiedFaviconURL(nil))
 	})
 
 	t.Run("returns /rss.svg when URL is empty", func(t *testing.T) {
 		imgProxy, err := NewImgProxyService("", "", "")
-	require.NoError(t, err)
+		require.NoError(t, err)
 		svc := NewFaviconService(nil, imgProxy)
 		empty := ""
 		assert.Equal(t, "/rss.svg", svc.BuildProxifiedFaviconURL(&empty))
@@ -45,7 +45,7 @@ func TestBuildProxifiedFaviconURL(t *testing.T) {
 
 	t.Run("returns original URL when proxy is disabled", func(t *testing.T) {
 		imgProxy, err := NewImgProxyService("", "", "")
-	require.NoError(t, err)
+		require.NoError(t, err)
 		svc := NewFaviconService(nil, imgProxy)
 		url := "https://example.com/favicon.ico"
 		assert.Equal(t, "https://example.com/favicon.ico", svc.BuildProxifiedFaviconURL(&url))
@@ -112,4 +112,69 @@ func TestAnalyzeBrightness_EmptyURL(t *testing.T) {
 
 	result := svc.AnalyzeBrightness(context.Background(), "")
 	assert.Nil(t, result)
+}
+
+func TestDiscoverFaviconsFromHTML_PrefersRealIconLinks(t *testing.T) {
+	body := `<!doctype html>
+<html>
+<head>
+	<link rel="apple-touch-icon" sizes="180x180" href="/wp-content/themes/antoineguilbert/favicon/apple-touch-icon.png?v=2">
+	<link rel="icon" type="image/png" sizes="32x32" href="/wp-content/themes/antoineguilbert/favicon/favicon-32x32.png?v=2">
+	<link rel="icon" type="image/png" sizes="16x16" href="/wp-content/themes/antoineguilbert/favicon/favicon-16x16.png?v=2">
+	<link rel="manifest" href="/wp-content/themes/antoineguilbert/favicon/site.webmanifest?v=2">
+	<link rel="mask-icon" href="/wp-content/themes/antoineguilbert/favicon/safari-pinned-tab.svg?v=2" color="#5bbad5">
+	<link rel="shortcut icon" href="/wp-content/themes/antoineguilbert/favicon/favicon.ico?v=2">
+</head>
+</html>`
+
+	got := discoverFaviconsFromHTML("https://www.antoineguilbert.fr/", body)
+	require.NotEmpty(t, got)
+	assert.Equal(t, "https://www.antoineguilbert.fr/wp-content/themes/antoineguilbert/favicon/favicon-32x32.png?v=2", got[0])
+	assert.Contains(t, got, "https://www.antoineguilbert.fr/wp-content/themes/antoineguilbert/favicon/favicon.ico?v=2")
+	assert.Contains(t, got, "https://www.antoineguilbert.fr/wp-content/themes/antoineguilbert/favicon/apple-touch-icon.png?v=2")
+	assert.NotContains(t, got, "https://www.antoineguilbert.fr/wp-content/themes/antoineguilbert/favicon/site.webmanifest?v=2")
+	assert.NotContains(t, got, "https://www.antoineguilbert.fr/wp-content/themes/antoineguilbert/favicon/safari-pinned-tab.svg?v=2")
+}
+
+func TestDiscoverFaviconsFromHTML_ResolvesAndDeduplicatesLinks(t *testing.T) {
+	body := `<!doctype html>
+<html>
+<head>
+	<link rel="icon" href="//cdn.example.com/favicon.ico">
+	<link rel="icon" href="/favicon.ico">
+	<link rel="icon" href="/favicon.ico">
+	<link rel="icon" href="javascript:alert(1)">
+</head>
+</html>`
+
+	got := discoverFaviconsFromHTML("https://example.com/blog/", body)
+	assert.Equal(t, []string{
+		"https://cdn.example.com/favicon.ico",
+		"https://example.com/favicon.ico",
+	}, got)
+}
+
+func TestProbeFaviconCandidates_FallsBackToGetWhenHeadNotSupported(t *testing.T) {
+	blackPNG := createTestPNG(t, color.Black)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/favicon.png" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Method == http.MethodHead {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		w.Header().Set("Content-Type", "image/png")
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write(blackPNG)
+		if err != nil {
+			t.Errorf("failed to write test response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	got := probeFaviconCandidates(context.Background(), server.Client(), []string{server.URL + "/favicon.png"})
+	assert.Equal(t, server.URL+"/favicon.png", got)
 }

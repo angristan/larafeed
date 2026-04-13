@@ -8,13 +8,18 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/angristan/larafeed-go/internal/db"
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 )
 
 const brightnessThreshold = 80
@@ -35,13 +40,6 @@ func (s *FaviconService) GetFaviconURL(ctx context.Context, siteURL string) stri
 		return ""
 	}
 
-	// Try common favicon locations
-	candidates := []string{
-		fmt.Sprintf("%s://%s/favicon.ico", u.Scheme, u.Host),
-		fmt.Sprintf("%s://%s/favicon.png", u.Scheme, u.Host),
-		fmt.Sprintf("%s://%s/apple-touch-icon.png", u.Scheme, u.Host),
-	}
-
 	client := safeHTTPClient()
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 3 {
@@ -50,28 +48,257 @@ func (s *FaviconService) GetFaviconURL(ctx context.Context, siteURL string) stri
 		return nil
 	}
 
+	candidates := s.fetchFaviconCandidatesFromHTML(ctx, client, siteURL)
+	if faviconURL := probeFaviconCandidates(ctx, client, candidates); faviconURL != "" {
+		return faviconURL
+	}
+
+	return probeFaviconCandidates(ctx, client, []string{
+		fmt.Sprintf("%s://%s/favicon.ico", u.Scheme, u.Host),
+		fmt.Sprintf("%s://%s/favicon.png", u.Scheme, u.Host),
+		fmt.Sprintf("%s://%s/apple-touch-icon.png", u.Scheme, u.Host),
+	})
+}
+
+func (s *FaviconService) fetchFaviconCandidatesFromHTML(ctx context.Context, client *http.Client, siteURL string) []string {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, siteURL, nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("User-Agent", "Larafeed/1.0")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer func() {
+		closeErr := resp.Body.Close()
+		if closeErr != nil {
+			slog.WarnContext(ctx, "failed to close response body", "error", closeErr)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024))
+	if err != nil {
+		return nil
+	}
+
+	pageURL := siteURL
+	if resp.Request != nil && resp.Request.URL != nil {
+		pageURL = resp.Request.URL.String()
+	}
+
+	return discoverFaviconsFromHTML(pageURL, string(body))
+}
+
+func probeFaviconCandidates(ctx context.Context, client *http.Client, candidates []string) string {
 	for _, candidate := range candidates {
-		req, err := http.NewRequestWithContext(ctx, "HEAD", candidate, nil)
+		if candidate == "" {
+			continue
+		}
+		if faviconCandidateReachable(ctx, client, candidate) {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func faviconCandidateReachable(ctx context.Context, client *http.Client, faviconURL string) bool {
+	for _, method := range []string{http.MethodHead, http.MethodGet} {
+		req, err := http.NewRequestWithContext(ctx, method, faviconURL, nil)
 		if err != nil {
 			continue
 		}
+		req.Header.Set("User-Agent", "Larafeed/1.0")
+
 		resp, err := client.Do(req)
 		if err != nil {
 			continue
 		}
+
 		closeErr := resp.Body.Close()
 		if closeErr != nil {
 			slog.WarnContext(ctx, "failed to close response body", "error", closeErr)
 		}
 
-		if resp.StatusCode == 200 {
-			ct := resp.Header.Get("Content-Type")
-			if strings.Contains(ct, "image") || strings.Contains(ct, "icon") || ct == "" {
-				return candidate
-			}
+		if resp.StatusCode != http.StatusOK {
+			continue
+		}
+
+		ct := strings.ToLower(resp.Header.Get("Content-Type"))
+		if strings.Contains(ct, "image") || strings.Contains(ct, "icon") || ct == "" {
+			return true
 		}
 	}
 
+	return false
+}
+
+type rankedFavicon struct {
+	url   string
+	score int
+}
+
+func discoverFaviconsFromHTML(pageURL, body string) []string {
+	if pageURL == "" || body == "" {
+		return nil
+	}
+
+	base, err := url.Parse(pageURL)
+	if err != nil {
+		return nil
+	}
+
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		return nil
+	}
+
+	var candidates []rankedFavicon
+	seen := make(map[string]struct{})
+
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.DataAtom == atom.Link {
+			href := strings.TrimSpace(nodeAttr(n, "href"))
+			score, ok := faviconLinkScore(nodeAttr(n, "rel"), nodeAttr(n, "sizes"), nodeAttr(n, "type"))
+			if ok && href != "" {
+				ref, err := url.Parse(href)
+				if err == nil {
+					resolved := base.ResolveReference(ref).String()
+					if validateScheme(resolved) == nil {
+						if _, exists := seen[resolved]; !exists {
+							candidates = append(candidates, rankedFavicon{url: resolved, score: score})
+							seen[resolved] = struct{}{}
+						}
+					}
+				}
+			}
+		}
+
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+
+	walk(doc)
+
+	sort.SliceStable(candidates, func(i, j int) bool {
+		return candidates[i].score > candidates[j].score
+	})
+
+	urls := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		urls = append(urls, candidate.url)
+	}
+
+	return urls
+}
+
+func faviconLinkScore(rel, sizes, typeAttr string) (int, bool) {
+	tokens := strings.Fields(strings.ToLower(rel))
+	if len(tokens) == 0 {
+		return 0, false
+	}
+
+	hasIcon := false
+	hasShortcut := false
+	hasAppleTouchIcon := false
+
+	for _, token := range tokens {
+		switch token {
+		case "icon":
+			hasIcon = true
+		case "shortcut":
+			hasShortcut = true
+		case "apple-touch-icon", "apple-touch-icon-precomposed":
+			hasAppleTouchIcon = true
+		}
+	}
+
+	if !hasIcon && !hasAppleTouchIcon {
+		return 0, false
+	}
+
+	score := 0
+	if hasIcon {
+		score += 300
+	}
+	if hasShortcut && hasIcon {
+		score += 20
+	}
+	if hasAppleTouchIcon {
+		score += 200
+	}
+
+	typeAttr = strings.ToLower(strings.TrimSpace(typeAttr))
+	switch {
+	case strings.Contains(typeAttr, "png"):
+		score += 30
+	case strings.Contains(typeAttr, "icon"):
+		score += 25
+	case strings.Contains(typeAttr, "svg"):
+		score += 10
+	}
+
+	score += faviconSizesScore(sizes)
+	return score, true
+}
+
+func faviconSizesScore(sizes string) int {
+	sizes = strings.ToLower(strings.TrimSpace(sizes))
+	if sizes == "" {
+		return 0
+	}
+	if sizes == "any" {
+		return 5
+	}
+
+	best := 0
+	for _, size := range strings.Fields(sizes) {
+		parts := strings.Split(size, "x")
+		if len(parts) != 2 {
+			continue
+		}
+
+		width, err := strconv.Atoi(parts[0])
+		if err != nil {
+			continue
+		}
+		height, err := strconv.Atoi(parts[1])
+		if err != nil || width != height || width <= 0 {
+			continue
+		}
+
+		score := 64 - abs(width-32)
+		if score < 0 {
+			score = 0
+		}
+		if score > best {
+			best = score
+		}
+	}
+
+	return best
+}
+
+func abs(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
+func nodeAttr(n *html.Node, key string) string {
+	for _, attr := range n.Attr {
+		if strings.EqualFold(attr.Key, key) {
+			return attr.Val
+		}
+	}
 	return ""
 }
 
