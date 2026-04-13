@@ -26,14 +26,16 @@ type FeedService struct {
 	q          db.Querier
 	pool       *pgxpool.Pool
 	filter     *FilterService
+	favicon    *FaviconService
 	httpClient *http.Client
 }
 
-func NewFeedService(q db.Querier, pool *pgxpool.Pool, filter *FilterService) *FeedService {
+func NewFeedService(q db.Querier, pool *pgxpool.Pool, filter *FilterService, favicon *FaviconService) *FeedService {
 	return &FeedService{
 		q:          q,
 		pool:       pool,
 		filter:     filter,
+		favicon:    favicon,
 		httpClient: safeHTTPClient(),
 	}
 }
@@ -664,6 +666,16 @@ func (s *FeedService) CreateFeed(ctx context.Context, userID int64, feedURL stri
 	err = s.q.UpdateFeedRefreshSuccess(ctx, db.UpdateFeedRefreshSuccessParams{ID: feed.ID})
 	if err != nil {
 		slog.WarnContext(ctx, "failed to update refresh success", "error", err, "feed_id", feed.ID)
+	}
+
+	// Fetch favicon synchronously so it's available before the UI renders.
+	if s.favicon != nil {
+		faviconCtx, faviconCancel := context.WithTimeout(ctx, 5*time.Second)
+		defer faviconCancel()
+		err = s.favicon.RefreshFavicon(faviconCtx, &feed)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to fetch favicon during feed creation", "error", err, "feed_id", feed.ID)
+		}
 	}
 
 	return &feed, nil

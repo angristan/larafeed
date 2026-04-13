@@ -16,7 +16,7 @@ func newOPMLHandler(t *testing.T, pool *db.Pool, q *db.Queries) *OPMLHandler {
 	authSvc := testAuth(t, q)
 	i := testInertia(t, authSvc)
 	filterSvc := service.NewFilterService(q)
-	feedSvc := service.NewFeedService(q, pool, filterSvc)
+	feedSvc := service.NewFeedService(q, pool, filterSvc, nil)
 	opmlSvc := service.NewOPMLService(q, feedSvc)
 	return NewOPMLHandler(i, opmlSvc, authSvc, feedSvc, nil) // nil River client — only Export/ShowImport tested
 }

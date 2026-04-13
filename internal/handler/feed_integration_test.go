@@ -18,7 +18,7 @@ func newFeedHandler(t *testing.T, pool *db.Pool, q *db.Queries) *FeedHandler {
 	authSvc := testAuth(t, q)
 	i := testInertia(t, authSvc)
 	filterSvc := service.NewFilterService(q)
-	feedSvc := service.NewFeedService(q, pool, filterSvc)
+	feedSvc := service.NewFeedService(q, pool, filterSvc, nil)
 	return NewFeedHandler(i, feedSvc, nil)
 }
 

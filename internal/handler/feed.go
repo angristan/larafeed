@@ -77,17 +77,6 @@ func (h *FeedHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Enqueue favicon refresh as a River job
-	_, err = h.riverClient.Insert(context.Background(), RefreshFaviconArgs{FeedID: feed.ID}, &river.InsertOpts{
-		UniqueOpts: river.UniqueOpts{
-			ByArgs:   true,
-			ByPeriod: 1 * time.Hour,
-		},
-	})
-	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to enqueue favicon refresh", "feed_id", feed.ID, "error", err)
-	}
-
 	http.Redirect(w, r, "/feeds?feed="+strconv.FormatInt(feed.ID, 10), http.StatusFound)
 }
 

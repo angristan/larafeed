@@ -114,7 +114,7 @@ func TestStringContainsAny(t *testing.T) {
 
 func TestResolveCategory_ByID(t *testing.T) {
 	q := mocks.NewQuerier(t)
-	svc := NewFeedService(q, nil, nil)
+	svc := NewFeedService(q, nil, nil, nil)
 
 	catID := int64(42)
 	id, err := svc.ResolveCategory(context.Background(), 1, &catID, "")
@@ -128,7 +128,7 @@ func TestResolveCategory_ByName(t *testing.T) {
 		UserID: 1, Name: "Tech",
 	}).Return(db.SubscriptionCategory{ID: 99, Name: "Tech"}, nil)
 
-	svc := NewFeedService(q, nil, nil)
+	svc := NewFeedService(q, nil, nil, nil)
 
 	id, err := svc.ResolveCategory(context.Background(), 1, nil, "Tech")
 	require.NoError(t, err)
@@ -137,7 +137,7 @@ func TestResolveCategory_ByName(t *testing.T) {
 
 func TestResolveCategory_NeitherIDNorName(t *testing.T) {
 	q := mocks.NewQuerier(t)
-	svc := NewFeedService(q, nil, nil)
+	svc := NewFeedService(q, nil, nil, nil)
 
 	_, err := svc.ResolveCategory(context.Background(), 1, nil, "")
 	assert.Error(t, err)
@@ -151,7 +151,7 @@ func TestResolveCategory_CreateFails(t *testing.T) {
 	q.On("FindOrCreateCategory", mock.Anything, mock.Anything).
 		Return(db.SubscriptionCategory{}, fmt.Errorf("db error"))
 
-	svc := NewFeedService(q, nil, nil)
+	svc := NewFeedService(q, nil, nil, nil)
 
 	_, err := svc.ResolveCategory(context.Background(), 1, nil, "Tech")
 	assert.Error(t, err)
@@ -163,7 +163,7 @@ func TestFindFeedByID(t *testing.T) {
 	q.On("FindFeedByID", mock.Anything, int64(5)).
 		Return(db.Feed{ID: 5, Name: "Go Blog"}, nil)
 
-	svc := NewFeedService(q, nil, nil)
+	svc := NewFeedService(q, nil, nil, nil)
 
 	feed, err := svc.FindFeedByID(context.Background(), 5)
 	require.NoError(t, err)
@@ -176,7 +176,7 @@ func TestFindFeedByID_NotFound(t *testing.T) {
 	q.On("FindFeedByID", mock.Anything, int64(99)).
 		Return(db.Feed{}, fmt.Errorf("no rows"))
 
-	svc := NewFeedService(q, nil, nil)
+	svc := NewFeedService(q, nil, nil, nil)
 
 	_, err := svc.FindFeedByID(context.Background(), 99)
 	assert.Error(t, err)
@@ -190,7 +190,7 @@ func TestMarkAllAsRead(t *testing.T) {
 	q.On("MarkAllAsReadExisting", mock.Anything, db.MarkAllAsReadExistingParams{UserID: 1, FeedID: 5}).Return(nil)
 	q.On("MarkAllAsReadNew", mock.Anything, db.MarkAllAsReadNewParams{UserID: 1, FeedID: 5}).Return(nil)
 
-	svc := NewFeedService(q, nil, nil)
+	svc := NewFeedService(q, nil, nil, nil)
 
 	err := svc.MarkAllAsRead(context.Background(), 1, 5)
 	require.NoError(t, err)
@@ -201,7 +201,7 @@ func TestIsUserSubscribed(t *testing.T) {
 	q.On("GetSubscription", mock.Anything, db.GetSubscriptionParams{UserID: 1, FeedID: 5}).
 		Return(db.FeedSubscription{UserID: 1, FeedID: 5}, nil)
 
-	svc := NewFeedService(q, nil, nil)
+	svc := NewFeedService(q, nil, nil, nil)
 
 	subscribed, err := svc.IsUserSubscribed(context.Background(), 1, 5)
 	require.NoError(t, err)
@@ -213,7 +213,7 @@ func TestIsUserSubscribed_NotSubscribed(t *testing.T) {
 	q.On("GetSubscription", mock.Anything, db.GetSubscriptionParams{UserID: 1, FeedID: 99}).
 		Return(db.FeedSubscription{}, pgx.ErrNoRows)
 
-	svc := NewFeedService(q, nil, nil)
+	svc := NewFeedService(q, nil, nil, nil)
 
 	subscribed, err := svc.IsUserSubscribed(context.Background(), 1, 99)
 	require.NoError(t, err)
@@ -222,7 +222,7 @@ func TestIsUserSubscribed_NotSubscribed(t *testing.T) {
 
 func TestCreateFeed_EmptyURL(t *testing.T) {
 	q := mocks.NewQuerier(t)
-	svc := NewFeedService(q, nil, nil)
+	svc := NewFeedService(q, nil, nil, nil)
 
 	_, err := svc.CreateFeed(context.Background(), 1, "", 1, "fallback")
 	assert.Error(t, err)
@@ -233,7 +233,7 @@ func TestCreateFeed_EmptyURL(t *testing.T) {
 
 func TestCreateFeed_InvalidScheme(t *testing.T) {
 	q := mocks.NewQuerier(t)
-	svc := NewFeedService(q, nil, nil)
+	svc := NewFeedService(q, nil, nil, nil)
 
 	_, err := svc.CreateFeed(context.Background(), 1, "ftp://example.com/feed", 1, "")
 	assert.Error(t, err)
@@ -244,7 +244,7 @@ func TestCreateFeed_InvalidScheme(t *testing.T) {
 
 func TestUpdateSubscription_InvalidFilterJSON(t *testing.T) {
 	q := mocks.NewQuerier(t)
-	svc := NewFeedService(q, nil, NewFilterService(q))
+	svc := NewFeedService(q, nil, NewFilterService(q), nil)
 
 	err := svc.UpdateSubscription(context.Background(), 1, 5, 2, nil, json.RawMessage(`{bad json`))
 	assert.Error(t, err)
@@ -256,7 +256,7 @@ func TestUpdateSubscription_InvalidFilterJSON(t *testing.T) {
 
 func TestUpdateSubscription_UnsafePattern(t *testing.T) {
 	q := mocks.NewQuerier(t)
-	svc := NewFeedService(q, nil, NewFilterService(q))
+	svc := NewFeedService(q, nil, NewFilterService(q), nil)
 
 	rules := FilterRules{ExcludeTitle: []string{"(a+)+"}}
 	rulesJSON, err := json.Marshal(rules)
@@ -280,7 +280,7 @@ func TestUpdateSubscription(t *testing.T) {
 		CustomFeedName: &customName, FilterRules: nil,
 	}).Return(nil)
 
-	svc := NewFeedService(q, nil, filterSvc)
+	svc := NewFeedService(q, nil, filterSvc, nil)
 
 	err := svc.UpdateSubscription(context.Background(), 1, 5, 2, &customName, nil)
 	require.NoError(t, err)
@@ -299,7 +299,7 @@ func TestUpdateSubscription_WithFilters(t *testing.T) {
 		Return(db.FeedSubscription{UserID: 1, FeedID: 5, FilterRules: rulesJSON}, nil)
 	q.On("EntriesForFeed", mock.Anything, int64(5)).Return([]db.Entry{}, nil)
 
-	svc := NewFeedService(q, nil, filterSvc)
+	svc := NewFeedService(q, nil, filterSvc, nil)
 
 	err = svc.UpdateSubscription(context.Background(), 1, 5, 2, nil, rulesJSON)
 	require.NoError(t, err)

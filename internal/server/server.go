@@ -105,12 +105,12 @@ func New(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) (*chi.Mux,
 
 	// Create remaining services
 	filterSvc := service.NewFilterService(q)
-	feedSvc := service.NewFeedService(q, pool, filterSvc)
 	imgProxySvc, err := service.NewImgProxyService(cfg.ImgProxyURL, cfg.ImgProxyKey, cfg.ImgProxySalt)
 	if err != nil {
 		return nil, nil, fmt.Errorf("create imgproxy service: %w", err)
 	}
 	faviconSvc := service.NewFaviconService(q, imgProxySvc)
+	feedSvc := service.NewFeedService(q, pool, filterSvc, faviconSvc)
 	llmSvc := service.NewLLMService(cfg.GeminiAPIKey, q)
 	telegramSvc := service.NewTelegramService(cfg.TelegramToken, cfg.TelegramChatID)
 	opmlSvc := service.NewOPMLService(q, feedSvc)
