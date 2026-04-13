@@ -154,6 +154,18 @@ func TestDiscoverFaviconsFromHTML_ResolvesAndDeduplicatesLinks(t *testing.T) {
 	}, got)
 }
 
+func TestProbeFaviconCandidates_SkipsEmptyFavicon(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/x-icon")
+		w.Header().Set("Content-Length", "0")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	got := probeFaviconCandidates(context.Background(), server.Client(), []string{server.URL + "/favicon.ico"})
+	assert.Empty(t, got)
+}
+
 func TestProbeFaviconCandidates_FallsBackToGetWhenHeadNotSupported(t *testing.T) {
 	blackPNG := createTestPNG(t, color.Black)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

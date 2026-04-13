@@ -129,6 +129,15 @@ func faviconCandidateReachable(ctx context.Context, client *http.Client, favicon
 			continue
 		}
 
+		// Reject empty responses (e.g. 0-byte favicon.ico files).
+		cl := resp.Header.Get("Content-Length")
+		if cl != "" {
+			length, parseErr := strconv.ParseInt(cl, 10, 64)
+			if parseErr == nil && length == 0 {
+				continue
+			}
+		}
+
 		ct := strings.ToLower(resp.Header.Get("Content-Type"))
 		if strings.Contains(ct, "image") || strings.Contains(ct, "icon") || ct == "" {
 			return true
