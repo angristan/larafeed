@@ -78,6 +78,7 @@ func TestAnalyzeBrightness_DarkImage(t *testing.T) {
 	imgProxy, err := NewImgProxyService("", "", "")
 	require.NoError(t, err)
 	svc := NewFaviconService(nil, imgProxy)
+	svc.httpClient = server.Client()
 
 	result := svc.AnalyzeBrightness(context.Background(), server.URL+"/favicon.png")
 	require.NotNil(t, result)
@@ -99,6 +100,7 @@ func TestAnalyzeBrightness_LightImage(t *testing.T) {
 	imgProxy, err := NewImgProxyService("", "", "")
 	require.NoError(t, err)
 	svc := NewFaviconService(nil, imgProxy)
+	svc.httpClient = server.Client()
 
 	result := svc.AnalyzeBrightness(context.Background(), server.URL+"/favicon.png")
 	require.NotNil(t, result)

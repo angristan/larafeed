@@ -25,12 +25,20 @@ import (
 const brightnessThreshold = 80
 
 type FaviconService struct {
-	q        db.Querier
-	imgProxy *ImgProxyService
+	q          db.Querier
+	imgProxy   *ImgProxyService
+	httpClient *http.Client
 }
 
 func NewFaviconService(q db.Querier, imgProxy *ImgProxyService) *FaviconService {
-	return &FaviconService{q: q, imgProxy: imgProxy}
+	client := safeHTTPClient()
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 3 {
+			return fmt.Errorf("too many redirects")
+		}
+		return nil
+	}
+	return &FaviconService{q: q, imgProxy: imgProxy, httpClient: client}
 }
 
 // GetFaviconURL attempts to find the favicon URL for a site.
@@ -40,20 +48,12 @@ func (s *FaviconService) GetFaviconURL(ctx context.Context, siteURL string) stri
 		return ""
 	}
 
-	client := safeHTTPClient()
-	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		if len(via) >= 3 {
-			return fmt.Errorf("too many redirects")
-		}
-		return nil
-	}
-
-	candidates := s.fetchFaviconCandidatesFromHTML(ctx, client, siteURL)
-	if faviconURL := probeFaviconCandidates(ctx, client, candidates); faviconURL != "" {
+	candidates := s.fetchFaviconCandidatesFromHTML(ctx, s.httpClient, siteURL)
+	if faviconURL := probeFaviconCandidates(ctx, s.httpClient, candidates); faviconURL != "" {
 		return faviconURL
 	}
 
-	return probeFaviconCandidates(ctx, client, []string{
+	return probeFaviconCandidates(ctx, s.httpClient, []string{
 		fmt.Sprintf("%s://%s/favicon.ico", u.Scheme, u.Host),
 		fmt.Sprintf("%s://%s/favicon.png", u.Scheme, u.Host),
 		fmt.Sprintf("%s://%s/apple-touch-icon.png", u.Scheme, u.Host),
@@ -328,7 +328,7 @@ func (s *FaviconService) AnalyzeBrightness(ctx context.Context, faviconURL strin
 	if err != nil {
 		return nil
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return nil
 	}
