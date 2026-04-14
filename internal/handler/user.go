@@ -45,7 +45,7 @@ func (h *UserHandler) ShowSettings(w http.ResponseWriter, r *http.Request) {
 
 	err := h.inertia.Render(w, r, "Settings/Index", props)
 	if err != nil {
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 	}
 }
 
@@ -69,7 +69,7 @@ func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	err = h.userSvc.UpdateProfile(r.Context(), user.ID, user.Email, req.Name, req.Email)
 	if err != nil {
 		if !handleServiceError(w, r, h.inertia, err) {
-			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		}
 		return
 	}
@@ -97,7 +97,7 @@ func (h *UserHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	err = h.userSvc.DeleteAccount(r.Context(), user.ID)
 	if err != nil {
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -109,7 +109,7 @@ func (h *UserHandler) WipeAccount(w http.ResponseWriter, r *http.Request) {
 
 	err := h.userSvc.WipeAccount(r.Context(), user.ID)
 	if err != nil {
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 

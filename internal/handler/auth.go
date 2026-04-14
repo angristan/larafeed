@@ -100,7 +100,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		err = h.auth.Set2FAChallenge(w, r, user.ID, req.Remember)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "failed to set 2FA challenge", "error", err)
-			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 			return
 		}
 		http.Redirect(w, r, "/two-factor-challenge", http.StatusFound)
@@ -110,7 +110,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	err = h.auth.Login(w, r, user.ID)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to login user", "user_id", user.ID, "error", err)
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 	http.Redirect(w, r, "/feeds", http.StatusFound)
@@ -152,7 +152,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	hashedPassword, err := auth.HashPassword(req.Password)
 	if err != nil {
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -166,7 +166,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:   &now,
 	})
 	if err != nil {
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -175,7 +175,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	err = h.auth.Login(w, r, user.ID)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to login user after registration", "user_id", user.ID, "error", err)
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 	http.Redirect(w, r, "/feeds", http.StatusFound)
@@ -228,7 +228,7 @@ func (h *AuthHandler) TwoFactorChallenge(w http.ResponseWriter, r *http.Request)
 		err = json.Unmarshal([]byte(*user.TwoFactorRecoveryCodes), &codes)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "failed to unmarshal recovery codes", "user_id", user.ID, "error", err)
-			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 			return
 		}
 		found := false
@@ -248,7 +248,7 @@ func (h *AuthHandler) TwoFactorChallenge(w http.ResponseWriter, r *http.Request)
 		codesJSON, err := json.Marshal(remaining)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "failed to marshal recovery codes", "user_id", user.ID, "error", err)
-			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 			return
 		}
 		codesStr := string(codesJSON)
@@ -260,7 +260,7 @@ func (h *AuthHandler) TwoFactorChallenge(w http.ResponseWriter, r *http.Request)
 		})
 		if err != nil {
 			slog.ErrorContext(r.Context(), "failed to update 2FA after recovery code use", "user_id", user.ID, "error", err)
-			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 			return
 		}
 	} else {
@@ -271,7 +271,7 @@ func (h *AuthHandler) TwoFactorChallenge(w http.ResponseWriter, r *http.Request)
 	err = h.auth.Login(w, r, user.ID)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to login user after 2FA", "user_id", user.ID, "error", err)
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 	http.Redirect(w, r, "/feeds", http.StatusFound)
@@ -350,7 +350,7 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	hashedPassword, err := auth.HashPassword(req.Password)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to hash password", "error", err)
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 	feverKey := auth.FeverAPIKey(req.Email, req.Password)
@@ -361,7 +361,7 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to update password", "user_id", user.ID, "error", err)
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 	err = h.q.DeletePasswordReset(r.Context(), req.Email)
@@ -405,7 +405,7 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 	err := h.q.VerifyUserEmail(r.Context(), user.ID)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to verify user email", "user_id", user.ID, "error", err)
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 	http.Redirect(w, r, "/feeds?verified=1", http.StatusFound)
@@ -435,7 +435,7 @@ func (h *AuthHandler) ConfirmPassword(w http.ResponseWriter, r *http.Request) {
 	err = session.Save(r, w)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to save session", "error", err)
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -464,13 +464,13 @@ func (h *AuthHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 	hashedPassword, err := auth.HashPassword(req.Password)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to hash password", "error", err)
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 	err = h.q.UpdateUserPassword(r.Context(), db.UpdateUserPasswordParams{ID: user.ID, Password: hashedPassword})
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to update password", "user_id", user.ID, "error", err)
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 

@@ -77,7 +77,7 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 	if needsProp("feeds") {
 		feeds, err := h.readerSvc.ListFeeds(r.Context(), user.ID)
 		if err != nil {
-			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 			return
 		}
 		if feeds == nil {
@@ -91,7 +91,7 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 	if needsProp("entries") {
 		entries, err := h.readerSvc.FetchEntriesPage(r.Context(), user.ID, params)
 		if err != nil {
-			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 			return
 		}
 		props["entries"] = entries
@@ -125,12 +125,12 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 	if needsProp("unreadEntriesCount") || needsProp("readEntriesCount") {
 		unread, err := h.readerSvc.CountUnread(r.Context(), user.ID)
 		if err != nil {
-			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 			return
 		}
 		read, err := h.readerSvc.CountRead(r.Context(), user.ID)
 		if err != nil {
-			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 			return
 		}
 		props["unreadEntriesCount"] = unread
@@ -159,7 +159,7 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 	if needsProp("categories") {
 		cats, err := h.readerSvc.ListCategories(r.Context(), user.ID)
 		if err != nil {
-			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 			return
 		}
 		if cats == nil {
@@ -171,6 +171,6 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 
 	err := h.inertia.Render(w, r, "Reader/Reader", props)
 	if err != nil {
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 	}
 }

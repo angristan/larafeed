@@ -45,13 +45,19 @@ func render(w http.ResponseWriter, r *http.Request, i *gonertia.Inertia, compone
 }
 
 // RenderError renders the Inertia Error page (exported for use in server/middleware).
-func RenderError(w http.ResponseWriter, r *http.Request, i *gonertia.Inertia, status int) {
-	renderError(w, r, i, status)
+func RenderError(w http.ResponseWriter, r *http.Request, i *gonertia.Inertia, status int, cause ...error) {
+	renderError(w, r, i, status, cause...)
 }
 
 // renderError renders the Inertia Error page with the given HTTP status code.
 // For initial page loads it also sets the correct HTTP status on the response.
-func renderError(w http.ResponseWriter, r *http.Request, i *gonertia.Inertia, status int) {
+func renderError(w http.ResponseWriter, r *http.Request, i *gonertia.Inertia, status int, cause ...error) {
+	attrs := []any{"status", status}
+	if len(cause) > 0 && cause[0] != nil {
+		attrs = append(attrs, "error", cause[0])
+	}
+	slog.ErrorContext(r.Context(), "error page rendered", attrs...)
+
 	// Set HTTP status for non-Inertia (initial page load) requests.
 	// For Inertia XHR requests, gonertia sets 200 internally, but the
 	// Error component receives the status as a prop so the UI is correct.
@@ -75,7 +81,7 @@ func handleServiceError(w http.ResponseWriter, r *http.Request, i *gonertia.Iner
 
 	var notFound *apperr.NotFoundError
 	if errors.As(err, &notFound) {
-		renderError(w, r, i, http.StatusNotFound)
+		renderError(w, r, i, http.StatusNotFound, err)
 		return true
 	}
 
@@ -87,7 +93,7 @@ func handleServiceError(w http.ResponseWriter, r *http.Request, i *gonertia.Iner
 
 	var conflict *apperr.ConflictError
 	if errors.As(err, &conflict) {
-		renderError(w, r, i, http.StatusConflict)
+		renderError(w, r, i, http.StatusConflict, err)
 		return true
 	}
 

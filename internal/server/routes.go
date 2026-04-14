@@ -101,7 +101,7 @@ func RegisterRoutes(
 		})
 		if err != nil {
 			slog.ErrorContext(r.Context(), "render error", "component", "Welcome", "error", err)
-			handler.RenderError(w, r, i, http.StatusInternalServerError)
+			handler.RenderError(w, r, i, http.StatusInternalServerError, err)
 		}
 	})
 

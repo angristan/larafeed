@@ -75,7 +75,7 @@ func (h *ChartsHandler) Show(w http.ResponseWriter, r *http.Request) {
 		FeedIDFilter: feedIDFilter,
 	})
 	if err != nil {
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 

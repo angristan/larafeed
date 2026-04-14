@@ -90,7 +90,7 @@ func (h *FeedHandler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
 
 	err = h.feedService.Unsubscribe(r.Context(), user.ID, feedID)
 	if err != nil {
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -227,14 +227,14 @@ func (h *FeedHandler) Update(w http.ResponseWriter, r *http.Request) {
 		filterRulesJSON, marshalErr = json.Marshal(req.FilterRules)
 		if marshalErr != nil {
 			slog.ErrorContext(r.Context(), "failed to marshal filter rules", "error", marshalErr)
-			renderError(w, r, h.inertia, http.StatusInternalServerError)
+			renderError(w, r, h.inertia, http.StatusInternalServerError, marshalErr)
 			return
 		}
 	}
 
 	err = h.feedService.UpdateSubscription(r.Context(), user.ID, feedID, req.CategoryID, customName, filterRulesJSON)
 	if err != nil {
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 

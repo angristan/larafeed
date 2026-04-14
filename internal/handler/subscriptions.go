@@ -21,12 +21,12 @@ func (h *SubscriptionsHandler) Show(w http.ResponseWriter, r *http.Request) {
 
 	feeds, err := h.subsSvc.ListSubscriptions(r.Context(), user.ID)
 	if err != nil {
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 	cats, err := h.subsSvc.ListCategories(r.Context(), user.ID)
 	if err != nil {
-		renderError(w, r, h.inertia, http.StatusInternalServerError)
+		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
 	}
 
