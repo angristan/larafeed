@@ -61,7 +61,7 @@ func (s *LLMService) SummarizeEntry(ctx context.Context, entry *db.Entry) (strin
 		}
 	}()
 
-	model := client.GenerativeModel("gemini-2.0-flash")
+	model := client.GenerativeModel("gemini-2.5-flash")
 	model.SetMaxOutputTokens(512)
 
 	prompt := fmt.Sprintf(`Summarize the following article in 3-4 sentences. Break your summary into short paragraphs using HTML <p> tags. If the article appears to be an aggregator post or excerpt, mention that. Use passive voice. Return HTML only, no markdown.
