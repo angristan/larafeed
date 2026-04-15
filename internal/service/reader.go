@@ -179,8 +179,9 @@ func (s *ReaderService) FetchCurrentEntry(ctx context.Context, userID int64, ent
 	// Proxify images in content
 	if entry.Content != nil {
 		proxified := s.imgProxy.ProxifyImagesInHTML(*entry.Content)
-		entry.Content = &proxified
-		entry.ReadingTimeText = ReadingTimeTextFromHTML(proxified)
+		sanitized := sanitizeEntryContent(proxified)
+		entry.Content = &sanitized
+		entry.ReadingTimeText = ReadingTimeTextFromHTML(sanitized)
 	} else {
 		entry.ReadingTimeText = ReadingTimeTextFromHTML("")
 	}

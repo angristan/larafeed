@@ -197,28 +197,23 @@ export default function CurrentEntryPane({
     // Update entry content anchor targets to open in a new tab
     // biome-ignore lint/correctness/useExhaustiveDependencies: intentional trigger on entry change
     useEffect(() => {
-        const updateAnchorsTarget = () => {
-            try {
-                const element = typographyProviderRef.current;
-                if (!element) return;
+        const element = typographyProviderRef.current;
+        if (!element) {
+            return;
+        }
 
-                const parser = new DOMParser();
-                const htmlText = element.innerHTML;
-                const content = parser.parseFromString(htmlText, 'text/html');
-                const anchors = content.getElementsByTagName('a');
+        const anchors = element.querySelectorAll<HTMLAnchorElement>('a[href]');
+        for (const anchor of anchors) {
+            anchor.setAttribute('target', '_blank');
 
-                Array.from(anchors).forEach((a) => {
-                    a.setAttribute('target', '_blank');
-                });
-
-                element.innerHTML = content.body.innerHTML;
-            } catch (error) {
-                console.error('Error updating anchor targets:', error);
-            }
-        };
-
-        updateAnchorsTarget();
-    }, [currententry]);
+            const relTokens = new Set(
+                (anchor.getAttribute('rel') ?? '').split(/\s+/).filter(Boolean),
+            );
+            relTokens.add('noopener');
+            relTokens.add('noreferrer');
+            anchor.setAttribute('rel', Array.from(relTokens).join(' '));
+        }
+    }, [currententry.id]);
 
     return (
         <Flex direction="column" w="100%">

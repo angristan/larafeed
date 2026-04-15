@@ -126,6 +126,27 @@ func TestFetchCurrentEntry(t *testing.T) {
 	assert.Equal(t, "1 min read", entry.ReadingTimeText)
 }
 
+func TestFetchCurrentEntry_SanitizesHTML(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	content := `<p>Hello <img src="https://example.com/image.png" onerror="alert(1)"></p><script>alert(2)</script><a href="javascript:alert(3)">bad</a><a href="https://example.com/article">good</a>`
+	q.On("FindReaderEntry", mock.Anything, db.FindReaderEntryParams{UserID: 1, EntryID: 42}).
+		Return(db.FindReaderEntryRow{
+			ID: 42, FeedID: 10, Title: "Test Entry", FeedName: "Go Blog",
+			Content: &content, PublishedAt: time.Now(),
+		}, nil)
+
+	svc := newTestReaderService(t, q)
+	entry, err := svc.FetchCurrentEntry(context.Background(), 1, 42, nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, entry.Content)
+	assert.NotContains(t, *entry.Content, "<script")
+	assert.NotContains(t, *entry.Content, "onerror")
+	assert.NotContains(t, *entry.Content, "javascript:")
+	assert.Contains(t, *entry.Content, `src="https://example.com/image.png"`)
+	assert.Contains(t, *entry.Content, `href="https://example.com/article"`)
+}
+
 func TestFetchCurrentEntry_MarkAsRead(t *testing.T) {
 	q := mocks.NewQuerier(t)
 	q.On("FindReaderEntry", mock.Anything, mock.Anything).
