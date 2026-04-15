@@ -11,8 +11,8 @@ import {
     IconRefresh,
     IconTrash,
 } from '@tabler/icons-react';
-import axios, { type AxiosError } from 'axios';
 import { useState } from 'react';
+import { HttpError, postJson } from '@/lib/http';
 import { DeleteFeedModal } from '@/Pages/Reader/Components/DeleteFeedModal';
 import { UpdateFeedModal } from '@/Pages/Reader/Components/UpdateFeedModal';
 
@@ -86,10 +86,9 @@ export function FeedMenu({
     };
 
     const requestRefresh = () => {
-        axios
-            .post<RefreshResponse>(route('feed.refresh', feed.id))
+        postJson<RefreshResponse>(route('feed.refresh', feed.id))
             .then((response) => {
-                const { data } = response;
+                const data = response ?? {};
                 if (data.error) {
                     notifications.show({
                         title: 'Failed to refresh feed',
@@ -101,38 +100,48 @@ export function FeedMenu({
                 }
 
                 notifications.show({
-                    title: data.message,
+                    title: data.message ?? 'Refresh requested',
                     message: 'Check back in a few minutes',
                     color: 'blue',
                     withBorder: true,
                 });
             })
-            .catch((error: AxiosError<RefreshResponse>) => {
-                if (error.response) {
-                    if (error.response.status === 429) {
+            .catch((error: unknown) => {
+                if (error instanceof HttpError) {
+                    const data = error.data as RefreshResponse | undefined;
+
+                    if (error.status === 429) {
                         notifications.show({
                             title: 'What an avid reader you are!',
-                            message: error.response.data.message,
+                            message: data?.message,
                             color: 'yellow',
                             withBorder: true,
                         });
                         return;
                     }
+
                     notifications.show({
                         title: 'Failed to refresh feed',
-                        message: error.response.data.error,
+                        message: data?.error ?? 'Unable to refresh this feed.',
                         color: 'red',
                         withBorder: true,
                     });
+                    return;
                 }
+
+                notifications.show({
+                    title: 'Failed to refresh feed',
+                    message: 'Unable to refresh this feed.',
+                    color: 'red',
+                    withBorder: true,
+                });
             });
     };
 
     const requestFaviconRefresh = () => {
-        axios
-            .post<RefreshResponse>(route('feed.refresh-favicon', feed.id))
+        postJson<RefreshResponse>(route('feed.refresh-favicon', feed.id))
             .then((response) => {
-                const { data } = response;
+                const data = response ?? {};
                 if (data.error) {
                     notifications.show({
                         title: 'Failed to refresh favicon',
@@ -150,15 +159,26 @@ export function FeedMenu({
                     withBorder: true,
                 });
             })
-            .catch((error: AxiosError<RefreshResponse>) => {
-                if (error.response) {
+            .catch((error: unknown) => {
+                if (error instanceof HttpError) {
+                    const data = error.data as RefreshResponse | undefined;
+
                     notifications.show({
                         title: 'Failed to refresh favicon',
-                        message: error.response.data.error,
+                        message:
+                            data?.error ?? 'Unable to refresh the favicon.',
                         color: 'red',
                         withBorder: true,
                     });
+                    return;
                 }
+
+                notifications.show({
+                    title: 'Failed to refresh favicon',
+                    message: 'Unable to refresh the favicon.',
+                    color: 'red',
+                    withBorder: true,
+                });
             });
     };
 

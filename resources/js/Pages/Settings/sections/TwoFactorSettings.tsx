@@ -25,6 +25,7 @@ import {
     IconShieldOff,
 } from '@tabler/icons-react';
 import { useCallback, useState } from 'react';
+import { getJson, HttpError, postJson } from '@/lib/http';
 
 interface TwoFactorSettingsProps {
     twoFactorEnabled: boolean;
@@ -32,6 +33,22 @@ interface TwoFactorSettingsProps {
 }
 
 type SetupStep = 'qrcode' | 'confirm' | 'recovery';
+
+interface PasswordConfirmErrorResponse {
+    errors?: {
+        password?: string[];
+    };
+}
+
+function getPasswordConfirmErrorMessage(error: unknown): string | null {
+    if (!(error instanceof HttpError) || error.status !== 422) {
+        return null;
+    }
+
+    const data = error.data as PasswordConfirmErrorResponse | undefined;
+
+    return data?.errors?.password?.[0] ?? 'Invalid password';
+}
 
 const TwoFactorSettings = ({
     twoFactorEnabled,
@@ -82,13 +99,12 @@ const TwoFactorSettings = ({
 
     const fetchQrCode = useCallback(async () => {
         try {
-            const response = await fetch(route('two-factor.qr-code'), {
-                headers: {
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-            });
-            const data = await response.json();
+            const data = await getJson<{ svg: string }>(
+                route('two-factor.qr-code'),
+            );
+            if (!data) {
+                throw new Error('Missing QR code response');
+            }
             setQrCodeSvg(data.svg);
         } catch {
             notifications.show({
@@ -101,13 +117,12 @@ const TwoFactorSettings = ({
 
     const fetchSetupKey = useCallback(async () => {
         try {
-            const response = await fetch(route('two-factor.secret-key'), {
-                headers: {
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-            });
-            const data = await response.json();
+            const data = await getJson<{ secretKey: string }>(
+                route('two-factor.secret-key'),
+            );
+            if (!data) {
+                throw new Error('Missing setup key response');
+            }
             setSetupKey(data.secretKey);
         } catch {
             // Secret key endpoint might not exist, that's ok
@@ -116,13 +131,12 @@ const TwoFactorSettings = ({
 
     const fetchRecoveryCodes = useCallback(async () => {
         try {
-            const response = await fetch(route('two-factor.recovery-codes'), {
-                headers: {
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-            });
-            const data = await response.json();
+            const data = await getJson<string[]>(
+                route('two-factor.recovery-codes'),
+            );
+            if (!data) {
+                throw new Error('Missing recovery codes response');
+            }
             setRecoveryCodes(data);
         } catch {
             notifications.show({
@@ -204,29 +218,22 @@ const TwoFactorSettings = ({
         setDisablePasswordError(null);
 
         try {
-            await window.axios.post(route('password.confirm'), {
+            await postJson(route('password.confirm'), {
                 password: disablePassword,
             });
             setShowDisablePasswordPrompt(false);
         } catch (err) {
-            const error = err as {
-                response?: {
-                    status?: number;
-                    data?: { errors?: { password?: string[] } };
-                };
-            };
-            if (error.response?.status === 422) {
-                setDisablePasswordError(
-                    error.response.data?.errors?.password?.[0] ||
-                        'Invalid password',
-                );
-            } else {
-                notifications.show({
-                    title: 'Error',
-                    message: 'Failed to verify password',
-                    color: 'red',
-                });
+            const errorMessage = getPasswordConfirmErrorMessage(err);
+            if (errorMessage) {
+                setDisablePasswordError(errorMessage);
+                return;
             }
+
+            notifications.show({
+                title: 'Error',
+                message: 'Failed to verify password',
+                color: 'red',
+            });
         } finally {
             setDisablePasswordLoading(false);
         }
@@ -268,31 +275,24 @@ const TwoFactorSettings = ({
         setRecoveryPasswordError(null);
 
         try {
-            await window.axios.post(route('password.confirm'), {
+            await postJson(route('password.confirm'), {
                 password: recoveryPassword,
             });
 
             await fetchRecoveryCodes();
             setShowRecoveryPasswordPrompt(false);
         } catch (err) {
-            const error = err as {
-                response?: {
-                    status?: number;
-                    data?: { errors?: { password?: string[] } };
-                };
-            };
-            if (error.response?.status === 422) {
-                setRecoveryPasswordError(
-                    error.response.data?.errors?.password?.[0] ||
-                        'Invalid password',
-                );
-            } else {
-                notifications.show({
-                    title: 'Error',
-                    message: 'Failed to verify password',
-                    color: 'red',
-                });
+            const errorMessage = getPasswordConfirmErrorMessage(err);
+            if (errorMessage) {
+                setRecoveryPasswordError(errorMessage);
+                return;
             }
+
+            notifications.show({
+                title: 'Error',
+                message: 'Failed to verify password',
+                color: 'red',
+            });
         } finally {
             setRecoveryPasswordLoading(false);
         }
