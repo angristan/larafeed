@@ -51,9 +51,9 @@ type FetchResult struct {
 
 // Sentinel errors for HTTP status codes during feed refresh.
 var (
-	ErrNotModified    = errors.New("feed not modified (304)")
-	ErrFeedGone       = errors.New("feed permanently removed (410)")
-	ErrTooManyReqs    = errors.New("rate limited by server (429)")
+	ErrNotModified = errors.New("feed not modified (304)")
+	ErrFeedGone    = errors.New("feed permanently removed (410)")
+	ErrTooManyReqs = errors.New("rate limited by server (429)")
 )
 
 // retryAfterError wraps ErrTooManyReqs and carries the parsed Retry-After time.
@@ -85,13 +85,12 @@ func safeHTTPClient() *http.Client {
 			if len(ips) == 0 {
 				return nil, fmt.Errorf("no IPs resolved for %s", host)
 			}
-			for _, ipAddr := range ips {
-				if isPrivateIP(ipAddr.IP) {
-					return nil, fmt.Errorf("private IP not allowed: %s", ipAddr.IP)
-				}
+			publicIPs := publicIPAddrs(ips)
+			if len(publicIPs) == 0 {
+				return nil, fmt.Errorf("private IP not allowed: %s", ips[0].IP)
 			}
-			// Dial the first resolved IP directly — no second lookup.
-			pinnedAddr := net.JoinHostPort(ips[0].IP.String(), port)
+			// Dial the first public resolved IP directly — no second lookup.
+			pinnedAddr := net.JoinHostPort(publicIPs[0].IP.String(), port)
 			return dialer.DialContext(ctx, network, pinnedAddr)
 		},
 	}
@@ -696,8 +695,8 @@ func validateScheme(rawURL string) error {
 	return nil
 }
 
-// ValidateURL checks if a URL is safe (scheme + DNS resolution + private IP check).
-// Used by favicon service and other callers that don't go through safeHTTPClient.
+// ValidateURL checks if a URL has an allowed scheme and at least one public DNS answer.
+// Callers that fetch URLs must still use safeHTTPClient to pin the safe address at dial time.
 func ValidateURL(rawURL string) error {
 	err := validateScheme(rawURL)
 	if err != nil {
@@ -709,15 +708,19 @@ func ValidateURL(rawURL string) error {
 		return fmt.Errorf("invalid URL: %w", err)
 	}
 	host := u.Hostname()
-	ips, err := net.LookupIP(host)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
 	if err != nil {
 		return fmt.Errorf("DNS lookup failed: %w", err)
 	}
-
-	for _, ip := range ips {
-		if isPrivateIP(ip) {
-			return fmt.Errorf("private IP not allowed: %s", ip)
-		}
+	if len(ips) == 0 {
+		return fmt.Errorf("no IPs resolved for %s", host)
+	}
+	if len(publicIPAddrs(ips)) == 0 {
+		return fmt.Errorf("private IP not allowed: %s", ips[0].IP)
 	}
 
 	return nil
@@ -745,6 +748,16 @@ func isPrivateIP(ip net.IP) bool {
 		}
 	}
 	return ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
+}
+
+func publicIPAddrs(ips []net.IPAddr) []net.IPAddr {
+	public := make([]net.IPAddr, 0, len(ips))
+	for _, ipAddr := range ips {
+		if !isPrivateIP(ipAddr.IP) {
+			public = append(public, ipAddr)
+		}
+	}
+	return public
 }
 
 // Pagination helpers
