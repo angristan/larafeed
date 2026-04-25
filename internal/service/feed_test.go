@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -65,6 +66,43 @@ func TestValidateURL(t *testing.T) {
 	t.Run("blocks private IP 172.16.x.x", func(t *testing.T) {
 		err := ValidateURL("http://172.16.0.1/feed")
 		assert.Error(t, err)
+	})
+}
+
+func TestPublicIPAddrs(t *testing.T) {
+	t.Run("keeps public IPs when DNS also returns link-local IPv6", func(t *testing.T) {
+		ips := []net.IPAddr{
+			{IP: net.ParseIP("fe80::5a4e:34ff:fe0c:2c")},
+			{IP: net.ParseIP("185.212.225.136")},
+		}
+
+		got := publicIPAddrs(ips)
+
+		require.Len(t, got, 1)
+		assert.Equal(t, "185.212.225.136", got[0].IP.String())
+	})
+
+	t.Run("returns empty when all IPs are private", func(t *testing.T) {
+		ips := []net.IPAddr{
+			{IP: net.ParseIP("127.0.0.1")},
+			{IP: net.ParseIP("10.0.0.1")},
+			{IP: net.ParseIP("fe80::5a4e:34ff:fe0c:2c")},
+		}
+
+		assert.Empty(t, publicIPAddrs(ips))
+	})
+
+	t.Run("keeps public-only IPs", func(t *testing.T) {
+		ips := []net.IPAddr{
+			{IP: net.ParseIP("93.184.216.34")},
+			{IP: net.ParseIP("2606:2800:220:1:248:1893:25c8:1946")},
+		}
+
+		got := publicIPAddrs(ips)
+
+		require.Len(t, got, 2)
+		assert.Equal(t, "93.184.216.34", got[0].IP.String())
+		assert.Equal(t, "2606:2800:220:1:248:1893:25c8:1946", got[1].IP.String())
 	})
 }
 
