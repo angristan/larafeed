@@ -8,7 +8,7 @@
         "typecheck": "tsc --noEmit"
     },
     "devDependencies": {
-        "@biomejs/biome": "^2.4.12",
+        "@biomejs/biome": "^2.4.13",
         "@gfazioli/mantine-split-pane": "^1.1.5",
         "@headlessui/react": "^2.2.10",
         "@inertiajs/react": "^3.0.3",
