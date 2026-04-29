@@ -11,7 +11,7 @@ import (
 )
 
 type Querier interface {
-	Archive(ctx context.Context, arg ArchiveParams) error
+	Archive(ctx context.Context, arg ArchiveParams) (int64, error)
 	CacheGet(ctx context.Context, key string) (CacheGetRow, error)
 	CacheSet(ctx context.Context, arg CacheSetParams) error
 	CategoryHasSubscriptions(ctx context.Context, categoryID int64) (int64, error)
@@ -37,7 +37,7 @@ type Querier interface {
 	DeleteUserTokens(ctx context.Context, arg DeleteUserTokensParams) error
 	EntriesForFeed(ctx context.Context, feedID int64) ([]Entry, error)
 	EntryURLsForFeedIn(ctx context.Context, arg EntryURLsForFeedInParams) ([]string, error)
-	Favorite(ctx context.Context, arg FavoriteParams) error
+	Favorite(ctx context.Context, arg FavoriteParams) (int64, error)
 	FeedsMissingFavicons(ctx context.Context) ([]Feed, error)
 	FeedsNeedingRefresh(ctx context.Context, arg FeedsNeedingRefreshParams) ([]Feed, error)
 	FeedsWithOutdatedFavicons(ctx context.Context, olderThan pgtype.Interval) ([]Feed, error)
@@ -62,16 +62,16 @@ type Querier interface {
 	ListSubscriptionsForUser(ctx context.Context, userID int64) ([]ListSubscriptionsForUserRow, error)
 	MarkAllAsReadExisting(ctx context.Context, arg MarkAllAsReadExistingParams) error
 	MarkAllAsReadNew(ctx context.Context, arg MarkAllAsReadNewParams) error
-	MarkAsRead(ctx context.Context, arg MarkAsReadParams) error
-	MarkAsUnread(ctx context.Context, arg MarkAsUnreadParams) error
+	MarkAsRead(ctx context.Context, arg MarkAsReadParams) (int64, error)
+	MarkAsUnread(ctx context.Context, arg MarkAsUnreadParams) (int64, error)
 	MarkFiltered(ctx context.Context, arg MarkFilteredParams) error
 	RecordRefresh(ctx context.Context, arg RecordRefreshParams) error
 	StarredIDs(ctx context.Context, userID int64) ([]int64, error)
 	Subscribe(ctx context.Context, arg SubscribeParams) error
 	SubscriptionsWithFilters(ctx context.Context, feedID int64) ([]FeedSubscription, error)
 	TouchTokenLastUsed(ctx context.Context, id int64) error
-	Unarchive(ctx context.Context, arg UnarchiveParams) error
-	Unfavorite(ctx context.Context, arg UnfavoriteParams) error
+	Unarchive(ctx context.Context, arg UnarchiveParams) (int64, error)
+	Unfavorite(ctx context.Context, arg UnfavoriteParams) (int64, error)
 	UnreadIDs(ctx context.Context, userID int64) ([]int64, error)
 	Unsubscribe(ctx context.Context, arg UnsubscribeParams) error
 	UpdateFeedFavicon(ctx context.Context, arg UpdateFeedFaviconParams) error

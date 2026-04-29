@@ -600,6 +600,10 @@ func (s *FeedService) CreateFeed(ctx context.Context, userID int64, feedURL stri
 	if err != nil {
 		return nil, apperr.NewValidation("feed_url", "The feed URL must use http or https.")
 	}
+	err = s.ensureCategoryBelongsToUser(ctx, userID, categoryID)
+	if err != nil {
+		return nil, err
+	}
 
 	// Check if feed exists
 	existing, err := s.q.FindFeedByURL(ctx, feedURL)
@@ -794,12 +798,20 @@ func (s *FeedService) FindFeedByID(ctx context.Context, feedID int64) (*db.Feed,
 
 // MarkAllAsRead marks all unread entries for a feed as read.
 func (s *FeedService) MarkAllAsRead(ctx context.Context, userID, feedID int64) error {
+	err := s.ensureUserSubscribed(ctx, userID, feedID)
+	if err != nil {
+		return err
+	}
 	return db.MarkAllAsRead(ctx, s.q, userID, feedID)
 }
 
 // ResolveCategory resolves a category by ID or creates one by name.
 func (s *FeedService) ResolveCategory(ctx context.Context, userID int64, categoryID *int64, categoryName string) (int64, error) {
 	if categoryID != nil {
+		err := s.ensureCategoryBelongsToUser(ctx, userID, *categoryID)
+		if err != nil {
+			return 0, err
+		}
 		return *categoryID, nil
 	}
 	if categoryName != "" {
@@ -855,7 +867,17 @@ func (s *FeedService) UpdateSubscription(ctx context.Context, userID, feedID, ca
 		}
 	}
 
-	err := s.q.UpdateSubscription(ctx, db.UpdateSubscriptionParams{
+	err := s.ensureCategoryBelongsToUser(ctx, userID, categoryID)
+	if err != nil {
+		return err
+	}
+
+	err = s.ensureUserSubscribed(ctx, userID, feedID)
+	if err != nil {
+		return err
+	}
+
+	err = s.q.UpdateSubscription(ctx, db.UpdateSubscriptionParams{
 		UserID: userID, FeedID: feedID, CategoryID: categoryID,
 		CustomFeedName: customName, FilterRules: filterRulesJSON,
 	})
@@ -887,6 +909,36 @@ func (s *FeedService) IsUserSubscribed(ctx context.Context, userID, feedID int64
 		return false, err
 	}
 	return true, nil
+}
+
+func (s *FeedService) ensureCategoryBelongsToUser(ctx context.Context, userID, categoryID int64) error {
+	if categoryID <= 0 {
+		return apperr.NewValidation("category_id", "The selected category is invalid.")
+	}
+
+	category, err := s.q.FindCategoryByID(ctx, categoryID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apperr.NewValidation("category_id", "The selected category is invalid.")
+		}
+		return err
+	}
+	if category.UserID != userID {
+		return apperr.NewValidation("category_id", "The selected category is invalid.")
+	}
+
+	return nil
+}
+
+func (s *FeedService) ensureUserSubscribed(ctx context.Context, userID, feedID int64) error {
+	subscribed, err := s.IsUserSubscribed(ctx, userID, feedID)
+	if err != nil {
+		return err
+	}
+	if !subscribed {
+		return apperr.NewNotFound("feed")
+	}
+	return nil
 }
 
 // Helpers

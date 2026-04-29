@@ -125,7 +125,7 @@ func TestWipeAccount_DeletesUserData(t *testing.T) {
 	queries := db.New(pool)
 
 	// Create interaction
-	err := queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry.ID})
+	_, err := queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry.ID})
 	require.NoError(t, err)
 
 	// Wipe

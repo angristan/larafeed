@@ -151,7 +151,7 @@ func TestFetchCurrentEntry_MarkAsRead(t *testing.T) {
 	q := mocks.NewQuerier(t)
 	q.On("FindReaderEntry", mock.Anything, mock.Anything).
 		Return(db.FindReaderEntryRow{ID: 42, FeedID: 10, Title: "Test", FeedName: "Blog", PublishedAt: time.Now()}, nil)
-	q.On("MarkAsRead", mock.Anything, db.MarkAsReadParams{UserID: 1, EntryID: 42}).Return(nil)
+	q.On("MarkAsRead", mock.Anything, db.MarkAsReadParams{UserID: 1, EntryID: 42}).Return(int64(1), nil)
 
 	svc := newTestReaderService(t, q)
 	markRead := true
@@ -167,7 +167,7 @@ func TestFetchCurrentEntry_MarkAsUnread(t *testing.T) {
 	now := time.Now()
 	q.On("FindReaderEntry", mock.Anything, mock.Anything).
 		Return(db.FindReaderEntryRow{ID: 42, FeedID: 10, Title: "Test", FeedName: "Blog", PublishedAt: time.Now(), ReadAt: &now}, nil)
-	q.On("MarkAsUnread", mock.Anything, db.MarkAsUnreadParams{UserID: 1, EntryID: 42}).Return(nil)
+	q.On("MarkAsUnread", mock.Anything, db.MarkAsUnreadParams{UserID: 1, EntryID: 42}).Return(int64(1), nil)
 
 	svc := newTestReaderService(t, q)
 	markRead := false

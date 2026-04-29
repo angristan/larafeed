@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/db"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -161,16 +162,24 @@ func (s *ReaderService) FetchCurrentEntry(ctx context.Context, userID int64, ent
 	// Mark as read/unread
 	if markRead != nil {
 		if *markRead {
-			err = s.q.MarkAsRead(ctx, db.MarkAsReadParams{UserID: userID, EntryID: entryID})
+			var rows int64
+			rows, err = s.q.MarkAsRead(ctx, db.MarkAsReadParams{UserID: userID, EntryID: entryID})
 			if err != nil {
 				return nil, err
+			}
+			if rows == 0 {
+				return nil, apperr.NewNotFound("entry")
 			}
 			now := time.Now()
 			entry.ReadAt = &now
 		} else {
-			err = s.q.MarkAsUnread(ctx, db.MarkAsUnreadParams{UserID: userID, EntryID: entryID})
+			var rows int64
+			rows, err = s.q.MarkAsUnread(ctx, db.MarkAsUnreadParams{UserID: userID, EntryID: entryID})
 			if err != nil {
 				return nil, err
+			}
+			if rows == 0 {
+				return nil, apperr.NewNotFound("entry")
 			}
 			entry.ReadAt = nil
 		}

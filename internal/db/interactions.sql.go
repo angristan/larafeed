@@ -9,9 +9,12 @@ import (
 	"context"
 )
 
-const archive = `-- name: Archive :exec
+const archive = `-- name: Archive :execrows
 INSERT INTO entry_interactions (user_id, entry_id, archived_at, created_at, updated_at)
-VALUES ($1, $2, NOW(), NOW(), NOW())
+SELECT $1, e.id, NOW(), NOW(), NOW()
+FROM entries e
+JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id AND fs.user_id = $1
+WHERE e.id = $2
 ON CONFLICT (user_id, entry_id) DO UPDATE SET archived_at = NOW(), updated_at = NOW()
 `
 
@@ -20,14 +23,20 @@ type ArchiveParams struct {
 	EntryID int64 `json:"entry_id"`
 }
 
-func (q *Queries) Archive(ctx context.Context, arg ArchiveParams) error {
-	_, err := q.db.Exec(ctx, archive, arg.UserID, arg.EntryID)
-	return err
+func (q *Queries) Archive(ctx context.Context, arg ArchiveParams) (int64, error) {
+	result, err := q.db.Exec(ctx, archive, arg.UserID, arg.EntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const clearFiltered = `-- name: ClearFiltered :exec
 INSERT INTO entry_interactions (user_id, entry_id, filtered_at, created_at, updated_at)
-VALUES ($1, $2, NULL, NOW(), NOW())
+SELECT $1, e.id, NULL, NOW(), NOW()
+FROM entries e
+JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id AND fs.user_id = $1
+WHERE e.id = $2
 ON CONFLICT (user_id, entry_id) DO UPDATE SET filtered_at = NULL, updated_at = NOW()
 `
 
@@ -67,9 +76,12 @@ func (q *Queries) DeleteInteractionsForFeed(ctx context.Context, arg DeleteInter
 	return err
 }
 
-const favorite = `-- name: Favorite :exec
+const favorite = `-- name: Favorite :execrows
 INSERT INTO entry_interactions (user_id, entry_id, starred_at, created_at, updated_at)
-VALUES ($1, $2, NOW(), NOW(), NOW())
+SELECT $1, e.id, NOW(), NOW(), NOW()
+FROM entries e
+JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id AND fs.user_id = $1
+WHERE e.id = $2
 ON CONFLICT (user_id, entry_id) DO UPDATE SET starred_at = NOW(), updated_at = NOW()
 `
 
@@ -78,16 +90,22 @@ type FavoriteParams struct {
 	EntryID int64 `json:"entry_id"`
 }
 
-func (q *Queries) Favorite(ctx context.Context, arg FavoriteParams) error {
-	_, err := q.db.Exec(ctx, favorite, arg.UserID, arg.EntryID)
-	return err
+func (q *Queries) Favorite(ctx context.Context, arg FavoriteParams) (int64, error) {
+	result, err := q.db.Exec(ctx, favorite, arg.UserID, arg.EntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const markAllAsReadExisting = `-- name: MarkAllAsReadExisting :exec
-UPDATE entry_interactions SET read_at = NOW(), updated_at = NOW()
-WHERE user_id = $1 AND entry_id IN (
-    SELECT e.id FROM entries e WHERE e.feed_id = $2
-) AND read_at IS NULL
+UPDATE entry_interactions AS ei SET read_at = NOW(), updated_at = NOW()
+WHERE ei.user_id = $1 AND ei.entry_id IN (
+    SELECT e.id
+    FROM entries e
+    JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id AND fs.user_id = $1
+    WHERE e.feed_id = $2
+) AND ei.read_at IS NULL
 `
 
 type MarkAllAsReadExistingParams struct {
@@ -104,6 +122,7 @@ const markAllAsReadNew = `-- name: MarkAllAsReadNew :exec
 INSERT INTO entry_interactions (user_id, entry_id, read_at, created_at, updated_at)
 SELECT $1, e.id, NOW(), NOW(), NOW()
 FROM entries e
+JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id AND fs.user_id = $1
 WHERE e.feed_id = $2
     AND NOT EXISTS (
         SELECT 1 FROM entry_interactions ei WHERE ei.user_id = $1 AND ei.entry_id = e.id
@@ -120,9 +139,12 @@ func (q *Queries) MarkAllAsReadNew(ctx context.Context, arg MarkAllAsReadNewPara
 	return err
 }
 
-const markAsRead = `-- name: MarkAsRead :exec
+const markAsRead = `-- name: MarkAsRead :execrows
 INSERT INTO entry_interactions (user_id, entry_id, read_at, created_at, updated_at)
-VALUES ($1, $2, NOW(), NOW(), NOW())
+SELECT $1, e.id, NOW(), NOW(), NOW()
+FROM entries e
+JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id AND fs.user_id = $1
+WHERE e.id = $2
 ON CONFLICT (user_id, entry_id) DO UPDATE SET read_at = NOW(), updated_at = NOW()
 `
 
@@ -131,14 +153,20 @@ type MarkAsReadParams struct {
 	EntryID int64 `json:"entry_id"`
 }
 
-func (q *Queries) MarkAsRead(ctx context.Context, arg MarkAsReadParams) error {
-	_, err := q.db.Exec(ctx, markAsRead, arg.UserID, arg.EntryID)
-	return err
+func (q *Queries) MarkAsRead(ctx context.Context, arg MarkAsReadParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markAsRead, arg.UserID, arg.EntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
-const markAsUnread = `-- name: MarkAsUnread :exec
+const markAsUnread = `-- name: MarkAsUnread :execrows
 INSERT INTO entry_interactions (user_id, entry_id, read_at, created_at, updated_at)
-VALUES ($1, $2, NULL, NOW(), NOW())
+SELECT $1, e.id, NULL, NOW(), NOW()
+FROM entries e
+JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id AND fs.user_id = $1
+WHERE e.id = $2
 ON CONFLICT (user_id, entry_id) DO UPDATE SET read_at = NULL, updated_at = NOW()
 `
 
@@ -147,14 +175,20 @@ type MarkAsUnreadParams struct {
 	EntryID int64 `json:"entry_id"`
 }
 
-func (q *Queries) MarkAsUnread(ctx context.Context, arg MarkAsUnreadParams) error {
-	_, err := q.db.Exec(ctx, markAsUnread, arg.UserID, arg.EntryID)
-	return err
+func (q *Queries) MarkAsUnread(ctx context.Context, arg MarkAsUnreadParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markAsUnread, arg.UserID, arg.EntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const markFiltered = `-- name: MarkFiltered :exec
 INSERT INTO entry_interactions (user_id, entry_id, filtered_at, created_at, updated_at)
-VALUES ($1, $2, NOW(), NOW(), NOW())
+SELECT $1, e.id, NOW(), NOW(), NOW()
+FROM entries e
+JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id AND fs.user_id = $1
+WHERE e.id = $2
 ON CONFLICT (user_id, entry_id) DO UPDATE SET
     filtered_at = NOW(),
     read_at = NULL,
@@ -201,9 +235,12 @@ func (q *Queries) StarredIDs(ctx context.Context, userID int64) ([]int64, error)
 	return items, nil
 }
 
-const unarchive = `-- name: Unarchive :exec
+const unarchive = `-- name: Unarchive :execrows
 INSERT INTO entry_interactions (user_id, entry_id, archived_at, created_at, updated_at)
-VALUES ($1, $2, NULL, NOW(), NOW())
+SELECT $1, e.id, NULL, NOW(), NOW()
+FROM entries e
+JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id AND fs.user_id = $1
+WHERE e.id = $2
 ON CONFLICT (user_id, entry_id) DO UPDATE SET archived_at = NULL, updated_at = NOW()
 `
 
@@ -212,14 +249,20 @@ type UnarchiveParams struct {
 	EntryID int64 `json:"entry_id"`
 }
 
-func (q *Queries) Unarchive(ctx context.Context, arg UnarchiveParams) error {
-	_, err := q.db.Exec(ctx, unarchive, arg.UserID, arg.EntryID)
-	return err
+func (q *Queries) Unarchive(ctx context.Context, arg UnarchiveParams) (int64, error) {
+	result, err := q.db.Exec(ctx, unarchive, arg.UserID, arg.EntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
-const unfavorite = `-- name: Unfavorite :exec
+const unfavorite = `-- name: Unfavorite :execrows
 INSERT INTO entry_interactions (user_id, entry_id, starred_at, created_at, updated_at)
-VALUES ($1, $2, NULL, NOW(), NOW())
+SELECT $1, e.id, NULL, NOW(), NOW()
+FROM entries e
+JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id AND fs.user_id = $1
+WHERE e.id = $2
 ON CONFLICT (user_id, entry_id) DO UPDATE SET starred_at = NULL, updated_at = NOW()
 `
 
@@ -228,9 +271,12 @@ type UnfavoriteParams struct {
 	EntryID int64 `json:"entry_id"`
 }
 
-func (q *Queries) Unfavorite(ctx context.Context, arg UnfavoriteParams) error {
-	_, err := q.db.Exec(ctx, unfavorite, arg.UserID, arg.EntryID)
-	return err
+func (q *Queries) Unfavorite(ctx context.Context, arg UnfavoriteParams) (int64, error) {
+	result, err := q.db.Exec(ctx, unfavorite, arg.UserID, arg.EntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const unreadIDs = `-- name: UnreadIDs :many

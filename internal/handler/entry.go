@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
+	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/auth"
 	"github.com/go-chi/chi/v5"
 )
@@ -38,6 +40,11 @@ func (h *EntryHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	err = h.entrySvc.UpdateInteractions(r.Context(), user.ID, entryID, req.Read, req.Starred, req.Archived)
 	if err != nil {
+		var notFound *apperr.NotFoundError
+		if errors.As(err, &notFound) {
+			http.NotFound(w, r)
+			return
+		}
 		http.Error(w, "Failed to update entry", http.StatusInternalServerError)
 		return
 	}

@@ -71,7 +71,7 @@ func TestListForReader_FilterUnread(t *testing.T) {
 
 	// Mark one as read
 	queries := db.New(pool)
-	err := queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry1.ID})
+	_, err := queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry1.ID})
 	require.NoError(t, err)
 
 	total, err := queries.CountForReader(ctx, db.CountForReaderParams{
@@ -106,7 +106,7 @@ func TestListForReader_FilterFavorites(t *testing.T) {
 	_ = createEntry(t, pool, feed.ID, "Not Starred", "https://example.com/2")
 
 	queries := db.New(pool)
-	err := queries.Favorite(ctx, db.FavoriteParams{UserID: user.ID, EntryID: entry1.ID})
+	_, err := queries.Favorite(ctx, db.FavoriteParams{UserID: user.ID, EntryID: entry1.ID})
 	require.NoError(t, err)
 
 	total, err := queries.CountForReader(ctx, db.CountForReaderParams{
@@ -268,7 +268,7 @@ func TestCountUnreadAndRead(t *testing.T) {
 	assert.Equal(t, int64(0), read)
 
 	// Mark one as read
-	err = queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry1.ID})
+	_, err = queries.MarkAsRead(ctx, db.MarkAsReadParams{UserID: user.ID, EntryID: entry1.ID})
 	require.NoError(t, err)
 
 	unread, err = queries.CountUnread(ctx, user.ID)

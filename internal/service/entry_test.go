@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/db"
 	"github.com/angristan/larafeed-go/internal/db/mocks"
 	"github.com/stretchr/testify/mock"
@@ -12,7 +13,7 @@ import (
 
 func TestUpdateInteractions_MarkAsRead(t *testing.T) {
 	q := mocks.NewQuerier(t)
-	q.On("MarkAsRead", mock.Anything, db.MarkAsReadParams{UserID: 1, EntryID: 42}).Return(nil)
+	q.On("MarkAsRead", mock.Anything, db.MarkAsReadParams{UserID: 1, EntryID: 42}).Return(int64(1), nil)
 	svc := NewEntryService(q)
 
 	read := true
@@ -22,7 +23,7 @@ func TestUpdateInteractions_MarkAsRead(t *testing.T) {
 
 func TestUpdateInteractions_MarkAsUnread(t *testing.T) {
 	q := mocks.NewQuerier(t)
-	q.On("MarkAsUnread", mock.Anything, db.MarkAsUnreadParams{UserID: 1, EntryID: 42}).Return(nil)
+	q.On("MarkAsUnread", mock.Anything, db.MarkAsUnreadParams{UserID: 1, EntryID: 42}).Return(int64(1), nil)
 	svc := NewEntryService(q)
 
 	read := false
@@ -32,7 +33,7 @@ func TestUpdateInteractions_MarkAsUnread(t *testing.T) {
 
 func TestUpdateInteractions_Favorite(t *testing.T) {
 	q := mocks.NewQuerier(t)
-	q.On("Favorite", mock.Anything, db.FavoriteParams{UserID: 1, EntryID: 42}).Return(nil)
+	q.On("Favorite", mock.Anything, db.FavoriteParams{UserID: 1, EntryID: 42}).Return(int64(1), nil)
 	svc := NewEntryService(q)
 
 	starred := true
@@ -42,7 +43,7 @@ func TestUpdateInteractions_Favorite(t *testing.T) {
 
 func TestUpdateInteractions_Archive(t *testing.T) {
 	q := mocks.NewQuerier(t)
-	q.On("Archive", mock.Anything, db.ArchiveParams{UserID: 1, EntryID: 42}).Return(nil)
+	q.On("Archive", mock.Anything, db.ArchiveParams{UserID: 1, EntryID: 42}).Return(int64(1), nil)
 	svc := NewEntryService(q)
 
 	archived := true
@@ -58,4 +59,17 @@ func TestUpdateInteractions_AllNil(t *testing.T) {
 	require.NoError(t, err)
 	// No DB methods should have been called
 	q.AssertNotCalled(t, "MarkAsRead", mock.Anything, mock.Anything)
+}
+
+func TestUpdateInteractions_EntryNotAccessible(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	q.On("MarkAsRead", mock.Anything, db.MarkAsReadParams{UserID: 1, EntryID: 42}).Return(int64(0), nil)
+	svc := NewEntryService(q)
+
+	read := true
+	err := svc.UpdateInteractions(context.Background(), 1, 42, &read, nil, nil)
+	require.Error(t, err)
+	var notFound *apperr.NotFoundError
+	require.ErrorAs(t, err, &notFound)
+	require.Equal(t, "entry", notFound.Resource)
 }

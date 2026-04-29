@@ -3,11 +3,13 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/auth"
 	"github.com/angristan/larafeed-go/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -73,6 +75,11 @@ func (h *FeedHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	feed, err := h.feedService.CreateFeed(r.Context(), user.ID, req.FeedURL, categoryID, "")
 	if err != nil {
+		var validErr *apperr.ValidationError
+		if errors.As(err, &validErr) {
+			validationError(w, r, h.inertia, map[string]string{validErr.Field: validErr.Message})
+			return
+		}
 		validationError(w, r, h.inertia, map[string]string{"feed_url": err.Error()})
 		return
 	}
@@ -234,7 +241,9 @@ func (h *FeedHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	err = h.feedService.UpdateSubscription(r.Context(), user.ID, feedID, req.CategoryID, customName, filterRulesJSON)
 	if err != nil {
-		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
+		if !handleServiceError(w, r, h.inertia, err) {
+			renderError(w, r, h.inertia, http.StatusInternalServerError, err)
+		}
 		return
 	}
 
@@ -251,7 +260,11 @@ func (h *FeedHandler) MarkRead(w http.ResponseWriter, r *http.Request) {
 
 	err = h.feedService.MarkAllAsRead(r.Context(), user.ID, feedID)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to mark all as read", "user_id", user.ID, "feed_id", feedID, "error", err)
+		if !handleServiceError(w, r, h.inertia, err) {
+			slog.ErrorContext(r.Context(), "failed to mark all as read", "user_id", user.ID, "feed_id", feedID, "error", err)
+			renderError(w, r, h.inertia, http.StatusInternalServerError, err)
+		}
+		return
 	}
 	http.Redirect(w, r, r.Header.Get("Referer"), http.StatusFound)
 }

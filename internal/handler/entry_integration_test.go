@@ -73,3 +73,36 @@ func TestEntryUpdate_Favorite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, starred, entry.ID)
 }
+
+func TestEntryUpdate_RejectsEntryFromUnsubscribedFeed(t *testing.T) {
+	pool := testPool(t)
+	q := db.New(pool)
+	h := newEntryHandler(t, q)
+
+	owner := createUser(t, q, "Alice", "alice@test.com", "secret123")
+	other := createUser(t, q, "Bob", "bob@test.com", "secret123")
+	cat := createCategory(t, q, owner.ID, "Tech")
+	feed := createFeed(t, q, "Go Blog", "https://go.dev/feed", "https://go.dev")
+	subscribe(t, q, owner.ID, feed.ID, cat.ID)
+	entry := createEntry(t, pool, feed.ID, "Entry 1", "https://go.dev/1")
+
+	r := jsonRequest("PATCH", "/entries/"+itoa(entry.ID), `{"read": true}`)
+	r = withUser(r, other)
+	r.Header.Set("Referer", "/feeds")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("entry_id", itoa(entry.ID))
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	callHandler(h.Update, w, r)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	var interactions int
+	err := pool.QueryRow(context.Background(),
+		"SELECT COUNT(*) FROM entry_interactions WHERE user_id = $1 AND entry_id = $2",
+		other.ID, entry.ID,
+	).Scan(&interactions)
+	require.NoError(t, err)
+	assert.Equal(t, 0, interactions)
+}

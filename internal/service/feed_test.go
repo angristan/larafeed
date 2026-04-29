@@ -152,12 +152,28 @@ func TestStringContainsAny(t *testing.T) {
 
 func TestResolveCategory_ByID(t *testing.T) {
 	q := mocks.NewQuerier(t)
+	q.On("FindCategoryByID", mock.Anything, int64(42)).
+		Return(db.SubscriptionCategory{ID: 42, UserID: 1, Name: "Tech"}, nil)
 	svc := NewFeedService(q, nil, nil, nil)
 
 	catID := int64(42)
 	id, err := svc.ResolveCategory(context.Background(), 1, &catID, "")
 	require.NoError(t, err)
 	assert.Equal(t, int64(42), id)
+}
+
+func TestResolveCategory_ByIDRejectsOtherUserCategory(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	q.On("FindCategoryByID", mock.Anything, int64(42)).
+		Return(db.SubscriptionCategory{ID: 42, UserID: 2, Name: "Tech"}, nil)
+	svc := NewFeedService(q, nil, nil, nil)
+
+	catID := int64(42)
+	_, err := svc.ResolveCategory(context.Background(), 1, &catID, "")
+	require.Error(t, err)
+	var validErr *apperr.ValidationError
+	require.ErrorAs(t, err, &validErr)
+	assert.Equal(t, "category_id", validErr.Field)
 }
 
 func TestResolveCategory_ByName(t *testing.T) {
@@ -225,6 +241,8 @@ func TestFindFeedByID_NotFound(t *testing.T) {
 
 func TestMarkAllAsRead(t *testing.T) {
 	q := mocks.NewQuerier(t)
+	q.On("GetSubscription", mock.Anything, db.GetSubscriptionParams{UserID: 1, FeedID: 5}).
+		Return(db.FeedSubscription{UserID: 1, FeedID: 5}, nil)
 	q.On("MarkAllAsReadExisting", mock.Anything, db.MarkAllAsReadExistingParams{UserID: 1, FeedID: 5}).Return(nil)
 	q.On("MarkAllAsReadNew", mock.Anything, db.MarkAllAsReadNewParams{UserID: 1, FeedID: 5}).Return(nil)
 
@@ -232,6 +250,21 @@ func TestMarkAllAsRead(t *testing.T) {
 
 	err := svc.MarkAllAsRead(context.Background(), 1, 5)
 	require.NoError(t, err)
+}
+
+func TestMarkAllAsRead_NotSubscribed(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	q.On("GetSubscription", mock.Anything, db.GetSubscriptionParams{UserID: 1, FeedID: 5}).
+		Return(db.FeedSubscription{}, pgx.ErrNoRows)
+
+	svc := NewFeedService(q, nil, nil, nil)
+
+	err := svc.MarkAllAsRead(context.Background(), 1, 5)
+	require.Error(t, err)
+	var notFound *apperr.NotFoundError
+	require.ErrorAs(t, err, &notFound)
+	assert.Equal(t, "feed", notFound.Resource)
+	q.AssertNotCalled(t, "MarkAllAsReadExisting", mock.Anything, mock.Anything)
 }
 
 func TestIsUserSubscribed(t *testing.T) {
@@ -313,6 +346,10 @@ func TestUpdateSubscription(t *testing.T) {
 	filterSvc := NewFilterService(q)
 
 	customName := "My Blog"
+	q.On("FindCategoryByID", mock.Anything, int64(2)).
+		Return(db.SubscriptionCategory{ID: 2, UserID: 1, Name: "Tech"}, nil)
+	q.On("GetSubscription", mock.Anything, db.GetSubscriptionParams{UserID: 1, FeedID: 5}).
+		Return(db.FeedSubscription{UserID: 1, FeedID: 5, CategoryID: 2}, nil)
 	q.On("UpdateSubscription", mock.Anything, db.UpdateSubscriptionParams{
 		UserID: 1, FeedID: 5, CategoryID: 2,
 		CustomFeedName: &customName, FilterRules: nil,
@@ -324,6 +361,23 @@ func TestUpdateSubscription(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestUpdateSubscription_RejectsOtherUserCategory(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	filterSvc := NewFilterService(q)
+
+	q.On("FindCategoryByID", mock.Anything, int64(2)).
+		Return(db.SubscriptionCategory{ID: 2, UserID: 99, Name: "Tech"}, nil)
+
+	svc := NewFeedService(q, nil, filterSvc, nil)
+
+	err := svc.UpdateSubscription(context.Background(), 1, 5, 2, nil, nil)
+	require.Error(t, err)
+	var validErr *apperr.ValidationError
+	require.ErrorAs(t, err, &validErr)
+	assert.Equal(t, "category_id", validErr.Field)
+	q.AssertNotCalled(t, "UpdateSubscription", mock.Anything, mock.Anything)
+}
+
 func TestUpdateSubscription_WithFilters(t *testing.T) {
 	q := mocks.NewQuerier(t)
 	filterSvc := NewFilterService(q)
@@ -332,6 +386,8 @@ func TestUpdateSubscription_WithFilters(t *testing.T) {
 	rulesJSON, err := json.Marshal(rules)
 	require.NoError(t, err)
 
+	q.On("FindCategoryByID", mock.Anything, int64(2)).
+		Return(db.SubscriptionCategory{ID: 2, UserID: 1, Name: "Tech"}, nil)
 	q.On("UpdateSubscription", mock.Anything, mock.Anything).Return(nil)
 	q.On("GetSubscription", mock.Anything, db.GetSubscriptionParams{UserID: 1, FeedID: 5}).
 		Return(db.FeedSubscription{UserID: 1, FeedID: 5, FilterRules: rulesJSON}, nil)

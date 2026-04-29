@@ -57,6 +57,20 @@ func TestSubscribe_DuplicateDoesNothing(t *testing.T) {
 	assert.Len(t, feeds, 1) // Still just one
 }
 
+func TestSubscribe_RejectsOtherUserCategory(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	queries := db.New(pool)
+
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	other := createUser(t, pool, "Other", "other@test.com", "password")
+	otherCat := createCategory(t, pool, other.ID, "Tech")
+	feed := createFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
+
+	err := queries.Subscribe(ctx, db.SubscribeParams{UserID: user.ID, FeedID: feed.ID, CategoryID: otherCat.ID})
+	assert.Error(t, err)
+}
+
 func TestListForUser_WithCounts(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
@@ -103,6 +117,30 @@ func TestUpdateSubscription(t *testing.T) {
 	assert.Equal(t, cat2.ID, sub.CategoryID)
 	assert.NotNil(t, sub.CustomFeedName)
 	assert.Equal(t, "My Custom Feed", *sub.CustomFeedName)
+}
+
+func TestUpdateSubscription_RejectsOtherUserCategory(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	queries := db.New(pool)
+
+	user := createUser(t, pool, "Test", "test@test.com", "password")
+	other := createUser(t, pool, "Other", "other@test.com", "password")
+	cat := createCategory(t, pool, user.ID, "Tech")
+	otherCat := createCategory(t, pool, other.ID, "News")
+	feed := createFeed(t, pool, "Feed", "https://example.com/feed", "https://example.com")
+	subscribe(t, pool, user.ID, feed.ID, cat.ID)
+
+	err := queries.UpdateSubscription(ctx, db.UpdateSubscriptionParams{
+		UserID:     user.ID,
+		FeedID:     feed.ID,
+		CategoryID: otherCat.ID,
+	})
+	assert.Error(t, err)
+
+	sub, err := queries.GetSubscription(ctx, db.GetSubscriptionParams{UserID: user.ID, FeedID: feed.ID})
+	require.NoError(t, err)
+	assert.Equal(t, cat.ID, sub.CategoryID)
 }
 
 func TestFeedHasSubscribers(t *testing.T) {

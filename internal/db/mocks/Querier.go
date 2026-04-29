@@ -25,21 +25,31 @@ func (_m *Querier) EXPECT() *Querier_Expecter {
 }
 
 // Archive provides a mock function with given fields: ctx, arg
-func (_m *Querier) Archive(ctx context.Context, arg db.ArchiveParams) error {
+func (_m *Querier) Archive(ctx context.Context, arg db.ArchiveParams) (int64, error) {
 	ret := _m.Called(ctx, arg)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Archive")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, db.ArchiveParams) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, db.ArchiveParams) (int64, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, db.ArchiveParams) int64); ok {
 		r0 = rf(ctx, arg)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, db.ArchiveParams) error); ok {
+		r1 = rf(ctx, arg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // Querier_Archive_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Archive'
@@ -61,12 +71,12 @@ func (_c *Querier_Archive_Call) Run(run func(ctx context.Context, arg db.Archive
 	return _c
 }
 
-func (_c *Querier_Archive_Call) Return(_a0 error) *Querier_Archive_Call {
-	_c.Call.Return(_a0)
+func (_c *Querier_Archive_Call) Return(_a0 int64, _a1 error) *Querier_Archive_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *Querier_Archive_Call) RunAndReturn(run func(context.Context, db.ArchiveParams) error) *Querier_Archive_Call {
+func (_c *Querier_Archive_Call) RunAndReturn(run func(context.Context, db.ArchiveParams) (int64, error)) *Querier_Archive_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1361,21 +1371,31 @@ func (_c *Querier_EntryURLsForFeedIn_Call) RunAndReturn(run func(context.Context
 }
 
 // Favorite provides a mock function with given fields: ctx, arg
-func (_m *Querier) Favorite(ctx context.Context, arg db.FavoriteParams) error {
+func (_m *Querier) Favorite(ctx context.Context, arg db.FavoriteParams) (int64, error) {
 	ret := _m.Called(ctx, arg)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Favorite")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, db.FavoriteParams) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, db.FavoriteParams) (int64, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, db.FavoriteParams) int64); ok {
 		r0 = rf(ctx, arg)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, db.FavoriteParams) error); ok {
+		r1 = rf(ctx, arg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // Querier_Favorite_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Favorite'
@@ -1397,12 +1417,12 @@ func (_c *Querier_Favorite_Call) Run(run func(ctx context.Context, arg db.Favori
 	return _c
 }
 
-func (_c *Querier_Favorite_Call) Return(_a0 error) *Querier_Favorite_Call {
-	_c.Call.Return(_a0)
+func (_c *Querier_Favorite_Call) Return(_a0 int64, _a1 error) *Querier_Favorite_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *Querier_Favorite_Call) RunAndReturn(run func(context.Context, db.FavoriteParams) error) *Querier_Favorite_Call {
+func (_c *Querier_Favorite_Call) RunAndReturn(run func(context.Context, db.FavoriteParams) (int64, error)) *Querier_Favorite_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -2773,21 +2793,31 @@ func (_c *Querier_MarkAllAsReadNew_Call) RunAndReturn(run func(context.Context, 
 }
 
 // MarkAsRead provides a mock function with given fields: ctx, arg
-func (_m *Querier) MarkAsRead(ctx context.Context, arg db.MarkAsReadParams) error {
+func (_m *Querier) MarkAsRead(ctx context.Context, arg db.MarkAsReadParams) (int64, error) {
 	ret := _m.Called(ctx, arg)
 
 	if len(ret) == 0 {
 		panic("no return value specified for MarkAsRead")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, db.MarkAsReadParams) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, db.MarkAsReadParams) (int64, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, db.MarkAsReadParams) int64); ok {
 		r0 = rf(ctx, arg)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, db.MarkAsReadParams) error); ok {
+		r1 = rf(ctx, arg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // Querier_MarkAsRead_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkAsRead'
@@ -2809,32 +2839,42 @@ func (_c *Querier_MarkAsRead_Call) Run(run func(ctx context.Context, arg db.Mark
 	return _c
 }
 
-func (_c *Querier_MarkAsRead_Call) Return(_a0 error) *Querier_MarkAsRead_Call {
-	_c.Call.Return(_a0)
+func (_c *Querier_MarkAsRead_Call) Return(_a0 int64, _a1 error) *Querier_MarkAsRead_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *Querier_MarkAsRead_Call) RunAndReturn(run func(context.Context, db.MarkAsReadParams) error) *Querier_MarkAsRead_Call {
+func (_c *Querier_MarkAsRead_Call) RunAndReturn(run func(context.Context, db.MarkAsReadParams) (int64, error)) *Querier_MarkAsRead_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // MarkAsUnread provides a mock function with given fields: ctx, arg
-func (_m *Querier) MarkAsUnread(ctx context.Context, arg db.MarkAsUnreadParams) error {
+func (_m *Querier) MarkAsUnread(ctx context.Context, arg db.MarkAsUnreadParams) (int64, error) {
 	ret := _m.Called(ctx, arg)
 
 	if len(ret) == 0 {
 		panic("no return value specified for MarkAsUnread")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, db.MarkAsUnreadParams) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, db.MarkAsUnreadParams) (int64, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, db.MarkAsUnreadParams) int64); ok {
 		r0 = rf(ctx, arg)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, db.MarkAsUnreadParams) error); ok {
+		r1 = rf(ctx, arg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // Querier_MarkAsUnread_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkAsUnread'
@@ -2856,12 +2896,12 @@ func (_c *Querier_MarkAsUnread_Call) Run(run func(ctx context.Context, arg db.Ma
 	return _c
 }
 
-func (_c *Querier_MarkAsUnread_Call) Return(_a0 error) *Querier_MarkAsUnread_Call {
-	_c.Call.Return(_a0)
+func (_c *Querier_MarkAsUnread_Call) Return(_a0 int64, _a1 error) *Querier_MarkAsUnread_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *Querier_MarkAsUnread_Call) RunAndReturn(run func(context.Context, db.MarkAsUnreadParams) error) *Querier_MarkAsUnread_Call {
+func (_c *Querier_MarkAsUnread_Call) RunAndReturn(run func(context.Context, db.MarkAsUnreadParams) (int64, error)) *Querier_MarkAsUnread_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -3173,21 +3213,31 @@ func (_c *Querier_TouchTokenLastUsed_Call) RunAndReturn(run func(context.Context
 }
 
 // Unarchive provides a mock function with given fields: ctx, arg
-func (_m *Querier) Unarchive(ctx context.Context, arg db.UnarchiveParams) error {
+func (_m *Querier) Unarchive(ctx context.Context, arg db.UnarchiveParams) (int64, error) {
 	ret := _m.Called(ctx, arg)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Unarchive")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, db.UnarchiveParams) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, db.UnarchiveParams) (int64, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, db.UnarchiveParams) int64); ok {
 		r0 = rf(ctx, arg)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, db.UnarchiveParams) error); ok {
+		r1 = rf(ctx, arg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // Querier_Unarchive_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Unarchive'
@@ -3209,32 +3259,42 @@ func (_c *Querier_Unarchive_Call) Run(run func(ctx context.Context, arg db.Unarc
 	return _c
 }
 
-func (_c *Querier_Unarchive_Call) Return(_a0 error) *Querier_Unarchive_Call {
-	_c.Call.Return(_a0)
+func (_c *Querier_Unarchive_Call) Return(_a0 int64, _a1 error) *Querier_Unarchive_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *Querier_Unarchive_Call) RunAndReturn(run func(context.Context, db.UnarchiveParams) error) *Querier_Unarchive_Call {
+func (_c *Querier_Unarchive_Call) RunAndReturn(run func(context.Context, db.UnarchiveParams) (int64, error)) *Querier_Unarchive_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // Unfavorite provides a mock function with given fields: ctx, arg
-func (_m *Querier) Unfavorite(ctx context.Context, arg db.UnfavoriteParams) error {
+func (_m *Querier) Unfavorite(ctx context.Context, arg db.UnfavoriteParams) (int64, error) {
 	ret := _m.Called(ctx, arg)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Unfavorite")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, db.UnfavoriteParams) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, db.UnfavoriteParams) (int64, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, db.UnfavoriteParams) int64); ok {
 		r0 = rf(ctx, arg)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, db.UnfavoriteParams) error); ok {
+		r1 = rf(ctx, arg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // Querier_Unfavorite_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Unfavorite'
@@ -3256,12 +3316,12 @@ func (_c *Querier_Unfavorite_Call) Run(run func(ctx context.Context, arg db.Unfa
 	return _c
 }
 
-func (_c *Querier_Unfavorite_Call) Return(_a0 error) *Querier_Unfavorite_Call {
-	_c.Call.Return(_a0)
+func (_c *Querier_Unfavorite_Call) Return(_a0 int64, _a1 error) *Querier_Unfavorite_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *Querier_Unfavorite_Call) RunAndReturn(run func(context.Context, db.UnfavoriteParams) error) *Querier_Unfavorite_Call {
+func (_c *Querier_Unfavorite_Call) RunAndReturn(run func(context.Context, db.UnfavoriteParams) (int64, error)) *Querier_Unfavorite_Call {
 	_c.Call.Return(run)
 	return _c
 }
