@@ -67,7 +67,7 @@ func validateRequest(req any) map[string]string {
 func extractLabels(req any) map[string]string {
 	labels := map[string]string{}
 	t := reflect.TypeOf(req)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	for i := 0; i < t.NumField(); i++ {
