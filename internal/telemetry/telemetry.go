@@ -29,11 +29,7 @@ func Setup(ctx context.Context, serviceName, environment string) (shutdown func(
 
 	res, err := resource.Merge(
 		resource.Default(),
-		resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceName(serviceName),
-			semconv.DeploymentEnvironmentName(environment),
-		),
+		appResource(serviceName, environment),
 	)
 	if err != nil {
 		return nil, err
@@ -51,4 +47,13 @@ func Setup(ctx context.Context, serviceName, environment string) (shutdown func(
 	http.DefaultTransport = otelhttp.NewTransport(http.DefaultTransport)
 
 	return tp.Shutdown, nil
+}
+
+func appResource(serviceName, environment string) *resource.Resource {
+	// The default resource schema can move independently across OTel versions.
+	// Keep app-level attributes schemaless so startup does not fail on schema URL conflicts.
+	return resource.NewSchemaless(
+		semconv.ServiceName(serviceName),
+		semconv.DeploymentEnvironmentName(environment),
+	)
 }
