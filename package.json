@@ -8,7 +8,7 @@
         "typecheck": "tsc --noEmit"
     },
     "devDependencies": {
-        "@biomejs/biome": "^2.4.16",
+        "@biomejs/biome": "^2.5.0",
         "@gfazioli/mantine-split-pane": "^1.1.5",
         "@headlessui/react": "^2.2.10",
         "@inertiajs/react": "^3.0.3",
@@ -19,7 +19,7 @@
         "@mantine/notifications": "^9.0.2",
         "@mantine/spotlight": "^9.0.2",
         "@tabler/icons-react": "^3.44.0",
-        "@types/node": "^25.9.2",
+        "@types/node": "^25.9.3",
         "@types/react": "^19.2.14",
         "@types/react-dom": "^19.2.3",
         "@vitejs/plugin-react": "^5.1.4",
