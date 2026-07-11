@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/angristan/larafeed-go/internal/auth"
 	"github.com/angristan/larafeed-go/internal/service"
@@ -10,12 +11,17 @@ import (
 )
 
 type ReaderHandler struct {
-	inertia   *gonertia.Inertia
-	readerSvc readerService
+	inertia        *gonertia.Inertia
+	readerSvc      readerService
+	summaryLimiter *summaryRateLimiter
 }
 
 func NewReaderHandler(i *gonertia.Inertia, readerSvc readerService) *ReaderHandler {
-	return &ReaderHandler{inertia: i, readerSvc: readerSvc}
+	return &ReaderHandler{
+		inertia:        i,
+		readerSvc:      readerSvc,
+		summaryLimiter: newSummaryRateLimiter(summaryRequestsPerWindow, summaryRateLimitWindow),
+	}
 }
 
 func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
@@ -71,6 +77,16 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 		}
 		_, ok := partialOnly[name]
 		return ok
+	}
+
+	if shouldResolveSummary(r, partialOnly) {
+		allowed, retryAfter := h.summaryLimiter.allow(user.ID)
+		if !allowed {
+			retryAfterSeconds := max(int64((retryAfter+time.Second-1)/time.Second), 1)
+			w.Header().Set("Retry-After", strconv.FormatInt(retryAfterSeconds, 10))
+			http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
+			return
+		}
 	}
 
 	// Feeds
@@ -151,7 +167,7 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return nil, nil
 			}
-			return h.readerSvc.SummarizeEntry(r.Context(), entryID)
+			return h.readerSvc.SummarizeEntry(r.Context(), user.ID, entryID)
 		})
 	}
 
@@ -169,7 +185,7 @@ func (h *ReaderHandler) Show(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err := h.inertia.Render(w, r, "Reader/Reader", props)
+	err := h.inertia.Render(w, r, readerComponent, props)
 	if err != nil {
 		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 	}

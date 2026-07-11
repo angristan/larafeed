@@ -16,7 +16,7 @@ type readerService interface {
 	FetchCurrentEntry(ctx context.Context, userID int64, entryID int64, markRead *bool) (*db.ReaderEntry, error)
 	CountUnread(ctx context.Context, userID int64) (int64, error)
 	CountRead(ctx context.Context, userID int64) (int64, error)
-	SummarizeEntry(ctx context.Context, entryID int64) (any, error)
+	SummarizeEntry(ctx context.Context, userID, entryID int64) (any, error)
 	ListCategories(ctx context.Context, userID int64) ([]db.SubscriptionCategory, error)
 }
 

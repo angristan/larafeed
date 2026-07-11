@@ -2,12 +2,15 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/db"
 	"github.com/angristan/larafeed-go/internal/db/mocks"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -176,6 +179,44 @@ func TestFetchCurrentEntry_MarkAsUnread(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, entry.ReadAt)
 	q.AssertCalled(t, "MarkAsUnread", mock.Anything, mock.Anything)
+}
+
+func TestSummarizeEntry_RequiresUserSubscription(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	content := "Article content"
+	q.On("FindReaderEntry", mock.Anything, db.FindReaderEntryParams{UserID: 7, EntryID: 42}).
+		Return(db.FindReaderEntryRow{
+			ID: 42, FeedID: 10, Title: "Test Entry", URL: "https://example.com/entry",
+			Content: &content, PublishedAt: time.Now(), FeedName: "Example",
+		}, nil)
+	q.On("CacheGet", mock.Anything, "entry_42_llm_summary").Return(db.CacheGetRow{
+		Value:      "<p>Cached summary</p>",
+		Expiration: int(time.Now().Add(time.Hour).Unix()),
+	}, nil)
+
+	svc := newTestReaderService(t, q)
+	svc.llm = NewLLMService("api-key", q)
+	summary, err := svc.SummarizeEntry(context.Background(), 7, 42)
+
+	require.NoError(t, err)
+	assert.Equal(t, "<p>Cached summary</p>", summary)
+	q.AssertCalled(t, "FindReaderEntry", mock.Anything, db.FindReaderEntryParams{UserID: 7, EntryID: 42})
+	q.AssertNotCalled(t, "FindEntryByID", mock.Anything, mock.Anything)
+}
+
+func TestSummarizeEntry_HidesUnauthorizedEntry(t *testing.T) {
+	q := mocks.NewQuerier(t)
+	q.On("FindReaderEntry", mock.Anything, db.FindReaderEntryParams{UserID: 7, EntryID: 42}).
+		Return(db.FindReaderEntryRow{}, pgx.ErrNoRows)
+
+	svc := newTestReaderService(t, q)
+	summary, err := svc.SummarizeEntry(context.Background(), 7, 42)
+
+	assert.Nil(t, summary)
+	var notFound *apperr.NotFoundError
+	require.True(t, errors.As(err, &notFound))
+	assert.Equal(t, "entry not found", notFound.Error())
+	q.AssertNotCalled(t, "CacheGet", mock.Anything, mock.Anything)
 }
 
 func TestCountUnread(t *testing.T) {

@@ -10,12 +10,33 @@ import (
 
 var entryContentPolicy = bluemonday.UGCPolicy()
 
+// LLM summaries are rendered as HTML, but the model output is untrusted. Keep
+// the allowed surface deliberately small and do not permit any attributes,
+// links, images, or other active/embed-capable elements.
+var llmSummaryPolicy = bluemonday.NewPolicy().AllowElements(
+	"p",
+	"br",
+	"strong",
+	"em",
+)
+
+const safeSummaryFallback = "<p>Unable to generate a safe summary.</p>"
+
 func sanitizeEntryContent(htmlContent string) string {
 	if htmlContent == "" {
 		return ""
 	}
 
 	return openEntryContentLinksInNewTab(entryContentPolicy.Sanitize(htmlContent))
+}
+
+func sanitizeLLMSummary(summary string) string {
+	sanitized := strings.TrimSpace(llmSummaryPolicy.Sanitize(summary))
+	if sanitized == "" {
+		return safeSummaryFallback
+	}
+
+	return sanitized
 }
 
 func openEntryContentLinksInNewTab(htmlContent string) string {

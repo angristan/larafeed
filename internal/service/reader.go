@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/angristan/larafeed-go/internal/apperr"
 	"github.com/angristan/larafeed-go/internal/db"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -198,11 +200,23 @@ func (s *ReaderService) FetchCurrentEntry(ctx context.Context, userID int64, ent
 	return entry, nil
 }
 
-// SummarizeEntry returns a summary for the given entry.
-func (s *ReaderService) SummarizeEntry(ctx context.Context, entryID int64) (any, error) {
-	entry, err := s.q.FindEntryByID(ctx, entryID)
+// SummarizeEntry returns a summary for an entry the user is subscribed to.
+func (s *ReaderService) SummarizeEntry(ctx context.Context, userID, entryID int64) (any, error) {
+	row, err := s.q.FindReaderEntry(ctx, db.FindReaderEntryParams{UserID: userID, EntryID: entryID})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, apperr.NewNotFound("entry")
+		}
 		return nil, err
+	}
+	entry := db.Entry{
+		ID:          row.ID,
+		FeedID:      row.FeedID,
+		Title:       row.Title,
+		URL:         row.URL,
+		Author:      row.Author,
+		Content:     row.Content,
+		PublishedAt: row.PublishedAt,
 	}
 	return s.llm.SummarizeEntry(ctx, &entry)
 }

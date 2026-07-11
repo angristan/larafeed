@@ -34,7 +34,7 @@ func (s *LLMService) SummarizeEntry(ctx context.Context, entry *db.Entry) (strin
 	cacheKey := fmt.Sprintf("entry_%d_llm_summary", entry.ID)
 	cached, err := s.q.CacheGet(ctx, cacheKey)
 	if err == nil && cached.Expiration > int(time.Now().Unix()) {
-		return cached.Value, nil
+		return sanitizeLLMSummary(cached.Value), nil
 	}
 
 	content := ""
@@ -78,7 +78,7 @@ Content: %s`, entry.Title, content)
 		return "Unable to generate summary.", nil
 	}
 
-	summary := fmt.Sprintf("%v", resp.Candidates[0].Content.Parts[0])
+	summary := sanitizeLLMSummary(fmt.Sprintf("%v", resp.Candidates[0].Content.Parts[0]))
 
 	// Cache for 30 days
 	err = s.q.CacheSet(ctx, db.CacheSetParams{Key: cacheKey, Value: summary, Expiration: int(time.Now().Add(30 * 24 * time.Hour).Unix())})
