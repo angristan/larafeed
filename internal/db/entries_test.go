@@ -16,13 +16,13 @@ func TestReaderEntry_MarshalJSON(t *testing.T) {
 	t.Run("nests feed fields into feed sub-object", func(t *testing.T) {
 		now := time.Now()
 		entry := ReaderEntry{
-			ID:          1,
-			FeedID:      42,
-			Title:       "Test Entry",
-			URL:         "https://example.com/post",
-			PublishedAt: now,
-			FeedName:    "Example Feed",
-			FaviconURL:  strPtr("https://example.com/favicon.ico"),
+			ID:            1,
+			FeedID:        42,
+			Title:         "Test Entry",
+			URL:           "https://example.com/post",
+			PublishedAt:   now,
+			FeedName:      "Example Feed",
+			FaviconURL:    strPtr("https://example.com/favicon.ico"),
 			FaviconIsDark: boolPtr(false),
 		}
 
@@ -72,6 +72,26 @@ func TestReaderEntry_MarshalJSON(t *testing.T) {
 
 		feed := result["feed"].(map[string]any)
 		assert.Equal(t, "Custom Name", feed["name"])
+	})
+
+	t.Run("decodes HTML entities in title as plain text", func(t *testing.T) {
+		entry := ReaderEntry{
+			ID:          1,
+			FeedID:      42,
+			Title:       "Here&#8217;s &amp; &lt;script&gt;alert(1)&lt;/script&gt;",
+			URL:         "https://example.com",
+			PublishedAt: time.Now(),
+			FeedName:    "Example Feed",
+		}
+
+		data, err := json.Marshal(entry)
+		require.NoError(t, err)
+		assert.NotContains(t, string(data), "<script>")
+
+		var result map[string]any
+		err = json.Unmarshal(data, &result)
+		require.NoError(t, err)
+		assert.Equal(t, "Here’s & <script>alert(1)</script>", result["title"])
 	})
 
 	t.Run("uses original name when custom name is empty", func(t *testing.T) {
