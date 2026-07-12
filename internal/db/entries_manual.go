@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"encoding/json"
+	"html"
 	"time"
 )
 
@@ -56,7 +57,7 @@ func (e ReaderEntry) MarshalJSON() ([]byte, error) {
 
 	out := entryJSON{
 		ID:              e.ID,
-		Title:           e.Title,
+		Title:           html.UnescapeString(e.Title),
 		URL:             e.URL,
 		Author:          e.Author,
 		Content:         e.Content,
