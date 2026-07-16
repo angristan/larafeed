@@ -7,21 +7,33 @@ import {
     Group,
     Menu,
     rem,
+    Text,
     Title,
     Tooltip,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { Spotlight, type SpotlightActionData } from '@mantine/spotlight';
+import {
+    Spotlight,
+    type SpotlightActionData,
+    spotlight as spotlightActions,
+} from '@mantine/spotlight';
 import {
     IconBook2,
     IconBrandGithub,
     IconChartBar,
     IconList,
     IconLogout,
+    IconMenu2,
     IconSearch,
     IconSettings,
 } from '@tabler/icons-react';
-import { type ReactNode, useMemo } from 'react';
+import {
+    createContext,
+    type ReactNode,
+    useContext,
+    useEffect,
+    useMemo,
+} from 'react';
 import ApplicationLogo from '@/Components/ApplicationLogo/ApplicationLogo';
 import ColorSchemeSwitcher from '@/Components/ColorSchemeSwitcher/ColorSchemeSwitcher';
 import KeyboardShortcuts from '@/Components/KeyboardShortcuts/KeyboardShortcuts';
@@ -42,6 +54,10 @@ interface AppShellLayoutProps {
     spotlight?: SpotlightConfig;
     navbarWidth?: number;
 }
+
+const CloseSidebarContext = createContext<() => void>(() => undefined);
+
+export const useCloseAppShellSidebar = () => useContext(CloseSidebarContext);
 
 const NAV_ITEMS: Array<{
     key: 'reader' | 'subscriptions' | 'charts' | 'settings';
@@ -88,9 +104,19 @@ const AppShellLayout = ({
         },
     } = usePage<PageProps>();
 
-    const [opened, { toggle }] = useDisclosure();
+    const [opened, { close, toggle }] = useDisclosure();
 
     const hasSidebar = Boolean(sidebar);
+
+    useEffect(
+        () =>
+            router.on('start', (event) => {
+                if (!event.detail.visit.prefetch) {
+                    close();
+                }
+            }),
+        [close],
+    );
 
     const spotlightProps = useMemo(() => {
         if (!spotlight || spotlight.actions.length === 0) {
@@ -107,7 +133,7 @@ const AppShellLayout = ({
 
     return (
         <AppShell
-            header={{ height: 56 }}
+            header={{ height: 64 }}
             navbar={
                 hasSidebar
                     ? {
@@ -118,6 +144,9 @@ const AppShellLayout = ({
                     : undefined
             }
             padding="md"
+            classNames={{
+                navbar: !opened ? classes.mobileNavbarClosed : undefined,
+            }}
         >
             {spotlightProps && (
                 <Spotlight
@@ -139,102 +168,184 @@ const AppShellLayout = ({
                 />
             )}
 
-            <AppShell.Header>
-                <Group h="100%" px="md" justify="space-between">
-                    <Group gap="sm">
+            <AppShell.Header className={classes.header}>
+                <Group
+                    h="100%"
+                    px={{ base: 'sm', sm: 'md' }}
+                    justify="space-between"
+                    wrap="nowrap"
+                >
+                    <Group gap="sm" wrap="nowrap">
                         {hasSidebar && (
                             <Burger
                                 opened={opened}
                                 onClick={toggle}
                                 hiddenFrom="sm"
                                 size="sm"
+                                aria-controls="app-sidebar-navigation"
+                                aria-expanded={opened}
+                                aria-label={
+                                    opened
+                                        ? 'Close page navigation'
+                                        : 'Open page navigation'
+                                }
                             />
                         )}
                         <Link
                             href={route('feeds.index')}
-                            as="div"
                             prefetch
                             className={classes.logoLink}
+                            aria-label="Larafeed reader"
                         >
-                            <Group gap="xs">
-                                <ApplicationLogo width={36} />
-                                <Title order={3} style={{ margin: 0 }}>
+                            <Group gap="xs" wrap="nowrap">
+                                <ApplicationLogo width={34} />
+                                <Title order={3} className={classes.brandName}>
                                     Larafeed
                                 </Title>
                             </Group>
                         </Link>
 
-                        <Group gap={4} wrap="nowrap">
+                        <nav
+                            className={classes.desktopNav}
+                            aria-label="Primary navigation"
+                        >
                             {NAV_ITEMS.map((item) => {
                                 const Icon = item.icon;
 
                                 return (
-                                    <Tooltip
+                                    <Link
                                         key={item.key}
-                                        label={item.label}
-                                        withArrow
-                                        openDelay={400}
+                                        href={route(item.routeName)}
+                                        prefetch
+                                        className={`${classes.navLink} ${
+                                            item.key === activePage
+                                                ? classes.navLinkActive
+                                                : ''
+                                        }`}
+                                        aria-current={
+                                            item.key === activePage
+                                                ? 'page'
+                                                : undefined
+                                        }
                                     >
-                                        <Link
-                                            href={route(item.routeName)}
-                                            as="div"
-                                            prefetch
-                                        >
-                                            <ActionIcon
-                                                size="lg"
-                                                variant={
-                                                    item.key === activePage
-                                                        ? 'filled'
-                                                        : 'subtle'
-                                                }
-                                                aria-label={`${item.label} page`}
-                                            >
-                                                <Icon size={18} stroke={1.6} />
-                                            </ActionIcon>
-                                        </Link>
-                                    </Tooltip>
+                                        <Icon size={17} stroke={1.7} />
+                                        <span>{item.label}</span>
+                                    </Link>
                                 );
                             })}
-                        </Group>
+                        </nav>
                     </Group>
 
-                    <Group>
-                        <ActionIcon
-                            onClick={() =>
-                                window.open(
-                                    'https://github.com/angristan/larafeed',
-                                    '_blank',
-                                )
-                            }
-                            variant="default"
-                            size="lg"
-                            aria-label="Open Larafeed GitHub repository"
-                        >
-                            <IconBrandGithub stroke={1.5} size={20} />
-                        </ActionIcon>
+                    <Group gap="xs" wrap="nowrap">
+                        {spotlightProps && (
+                            <Tooltip
+                                label="Search feeds (Ctrl/Cmd + K)"
+                                withArrow
+                            >
+                                <ActionIcon
+                                    onClick={spotlightActions.open}
+                                    variant="subtle"
+                                    size="lg"
+                                    aria-label="Search feeds"
+                                >
+                                    <IconSearch stroke={1.7} size={19} />
+                                </ActionIcon>
+                            </Tooltip>
+                        )}
 
-                        <KeyboardShortcuts />
+                        <Group gap="xs" visibleFrom="md" wrap="nowrap">
+                            <Tooltip label="View Larafeed on GitHub" withArrow>
+                                <ActionIcon
+                                    component="a"
+                                    href="https://github.com/angristan/larafeed"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    variant="subtle"
+                                    size="lg"
+                                    aria-label="Open Larafeed GitHub repository"
+                                >
+                                    <IconBrandGithub stroke={1.5} size={20} />
+                                </ActionIcon>
+                            </Tooltip>
+
+                            <KeyboardShortcuts />
+                        </Group>
+
                         <ColorSchemeSwitcher />
 
-                        <Menu
-                            shadow="md"
-                            width={220}
-                            position="top-end"
-                            trigger="click-hover"
-                            closeDelay={300}
-                        >
+                        <Menu shadow="md" width={210} position="bottom-end">
+                            <Menu.Target>
+                                <ActionIcon
+                                    variant="subtle"
+                                    size="lg"
+                                    hiddenFrom="md"
+                                    aria-label="Open primary navigation"
+                                >
+                                    <IconMenu2 stroke={1.7} size={20} />
+                                </ActionIcon>
+                            </Menu.Target>
+
+                            <Menu.Dropdown>
+                                <Menu.Label>Navigate</Menu.Label>
+                                {NAV_ITEMS.map((item) => {
+                                    const Icon = item.icon;
+
+                                    return (
+                                        <Menu.Item
+                                            key={item.key}
+                                            component={Link}
+                                            href={route(item.routeName)}
+                                            prefetch
+                                            leftSection={
+                                                <Icon size={16} stroke={1.7} />
+                                            }
+                                            color={
+                                                item.key === activePage
+                                                    ? 'blue'
+                                                    : undefined
+                                            }
+                                            aria-current={
+                                                item.key === activePage
+                                                    ? 'page'
+                                                    : undefined
+                                            }
+                                            onClick={close}
+                                        >
+                                            {item.label}
+                                        </Menu.Item>
+                                    );
+                                })}
+                            </Menu.Dropdown>
+                        </Menu>
+
+                        <Menu shadow="md" width={220} position="bottom-end">
                             <Menu.Target>
                                 <Avatar
+                                    component="button"
+                                    type="button"
                                     src={null}
                                     radius="xl"
+                                    size={34}
                                     className={classes.user}
+                                    aria-label={`Open account menu for ${user.name}`}
                                 >
                                     {user.name[0]}
                                 </Avatar>
                             </Menu.Target>
 
                             <Menu.Dropdown>
-                                <Menu.Label>{user.email}</Menu.Label>
+                                <Menu.Label>
+                                    <Text
+                                        size="sm"
+                                        fw={600}
+                                        c="var(--app-text-primary)"
+                                    >
+                                        {user.name}
+                                    </Text>
+                                    <Text size="xs" c="dimmed" truncate>
+                                        {user.email}
+                                    </Text>
+                                </Menu.Label>
                                 <Menu.Divider />
                                 <Menu.Item
                                     onClick={() => router.post(route('logout'))}
@@ -255,7 +366,9 @@ const AppShellLayout = ({
                 </Group>
             </AppShell.Header>
 
-            {sidebar}
+            <CloseSidebarContext.Provider value={close}>
+                {sidebar}
+            </CloseSidebarContext.Provider>
             {children}
         </AppShell>
     );

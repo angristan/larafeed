@@ -1,15 +1,7 @@
-import { Head, router, useForm } from '@inertiajs/react';
-import {
-    Anchor,
-    Button,
-    Container,
-    Paper,
-    PasswordInput,
-    Text,
-    TextInput,
-    Title,
-} from '@mantine/core';
-import classes from './Register.module.css';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { Anchor, Button, PasswordInput, Stack, TextInput } from '@mantine/core';
+import { IconUserPlus } from '@tabler/icons-react';
+import AuthLayout from '@/Layouts/AuthLayout/AuthLayout';
 
 export default function Register() {
     const { data, setData, post, processing, errors, reset } = useForm({
@@ -27,81 +19,94 @@ export default function Register() {
     };
 
     return (
-        <Container size={420} my={40}>
+        <AuthLayout
+            title="Create your account"
+            description="Set up a focused home for the feeds you care about."
+            icon={<IconUserPlus size={22} stroke={1.7} />}
+            footer={
+                <>
+                    Already have an account?{' '}
+                    <Anchor component={Link} href={route('login')} fw={600}>
+                        Sign in
+                    </Anchor>
+                </>
+            }
+        >
             <Head title="Register" />
 
-            <Title ta="center" className={classes.title}>
-                Create account
-            </Title>
-            <Text c="dimmed" size="sm" ta="center" mt={5}>
-                Already have an account?{' '}
-                <Anchor
-                    component="a"
-                    onClick={() => router.visit(route('login'))}
-                    size="sm"
-                >
-                    Sign in
-                </Anchor>
-            </Text>
+            <form onSubmit={handleSubmit}>
+                <Stack gap="md">
+                    <TextInput
+                        label="Name"
+                        placeholder="Your name"
+                        name="name"
+                        required
+                        autoFocus
+                        value={data.name}
+                        onChange={(event) =>
+                            setData('name', event.currentTarget.value)
+                        }
+                        error={errors.name}
+                        autoComplete="name"
+                    />
 
-            <Paper
-                withBorder
-                shadow="md"
-                p={30}
-                mt={30}
-                radius="md"
-                component="form"
-                onSubmit={handleSubmit}
-            >
-                <TextInput
-                    label="Name"
-                    placeholder="Your name"
-                    required
-                    value={data.name}
-                    onChange={(e) => setData('name', e.target.value)}
-                    error={errors.name}
-                    autoComplete="name"
-                />
+                    <TextInput
+                        label="Email"
+                        placeholder="you@example.com"
+                        name="email"
+                        type="email"
+                        required
+                        value={data.email}
+                        onChange={(event) =>
+                            setData('email', event.currentTarget.value)
+                        }
+                        error={errors.email}
+                        autoComplete="username"
+                    />
 
-                <TextInput
-                    label="Email"
-                    placeholder="you@example.com"
-                    required
-                    mt="md"
-                    value={data.email}
-                    onChange={(e) => setData('email', e.target.value)}
-                    error={errors.email}
-                    autoComplete="username"
-                />
+                    <PasswordInput
+                        label="Password"
+                        description="Use at least 8 characters"
+                        placeholder="Create a password"
+                        name="password"
+                        required
+                        minLength={8}
+                        value={data.password}
+                        onChange={(event) =>
+                            setData('password', event.currentTarget.value)
+                        }
+                        error={errors.password}
+                        autoComplete="new-password"
+                    />
 
-                <PasswordInput
-                    label="Password"
-                    placeholder="Your password"
-                    required
-                    mt="md"
-                    value={data.password}
-                    onChange={(e) => setData('password', e.target.value)}
-                    error={errors.password}
-                    autoComplete="new-password"
-                />
+                    <PasswordInput
+                        label="Confirm password"
+                        placeholder="Repeat your password"
+                        name="password_confirmation"
+                        required
+                        minLength={8}
+                        value={data.password_confirmation}
+                        onChange={(event) =>
+                            setData(
+                                'password_confirmation',
+                                event.currentTarget.value,
+                            )
+                        }
+                        error={errors.password_confirmation}
+                        autoComplete="new-password"
+                    />
 
-                <PasswordInput
-                    label="Confirm Password"
-                    placeholder="Confirm your password"
-                    required
-                    mt="md"
-                    value={data.password_confirmation}
-                    onChange={(e) =>
-                        setData('password_confirmation', e.target.value)
-                    }
-                    error={errors.password_confirmation}
-                    autoComplete="new-password"
-                />
-
-                <Button fullWidth mt="xl" type="submit" loading={processing}>
-                    Register
-                </Button>
-            </Paper>
-        </Container>
+                    <Button
+                        fullWidth
+                        size="md"
+                        type="submit"
+                        loading={processing}
+                        disabled={processing}
+                    >
+                        Create account
+                    </Button>
+                </Stack>
+            </form>
+        </AuthLayout>
     );
 }

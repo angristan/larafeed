@@ -44,8 +44,11 @@ type DailyRefresh struct {
 }
 
 type ChartsQuery struct {
-	RangeDays    int
-	FeedIDFilter *int64
+	RangeDays        int
+	StartDate        time.Time
+	EndDate          time.Time
+	FeedIDFilter     *int64
+	CategoryIDFilter *int64
 }
 
 type ChartsData struct {
@@ -62,40 +65,63 @@ type ChartsData struct {
 
 // GetChartsData fetches all analytics data for the charts page.
 func (s *ChartsService) GetChartsData(ctx context.Context, userID int64, params ChartsQuery) (ChartsData, error) {
-	since := time.Now().AddDate(0, 0, -params.RangeDays)
+	startDate := params.StartDate
+	endDate := params.EndDate
+	if params.RangeDays <= 0 || startDate.IsZero() || endDate.IsZero() {
+		params.RangeDays = 30
+		endDate = dateOnly(time.Now())
+		startDate = endDate.AddDate(0, 0, -(params.RangeDays - 1))
+	}
+	endExclusive := endDate.AddDate(0, 0, 1)
 
-	dailyEntries := s.queryDailyCounts(ctx, userID, params.FeedIDFilter, since, `
-		SELECT DATE(e.published_at) as d, COUNT(*) as c
-		FROM entries e
-		JOIN feed_subscriptions fs ON e.feed_id = fs.feed_id AND fs.user_id = $1
-		LEFT JOIN entry_interactions ei ON e.id = ei.entry_id AND ei.user_id = $1
-		WHERE e.published_at >= $2 AND (ei.filtered_at IS NULL)
-			AND ($3::bigint IS NULL OR e.feed_id = $3)
-		GROUP BY d ORDER BY d`)
+	dailyEntries, err := s.queryDailyCounts(ctx, userID, params, startDate, endExclusive, `
+			SELECT DATE(e.published_at AT TIME ZONE 'UTC') as d, COUNT(*) as c
+			FROM entries e
+			JOIN feed_subscriptions fs ON e.feed_id = fs.feed_id AND fs.user_id = $1
+			LEFT JOIN entry_interactions ei ON e.id = ei.entry_id AND ei.user_id = $1
+			WHERE e.published_at >= $2 AND e.published_at < $3
+				AND ei.filtered_at IS NULL
+				AND ($4::bigint IS NULL OR e.feed_id = $4)
+				AND ($5::bigint IS NULL OR fs.category_id = $5)
+			GROUP BY d ORDER BY d`)
+	if err != nil {
+		return ChartsData{}, fmt.Errorf("get daily entries: %w", err)
+	}
 
-	dailyReads := s.queryDailyCounts(ctx, userID, params.FeedIDFilter, since, `
-		SELECT DATE(ei.read_at) as d, COUNT(*) as c
-		FROM entry_interactions ei
-		JOIN entries e ON ei.entry_id = e.id
-		JOIN feed_subscriptions fs ON e.feed_id = fs.feed_id AND fs.user_id = $1
-		WHERE ei.read_at >= $2 AND ei.user_id = $1
-			AND ($3::bigint IS NULL OR e.feed_id = $3)
-		GROUP BY d ORDER BY d`)
+	dailyReads, err := s.queryDailyCounts(ctx, userID, params, startDate, endExclusive, `
+			SELECT DATE(ei.read_at AT TIME ZONE 'UTC') as d, COUNT(*) as c
+			FROM entry_interactions ei
+			JOIN entries e ON ei.entry_id = e.id
+			JOIN feed_subscriptions fs ON e.feed_id = fs.feed_id AND fs.user_id = $1
+			WHERE ei.read_at >= $2 AND ei.read_at < $3 AND ei.user_id = $1
+				AND ($4::bigint IS NULL OR e.feed_id = $4)
+				AND ($5::bigint IS NULL OR fs.category_id = $5)
+			GROUP BY d ORDER BY d`)
+	if err != nil {
+		return ChartsData{}, fmt.Errorf("get daily reads: %w", err)
+	}
 
-	dailySaved := s.queryDailyCounts(ctx, userID, params.FeedIDFilter, since, `
-		SELECT DATE(ei.starred_at) as d, COUNT(*) as c
-		FROM entry_interactions ei
-		JOIN entries e ON ei.entry_id = e.id
-		JOIN feed_subscriptions fs ON e.feed_id = fs.feed_id AND fs.user_id = $1
-		WHERE ei.starred_at >= $2 AND ei.user_id = $1
-			AND ($3::bigint IS NULL OR e.feed_id = $3)
-		GROUP BY d ORDER BY d`)
+	dailySaved, err := s.queryDailyCounts(ctx, userID, params, startDate, endExclusive, `
+			SELECT DATE(ei.starred_at AT TIME ZONE 'UTC') as d, COUNT(*) as c
+			FROM entry_interactions ei
+			JOIN entries e ON ei.entry_id = e.id
+			JOIN feed_subscriptions fs ON e.feed_id = fs.feed_id AND fs.user_id = $1
+			WHERE ei.starred_at >= $2 AND ei.starred_at < $3 AND ei.user_id = $1
+				AND ($4::bigint IS NULL OR e.feed_id = $4)
+				AND ($5::bigint IS NULL OR fs.category_id = $5)
+			GROUP BY d ORDER BY d`)
+	if err != nil {
+		return ChartsData{}, fmt.Errorf("get daily saved entries: %w", err)
+	}
 
-	backlogTrend := ComputeBacklogTrend(dailyEntries, dailyReads, since, params.RangeDays)
-	readThrough := ComputeReadThrough(dailyEntries, dailyReads, since, params.RangeDays)
-	dailyRefreshes := s.queryDailyRefreshes(ctx, userID, params.FeedIDFilter, since, params.RangeDays)
+	backlogTrend := ComputeBacklogTrend(dailyEntries, dailyReads, startDate, params.RangeDays)
+	readThrough := ComputeReadThrough(dailyEntries, dailyReads, startDate, params.RangeDays)
+	dailyRefreshes, err := s.queryDailyRefreshes(ctx, userID, params, startDate, endExclusive)
+	if err != nil {
+		return ChartsData{}, fmt.Errorf("get daily refreshes: %w", err)
+	}
 
-	stats, err := s.q.GetRefreshStats(ctx, db.GetRefreshStatsParams{UserID: userID, RefreshedAt: since})
+	stats, err := s.queryRefreshStats(ctx, userID, params, startDate, endExclusive)
 	if err != nil {
 		return ChartsData{}, fmt.Errorf("get refresh stats: %w", err)
 	}
@@ -121,10 +147,25 @@ func (s *ChartsService) GetChartsData(ctx context.Context, userID int64, params 
 	}, nil
 }
 
-func (s *ChartsService) queryDailyCounts(ctx context.Context, userID int64, feedID *int64, since time.Time, query string) []DailyCount {
-	rows, err := s.pool.Query(ctx, query, userID, since, feedID)
+func (s *ChartsService) queryDailyCounts(
+	ctx context.Context,
+	userID int64,
+	params ChartsQuery,
+	startDate time.Time,
+	endExclusive time.Time,
+	query string,
+) ([]DailyCount, error) {
+	rows, err := s.pool.Query(
+		ctx,
+		query,
+		userID,
+		startDate,
+		endExclusive,
+		params.FeedIDFilter,
+		params.CategoryIDFilter,
+	)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -134,26 +175,43 @@ func (s *ChartsService) queryDailyCounts(ctx context.Context, userID int64, feed
 		var c int
 		err := rows.Scan(&d, &c)
 		if err != nil {
-			continue
+			return nil, err
 		}
 		counts = append(counts, DailyCount{Date: d.Format("2006-01-02"), Count: c})
 	}
-	return counts
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+	return counts, nil
 }
 
-func (s *ChartsService) queryDailyRefreshes(ctx context.Context, userID int64, feedID *int64, since time.Time, days int) []DailyRefresh {
+func (s *ChartsService) queryDailyRefreshes(
+	ctx context.Context,
+	userID int64,
+	params ChartsQuery,
+	startDate time.Time,
+	endExclusive time.Time,
+) ([]DailyRefresh, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT DATE(fr.refreshed_at) as d,
-			COUNT(*) FILTER (WHERE fr.was_successful) as successes,
-			COUNT(*) FILTER (WHERE NOT fr.was_successful) as failures,
-			COALESCE(SUM(fr.entries_created), 0) as entries_created
-		FROM feed_refreshes fr
-		JOIN feed_subscriptions fs ON fr.feed_id = fs.feed_id AND fs.user_id = $1
-		WHERE fr.refreshed_at >= $2
-			AND ($3::bigint IS NULL OR fr.feed_id = $3)
-		GROUP BY d ORDER BY d`, userID, since, feedID)
+			SELECT DATE(fr.refreshed_at AT TIME ZONE 'UTC') as d,
+				COUNT(*) FILTER (WHERE fr.was_successful) as successes,
+				COUNT(*) FILTER (WHERE NOT fr.was_successful) as failures,
+				COALESCE(SUM(fr.entries_created), 0) as entries_created
+			FROM feed_refreshes fr
+			JOIN feed_subscriptions fs ON fr.feed_id = fs.feed_id AND fs.user_id = $1
+			WHERE fr.refreshed_at >= $2 AND fr.refreshed_at < $3
+				AND ($4::bigint IS NULL OR fr.feed_id = $4)
+				AND ($5::bigint IS NULL OR fs.category_id = $5)
+			GROUP BY d ORDER BY d`,
+		userID,
+		startDate,
+		endExclusive,
+		params.FeedIDFilter,
+		params.CategoryIDFilter,
+	)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -163,7 +221,7 @@ func (s *ChartsService) queryDailyRefreshes(ctx context.Context, userID int64, f
 		var dr DailyRefresh
 		err := rows.Scan(&d, &dr.Successes, &dr.Failures, &dr.EntriesCreated)
 		if err != nil {
-			continue
+			return nil, err
 		}
 		dr.Date = d.Format("2006-01-02")
 		dr.TotalAttempts = dr.Successes + dr.Failures
@@ -173,17 +231,55 @@ func (s *ChartsService) queryDailyRefreshes(ctx context.Context, userID int64, f
 		}
 		dataMap[dr.Date] = dr
 	}
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
 
 	var result []DailyRefresh
-	for d := 0; d < days; d++ {
-		date := since.AddDate(0, 0, d).Format("2006-01-02")
+	for d := 0; d < params.RangeDays; d++ {
+		date := startDate.AddDate(0, 0, d).Format("2006-01-02")
 		if dr, ok := dataMap[date]; ok {
 			result = append(result, dr)
 		} else {
 			result = append(result, DailyRefresh{Date: date})
 		}
 	}
-	return result
+	return result, nil
+}
+
+func (s *ChartsService) queryRefreshStats(
+	ctx context.Context,
+	userID int64,
+	params ChartsQuery,
+	startDate time.Time,
+	endExclusive time.Time,
+) (db.GetRefreshStatsRow, error) {
+	row := s.pool.QueryRow(ctx, `
+		SELECT
+			COUNT(*) FILTER (WHERE fr.was_successful) AS successes,
+			COUNT(*) FILTER (WHERE NOT fr.was_successful) AS failures,
+			COALESCE(SUM(fr.entries_created) FILTER (WHERE fr.was_successful), 0)::bigint AS entries_created
+		FROM feed_refreshes fr
+		JOIN feed_subscriptions fs ON fr.feed_id = fs.feed_id AND fs.user_id = $1
+		WHERE fr.refreshed_at >= $2 AND fr.refreshed_at < $3
+			AND ($4::bigint IS NULL OR fr.feed_id = $4)
+			AND ($5::bigint IS NULL OR fs.category_id = $5)`,
+		userID,
+		startDate,
+		endExclusive,
+		params.FeedIDFilter,
+		params.CategoryIDFilter,
+	)
+
+	var stats db.GetRefreshStatsRow
+	err := row.Scan(&stats.Successes, &stats.Failures, &stats.EntriesCreated)
+	return stats, err
+}
+
+func dateOnly(value time.Time) time.Time {
+	value = value.UTC()
+	return time.Date(value.Year(), value.Month(), value.Day(), 0, 0, 0, 0, time.UTC)
 }
 
 func ComputeBacklogTrend(entries, reads []DailyCount, since time.Time, days int) []DailyBacklog {

@@ -1,5 +1,12 @@
+import { router } from '@inertiajs/react';
 import { AppShell, Stack, Text, Title } from '@mantine/core';
-import { type ReactNode, useCallback, useMemo, useState } from 'react';
+import {
+    type ReactNode,
+    useCallback,
+    useEffect,
+    useMemo,
+    useState,
+} from 'react';
 import AppShellLayout from '@/Layouts/AppShellLayout/AppShellLayout';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import SettingsSidebar from './components/SettingsSidebar';
@@ -17,6 +24,10 @@ const Settings = ({
 }: SettingsPageProps) => {
     const [section, setSection] = useState<SettingsSection>(initialSection);
 
+    useEffect(() => {
+        setSection(initialSection);
+    }, [initialSection]);
+
     const handleSectionChange = useCallback((newSection: SettingsSection) => {
         setSection(newSection);
         const url = new URL(window.location.href);
@@ -25,7 +36,15 @@ const Settings = ({
         } else {
             url.searchParams.set('section', newSection);
         }
-        window.history.replaceState({}, '', url.toString());
+        router.replace<SettingsPageProps>({
+            url: `${url.pathname}${url.search}${url.hash}`,
+            preserveScroll: true,
+            preserveState: true,
+            props: (currentProps) => ({
+                ...currentProps,
+                initialSection: newSection,
+            }),
+        });
     }, []);
 
     const content = useMemo(() => {

@@ -1,9 +1,6 @@
-import { useMantineColorScheme } from '@mantine/core';
 import type { SVGAttributes } from 'react';
 
 export default function ApplicationLogo(props: SVGAttributes<SVGElement>) {
-    const { colorScheme } = useMantineColorScheme();
-
     return (
         <svg
             {...props}
@@ -11,12 +8,12 @@ export default function ApplicationLogo(props: SVGAttributes<SVGElement>) {
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 500.000000 500.000000"
             preserveAspectRatio="xMidYMid meet"
+            fill="currentColor"
         >
             <g
                 transform="translate(0.000000,500.000000) scale(0.100000,-0.100000)"
-                {...(colorScheme === 'dark'
-                    ? { fill: '#ffffff', stroke: '#000000' }
-                    : { fill: '#000000', stroke: 'none' })}
+                fill="currentColor"
+                stroke="none"
             >
                 <path
                     d="M3280 4267 c-19 -8 -181 -99 -360 -202 -179 -104 -494 -286 -700

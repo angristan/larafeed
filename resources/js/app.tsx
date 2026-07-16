@@ -29,6 +29,12 @@ async function resolvePageComponent(name: string) {
 }
 
 const theme = createTheme({
+    fontFamily:
+        '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif',
+    fontFamilyMonospace:
+        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+    primaryColor: 'blue',
+    primaryShade: { light: 7, dark: 5 },
     colors: {
         // Warm dark mode colors with neutral/slightly warm undertones
         dark: [
@@ -49,7 +55,8 @@ const theme = createTheme({
             h1: { fontSize: rem(32) },
         },
     },
-    defaultRadius: 'sm',
+    defaultRadius: 'md',
+    cursorType: 'pointer',
 });
 
 createInertiaApp({
@@ -63,15 +70,19 @@ createInertiaApp({
         const root = createRoot(el);
 
         root.render(
-            <MantineProvider theme={theme}>
+            <MantineProvider theme={theme} defaultColorScheme="auto">
                 <ModalsProvider>
-                    <Notifications pauseResetOnHover="notification" />
+                    <Notifications
+                        position="top-right"
+                        limit={4}
+                        pauseResetOnHover="notification"
+                    />
                     <App {...props} />
                 </ModalsProvider>
             </MantineProvider>,
         );
     },
     progress: {
-        color: '#4B5563',
+        color: '#228be6',
     },
 });

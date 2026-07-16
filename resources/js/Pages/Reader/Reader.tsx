@@ -1,15 +1,23 @@
 import { Split } from '@gfazioli/mantine-split-pane';
-import { router } from '@inertiajs/react';
+import { router, useRemember } from '@inertiajs/react';
 import {
     AppShell,
+    Center,
+    Kbd,
+    Stack,
+    Text,
+    ThemeIcon,
+    Title,
     useMantineColorScheme,
     useMantineTheme,
 } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import type { SpotlightActionData } from '@mantine/spotlight';
+import { IconBook2 } from '@tabler/icons-react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import { FaviconImage } from '@/Components/FaviconImage/FaviconImage';
 import AppShellLayout from '@/Layouts/AppShellLayout/AppShellLayout';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
@@ -46,12 +54,12 @@ const Reader = ({
         label: feed.name,
         description: feed.site_url,
         onClick: () => {
-            router.visit('feeds', {
-                only: ['feed', 'entries'],
+            router.visit(route('feeds.index'), {
+                only: ['entries', 'currententry', 'summary'],
                 data: {
                     feed: feed.id,
-                    entry: currententry?.id,
                 },
+                reset: ['summary'],
                 preserveScroll: true,
                 preserveState: true,
             });
@@ -116,33 +124,131 @@ const Main = function Main({
 }) {
     const { colorScheme } = useMantineColorScheme();
     const theme = useMantineTheme();
+    const compactLayout = useMediaQuery('(max-width: 75em)', undefined, {
+        getInitialValueInEffect: false,
+    });
+    const [optimisticallyReadEntryIDs, setOptimisticallyReadEntryIDs] =
+        useRemember<number[]>([], 'reader.optimistically-read-entry-ids');
+
+    const markEntryRead = (entryID: number) => {
+        setOptimisticallyReadEntryIDs((current) =>
+            current.includes(entryID)
+                ? current
+                : [...current, entryID].slice(-200),
+        );
+    };
+
+    const rollbackEntryRead = (entryID: number) => {
+        setOptimisticallyReadEntryIDs((current) =>
+            current.filter((currentEntryID) => currentEntryID !== entryID),
+        );
+    };
+
+    useEffect(() => {
+        if (currententry && !currententry.read_at) {
+            setOptimisticallyReadEntryIDs((current) =>
+                current.filter(
+                    (currentEntryID) => currentEntryID !== currententry.id,
+                ),
+            );
+        }
+    }, [currententry, setOptimisticallyReadEntryIDs]);
+
+    const closeCurrentEntry = () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        urlParams.delete('entry');
+        urlParams.delete('read');
+        urlParams.delete('summarize');
+
+        router.visit(route('feeds.index'), {
+            only: ['entries', 'currententry', 'summary'],
+            data: Object.fromEntries(urlParams),
+            reset: ['summary'],
+            preserveScroll: true,
+            preserveState: true,
+        });
+    };
 
     return (
         <AppShell.Main className={classes.main}>
-            <Split
-                size="sm"
-                radius="xs"
-                spacing="md"
-                color={colorScheme === 'dark' ? theme.colors.dark[5] : ''}
-            >
-                <Split.Pane initialWidth="40%" minWidth={300}>
-                    <EntryListPane
-                        entries={entries}
-                        currentEntryID={currententry?.id}
-                    />
-                </Split.Pane>
-                <Split.Pane grow>
-                    {currententry && (
+            {compactLayout ? (
+                <div className={classes.compactPane}>
+                    {currententry ? (
                         <CurrentEntryPane
                             key={`${currententry.id}-${summary ? 'summary' : 'no-summary'}`}
                             currententry={currententry}
                             summary={summary}
                             feeds={feeds}
                             categories={categories}
+                            onBack={closeCurrentEntry}
+                        />
+                    ) : (
+                        <EntryListPane
+                            entries={entries}
+                            optimisticallyReadEntryIDs={
+                                optimisticallyReadEntryIDs
+                            }
+                            onOptimisticRead={markEntryRead}
+                            onOptimisticReadRollback={rollbackEntryRead}
                         />
                     )}
-                </Split.Pane>
-            </Split>
+                </div>
+            ) : (
+                <Split
+                    size="sm"
+                    radius="md"
+                    spacing="sm"
+                    color={
+                        colorScheme === 'dark'
+                            ? theme.colors.dark[5]
+                            : theme.colors.gray[2]
+                    }
+                >
+                    <Split.Pane initialWidth="38%" minWidth={320}>
+                        <EntryListPane
+                            entries={entries}
+                            currentEntryID={currententry?.id}
+                            optimisticallyReadEntryIDs={
+                                optimisticallyReadEntryIDs
+                            }
+                            onOptimisticRead={markEntryRead}
+                            onOptimisticReadRollback={rollbackEntryRead}
+                        />
+                    </Split.Pane>
+                    <Split.Pane grow>
+                        {currententry ? (
+                            <CurrentEntryPane
+                                key={`${currententry.id}-${summary ? 'summary' : 'no-summary'}`}
+                                currententry={currententry}
+                                summary={summary}
+                                feeds={feeds}
+                                categories={categories}
+                            />
+                        ) : (
+                            <Center className={classes.emptyReader}>
+                                <Stack align="center" gap="sm" maw={380}>
+                                    <ThemeIcon
+                                        size={52}
+                                        radius="xl"
+                                        variant="light"
+                                        color="blue"
+                                    >
+                                        <IconBook2 size={25} stroke={1.6} />
+                                    </ThemeIcon>
+                                    <Title order={3} ta="center">
+                                        Select an entry to start reading
+                                    </Title>
+                                    <Text c="dimmed" size="sm" ta="center">
+                                        Choose an article from the list, or use{' '}
+                                        <Kbd>J</Kbd> and <Kbd>K</Kbd> to move
+                                        through your reading queue.
+                                    </Text>
+                                </Stack>
+                            </Center>
+                        )}
+                    </Split.Pane>
+                </Split>
+            )}
         </AppShell.Main>
     );
 };

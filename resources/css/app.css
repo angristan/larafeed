@@ -5,28 +5,30 @@
     --app-bg-tertiary: var(--mantine-color-gray-1);
     --app-text-primary: var(--mantine-color-black);
     --app-text-secondary: var(--mantine-color-gray-7);
-    --app-text-dimmed: var(--mantine-color-gray-6);
+    --app-text-dimmed: var(--mantine-color-gray-7);
     --app-border: var(--mantine-color-gray-3);
     --app-border-subtle: var(--mantine-color-gray-2);
     --app-hover: var(--mantine-color-gray-1);
     --app-active: var(--mantine-color-gray-2);
     --app-link: var(--mantine-color-blue-6);
     --app-code-bg: var(--mantine-color-gray-1);
+    --mantine-color-dimmed: var(--mantine-color-gray-7);
 }
 
 [data-mantine-color-scheme='dark'] {
-    --app-bg-primary: var(--mantine-color-dark-7);
-    --app-bg-secondary: var(--mantine-color-dark-6);
+    --app-bg-primary: var(--mantine-color-dark-6);
+    --app-bg-secondary: var(--mantine-color-dark-7);
     --app-bg-tertiary: var(--mantine-color-dark-5);
     --app-text-primary: var(--mantine-color-dark-0);
     --app-text-secondary: var(--mantine-color-dark-1);
-    --app-text-dimmed: var(--mantine-color-dark-2);
+    --app-text-dimmed: var(--mantine-color-dark-1);
     --app-border: var(--mantine-color-dark-4);
     --app-border-subtle: var(--mantine-color-dark-5);
     --app-hover: var(--mantine-color-dark-5);
     --app-active: var(--mantine-color-dark-4);
     --app-link: var(--mantine-color-blue-4);
     --app-code-bg: var(--mantine-color-dark-8);
+    --mantine-color-dimmed: var(--mantine-color-dark-1);
 }
 
 /* Soften outline variant buttons (entry actions) in dark mode */
@@ -41,6 +43,18 @@
 
 body {
     overscroll-behavior: none;
+    color: var(--app-text-primary);
+    background-color: var(--app-bg-secondary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+    color: light-dark(var(--mantine-color-blue-9), var(--mantine-color-blue-0));
+    background: light-dark(
+        var(--mantine-color-blue-1),
+        var(--mantine-color-blue-9)
+    );
 }
 
 pre {
@@ -53,4 +67,21 @@ html,
 body {
     margin: 0 !important;
     padding: 0 !important;
+}
+
+html,
+body,
+#app {
+    min-height: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }

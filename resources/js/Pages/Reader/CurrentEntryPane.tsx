@@ -1,9 +1,10 @@
 import { router } from '@inertiajs/react';
 import {
     ActionIcon,
+    Alert,
     Badge,
     Box,
-    Card,
+    Button,
     Divider,
     Flex,
     Group,
@@ -11,15 +12,16 @@ import {
     ScrollArea,
     SegmentedControl,
     Skeleton,
-    Space,
+    Stack,
     Text,
     Title,
     Tooltip,
     Typography,
-    useMantineTheme,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
+    IconAlertCircle,
+    IconArrowLeft,
     IconBook,
     IconBrain,
     IconCircle,
@@ -45,14 +47,14 @@ export default function CurrentEntryPane({
     summary,
     feeds,
     categories,
+    onBack,
 }: {
     currententry: CurrentEntry;
     summary?: string;
     feeds: Feed[];
     categories: Category[];
+    onBack?: () => void;
 }) {
-    const theme = useMantineTheme();
-
     const viewport = useRef<HTMLDivElement>(null);
     const scrollToTop = useCallback(
         () => viewport.current?.scrollTo({ top: 0, behavior: 'instant' }),
@@ -67,7 +69,16 @@ export default function CurrentEntryPane({
     // Find the current feed from the feeds array
     const currentFeed = feeds.find((feed) => feed.id === currententry.feed.id);
 
+    const [favoritePending, setFavoritePending] = useState(false);
+    const [readPending, setReadPending] = useState(false);
+    const [summaryError, setSummaryError] = useState<string | null>(null);
+
     const updateFavorite = () => {
+        if (favoritePending) {
+            return;
+        }
+
+        setFavoritePending(true);
         router.patch(
             route('entry.update', currententry.id),
             {
@@ -80,7 +91,7 @@ export default function CurrentEntryPane({
                 onSuccess: () => {
                     if (currententry.starred_at) {
                         notifications.show({
-                            title: 'Not that good...',
+                            title: 'Removed from favorites',
                             message: 'Entry removed from favorites',
                             color: 'blue',
                             withBorder: true,
@@ -102,11 +113,17 @@ export default function CurrentEntryPane({
                         withBorder: true,
                     });
                 },
+                onFinish: () => setFavoritePending(false),
             },
         );
     };
 
     const updateRead = () => {
+        if (readPending) {
+            return;
+        }
+
+        setReadPending(true);
         const urlParams = new URLSearchParams(window.location.search);
 
         if (currententry.read_at) {
@@ -115,7 +132,7 @@ export default function CurrentEntryPane({
             urlParams.set('read', 'true');
         }
 
-        router.visit('feeds', {
+        router.visit(route('feeds.index'), {
             data: {
                 ...Object.fromEntries(urlParams),
             },
@@ -152,27 +169,48 @@ export default function CurrentEntryPane({
                     withBorder: true,
                 });
             },
+            onFinish: () => setReadPending(false),
         });
     };
 
     const [value, setValue] = useState(summary ? 'summary' : 'content');
+
+    const requestSummary = useCallback(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        urlParams.set('summarize', 'true');
+        setSummaryError(null);
+
+        router.visit(route('feeds.index'), {
+            only: ['summary'],
+            data: Object.fromEntries(urlParams),
+            preserveScroll: true,
+            preserveState: true,
+            onError: () => {
+                setSummaryError(
+                    'The summary could not be generated. Please try again.',
+                );
+            },
+            onHttpException: () => {
+                setSummaryError(
+                    'The summary could not be generated. Please try again.',
+                );
+                return false;
+            },
+            onNetworkError: () => {
+                setSummaryError(
+                    'Larafeed could not reach the server. Check your connection and try again.',
+                );
+                return false;
+            },
+        });
+    }, []);
 
     useEffect(() => {
         if (
             value === 'summary' &&
             !window.location.search.includes('summarize')
         ) {
-            const urlParams = new URLSearchParams(window.location.search);
-            urlParams.set('summarize', 'true');
-
-            router.visit('feeds', {
-                only: ['summary'],
-                data: {
-                    ...Object.fromEntries(urlParams),
-                },
-                preserveScroll: true,
-                preserveState: true,
-            });
+            requestSummary();
         }
         if (
             value === 'content' &&
@@ -180,17 +218,16 @@ export default function CurrentEntryPane({
         ) {
             const urlParams = new URLSearchParams(window.location.search);
             urlParams.delete('summarize');
+            setSummaryError(null);
 
-            router.visit('feeds', {
+            router.visit(route('feeds.index'), {
                 only: ['summary'],
-                data: {
-                    ...Object.fromEntries(urlParams),
-                },
+                data: Object.fromEntries(urlParams),
                 preserveScroll: true,
                 preserveState: true,
             });
         }
-    }, [value]);
+    }, [requestSummary, value]);
 
     const typographyProviderRef = useRef<HTMLDivElement>(null);
 
@@ -216,189 +253,237 @@ export default function CurrentEntryPane({
     }, [currententry.id]);
 
     return (
-        <Flex direction="column" w="100%">
-            <Card pb={10} pl={10} pr={10} pt={0} bg="transparent">
-                <Flex direction="row" justify="space-between" align="center">
+        <Flex direction="column" w="100%" className={classes.pane}>
+            <header className={classes.toolbar}>
+                <Group gap="sm" wrap="nowrap" className={classes.feedIdentity}>
+                    {onBack && (
+                        <Button
+                            variant="subtle"
+                            size="xs"
+                            leftSection={<IconArrowLeft size={16} />}
+                            onClick={onBack}
+                        >
+                            Entries
+                        </Button>
+                    )}
                     <FaviconImage
                         src={currententry.feed.favicon_url}
                         isDark={currententry.feed.favicon_is_dark}
                         w={20}
                         h={20}
-                        mr={9}
                     />
-
-                    <Text size="sm" c="dimmed">
+                    <Text size="sm" fw={600} truncate>
                         {currententry.feed.name}
                     </Text>
-                    <Group>
-                        <Tooltip
-                            label={
-                                'Summarize conent with AI or switch back to content'
-                            }
-                            openDelay={500}
-                            transitionProps={{
-                                transition: 'fade',
-                                duration: 300,
-                            }}
-                        >
-                            <SegmentedControl
-                                value={value}
-                                onChange={setValue}
-                                size="xs"
-                                styles={{
-                                    label: {
-                                        paddingInline: '10px',
-                                        paddingBlock: '3px',
-                                    },
-                                }}
-                                data={[
-                                    {
-                                        label: (
-                                            <IconBook
-                                                size={16}
-                                                style={{ marginBottom: -3 }}
-                                            />
-                                        ),
-                                        value: 'content',
-                                    },
-                                    {
-                                        label: (
-                                            <IconBrain
-                                                size={15}
-                                                style={{ marginBottom: -3 }}
-                                            />
-                                        ),
-                                        value: 'summary',
-                                    },
-                                ]}
-                            />
-                        </Tooltip>
+                </Group>
 
-                        <Tooltip
-                            label={'Open in a new tab'}
-                            transitionProps={{
-                                transition: 'fade',
-                                duration: 300,
-                            }}
+                <Group gap={6} wrap="nowrap" className={classes.toolbarActions}>
+                    <Tooltip
+                        label="Switch between the article and its AI summary"
+                        openDelay={500}
+                    >
+                        <SegmentedControl
+                            value={value}
+                            onChange={setValue}
+                            size="xs"
+                            aria-label="Entry view"
+                            data={[
+                                {
+                                    label: (
+                                        <Group gap={5} wrap="nowrap">
+                                            <IconBook size={15} />
+                                            <span>Article</span>
+                                        </Group>
+                                    ),
+                                    value: 'content',
+                                },
+                                {
+                                    label: (
+                                        <Group gap={5} wrap="nowrap">
+                                            <IconBrain size={15} />
+                                            <span>Summary</span>
+                                        </Group>
+                                    ),
+                                    value: 'summary',
+                                },
+                            ]}
+                        />
+                    </Tooltip>
+
+                    <Tooltip label="Open original article" withArrow>
+                        <ActionIcon
+                            component="a"
+                            href={currententry.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            variant="subtle"
+                            color="gray"
+                            size="lg"
+                            aria-label="Open original article in a new tab"
                         >
-                            <ActionIcon
-                                variant="outline"
-                                color="gray"
-                                onClick={() => {
-                                    window.open(currententry.url, '_blank');
-                                }}
-                            >
-                                <IconExternalLink size={15} stroke={3} />
-                            </ActionIcon>
-                        </Tooltip>
-                        <Tooltip
-                            label={
+                            <IconExternalLink size={17} stroke={1.8} />
+                        </ActionIcon>
+                    </Tooltip>
+                    <Tooltip
+                        label={
+                            currententry.starred_at
+                                ? 'Remove from favorites'
+                                : 'Add to favorites'
+                        }
+                        withArrow
+                    >
+                        <ActionIcon
+                            variant="subtle"
+                            color="gray"
+                            size="lg"
+                            onClick={updateFavorite}
+                            loading={favoritePending}
+                            loaderProps={{ type: 'dots' }}
+                            aria-label={
                                 currententry.starred_at
                                     ? 'Remove from favorites'
                                     : 'Add to favorites'
                             }
-                            transitionProps={{
-                                transition: 'fade',
-                                duration: 300,
-                            }}
+                            aria-pressed={Boolean(currententry.starred_at)}
                         >
-                            <ActionIcon
-                                variant="outline"
-                                color="gray"
-                                onClick={updateFavorite}
-                                loaderProps={{ type: 'dots' }}
-                            >
-                                {currententry.starred_at ? (
-                                    <IconStarFilled size={15} stroke={3} />
-                                ) : (
-                                    <IconStar size={15} stroke={3} />
-                                )}
-                            </ActionIcon>
-                        </Tooltip>
-                        <Tooltip
-                            label={
+                            {currententry.starred_at ? (
+                                <IconStarFilled size={17} stroke={1.8} />
+                            ) : (
+                                <IconStar size={17} stroke={1.8} />
+                            )}
+                        </ActionIcon>
+                    </Tooltip>
+                    <Tooltip
+                        label={
+                            currententry.read_at
+                                ? 'Mark as unread'
+                                : 'Mark as read'
+                        }
+                        withArrow
+                    >
+                        <ActionIcon
+                            variant="subtle"
+                            color="gray"
+                            size="lg"
+                            onClick={updateRead}
+                            loading={readPending}
+                            loaderProps={{ type: 'dots' }}
+                            aria-label={
                                 currententry.read_at
                                     ? 'Mark as unread'
                                     : 'Mark as read'
                             }
-                            transitionProps={{
-                                transition: 'fade',
-                                duration: 300,
-                            }}
+                            aria-pressed={Boolean(currententry.read_at)}
                         >
-                            <ActionIcon
-                                variant="outline"
-                                color="gray"
-                                onClick={updateRead}
-                                loaderProps={{ type: 'dots' }}
-                            >
-                                {currententry.read_at ? (
-                                    <IconCircle size={15} stroke={3} />
-                                ) : (
-                                    <IconCircleFilled size={15} stroke={3} />
-                                )}
-                            </ActionIcon>
-                        </Tooltip>
-                        {currentFeed && (
-                            <FeedMenu
-                                feed={currentFeed}
-                                categories={categories}
-                                variant="outline"
-                            />
-                        )}
-                    </Group>
-                </Flex>
-            </Card>
-            <Divider mb={20} />
-            <ScrollArea style={{ height: '100%' }} viewportRef={viewport}>
-                <Box pr={20} pl={20}>
+                            {currententry.read_at ? (
+                                <IconCircle size={17} stroke={1.8} />
+                            ) : (
+                                <IconCircleFilled size={17} stroke={1.8} />
+                            )}
+                        </ActionIcon>
+                    </Tooltip>
+                    {currentFeed && (
+                        <FeedMenu
+                            feed={currentFeed}
+                            categories={categories}
+                            variant="subtle"
+                            size="lg"
+                        />
+                    )}
+                </Group>
+            </header>
+            <Divider />
+            <ScrollArea
+                className={classes.articleScroll}
+                viewportRef={viewport}
+                type="auto"
+            >
+                <Box
+                    component="article"
+                    className={classes.articleShell}
+                    aria-labelledby={`entry-title-${currententry.id}`}
+                >
                     <Typography className={classes.entry}>
-                        <Title className={classes.entryTitle}>
+                        <Title
+                            id={`entry-title-${currententry.id}`}
+                            order={1}
+                            className={classes.entryTitle}
+                        >
                             {currententry.title}
                         </Title>
-                        <Flex justify={'space-between'}>
+                        <Group
+                            justify="space-between"
+                            align="center"
+                            gap="xs"
+                            className={classes.entryMeta}
+                        >
                             <Text size="sm" c="dimmed">
                                 {currententry.reading_time_text}
                             </Text>
-                            <Flex>
-                                <Text size="sm" c="dimmed">
-                                    {currententry.author
-                                        ? `${currententry.author} • `
-                                        : ''}
-                                    {dayjs
-                                        .utc(currententry.published_at)
-                                        .fromNow()}
-                                </Text>
-                            </Flex>
-                        </Flex>
+                            <Text size="sm" c="dimmed" ta="right">
+                                {currententry.author
+                                    ? `${currententry.author} • `
+                                    : ''}
+                                {dayjs.utc(currententry.published_at).fromNow()}
+                            </Text>
+                        </Group>
                         {value === 'content' ? (
-                            <div
-                                ref={typographyProviderRef}
-                                className={classes.entryContent}
-                                dangerouslySetInnerHTML={{
-                                    __html: currententry.content || '',
-                                }}
-                            />
+                            currententry.content ? (
+                                <div
+                                    ref={typographyProviderRef}
+                                    className={classes.entryContent}
+                                    dangerouslySetInnerHTML={{
+                                        __html: currententry.content,
+                                    }}
+                                />
+                            ) : (
+                                <Paper
+                                    withBorder
+                                    p="xl"
+                                    className={classes.emptyContent}
+                                >
+                                    <Stack align="center" gap="sm">
+                                        <Text fw={700}>
+                                            This feed did not include article
+                                            content.
+                                        </Text>
+                                        <Text size="sm" c="dimmed" ta="center">
+                                            Open the original article to
+                                            continue reading on the
+                                            publisher&apos;s site.
+                                        </Text>
+                                        <Button
+                                            component="a"
+                                            href={currententry.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            variant="light"
+                                            size="sm"
+                                            rightSection={
+                                                <IconExternalLink size={15} />
+                                            }
+                                        >
+                                            Open original article
+                                        </Button>
+                                    </Stack>
+                                </Paper>
+                            )
                         ) : (
                             <Paper
-                                shadow="xs"
-                                p="md"
+                                p="lg"
                                 withBorder
-                                pb={0}
                                 className={classes.entrySummary}
+                                role="region"
+                                aria-label="AI summary"
                             >
                                 <Flex align="center" gap="xs" mb="sm">
                                     <IconRobot
-                                        size={16}
-                                        color={theme.colors.blue[5]}
+                                        size={18}
+                                        className={classes.summaryIcon}
                                     />
                                     <Tooltip
-                                        label="Generated with Google's Gemini 1.5 Flash"
+                                        label="Generated with Google Gemini"
                                         position="right"
-                                        transitionProps={{
-                                            transition: 'fade',
-                                            duration: 300,
-                                        }}
                                     >
                                         <Badge
                                             size="sm"
@@ -409,19 +494,44 @@ export default function CurrentEntryPane({
                                         </Badge>
                                     </Tooltip>
                                 </Flex>
-                                {summary ? (
-                                    <>
-                                        <div
-                                            className={classes.entryContent}
-                                            dangerouslySetInnerHTML={{
-                                                __html: summary,
-                                            }}
-                                        />
-                                        <Space mt={20} />
-                                    </>
+                                {summaryError ? (
+                                    <Alert
+                                        color="red"
+                                        variant="light"
+                                        icon={<IconAlertCircle size={18} />}
+                                        title="Summary unavailable"
+                                    >
+                                        <Stack gap="sm">
+                                            <Text size="sm">
+                                                {summaryError}
+                                            </Text>
+                                            <Button
+                                                variant="light"
+                                                color="red"
+                                                size="xs"
+                                                onClick={requestSummary}
+                                                className={classes.retryButton}
+                                            >
+                                                Try again
+                                            </Button>
+                                        </Stack>
+                                    </Alert>
+                                ) : summary ? (
+                                    <div
+                                        className={classes.entryContent}
+                                        dangerouslySetInnerHTML={{
+                                            __html: summary,
+                                        }}
+                                    />
                                 ) : (
-                                    <div className={classes.entryContent}>
-                                        {/* First paragraph */}
+                                    <div
+                                        className={classes.summaryLoading}
+                                        aria-live="polite"
+                                        aria-busy="true"
+                                    >
+                                        <Text size="sm" c="dimmed" mb="sm">
+                                            Generating a concise summary…
+                                        </Text>
                                         <Skeleton
                                             height={8}
                                             width="95%"
@@ -445,11 +555,7 @@ export default function CurrentEntryPane({
                                             width="92%"
                                             radius="xl"
                                         />
-
-                                        {/* Paragraph break */}
                                         <Box mt={16} />
-
-                                        {/* Second paragraph */}
                                         <Skeleton
                                             height={8}
                                             width="97%"

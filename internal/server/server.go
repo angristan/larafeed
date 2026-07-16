@@ -225,7 +225,16 @@ func buildRootTemplate(cfg *config.Config) (string, error) {
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="color-scheme" content="light dark">
 	<title>%s</title>
+	<script data-mantine-script>
+		try {
+			var storedColorScheme = window.localStorage.getItem("mantine-color-scheme-value");
+			var colorScheme = storedColorScheme === "light" || storedColorScheme === "dark" || storedColorScheme === "auto" ? storedColorScheme : "auto";
+			var computedColorScheme = colorScheme !== "auto" ? colorScheme : window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+			document.documentElement.setAttribute("data-mantine-color-scheme", computedColorScheme);
+		} catch (error) {}
+	</script>
 	<script>
 		const Ziggy = %s;
 	</script>

@@ -1,10 +1,8 @@
 import { Head, useForm } from '@inertiajs/react';
+import { Button, PasswordInput, Stack, TextInput } from '@mantine/core';
+import { IconKey } from '@tabler/icons-react';
 import type { FormEventHandler } from 'react';
-import InputError from '@/Components/Breeze/InputError';
-import InputLabel from '@/Components/Breeze/InputLabel';
-import PrimaryButton from '@/Components/Breeze/PrimaryButton';
-import TextInput from '@/Components/Breeze/TextInput';
-import GuestLayout from '@/Layouts/GuestLayout';
+import AuthLayout from '@/Layouts/AuthLayout/AuthLayout';
 
 export default function ResetPassword({
     token,
@@ -29,72 +27,73 @@ export default function ResetPassword({
     };
 
     return (
-        <GuestLayout>
+        <AuthLayout
+            title="Choose a new password"
+            description="Use a unique password with at least 8 characters."
+            icon={<IconKey size={22} stroke={1.7} />}
+        >
             <Head title="Reset Password" />
 
             <form onSubmit={submit}>
-                <div>
-                    <InputLabel htmlFor="email" value="Email" />
-
+                <Stack gap="md">
                     <TextInput
-                        id="email"
-                        type="email"
+                        label="Email"
+                        placeholder="you@example.com"
                         name="email"
-                        value={data.email}
-                        className="mt-1 block w-full"
+                        type="email"
+                        required
                         autoComplete="username"
-                        onChange={(e) => setData('email', e.target.value)}
-                    />
-
-                    <InputError message={errors.email} className="mt-2" />
-                </div>
-
-                <div className="mt-4">
-                    <InputLabel htmlFor="password" value="Password" />
-
-                    <TextInput
-                        id="password"
-                        type="password"
-                        name="password"
-                        value={data.password}
-                        className="mt-1 block w-full"
-                        autoComplete="new-password"
-                        isFocused={true}
-                        onChange={(e) => setData('password', e.target.value)}
-                    />
-
-                    <InputError message={errors.password} className="mt-2" />
-                </div>
-
-                <div className="mt-4">
-                    <InputLabel
-                        htmlFor="password_confirmation"
-                        value="Confirm Password"
-                    />
-
-                    <TextInput
-                        type="password"
-                        name="password_confirmation"
-                        value={data.password_confirmation}
-                        className="mt-1 block w-full"
-                        autoComplete="new-password"
-                        onChange={(e) =>
-                            setData('password_confirmation', e.target.value)
+                        value={data.email}
+                        onChange={(event) =>
+                            setData('email', event.currentTarget.value)
                         }
+                        error={errors.email}
                     />
 
-                    <InputError
-                        message={errors.password_confirmation}
-                        className="mt-2"
+                    <PasswordInput
+                        label="New password"
+                        description="Use at least 8 characters"
+                        placeholder="Create a new password"
+                        name="password"
+                        required
+                        minLength={8}
+                        autoFocus
+                        autoComplete="new-password"
+                        value={data.password}
+                        onChange={(event) =>
+                            setData('password', event.currentTarget.value)
+                        }
+                        error={errors.password}
                     />
-                </div>
 
-                <div className="mt-4 flex items-center justify-end">
-                    <PrimaryButton className="ms-4" disabled={processing}>
-                        Reset Password
-                    </PrimaryButton>
-                </div>
+                    <PasswordInput
+                        label="Confirm new password"
+                        placeholder="Repeat your new password"
+                        name="password_confirmation"
+                        required
+                        minLength={8}
+                        autoComplete="new-password"
+                        value={data.password_confirmation}
+                        onChange={(event) =>
+                            setData(
+                                'password_confirmation',
+                                event.currentTarget.value,
+                            )
+                        }
+                        error={errors.password_confirmation}
+                    />
+
+                    <Button
+                        fullWidth
+                        size="md"
+                        type="submit"
+                        loading={processing}
+                        disabled={processing}
+                    >
+                        Reset password
+                    </Button>
+                </Stack>
             </form>
-        </GuestLayout>
+        </AuthLayout>
     );
 }

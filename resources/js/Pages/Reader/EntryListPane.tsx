@@ -1,17 +1,18 @@
 import { Link, router } from '@inertiajs/react';
 import {
+    Button,
     Card,
-    Divider,
-    Flex,
+    Center,
     Group,
-    Indicator,
-    List,
+    Kbd,
     Pagination,
     ScrollArea,
+    Stack,
     Text,
+    ThemeIcon,
 } from '@mantine/core';
 import { useHotkeys } from '@mantine/hooks';
-import { IconStarFilled } from '@tabler/icons-react';
+import { IconInbox, IconStarFilled } from '@tabler/icons-react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
@@ -25,20 +26,55 @@ dayjs.extend(utc);
 export default function EntryListPane({
     entries,
     currentEntryID,
+    optimisticallyReadEntryIDs = [],
+    onOptimisticRead,
+    onOptimisticReadRollback,
 }: {
     entries: PaginatedEntries;
     currentEntryID?: number;
+    optimisticallyReadEntryIDs?: readonly number[];
+    onOptimisticRead?: (entryID: number) => void;
+    onOptimisticReadRollback?: (entryID: number) => void;
 }) {
     const viewport = useRef<HTMLDivElement>(null);
+    const readEntryIDs = new Set(
+        entries.data
+            .filter((entry) => Boolean(entry.read_at))
+            .map((entry) => entry.id),
+    );
+    for (const entryID of optimisticallyReadEntryIDs) {
+        readEntryIDs.add(entryID);
+    }
 
     const scrollToTop = useCallback(() => {
         viewport.current?.scrollTo({ top: 0, behavior: 'instant' });
     }, []);
 
-    // biome-ignore lint/correctness/useExhaustiveDependencies: intentional trigger on entries change
+    // biome-ignore lint/correctness/useExhaustiveDependencies: reset scroll when the paginated entries change
     useEffect(() => {
         scrollToTop();
     }, [entries, scrollToTop]);
+
+    const entryQuery = (entryID: number) => {
+        const urlParams = new URLSearchParams(window.location.search);
+        urlParams.delete('summarize');
+        urlParams.set('entry', entryID.toString());
+        urlParams.set('read', 'true');
+
+        return Object.fromEntries(urlParams);
+    };
+
+    const markEntryRead = (entryID: number) => {
+        onOptimisticRead?.(entryID);
+    };
+
+    const restoreUnreadEntry = (entryID: number, wasRead: boolean) => {
+        if (wasRead) {
+            return;
+        }
+
+        onOptimisticReadRollback?.(entryID);
+    };
 
     const navigateToEntry = (offset: number) => {
         const index = entries.data.findIndex(
@@ -47,225 +83,289 @@ export default function EntryListPane({
         const newIndex = index + offset;
 
         if (newIndex >= 0 && newIndex < entries.data.length) {
-            router.visit('feeds', {
+            const entry = entries.data[newIndex];
+            const wasRead = readEntryIDs.has(entry.id);
+
+            markEntryRead(entry.id);
+            router.visit(route('feeds.index'), {
                 only: [
                     'currententry',
+                    'summary',
                     'unreadEntriesCount',
                     'readEntriesCount',
                 ],
-                data: {
-                    ...Object.fromEntries(
-                        new URLSearchParams(window.location.search),
-                    ),
-                    entry: entries.data[newIndex].id,
-                },
+                data: entryQuery(entry.id),
+                reset: ['summary'],
                 preserveScroll: true,
                 preserveState: true,
+                onError: () => restoreUnreadEntry(entry.id, wasRead),
+                onCancel: () => restoreUnreadEntry(entry.id, wasRead),
+                onHttpException: () => restoreUnreadEntry(entry.id, wasRead),
+                onNetworkError: () => restoreUnreadEntry(entry.id, wasRead),
             });
         }
     };
 
+    const navigateToPage = (page: number) => {
+        router.visit(route('feeds.index'), {
+            only: ['entries'],
+            data: {
+                ...Object.fromEntries(
+                    new URLSearchParams(window.location.search),
+                ),
+                page,
+            },
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: scrollToTop,
+        });
+    };
+
     useHotkeys([
-        ['J', () => navigateToEntry(+1)], // Next entry
-        ['K', () => navigateToEntry(-1)], // Previous entry
+        ['J', () => navigateToEntry(+1)],
+        ['K', () => navigateToEntry(-1)],
     ]);
 
-    const entryList = entries.data.map((entry) => {
-        const urlParams = new URLSearchParams(window.location.search);
-
-        urlParams.delete('summarize');
-        urlParams.delete('read');
-        urlParams.set('entry', entry.id.toString());
-
-        const data = Object.fromEntries(urlParams);
-        return (
-            <Link
-                key={entry.id}
-                className={classes.entry}
-                href={route('feeds.index')}
-                only={['currententry']}
-                preserveScroll
-                preserveState
-                data={{
-                    ...data,
-                }}
-                prefetch
-                as="div"
-                onSuccess={() => {
-                    router.patch(
-                        route('entry.update', entry.id),
-                        {
-                            read: true,
-                        },
-                        {
-                            preserveScroll: true,
-                            preserveState: true,
-                            showProgress: true,
-                            only: [
-                                'currententry',
-                                'unreadEntriesCount',
-                                'readEntriesCount',
-                            ],
-                        },
-                    );
-
-                    // Mark entry as read in list, we don't refetch the list
-                    entry.read_at = dayjs().toISOString();
-                }}
-            >
-                <Indicator
-                    size={12}
-                    offset={15}
-                    disabled={!!entry.read_at}
-                    color="grey"
-                    withBorder
-                >
-                    <Card
-                        shadow="sm"
-                        radius="sm"
-                        withBorder
-                        pt={10}
-                        pb={10}
-                        pl={12}
-                        mb={10}
-                        className={`${classes.entryCard}
-                        ${
-                            entry.id === currentEntryID
-                                ? classes.activeEntry
-                                : ''
-                        }
-                        ${entry.read_at ? classes.readEntry : ''}`}
-                    >
-                        <div>
-                            <span className={classes.entryTitle}>
-                                {entry.title}{' '}
-                                {entry.starred_at && (
-                                    <IconStarFilled size={15} />
-                                )}
-                            </span>
-                            <Flex justify="space-between" mt={10}>
-                                <Flex>
-                                    <FaviconImage
-                                        src={entry.feed.favicon_url}
-                                        isDark={entry.feed.favicon_is_dark}
-                                        w={20}
-                                        h={20}
-                                        mr={9}
-                                    />
-                                    <Text size="xs" c="dimmed">
-                                        <span>{entry.feed.name}</span>
-                                    </Text>
-                                </Flex>
-                                <Text size="xs" c="dimmed">
-                                    {dayjs.utc(entry.published_at).fromNow()}
-                                </Text>
-                            </Flex>
-                        </div>
-                    </Card>
-                </Indicator>
-            </Link>
-        );
-    });
+    const query = new URLSearchParams(window.location.search);
+    const activeFilter = query.get('filter');
+    const hasScopedView = Boolean(
+        activeFilter || query.get('feed') || query.get('category'),
+    );
+    const viewTitle = activeFilter
+        ? `${activeFilter.charAt(0).toUpperCase()}${activeFilter.slice(1)} entries`
+        : hasScopedView
+          ? 'Filtered entries'
+          : 'All entries';
 
     return (
-        <List
-            listStyleType="none"
-            style={{
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100%',
-                width: '100%',
-                paddingLeft: 0,
-            }}
-        >
-            <ScrollArea style={{ flex: 1 }} viewportRef={viewport}>
-                {entryList}
-            </ScrollArea>
-            <Divider />
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <Pagination.Root
-                    size="sm"
-                    total={entries.last_page}
-                    value={entries.current_page}
-                    getItemProps={(page: number) => ({
-                        component: Link,
-                        href: route('feeds.index'),
-                        only: ['entries'],
-                        preserveScroll: true,
-                        preserveState: true,
-                        prefetch: true,
-                        data: {
-                            ...Object.fromEntries(
-                                new URLSearchParams(window.location.search),
-                            ),
-                            page,
-                        },
-                    })}
+        <section className={classes.root} aria-label="Entry list">
+            <header className={classes.listHeader}>
+                <div>
+                    <Text fw={700} size="sm" className={classes.queueTitle}>
+                        {viewTitle}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                        {entries.total.toLocaleString()}{' '}
+                        {entries.total === 1 ? 'article' : 'articles'}
+                    </Text>
+                </div>
+                <Group
+                    gap={5}
+                    visibleFrom="sm"
+                    aria-label="Entry navigation shortcuts"
                 >
-                    <Group gap={7} mt="md">
-                        <Pagination.First
-                            component={Link}
-                            href={route('feeds.index')}
-                            only={['entries']}
-                            preserveScroll
-                            preserveState
-                            prefetch
-                            data={{
-                                ...Object.fromEntries(
-                                    new URLSearchParams(window.location.search),
-                                ),
-                                page: 1,
-                            }}
-                        />
-                        <Pagination.Previous
-                            component={Link}
-                            href={route('feeds.index')}
-                            only={['entries']}
-                            preserveScroll
-                            preserveState
-                            prefetch
-                            data={{
-                                ...Object.fromEntries(
-                                    new URLSearchParams(window.location.search),
-                                ),
-                                page: Math.max(1, entries.current_page - 1),
-                            }}
-                        />
-                        <Pagination.Items />
-                        <Pagination.Next
-                            component={Link}
-                            href={route('feeds.index')}
-                            only={['entries']}
-                            preserveScroll
-                            preserveState
-                            prefetch
-                            data={{
-                                ...Object.fromEntries(
-                                    new URLSearchParams(window.location.search),
-                                ),
-                                page: Math.min(
-                                    entries.last_page,
-                                    entries.current_page + 1,
-                                ),
-                            }}
-                        />
-                        <Pagination.Last
-                            component={Link}
-                            href={route('feeds.index')}
-                            only={['entries']}
-                            preserveScroll
-                            preserveState
-                            prefetch
-                            data={{
-                                ...Object.fromEntries(
-                                    new URLSearchParams(window.location.search),
-                                ),
-                                page: entries.last_page,
-                            }}
-                        />
-                    </Group>
-                </Pagination.Root>
-            </div>
-        </List>
+                    <Kbd>J</Kbd>
+                    <Text size="xs" c="dimmed">
+                        /
+                    </Text>
+                    <Kbd>K</Kbd>
+                </Group>
+            </header>
+
+            <ScrollArea
+                className={classes.scrollArea}
+                viewportRef={viewport}
+                type="auto"
+            >
+                {entries.data.length > 0 ? (
+                    <nav className={classes.entryList} aria-label={viewTitle}>
+                        {entries.data.map((entry) => {
+                            const wasRead = readEntryIDs.has(entry.id);
+                            const isActive = entry.id === currentEntryID;
+                            const published = dayjs
+                                .utc(entry.published_at)
+                                .fromNow();
+
+                            return (
+                                <Link
+                                    key={entry.id}
+                                    className={classes.entry}
+                                    href={route('feeds.index')}
+                                    only={[
+                                        'currententry',
+                                        'summary',
+                                        'unreadEntriesCount',
+                                        'readEntriesCount',
+                                    ]}
+                                    preserveScroll
+                                    preserveState
+                                    data={entryQuery(entry.id)}
+                                    aria-current={isActive ? 'true' : undefined}
+                                    aria-label={`${wasRead ? 'Read' : 'Unread'}${entry.starred_at ? ', starred' : ''}: ${entry.title}, ${entry.feed.name}, ${published}`}
+                                    onStart={() => markEntryRead(entry.id)}
+                                    onError={() =>
+                                        restoreUnreadEntry(entry.id, wasRead)
+                                    }
+                                    onCancel={() =>
+                                        restoreUnreadEntry(entry.id, wasRead)
+                                    }
+                                    onHttpException={() =>
+                                        restoreUnreadEntry(entry.id, wasRead)
+                                    }
+                                    onNetworkError={() =>
+                                        restoreUnreadEntry(entry.id, wasRead)
+                                    }
+                                >
+                                    <Card
+                                        className={`${classes.entryCard} ${
+                                            isActive ? classes.activeEntry : ''
+                                        } ${
+                                            wasRead
+                                                ? classes.readEntry
+                                                : classes.unreadEntry
+                                        }`}
+                                        radius="md"
+                                        padding="sm"
+                                    >
+                                        <Group
+                                            align="flex-start"
+                                            wrap="nowrap"
+                                            gap="sm"
+                                        >
+                                            <span
+                                                className={classes.unreadDot}
+                                                aria-hidden="true"
+                                            />
+                                            <Stack
+                                                gap={9}
+                                                className={classes.entryBody}
+                                            >
+                                                <Group
+                                                    justify="space-between"
+                                                    align="flex-start"
+                                                    wrap="nowrap"
+                                                    gap="xs"
+                                                >
+                                                    <Text
+                                                        className={
+                                                            classes.entryTitle
+                                                        }
+                                                        size="sm"
+                                                        fw={wasRead ? 500 : 700}
+                                                        lineClamp={3}
+                                                    >
+                                                        {entry.title}
+                                                    </Text>
+                                                    {entry.starred_at && (
+                                                        <IconStarFilled
+                                                            className={
+                                                                classes.star
+                                                            }
+                                                            size={15}
+                                                            aria-hidden="true"
+                                                        />
+                                                    )}
+                                                </Group>
+
+                                                <Group
+                                                    justify="space-between"
+                                                    wrap="nowrap"
+                                                    gap="xs"
+                                                >
+                                                    <Group
+                                                        gap={7}
+                                                        wrap="nowrap"
+                                                        className={
+                                                            classes.feedMeta
+                                                        }
+                                                    >
+                                                        <FaviconImage
+                                                            src={
+                                                                entry.feed
+                                                                    .favicon_url
+                                                            }
+                                                            isDark={
+                                                                entry.feed
+                                                                    .favicon_is_dark
+                                                            }
+                                                            w={17}
+                                                            h={17}
+                                                        />
+                                                        <Text
+                                                            size="xs"
+                                                            c="dimmed"
+                                                            truncate
+                                                        >
+                                                            {entry.feed.name}
+                                                        </Text>
+                                                    </Group>
+                                                    <Text
+                                                        size="xs"
+                                                        c="dimmed"
+                                                        className={
+                                                            classes.timestamp
+                                                        }
+                                                    >
+                                                        {published}
+                                                    </Text>
+                                                </Group>
+                                            </Stack>
+                                        </Group>
+                                    </Card>
+                                </Link>
+                            );
+                        })}
+                    </nav>
+                ) : (
+                    <Center className={classes.emptyState}>
+                        <Stack align="center" gap="sm" maw={310}>
+                            <ThemeIcon
+                                size={46}
+                                radius="xl"
+                                variant="light"
+                                color="gray"
+                            >
+                                <IconInbox size={22} stroke={1.6} />
+                            </ThemeIcon>
+                            <Stack align="center" gap={3}>
+                                <Text fw={700}>No entries here</Text>
+                                <Text size="sm" c="dimmed" ta="center">
+                                    {hasScopedView
+                                        ? 'Try another feed or clear the current filters.'
+                                        : 'Add a subscription or check back after your feeds refresh.'}
+                                </Text>
+                            </Stack>
+                            <Button
+                                component={Link}
+                                href={
+                                    hasScopedView
+                                        ? route('feeds.index')
+                                        : route('subscriptions.index')
+                                }
+                                variant="light"
+                                size="xs"
+                            >
+                                {hasScopedView
+                                    ? 'Show all entries'
+                                    : 'Manage subscriptions'}
+                            </Button>
+                        </Stack>
+                    </Center>
+                )}
+            </ScrollArea>
+
+            {entries.last_page > 1 && (
+                <footer className={classes.paginationFooter}>
+                    <Text size="xs" c="dimmed" visibleFrom="sm">
+                        Page {entries.current_page} of {entries.last_page}
+                    </Text>
+                    <Pagination.Root
+                        size="sm"
+                        total={entries.last_page}
+                        value={entries.current_page}
+                        siblings={1}
+                        onChange={navigateToPage}
+                    >
+                        <Group gap={5} wrap="nowrap">
+                            <Pagination.First />
+                            <Pagination.Previous />
+                            <Pagination.Items />
+                            <Pagination.Next />
+                            <Pagination.Last />
+                        </Group>
+                    </Pagination.Root>
+                </footer>
+            )}
+        </section>
     );
 }

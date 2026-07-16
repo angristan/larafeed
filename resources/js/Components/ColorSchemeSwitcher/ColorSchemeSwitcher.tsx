@@ -13,6 +13,7 @@ export default function ColorSchemeSwitcher() {
     const computedColorScheme = useComputedColorScheme('light', {
         getInitialValueInEffect: true,
     });
+    const nextColorScheme = computedColorScheme === 'light' ? 'dark' : 'light';
 
     useHotkeys([
         [
@@ -26,14 +27,10 @@ export default function ColorSchemeSwitcher() {
 
     return (
         <ActionIcon
-            onClick={() =>
-                setColorScheme(
-                    computedColorScheme === 'light' ? 'dark' : 'light',
-                )
-            }
+            onClick={() => setColorScheme(nextColorScheme)}
             variant="default"
             size="lg"
-            aria-label="Toggle color scheme"
+            aria-label={`Switch to ${nextColorScheme} mode`}
             mt={1}
         >
             <IconSun className={cx(classes.icon, classes.light)} stroke={1.5} />

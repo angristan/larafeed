@@ -23,7 +23,9 @@ import {
     IconRefresh,
 } from '@tabler/icons-react';
 import { type ReactNode, useMemo, useState } from 'react';
-import AppShellLayout from '@/Layouts/AppShellLayout/AppShellLayout';
+import AppShellLayout, {
+    useCloseAppShellSidebar,
+} from '@/Layouts/AppShellLayout/AppShellLayout';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import type { PageProps } from '@/types';
 
@@ -126,6 +128,7 @@ interface RefreshSummary {
 
 type RangeFilter = '30' | '90' | '365' | 'custom';
 type GroupFilter = 'all' | 'feed' | 'category';
+const maximumCustomRangeDays = 366;
 
 interface Filters {
     range: RangeFilter;
@@ -205,6 +208,30 @@ const Main = function Main({
             })),
         [categories],
     );
+
+    const customRangeError = useMemo(() => {
+        if (!customRangeDraft.startDate || !customRangeDraft.endDate) {
+            return 'Choose both a start and end date.';
+        }
+
+        const start = new Date(customRangeDraft.startDate);
+        const end = new Date(customRangeDraft.endDate);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+            return 'Choose valid calendar dates.';
+        }
+
+        if (start > end) {
+            return 'The start date must be on or before the end date.';
+        }
+
+        const rangeDays =
+            Math.floor((end.getTime() - start.getTime()) / 86_400_000) + 1;
+        if (rangeDays > maximumCustomRangeDays) {
+            return `Custom ranges can include up to ${maximumCustomRangeDays} days.`;
+        }
+
+        return null;
+    }, [customRangeDraft]);
 
     const readsHeatmapData = useMemo(
         () => transformDataForHeatmap(dailyReads, 'reads'),
@@ -352,18 +379,7 @@ const Main = function Main({
     };
 
     const applyCustomRange = () => {
-        if (!customRangeDraft.startDate || !customRangeDraft.endDate) {
-            return;
-        }
-
-        const start = new Date(customRangeDraft.startDate);
-        const end = new Date(customRangeDraft.endDate);
-
-        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-            return;
-        }
-
-        if (start > end) {
+        if (customRangeError) {
             return;
         }
 
@@ -456,9 +472,15 @@ const Main = function Main({
                                     <Button
                                         size="sm"
                                         onClick={applyCustomRange}
+                                        disabled={customRangeError !== null}
                                     >
                                         Apply
                                     </Button>
+                                    {customRangeError && (
+                                        <Text size="xs" c="red">
+                                            {customRangeError}
+                                        </Text>
+                                    )}
                                 </Group>
                             )}
                         </Group>
@@ -777,58 +799,72 @@ const Main = function Main({
     );
 };
 
-const ChartsSidebar = () => (
-    <AppShell.Navbar>
-        <AppShell.Section p="md" pb="xs">
-            <Text size="xs" c="dimmed" fw={500} tt="uppercase">
-                Sections
-            </Text>
-        </AppShell.Section>
-        <AppShell.Section component={ScrollArea} px="md" pb="md" grow>
-            <Stack
-                gap={4}
-                component="nav"
-                aria-label="Charts sections navigation"
-            >
-                <NavLink
-                    component="a"
-                    href="#filters"
-                    label="Filters"
-                    description="Range & grouping"
-                    leftSection={<IconAdjustments size={16} stroke={1.5} />}
-                />
-                <NavLink
-                    component="a"
-                    href="#key-metrics"
-                    label="Key metrics"
-                    description="Overall totals"
-                    leftSection={<IconListDetails size={16} stroke={1.5} />}
-                />
-                <NavLink
-                    component="a"
-                    href="#activity"
-                    label="Daily activity"
-                    description="Reads, entries, saves"
-                    leftSection={<IconActivity size={16} stroke={1.5} />}
-                />
-                <NavLink
-                    component="a"
-                    href="#refreshes"
-                    label="Refresh activity"
-                    description="Attempts & success"
-                    leftSection={<IconRefresh size={16} stroke={1.5} />}
-                />
-                <NavLink
-                    component="a"
-                    href="#trends"
-                    label="Trends"
-                    description="Backlog & read-through"
-                    leftSection={<IconChartHistogram size={16} stroke={1.5} />}
-                />
-            </Stack>
-        </AppShell.Section>
-    </AppShell.Navbar>
-);
+const ChartsSidebar = () => {
+    const closeSidebar = useCloseAppShellSidebar();
+
+    return (
+        <AppShell.Navbar
+            id="app-sidebar-navigation"
+            aria-label="Chart sections"
+        >
+            <AppShell.Section p="md" pb="xs">
+                <Text size="xs" c="dimmed" fw={500} tt="uppercase">
+                    Sections
+                </Text>
+            </AppShell.Section>
+            <AppShell.Section component={ScrollArea} px="md" pb="md" grow>
+                <Stack
+                    gap={4}
+                    component="nav"
+                    aria-label="Charts sections navigation"
+                >
+                    <NavLink
+                        component="a"
+                        href="#filters"
+                        onClick={closeSidebar}
+                        label="Filters"
+                        description="Range & grouping"
+                        leftSection={<IconAdjustments size={16} stroke={1.5} />}
+                    />
+                    <NavLink
+                        component="a"
+                        href="#key-metrics"
+                        onClick={closeSidebar}
+                        label="Key metrics"
+                        description="Overall totals"
+                        leftSection={<IconListDetails size={16} stroke={1.5} />}
+                    />
+                    <NavLink
+                        component="a"
+                        href="#activity"
+                        onClick={closeSidebar}
+                        label="Daily activity"
+                        description="Reads, entries, saves"
+                        leftSection={<IconActivity size={16} stroke={1.5} />}
+                    />
+                    <NavLink
+                        component="a"
+                        href="#refreshes"
+                        onClick={closeSidebar}
+                        label="Refresh activity"
+                        description="Attempts & success"
+                        leftSection={<IconRefresh size={16} stroke={1.5} />}
+                    />
+                    <NavLink
+                        component="a"
+                        href="#trends"
+                        onClick={closeSidebar}
+                        label="Trends"
+                        description="Backlog & read-through"
+                        leftSection={
+                            <IconChartHistogram size={16} stroke={1.5} />
+                        }
+                    />
+                </Stack>
+            </AppShell.Section>
+        </AppShell.Navbar>
+    );
+};
 
 const Charts = () => {
     const { props } = usePage<ChartsPageProps>();

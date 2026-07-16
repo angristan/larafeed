@@ -62,17 +62,12 @@ func TestOPML_Export_Empty(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "<?xml")
 }
 
-func TestOPML_ShowImport(t *testing.T) {
-	pool := testPool(t)
-	q := db.New(pool)
-	h := newOPMLHandler(t, pool, q)
-
-	user := createUser(t, q, "Alice", "alice@test.com", "secret123")
-
-	r := jsonRequest("GET", "/profile/opml/import", "")
-	r = withUser(r, user)
+func TestOPML_ShowImport_RedirectsToSettings(t *testing.T) {
+	h := &OPMLHandler{}
+	r := httptest.NewRequest(http.MethodGet, "/import", nil)
 	w := httptest.NewRecorder()
-	callHandler(h.ShowImport, w, r)
+	h.ShowImport(w, r)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, http.StatusFound, w.Code)
+	assert.Equal(t, "/profile?section=opml", w.Header().Get("Location"))
 }

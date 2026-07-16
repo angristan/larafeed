@@ -1,31 +1,174 @@
+.root {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--app-border-subtle);
+    border-radius: var(--mantine-radius-md);
+    background-color: var(--app-bg-primary);
+}
+
+.listHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 62px;
+    padding: 10px var(--mantine-spacing-md);
+    border-bottom: 1px solid var(--app-border-subtle);
+    background-color: color-mix(
+        in srgb,
+        var(--app-bg-primary) 92%,
+        var(--app-bg-secondary)
+    );
+}
+
+.queueTitle {
+    color: var(--app-text-primary);
+    letter-spacing: -0.01em;
+}
+
+.scrollArea {
+    flex: 1;
+    min-height: 0;
+}
+
+.entryList {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+}
+
 .entry {
-    margin-top: 0.8rem;
-    margin-right: 1em;
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    border-radius: var(--mantine-radius-md);
+
+    &:focus-visible {
+        outline: 2px solid var(--mantine-color-blue-5);
+        outline-offset: 2px;
+    }
 }
 
 .entryCard {
-    transition: background-color 0.3s;
-    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid transparent;
+    background-color: transparent;
+    box-shadow: none;
+    transition:
+        transform 120ms ease,
+        border-color 120ms ease,
+        background-color 120ms ease,
+        box-shadow 120ms ease;
 }
 
 .entryCard:hover {
-    background-color: light-dark(
-        var(--mantine-color-gray-1),
-        var(--mantine-color-dark-7)
-    );
+    transform: translateY(-1px);
+    border-color: var(--app-border);
+    background-color: var(--app-hover);
+    box-shadow: 0 5px 16px color-mix(in srgb, var(--app-text-primary) 6%, transparent);
 }
 
 .activeEntry {
+    border-color: light-dark(
+        var(--mantine-color-blue-3),
+        var(--mantine-color-blue-8)
+    );
     background-color: light-dark(
-        var(--mantine-color-gray-1),
-        var(--mantine-color-dark-7)
+        var(--mantine-color-blue-0),
+        color-mix(in srgb, var(--mantine-color-blue-9) 25%, var(--app-bg-primary))
+    );
+    box-shadow: inset 3px 0 0 var(--mantine-color-blue-6);
+}
+
+.activeEntry:hover {
+    border-color: light-dark(
+        var(--mantine-color-blue-4),
+        var(--mantine-color-blue-7)
+    );
+    background-color: light-dark(
+        var(--mantine-color-blue-0),
+        color-mix(in srgb, var(--mantine-color-blue-9) 30%, var(--app-bg-primary))
     );
 }
 
-.readEntry {
-    color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-3));
+.entryBody {
+    flex: 1;
+    min-width: 0;
 }
 
 .entryTitle {
+    min-width: 0;
+    color: var(--app-text-primary);
+    line-height: 1.35;
     word-break: break-word;
+}
+
+.readEntry .entryTitle {
+    color: var(--app-text-secondary);
+}
+
+.unreadDot {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 7px;
+    margin-top: 6px;
+    border-radius: 50%;
+    background-color: var(--mantine-color-blue-6);
+    box-shadow: 0 0 0 3px
+        light-dark(var(--mantine-color-blue-0), var(--mantine-color-blue-9));
+}
+
+.readEntry .unreadDot {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1px var(--app-border);
+}
+
+.star {
+    flex: 0 0 auto;
+    margin-top: 1px;
+    color: var(--mantine-color-yellow-6);
+}
+
+.feedMeta {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.timestamp {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.emptyState {
+    min-height: 360px;
+    height: 100%;
+    padding: var(--mantine-spacing-xl);
+}
+
+.paginationFooter {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--mantine-spacing-sm);
+    min-height: 58px;
+    padding: 8px var(--mantine-spacing-md);
+    overflow-x: auto;
+    border-top: 1px solid var(--app-border-subtle);
+    background-color: var(--app-bg-primary);
+}
+
+@media (max-width: 30em) {
+    .entryList {
+        padding: 8px;
+    }
+
+    .paginationFooter {
+        justify-content: flex-start;
+        padding-inline: 8px;
+    }
 }

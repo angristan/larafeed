@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -50,30 +51,131 @@ type selectEntityDTO struct {
 	Name string `json:"name"`
 }
 
+const (
+	chartsDateLayout         = "2006-01-02"
+	defaultChartsRangeDays   = 30
+	maximumChartsRangeDays   = 366
+	defaultChartsRangeFilter = "30"
+)
+
+var chartsPresetRanges = map[string]int{
+	"30":  30,
+	"90":  90,
+	"365": 365,
+}
+
+type chartsFilters struct {
+	Range      string
+	Group      string
+	FeedID     *int64
+	CategoryID *int64
+	StartDate  time.Time
+	EndDate    time.Time
+	RangeDays  int
+}
+
+func parseChartsFilters(values url.Values, now time.Time) chartsFilters {
+	today := dateOnlyUTC(now)
+	filters := chartsFilters{
+		Range:     defaultChartsRangeFilter,
+		Group:     "all",
+		StartDate: today.AddDate(0, 0, -(defaultChartsRangeDays - 1)),
+		EndDate:   today,
+		RangeDays: defaultChartsRangeDays,
+	}
+
+	if days, ok := chartsPresetRanges[values.Get("range")]; ok {
+		filters.Range = values.Get("range")
+		filters.RangeDays = days
+		filters.StartDate = today.AddDate(0, 0, -(days - 1))
+	} else if values.Get("range") == "custom" {
+		startDate, startErr := time.Parse(chartsDateLayout, values.Get("startDate"))
+		endDate, endErr := time.Parse(chartsDateLayout, values.Get("endDate"))
+		if startErr == nil && endErr == nil && !startDate.After(endDate) {
+			days := int(endDate.Sub(startDate).Hours()/24) + 1
+			if days <= maximumChartsRangeDays {
+				filters.Range = "custom"
+				filters.StartDate = startDate
+				filters.EndDate = endDate
+				filters.RangeDays = days
+			}
+		}
+	}
+
+	feedID := positiveInt64(values.Get("feedId"))
+	categoryID := positiveInt64(values.Get("categoryId"))
+	switch values.Get("group") {
+	case "feed":
+		if feedID != nil {
+			filters.Group = "feed"
+			filters.FeedID = feedID
+		}
+	case "category":
+		if categoryID != nil {
+			filters.Group = "category"
+			filters.CategoryID = categoryID
+		}
+	case "", "all":
+		// Preserve old feedId/categoryId-only chart URLs while preferring the
+		// explicit group value sent by the current frontend.
+		if values.Get("group") == "" && feedID != nil {
+			filters.Group = "feed"
+			filters.FeedID = feedID
+		} else if values.Get("group") == "" && categoryID != nil {
+			filters.Group = "category"
+			filters.CategoryID = categoryID
+		}
+	}
+
+	return filters
+}
+
+func dateOnlyUTC(value time.Time) time.Time {
+	value = value.UTC()
+	return time.Date(value.Year(), value.Month(), value.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+func positiveInt64(value string) *int64 {
+	id, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || id <= 0 {
+		return nil
+	}
+	return &id
+}
+
+func (f chartsFilters) serviceQuery() service.ChartsQuery {
+	return service.ChartsQuery{
+		RangeDays:        f.RangeDays,
+		StartDate:        f.StartDate,
+		EndDate:          f.EndDate,
+		FeedIDFilter:     f.FeedID,
+		CategoryIDFilter: f.CategoryID,
+	}
+}
+
+func (f chartsFilters) props() map[string]any {
+	return map[string]any{
+		"range":      f.Range,
+		"group":      f.Group,
+		"feedId":     nullableInt64(f.FeedID),
+		"categoryId": nullableInt64(f.CategoryID),
+		"startDate":  f.StartDate.Format(chartsDateLayout),
+		"endDate":    f.EndDate.Format(chartsDateLayout),
+	}
+}
+
+func nullableInt64(value *int64) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
 func (h *ChartsHandler) Show(w http.ResponseWriter, r *http.Request) {
 	user := auth.UserFromRequest(r)
-	q := r.URL.Query()
+	filters := parseChartsFilters(r.URL.Query(), time.Now())
 
-	rangeDays := 30
-	if v := q.Get("range"); v != "" {
-		d, parseErr := strconv.Atoi(v)
-		if parseErr == nil && d > 0 {
-			rangeDays = d
-		}
-	}
-
-	var feedIDFilter *int64
-	if v := q.Get("feedId"); v != "" {
-		id, parseErr := strconv.ParseInt(v, 10, 64)
-		if parseErr == nil {
-			feedIDFilter = &id
-		}
-	}
-
-	data, err := h.chartsSvc.GetChartsData(r.Context(), user.ID, service.ChartsQuery{
-		RangeDays:    rangeDays,
-		FeedIDFilter: feedIDFilter,
-	})
+	data, err := h.chartsSvc.GetChartsData(r.Context(), user.ID, filters.serviceQuery())
 	if err != nil {
 		renderError(w, r, h.inertia, http.StatusInternalServerError, err)
 		return
@@ -115,7 +217,6 @@ func (h *ChartsHandler) Show(w http.ResponseWriter, r *http.Request) {
 	}
 
 	totalAttempts := int(data.RefreshStats.Successes + data.RefreshStats.Failures)
-	since := time.Now().AddDate(0, 0, -rangeDays)
 
 	render(w, r, h.inertia, "Charts", gonertia.Props{
 		"dailyEntries":   entriesDTO,
@@ -138,14 +239,7 @@ func (h *ChartsHandler) Show(w http.ResponseWriter, r *http.Request) {
 			"readThroughRate": service.SafePercent(service.SumCounts(data.DailyReads), service.SumCounts(data.DailyEntries)),
 			"currentBacklog":  service.CurrentBacklog(data.BacklogTrend),
 		},
-		"filters": map[string]any{
-			"range":      strconv.Itoa(rangeDays),
-			"group":      "all",
-			"feedId":     feedIDFilter,
-			"categoryId": nil,
-			"startDate":  since.Format("2006-01-02"),
-			"endDate":    time.Now().Format("2006-01-02"),
-		},
+		"filters":    filters.props(),
 		"feeds":      feedEntities,
 		"categories": catEntities,
 	})

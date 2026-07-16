@@ -1,4 +1,4 @@
-import { router } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import {
     ActionIcon,
     Anchor,
@@ -14,13 +14,17 @@ import {
     Table,
     Text,
     TextInput,
+    ThemeIcon,
     Title,
     Tooltip,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import {
     IconArrowNarrowDown,
     IconArrowNarrowUp,
+    IconFilterOff,
     IconRefresh,
+    IconRss,
     IconSearch,
 } from '@tabler/icons-react';
 import dayjs from 'dayjs';
@@ -29,6 +33,7 @@ import { type ReactNode, useMemo, useState } from 'react';
 import { FaviconAvatar } from '@/Components/FaviconImage/FaviconImage';
 import AppShellLayout from '@/Layouts/AppShellLayout/AppShellLayout';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { HttpError, postJson } from '@/lib/http';
 import type { PageProps } from '@/types';
 
 dayjs.extend(relativeTime);
@@ -39,6 +44,13 @@ type FeedRefreshDto = {
     was_successful: boolean;
     entries_created: number;
     error_message: string | null;
+};
+
+type FeedRefreshResponse = {
+    success?: boolean;
+    new_entries?: number;
+    error?: string;
+    message?: string;
 };
 
 type SubscriptionCategoryDto = {
@@ -118,11 +130,12 @@ const Subscriptions = ({ feeds, categories }: SubscriptionsPageProps) => {
         'name' | 'entries' | 'lastSuccess' | 'lastFailure'
     >('name');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-    const [selectedFeed, setSelectedFeed] =
-        useState<SubscriptionFeedDto | null>(null);
+    const [selectedFeedId, setSelectedFeedId] = useState<number | null>(null);
     const [refreshingFeedId, setRefreshingFeedId] = useState<number | null>(
         null,
     );
+    const selectedFeed =
+        feeds.find((feed) => feed.id === selectedFeedId) ?? null;
 
     const categoryOptions = useMemo(
         () => [
@@ -277,11 +290,11 @@ const Subscriptions = ({ feeds, categories }: SubscriptionsPageProps) => {
     };
 
     const openDrawer = (feed: SubscriptionFeedDto) => {
-        setSelectedFeed(feed);
+        setSelectedFeedId(feed.id);
     };
 
     const closeDrawer = () => {
-        setSelectedFeed(null);
+        setSelectedFeedId(null);
     };
 
     const renderTimestampCell = (value: string | null) => (
@@ -320,21 +333,75 @@ const Subscriptions = ({ feeds, categories }: SubscriptionsPageProps) => {
         setSortDirection('asc');
     };
 
-    const refreshFeed = (feed: SubscriptionFeedDto) => {
+    const refreshFeed = async (feed: SubscriptionFeedDto) => {
         setRefreshingFeedId(feed.id);
 
-        router.post(
-            route('feed.refresh', { feed_id: feed.id }),
-            {},
-            {
-                preserveScroll: true,
-                onFinish: () => setRefreshingFeedId(null),
-            },
-        );
+        try {
+            const response = await postJson<FeedRefreshResponse>(
+                route('feed.refresh', { feed_id: feed.id }),
+            );
+
+            if (response?.success === false || response?.error) {
+                notifications.show({
+                    title: 'Failed to refresh feed',
+                    message: response.error ?? 'Unable to refresh this feed.',
+                    color: 'red',
+                    withBorder: true,
+                });
+                return;
+            }
+
+            const newEntries = response?.new_entries ?? 0;
+            notifications.show({
+                title: 'Feed refreshed',
+                message:
+                    newEntries === 0
+                        ? 'No new entries found.'
+                        : `${newEntries.toLocaleString()} new ${newEntries === 1 ? 'entry' : 'entries'} added.`,
+                color: 'green',
+                withBorder: true,
+            });
+
+            await new Promise<void>((resolve) => {
+                router.reload({
+                    only: ['feeds'],
+                    onFinish: () => resolve(),
+                });
+            });
+        } catch (error: unknown) {
+            const response =
+                error instanceof HttpError
+                    ? (error.data as FeedRefreshResponse | undefined)
+                    : undefined;
+
+            notifications.show({
+                title:
+                    error instanceof HttpError && error.status === 429
+                        ? 'Feed refreshed recently'
+                        : 'Failed to refresh feed',
+                message:
+                    response?.message ??
+                    response?.error ??
+                    'Unable to refresh this feed.',
+                color:
+                    error instanceof HttpError && error.status === 429
+                        ? 'yellow'
+                        : 'red',
+                withBorder: true,
+            });
+        } finally {
+            setRefreshingFeedId((current) =>
+                current === feed.id ? null : current,
+            );
+        }
     };
 
     const filtersSidebar = (
-        <AppShell.Navbar p="md">
+        <AppShell.Navbar
+            id="app-sidebar-navigation"
+            aria-label="Subscription filters"
+            p="md"
+        >
             <ScrollArea style={{ height: 'calc(100vh - 96px)' }} type="auto">
                 <Stack gap="lg">
                     <Stack gap={4}>
@@ -489,15 +556,67 @@ const Subscriptions = ({ feeds, categories }: SubscriptionsPageProps) => {
                             <Table.Tbody>
                                 {filteredFeeds.length === 0 && (
                                     <Table.Tr>
-                                        <Table.Td colSpan={6}>
-                                            <Text
-                                                size="sm"
-                                                c="dimmed"
-                                                ta="center"
+                                        <Table.Td colSpan={6} py={64}>
+                                            <Stack
+                                                align="center"
+                                                gap="sm"
+                                                maw={420}
+                                                mx="auto"
                                             >
-                                                No subscriptions match the
-                                                current filters.
-                                            </Text>
+                                                <ThemeIcon
+                                                    size={52}
+                                                    radius="xl"
+                                                    variant="light"
+                                                >
+                                                    {feeds.length === 0 ? (
+                                                        <IconRss
+                                                            size={25}
+                                                            stroke={1.6}
+                                                        />
+                                                    ) : (
+                                                        <IconFilterOff
+                                                            size={25}
+                                                            stroke={1.6}
+                                                        />
+                                                    )}
+                                                </ThemeIcon>
+                                                <Text fw={700} ta="center">
+                                                    {feeds.length === 0
+                                                        ? 'Add your first subscription'
+                                                        : 'No subscriptions match'}
+                                                </Text>
+                                                <Text
+                                                    size="sm"
+                                                    c="dimmed"
+                                                    ta="center"
+                                                >
+                                                    {feeds.length === 0
+                                                        ? 'Follow a site to start building your personal reading queue.'
+                                                        : 'Try a different search or clear the current category and status filters.'}
+                                                </Text>
+                                                {feeds.length === 0 ? (
+                                                    <Button
+                                                        component={Link}
+                                                        href={`${route('feeds.index')}?addFeedUrl=`}
+                                                        leftSection={
+                                                            <IconRss
+                                                                size={16}
+                                                            />
+                                                        }
+                                                        mt="xs"
+                                                    >
+                                                        Add a feed
+                                                    </Button>
+                                                ) : (
+                                                    <Button
+                                                        variant="light"
+                                                        onClick={resetFilters}
+                                                        mt="xs"
+                                                    >
+                                                        Clear filters
+                                                    </Button>
+                                                )}
+                                            </Stack>
                                         </Table.Td>
                                     </Table.Tr>
                                 )}

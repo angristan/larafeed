@@ -169,11 +169,15 @@ See [docs/self-hosting.md](docs/self-hosting.md) for Docker Compose setup instru
 ### Run locally
 
 ```bash
-cp .env.example .env # and adjust the values
-npm install
-npm run dev          # Vite dev server in another terminal
-docker compose -f docker-compose.dev.yml up  # Go backend with hot reload + PostgreSQL
+make dev
+# or: docker compose -f docker-compose.dev.yml up --build
 ```
+
+Then open <http://localhost:3000>. The Compose stack includes PostgreSQL,
+Jaeger, the Go server with hot reload, and the Vite development server.
+
+There is no seeded default account. On a fresh database, create one from the
+registration screen at <http://localhost:3000/register>.
 
 ## License
 

@@ -1,18 +1,16 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import {
     Alert,
     Anchor,
     Button,
     Checkbox,
-    Container,
     Group,
-    Paper,
     PasswordInput,
-    Text,
+    Stack,
     TextInput,
-    Title,
 } from '@mantine/core';
-import classes from './Login.module.css';
+import { IconLogin2 } from '@tabler/icons-react';
+import AuthLayout from '@/Layouts/AuthLayout/AuthLayout';
 
 interface Props {
     status?: string;
@@ -39,81 +37,94 @@ export default function Login({
     };
 
     return (
-        <Container size={420} my={40}>
+        <AuthLayout
+            title="Welcome back"
+            description="Sign in to pick up your reading queue where you left it."
+            icon={<IconLogin2 size={22} stroke={1.7} />}
+            footer={
+                canRegister ? (
+                    <>
+                        New to Larafeed?{' '}
+                        <Anchor
+                            component={Link}
+                            href={route('register')}
+                            fw={600}
+                        >
+                            Create an account
+                        </Anchor>
+                    </>
+                ) : undefined
+            }
+        >
             <Head title="Log in" />
 
-            <Title ta="center" className={classes.title}>
-                Welcome back!
-            </Title>
-            {canRegister && (
-                <Text c="dimmed" size="sm" ta="center" mt={5}>
-                    Do not have an account yet?{' '}
-                    <Anchor
-                        size="sm"
-                        onClick={() => router.visit(route('register'))}
-                    >
-                        Create account
-                    </Anchor>
-                </Text>
-            )}
-
-            {status && (
-                <Alert color="green" mt="md">
-                    {status}
-                </Alert>
-            )}
-
-            <Paper
-                withBorder
-                shadow="md"
-                p={30}
-                mt={30}
-                radius="md"
-                component="form"
-                onSubmit={handleSubmit}
-            >
-                <TextInput
-                    label="Email"
-                    placeholder="you@mantine.dev"
-                    required
-                    value={data.email}
-                    onChange={(e) => setData('email', e.target.value)}
-                    error={errors.email}
-                    autoComplete="username"
-                />
-
-                <PasswordInput
-                    label="Password"
-                    placeholder="Your password"
-                    required
-                    mt="md"
-                    value={data.password}
-                    onChange={(e) => setData('password', e.target.value)}
-                    error={errors.password}
-                    autoComplete="current-password"
-                />
-
-                <Group justify="space-between" mt="lg">
-                    <Checkbox
-                        label="Remember me"
-                        checked={data.remember}
-                        onChange={(e) => setData('remember', e.target.checked)}
-                    />
-                    {canResetPassword && (
-                        <Anchor
-                            component="a"
-                            href={route('password.request')}
-                            size="sm"
-                        >
-                            Forgot password?
-                        </Anchor>
+            <form onSubmit={handleSubmit}>
+                <Stack gap="md">
+                    {status && (
+                        <Alert color="green" role="status">
+                            {status}
+                        </Alert>
                     )}
-                </Group>
 
-                <Button fullWidth mt="xl" type="submit" loading={processing}>
-                    Sign in
-                </Button>
-            </Paper>
-        </Container>
+                    <TextInput
+                        label="Email"
+                        placeholder="you@example.com"
+                        name="email"
+                        type="email"
+                        required
+                        autoFocus
+                        value={data.email}
+                        onChange={(event) =>
+                            setData('email', event.currentTarget.value)
+                        }
+                        error={errors.email}
+                        autoComplete="username"
+                    />
+
+                    <PasswordInput
+                        label="Password"
+                        placeholder="Your password"
+                        name="password"
+                        required
+                        value={data.password}
+                        onChange={(event) =>
+                            setData('password', event.currentTarget.value)
+                        }
+                        error={errors.password}
+                        autoComplete="current-password"
+                    />
+
+                    <Group justify="space-between" wrap="wrap" gap="sm">
+                        <Checkbox
+                            label="Remember me"
+                            checked={data.remember}
+                            onChange={(event) =>
+                                setData('remember', event.currentTarget.checked)
+                            }
+                        />
+                        {canResetPassword && (
+                            <Anchor
+                                component={Link}
+                                href={route('password.request')}
+                                size="sm"
+                                fw={500}
+                            >
+                                Forgot password?
+                            </Anchor>
+                        )}
+                    </Group>
+
+                    <Button
+                        fullWidth
+                        size="md"
+                        type="submit"
+                        loading={processing}
+                        disabled={processing}
+                    >
+                        Sign in
+                    </Button>
+                </Stack>
+            </form>
+        </AuthLayout>
     );
 }

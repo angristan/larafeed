@@ -204,6 +204,8 @@ const ProfileSettings = ({ mustVerifyEmail, status }: ProfileSettingsProps) => {
                 <Title order={3}>Password</Title>
                 <PasswordInput
                     label="Current password"
+                    name="current_password"
+                    autoComplete="current-password"
                     value={passwordData.current_password}
                     onChange={(event) =>
                         setPasswordData(
@@ -217,6 +219,10 @@ const ProfileSettings = ({ mustVerifyEmail, status }: ProfileSettingsProps) => {
                 />
                 <PasswordInput
                     label="New password"
+                    description="Use at least 8 characters"
+                    name="password"
+                    autoComplete="new-password"
+                    minLength={8}
                     value={passwordData.password}
                     onChange={(event) =>
                         setPasswordData('password', event.currentTarget.value)
@@ -227,6 +233,9 @@ const ProfileSettings = ({ mustVerifyEmail, status }: ProfileSettingsProps) => {
                 />
                 <PasswordInput
                     label="Confirm new password"
+                    name="password_confirmation"
+                    autoComplete="new-password"
+                    minLength={8}
                     value={passwordData.password_confirmation}
                     onChange={(event) =>
                         setPasswordData(
@@ -281,6 +290,8 @@ const ProfileSettings = ({ mustVerifyEmail, status }: ProfileSettingsProps) => {
                         </Text>
                         <PasswordInput
                             label="Password"
+                            name="password"
+                            autoComplete="current-password"
                             value={deleteData.password}
                             onChange={(event) =>
                                 setDeleteData(

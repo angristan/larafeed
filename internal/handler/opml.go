@@ -34,9 +34,7 @@ func NewOPMLHandler(i *gonertia.Inertia, opml opmlService, a *auth.Auth, feedSvc
 }
 
 func (h *OPMLHandler) ShowImport(w http.ResponseWriter, r *http.Request) {
-	render(w, r, h.inertia, "Import", gonertia.Props{
-		"status": h.authSvc.GetFlash(w, r, "status"),
-	})
+	http.Redirect(w, r, "/profile?section=opml", http.StatusFound)
 }
 
 func (h *OPMLHandler) Import(w http.ResponseWriter, r *http.Request) {

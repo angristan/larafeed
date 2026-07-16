@@ -4,7 +4,6 @@ import {
     AppShell,
     Badge,
     Button,
-    Code,
     Divider,
     Fieldset,
     Group,
@@ -21,28 +20,32 @@ import {
     TextInput,
     Tooltip,
 } from '@mantine/core';
-import { useDisclosure, useHover } from '@mantine/hooks';
+import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
     IconBook,
     IconCategory,
-    IconCheck,
     IconCheckbox,
     IconChevronRight,
     IconDots,
     IconExclamationCircle,
     IconInfoCircle,
-    IconPencil,
     IconPlus,
     IconRss,
     IconSearch,
     IconStar,
     IconTrash,
+    IconX,
 } from '@tabler/icons-react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
-import { type FormEventHandler, type ReactNode, useState } from 'react';
+import {
+    type FormEventHandler,
+    type ReactNode,
+    useEffect,
+    useState,
+} from 'react';
 import { FaviconImage } from '@/Components/FaviconImage/FaviconImage';
 import { FeedMenu } from '@/Components/FeedMenu';
 import classes from './Sidebar.module.css';
@@ -114,18 +117,18 @@ export default function Sidebar({
 
     const [opened, { open, close }] = useDisclosure(false);
 
-    const { hovered, ref } = useHover();
-
     // Open pre-filled new feed modal if URL contains addFeedUrl
     const [hasBeenOpened, setHasBeenOpened] = useState(false);
-    if (window.location.search.includes('addFeedUrl')) {
-        if (!hasBeenOpened) {
-            if (!opened) {
-                open();
-                setHasBeenOpened(true);
-            }
+    const addFeedParams = new URLSearchParams(window.location.search);
+    const hasInitialFeedURL = addFeedParams.has('addFeedUrl');
+    const initialFeedURL = addFeedParams.get('addFeedUrl') || undefined;
+
+    useEffect(() => {
+        if (hasInitialFeedURL && !hasBeenOpened) {
+            open();
+            setHasBeenOpened(true);
         }
-    }
+    }, [hasBeenOpened, hasInitialFeedURL, open]);
 
     return (
         <>
@@ -133,23 +136,32 @@ export default function Sidebar({
                 opened={opened}
                 close={close}
                 categories={sortedCategories}
-                initialFeedURL={
-                    new URLSearchParams(window.location.search).get(
-                        'addFeedUrl',
-                    ) || undefined
-                }
+                initialFeedURL={initialFeedURL}
             />
-            <AppShell.Navbar>
+            <AppShell.Navbar
+                id="app-sidebar-navigation"
+                aria-label="Feeds and filters"
+            >
                 <AppShell.Section pr="md" pl="md" pt="md">
                     <TextInput
-                        placeholder="Search"
+                        aria-label="Filter subscriptions"
+                        placeholder="Filter subscriptions"
                         size="xs"
                         leftSection={<IconSearch size={12} stroke={1.5} />}
-                        rightSectionWidth={70}
+                        rightSectionWidth={30}
+                        rightSectionPointerEvents={searchTerm ? 'all' : 'none'}
                         rightSection={
-                            <Code className={classes.searchCode}>Ctrl + K</Code>
+                            searchTerm ? (
+                                <ActionIcon
+                                    aria-label="Clear subscription filter"
+                                    onClick={() => setSearchTerm('')}
+                                    size="xs"
+                                    variant="subtle"
+                                >
+                                    <IconX size={12} stroke={1.5} />
+                                </ActionIcon>
+                            ) : null
                         }
-                        styles={{ section: { pointerEvents: 'none' } }}
                         value={searchTerm}
                         onChange={(event) =>
                             setSearchTerm(event.currentTarget.value)
@@ -186,16 +198,12 @@ export default function Sidebar({
                             label="Create feed or category"
                             withArrow
                             position="right"
-                            opened={
-                                (feedLinks.length === 0 && !noResults) ||
-                                hovered
-                            }
                         >
                             <ActionIcon
+                                aria-label="Create feed or category"
                                 onClick={open}
                                 variant="default"
-                                size={18}
-                                ref={ref}
+                                size="sm"
                             >
                                 <IconPlus size={12} stroke={1.5} />
                             </ActionIcon>
@@ -206,7 +214,7 @@ export default function Sidebar({
                     <div className={classes.collections}>
                         {noResults ? (
                             <Text size="xs" c="dimmed" pl="xs" pr="xs">
-                                No feeds match your search.
+                                No subscriptions match your filter.
                             </Text>
                         ) : (
                             feedLinks
@@ -292,33 +300,36 @@ const FilterLink = function FilterLink({
 }) {
     const params = new URLSearchParams(window.location.search);
     params.delete('page');
+    params.delete('entry');
+    params.delete('read');
+    params.delete('summarize');
 
     const currentFilter = params.get('filter');
-    if (currentFilter === label.toLowerCase()) {
+    const filterValue = label.toLowerCase();
+    const isActive = currentFilter === filterValue;
+
+    if (isActive) {
         // Clicking again -> remove the filter
         params.delete('filter');
     } else {
-        params.set('filter', label.toLowerCase());
+        params.set('filter', filterValue);
     }
 
     return (
         <Link
             key={label}
             className={`${classes.mainLink} ${
-                label.toLowerCase() ===
-                new URLSearchParams(window.location.search).get('filter')
-                    ? classes.activeFeed
-                    : ''
+                isActive ? classes.activeFeed : ''
             }`}
             href={route('feeds.index')}
-            only={['entries']}
+            only={['entries', 'currententry', 'summary']}
             preserveScroll
             preserveState
             data={{
                 ...Object.fromEntries(params),
             }}
             prefetch
-            as="div"
+            aria-current={isActive ? 'page' : undefined}
         >
             <div className={classes.mainLinkInner}>
                 {icon}
@@ -360,12 +371,23 @@ export const FeedLinksGroup = ({
     const autoOpened = feedsPerCategory[category.id].length > 0;
     const [manualOpened, setManualOpened] = useState<boolean | null>(null);
     const opened = manualOpened ?? autoOpened;
+    const categoryEntriesCount = feedsPerCategory[category.id].reduce(
+        (acc, feed) => acc + feed.entries_count,
+        0,
+    );
+    const categoryFeedsID = `category-${category.id}-feeds`;
 
     const params = new URLSearchParams(window.location.search);
     params.delete('feed');
+    params.delete('page');
+    params.delete('entry');
+    params.delete('read');
+    params.delete('summarize');
 
     const currentCategory = params.get('category');
-    if (currentCategory === category.id.toString()) {
+    const isActive = currentCategory === category.id.toString();
+
+    if (isActive) {
         // Clicking again -> unselect the category
         params.delete('category');
     } else {
@@ -373,66 +395,70 @@ export const FeedLinksGroup = ({
     }
 
     return (
-        <Link
-            href={route('feeds.index')}
-            only={['entries']}
-            prefetch
-            preserveScroll
-            preserveState
-            data={{
-                ...Object.fromEntries(params),
-            }}
-            as="div"
-        >
-            <NavLink
-                key={category.id}
-                onClick={() => {
-                    // This should not be needed as the NavLink is wrapped in a Link
-                    // But for some reason the click does not work on the Link.
-                    // We keep the Link for the prefetch on hover
-                    router.visit(route('feeds.index'), {
-                        only: ['entries'],
-                        preserveScroll: true,
-                        preserveState: true,
-                        data: {
-                            ...Object.fromEntries(params),
-                        },
-                    });
-                }}
-                active={
-                    new URLSearchParams(window.location.search).get(
-                        'category',
-                    ) === category.id.toString()
-                }
-                label={
-                    <CategoryHeader
-                        category={category}
-                        entriesCount={feedsPerCategory[category.id].reduce(
-                            (acc, feed) => acc + feed.entries_count,
-                            0,
-                        )}
-                        feedCount={feedsPerCategory[category.id].length}
-                    />
-                }
-                opened={manualOpened ?? opened}
-                defaultOpened
-                leftSection={<IconRss size={15} stroke={1.5} />}
-                rightSection={
+        <div>
+            <Group gap={4} wrap="nowrap" className={classes.categoryRow}>
+                <NavLink
+                    component={Link}
+                    className={classes.categoryLink}
+                    href={route('feeds.index')}
+                    only={['entries', 'currententry', 'summary']}
+                    prefetch
+                    preserveScroll
+                    preserveState
+                    data={{
+                        ...Object.fromEntries(params),
+                    }}
+                    active={isActive}
+                    aria-current={isActive ? 'page' : undefined}
+                    label={category.name}
+                    leftSection={<IconRss size={15} stroke={1.5} />}
+                    rightSection={
+                        <Badge
+                            size="sm"
+                            variant="default"
+                            className={classes.mainLinkBadge}
+                        >
+                            {categoryEntriesCount}
+                        </Badge>
+                    }
+                />
+
+                <CategoryHeader
+                    category={category}
+                    feedCount={feedsPerCategory[category.id].length}
+                />
+
+                <ActionIcon
+                    aria-controls={categoryFeedsID}
+                    aria-expanded={opened}
+                    aria-label={`${opened ? 'Collapse' : 'Expand'} ${category.name}`}
+                    color="gray"
+                    onClick={() =>
+                        setManualOpened((current) => {
+                            if (current === null) {
+                                return !opened;
+                            }
+
+                            return !current;
+                        })
+                    }
+                    size="sm"
+                    variant="subtle"
+                >
                     <IconChevronRight
+                        className={`${classes.categoryChevron} ${
+                            opened ? classes.categoryChevronOpened : ''
+                        }`}
                         size={15}
                         stroke={1.5}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setManualOpened((current) => {
-                                if (current === null) {
-                                    return !opened;
-                                }
-
-                                return !current;
-                            });
-                        }}
                     />
-                }
+                </ActionIcon>
+            </Group>
+
+            <div
+                className={classes.categoryFeeds}
+                hidden={!opened}
+                id={categoryFeedsID}
             >
                 {feedsPerCategory[category.id].map((feed: Feed) => (
                     <FeedLink
@@ -441,85 +467,38 @@ export const FeedLinksGroup = ({
                         categories={categories}
                     />
                 ))}
-            </NavLink>
-        </Link>
+            </div>
+        </div>
     );
 };
 
 export function CategoryHeader({
     category,
-    entriesCount,
     feedCount,
 }: {
     category: Category;
-    entriesCount: number;
     feedCount: number;
 }) {
-    const { hovered, ref } = useHover();
     const [opened, setOpened] = useState(false);
 
     return (
         <Menu shadow="md" opened={opened} onChange={setOpened}>
-            <Group justify="space-between" ref={ref}>
-                <span>{category.name}</span>
-                <Menu.Target>
-                    {hovered || opened ? (
-                        <ActionIcon
-                            size="xs"
-                            color="gray"
-                            className={classes.feedMenuIcon}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setOpened(!opened);
-                            }}
-                        >
-                            <IconDots size={15} stroke={1.5} />
-                        </ActionIcon>
-                    ) : (
-                        <Badge
-                            size="sm"
-                            variant="default"
-                            className={classes.mainLinkBadge}
-                        >
-                            {entriesCount}
-                        </Badge>
-                    )}
-                </Menu.Target>
-            </Group>
+            <Menu.Target>
+                <ActionIcon
+                    aria-expanded={opened}
+                    aria-haspopup="menu"
+                    aria-label={`${opened ? 'Close' : 'Open'} actions for category ${category.name}`}
+                    color="gray"
+                    onClick={(event) => event.stopPropagation()}
+                    size="sm"
+                    variant="subtle"
+                >
+                    <IconDots size={15} stroke={1.5} />
+                </ActionIcon>
+            </Menu.Target>
 
             <Menu.Dropdown>
                 <Menu.Label>Manage category</Menu.Label>
-
-                <Menu.Item
-                    onClick={(e) => {
-                        e.stopPropagation();
-                    }}
-                    leftSection={
-                        <IconCheck
-                            style={{
-                                width: rem(14),
-                                height: rem(14),
-                            }}
-                        />
-                    }
-                >
-                    Mark feeds as read
-                </Menu.Item>
-
-                <Menu.Item
-                    leftSection={
-                        <IconPencil
-                            style={{
-                                width: rem(14),
-                                height: rem(14),
-                            }}
-                        />
-                    }
-                >
-                    Edit category name
-                </Menu.Item>
-
-                <Menu.Divider />
 
                 <Menu.Item
                     color="red"
@@ -932,8 +911,6 @@ const FeedLink = function FeedLink({
     feed: Feed;
     categories: Category[];
 }) {
-    const { ref } = useHover();
-
     const failedAt = feed.last_failed_refresh_at;
     const successAt = feed.last_successful_refresh_at;
     const showFailed =
@@ -955,62 +932,59 @@ const FeedLink = function FeedLink({
     urlParams.delete('filter');
     urlParams.delete('page');
     urlParams.delete('category');
+    urlParams.delete('entry');
+    urlParams.delete('read');
+    urlParams.delete('summarize');
     urlParams.set('feed', feed.id.toString());
+    const isActive =
+        new URLSearchParams(window.location.search).get('feed') ===
+        feed.id.toString();
 
     return (
-        <div
-            onClick={(e) => {
-                // Prevent the click from propagating to the category Link
-                e.stopPropagation();
+        <Tooltip
+            withArrow
+            position="right"
+            openDelay={1000}
+            multiline
+            styles={{
+                tooltip: {
+                    whiteSpace: 'normal',
+                    width: 'max-content',
+                    maxWidth: 'none',
+                },
             }}
+            label={
+                <Stack gap={2}>
+                    <Text
+                        size="sm"
+                        fw={500}
+                        style={{ wordBreak: 'break-word' }}
+                    >
+                        {feed.name}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                        {refreshStatus}
+                    </Text>
+                </Stack>
+            }
         >
-            <Tooltip
-                withArrow
-                position="right"
-                openDelay={1000}
-                multiline
-                styles={{
-                    tooltip: {
-                        whiteSpace: 'normal',
-                        width: 'max-content',
-                        maxWidth: 'none',
-                    },
-                }}
-                label={
-                    <Stack gap={2}>
-                        <Text
-                            size="sm"
-                            fw={500}
-                            style={{ wordBreak: 'break-word' }}
-                        >
-                            {feed.name}
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                            {refreshStatus}
-                        </Text>
-                    </Stack>
-                }
-            >
+            <div className={classes.feedRow}>
                 <Link
-                    ref={ref}
-                    key={feed.id}
                     className={`${classes.collectionLink} ${
-                        feed.id.toString() ===
-                        new URLSearchParams(window.location.search).get('feed')
-                            ? classes.activeFeed
-                            : ''
+                        isActive ? classes.activeFeed : ''
                     }`}
-                    as="div"
                     href={route('feeds.index')}
-                    only={['feed', 'entries']}
+                    only={['entries', 'currententry', 'summary']}
                     preserveScroll
                     preserveState
                     data={{
                         ...Object.fromEntries(urlParams),
                     }}
                     prefetch
+                    aria-current={isActive ? 'page' : undefined}
                 >
                     <Indicator
+                        className={classes.feedLinkIndicator}
                         color="orange"
                         withBorder
                         disabled={
@@ -1021,38 +995,38 @@ const FeedLink = function FeedLink({
                                 : true
                         }
                     >
-                        <div className={classes.feedRow}>
-                            <div className={classes.feedRowLeft}>
-                                <FaviconImage
-                                    src={feed.favicon_url}
-                                    isDark={feed.favicon_is_dark}
-                                    w={18}
-                                    h={18}
-                                />
-                                <span className={classes.feedName}>
-                                    {feed.name}
-                                </span>
-                            </div>
-                            <FeedMenu
-                                feed={feed}
-                                categories={categories}
-                                showOnHover={true}
-                                className={classes.feedMenuIcon}
-                                showBadge={true}
-                                badgeContent={
-                                    <Badge
-                                        size="sm"
-                                        variant="default"
-                                        className={classes.mainLinkBadge}
-                                    >
-                                        {feed.entries_count}
-                                    </Badge>
-                                }
+                        <div className={classes.feedRowLeft}>
+                            <FaviconImage
+                                src={feed.favicon_url}
+                                isDark={feed.favicon_is_dark}
+                                w={18}
+                                h={18}
                             />
+                            <span className={classes.feedName}>
+                                {feed.name}
+                            </span>
                         </div>
                     </Indicator>
                 </Link>
-            </Tooltip>
-        </div>
+                <div className={classes.feedActions}>
+                    <FeedMenu
+                        feed={feed}
+                        categories={categories}
+                        showOnHover={true}
+                        className={classes.feedMenuIcon}
+                        showBadge={true}
+                        badgeContent={
+                            <Badge
+                                size="sm"
+                                variant="default"
+                                className={classes.mainLinkBadge}
+                            >
+                                {feed.entries_count}
+                            </Badge>
+                        }
+                    />
+                </div>
+            </div>
+        </Tooltip>
     );
 };

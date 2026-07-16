@@ -1,9 +1,8 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { Alert, Anchor, Button, Stack, TextInput } from '@mantine/core';
+import { IconKey } from '@tabler/icons-react';
 import type { FormEventHandler } from 'react';
-import InputError from '@/Components/Breeze/InputError';
-import PrimaryButton from '@/Components/Breeze/PrimaryButton';
-import TextInput from '@/Components/Breeze/TextInput';
-import GuestLayout from '@/Layouts/GuestLayout';
+import AuthLayout from '@/Layouts/AuthLayout/AuthLayout';
 
 export default function ForgotPassword({ status }: { status?: string }) {
     const { data, setData, post, processing, errors } = useForm({
@@ -17,40 +16,52 @@ export default function ForgotPassword({ status }: { status?: string }) {
     };
 
     return (
-        <GuestLayout>
+        <AuthLayout
+            title="Reset your password"
+            description="Enter your email and we will send you a secure reset link."
+            icon={<IconKey size={22} stroke={1.7} />}
+            footer={
+                <Anchor component={Link} href={route('login')} fw={600}>
+                    Back to sign in
+                </Anchor>
+            }
+        >
             <Head title="Forgot Password" />
 
-            <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
-                Forgot your password? No problem. Just let us know your email
-                address and we will email you a password reset link that will
-                allow you to choose a new one.
-            </div>
-
-            {status && (
-                <div className="mb-4 text-sm font-medium text-green-600 dark:text-green-400">
-                    {status}
-                </div>
-            )}
-
             <form onSubmit={submit}>
-                <TextInput
-                    id="email"
-                    type="email"
-                    name="email"
-                    value={data.email}
-                    className="mt-1 block w-full"
-                    isFocused={true}
-                    onChange={(e) => setData('email', e.target.value)}
-                />
+                <Stack gap="lg">
+                    {status && (
+                        <Alert color="green" role="status">
+                            {status}
+                        </Alert>
+                    )}
 
-                <InputError message={errors.email} className="mt-2" />
+                    <TextInput
+                        label="Email"
+                        placeholder="you@example.com"
+                        name="email"
+                        type="email"
+                        required
+                        autoFocus
+                        autoComplete="username"
+                        value={data.email}
+                        onChange={(event) =>
+                            setData('email', event.currentTarget.value)
+                        }
+                        error={errors.email}
+                    />
 
-                <div className="mt-4 flex items-center justify-end">
-                    <PrimaryButton className="ms-4" disabled={processing}>
-                        Email Password Reset Link
-                    </PrimaryButton>
-                </div>
+                    <Button
+                        fullWidth
+                        size="md"
+                        type="submit"
+                        loading={processing}
+                        disabled={processing}
+                    >
+                        Send reset link
+                    </Button>
+                </Stack>
             </form>
-        </GuestLayout>
+        </AuthLayout>
     );
 }

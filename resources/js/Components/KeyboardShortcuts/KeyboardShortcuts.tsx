@@ -23,10 +23,11 @@ export default function KeyboardShortcuts() {
                         <Kbd>⇧ Shift</Kbd>+<Kbd>?</Kbd> - Show this help
                     </p>
                     <p>
-                        <Kbd>⌘ Cmd</Kbd>+<Kbd>k</Kbd> - Spotlight search
+                        <Kbd>Ctrl/Cmd</Kbd>+<Kbd>K</Kbd> - Spotlight search
                     </p>
                     <p>
-                        <Kbd>⌘ Cmd</Kbd>+<Kbd>j</Kbd> - Toggle dark/light theme
+                        <Kbd>Ctrl/Cmd</Kbd>+<Kbd>J</Kbd> - Toggle dark/light
+                        theme
                     </p>
                     <h3>On the entry list:</h3>
                     <p>
@@ -40,7 +41,7 @@ export default function KeyboardShortcuts() {
             <ActionIcon
                 variant="default"
                 size="lg"
-                aria-label="Toggle color scheme"
+                aria-label="Open keyboard shortcuts"
                 mt={1}
                 onClick={open}
             >
