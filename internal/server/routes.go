@@ -35,39 +35,48 @@ func BuildZiggyManifest(appURL string) ZiggyManifest {
 		Port:     nil,
 		Defaults: map[string]string{},
 		Routes: map[string]ZiggyRoute{
-			"login":             {URI: "login", Methods: []string{"GET", "HEAD"}},
-			"register":          {URI: "register", Methods: []string{"GET", "HEAD"}},
-			"password.request":  {URI: "forgot-password", Methods: []string{"GET", "HEAD"}},
-			"password.email":    {URI: "forgot-password", Methods: []string{"POST"}},
-			"password.reset":    {URI: "reset-password/{token}", Methods: []string{"GET", "HEAD"}},
-			"password.store":    {URI: "reset-password", Methods: []string{"POST"}},
-			"two-factor.login":  {URI: "two-factor-challenge", Methods: []string{"GET", "HEAD"}},
-			"verification.notice": {URI: "verify-email", Methods: []string{"GET", "HEAD"}},
-			"verification.verify": {URI: "verify-email/{id}/{hash}", Methods: []string{"GET", "HEAD"}},
-			"verification.send":   {URI: "email/verification-notification", Methods: []string{"POST"}},
-			"password.confirm":    {URI: "confirm-password", Methods: []string{"GET", "HEAD"}},
-			"password.update":     {URI: "password", Methods: []string{"PUT"}},
-			"logout":              {URI: "logout", Methods: []string{"POST"}},
-			"feeds.index":         {URI: "feeds", Methods: []string{"GET", "HEAD"}},
-			"feed.store":          {URI: "feed", Methods: []string{"POST"}},
-			"feed.unsubscribe":    {URI: "feed/{feed_id}", Methods: []string{"DELETE"}},
-			"feed.refresh":        {URI: "feed/{feed_id}/refresh", Methods: []string{"POST"}},
+			"login":                {URI: "login", Methods: []string{"GET", "HEAD"}},
+			"register":             {URI: "register", Methods: []string{"GET", "HEAD"}},
+			"password.request":     {URI: "forgot-password", Methods: []string{"GET", "HEAD"}},
+			"password.email":       {URI: "forgot-password", Methods: []string{"POST"}},
+			"password.reset":       {URI: "reset-password/{token}", Methods: []string{"GET", "HEAD"}},
+			"password.store":       {URI: "reset-password", Methods: []string{"POST"}},
+			"two-factor.login":     {URI: "two-factor-challenge", Methods: []string{"GET", "HEAD"}},
+			"verification.notice":  {URI: "verify-email", Methods: []string{"GET", "HEAD"}},
+			"verification.verify":  {URI: "verify-email/{id}/{hash}", Methods: []string{"GET", "HEAD"}},
+			"verification.send":    {URI: "email/verification-notification", Methods: []string{"POST"}},
+			"password.confirm":     {URI: "confirm-password", Methods: []string{"GET", "HEAD"}},
+			"password.update":      {URI: "password", Methods: []string{"PUT"}},
+			"logout":               {URI: "logout", Methods: []string{"POST"}},
+			"feeds.index":          {URI: "feeds", Methods: []string{"GET", "HEAD"}},
+			"feed.store":           {URI: "feed", Methods: []string{"POST"}},
+			"feed.unsubscribe":     {URI: "feed/{feed_id}", Methods: []string{"DELETE"}},
+			"feed.refresh":         {URI: "feed/{feed_id}/refresh", Methods: []string{"POST"}},
 			"feed.refresh-favicon": {URI: "feed/{feed_id}/refresh-favicon", Methods: []string{"POST"}},
-			"feed.update":         {URI: "feed/{feed_id}", Methods: []string{"PATCH"}},
-			"feed.mark-read":      {URI: "feed/{feed_id}/mark-read", Methods: []string{"POST"}},
-			"entry.update":        {URI: "entry/{entry_id}", Methods: []string{"PATCH"}},
-			"category.store":      {URI: "category", Methods: []string{"POST"}},
-			"category.delete":     {URI: "category/{category_id}", Methods: []string{"DELETE"}},
-			"import.index":        {URI: "import", Methods: []string{"GET", "HEAD"}},
-			"import.store":        {URI: "import", Methods: []string{"POST"}},
-			"export.download":     {URI: "export", Methods: []string{"GET", "HEAD"}},
-			"charts.index":        {URI: "charts", Methods: []string{"GET", "HEAD"}},
-			"subscriptions.index": {URI: "subscriptions", Methods: []string{"GET", "HEAD"}},
-			"profile.edit":        {URI: "profile", Methods: []string{"GET", "HEAD"}},
-			"profile.update":      {URI: "profile", Methods: []string{"PATCH"}},
-			"profile.destroy":     {URI: "profile", Methods: []string{"DELETE"}},
-			"profile.wipe":        {URI: "profile/wipe", Methods: []string{"POST"}},
+			"feed.update":          {URI: "feed/{feed_id}", Methods: []string{"PATCH"}},
+			"feed.mark-read":       {URI: "feed/{feed_id}/mark-read", Methods: []string{"POST"}},
+			"entry.update":         {URI: "entry/{entry_id}", Methods: []string{"PATCH"}},
+			"category.store":       {URI: "category", Methods: []string{"POST"}},
+			"category.delete":      {URI: "category/{category_id}", Methods: []string{"DELETE"}},
+			"import.index":         {URI: "import", Methods: []string{"GET", "HEAD"}},
+			"import.store":         {URI: "import", Methods: []string{"POST"}},
+			"export.download":      {URI: "export", Methods: []string{"GET", "HEAD"}},
+			"charts.index":         {URI: "charts", Methods: []string{"GET", "HEAD"}},
+			"subscriptions.index":  {URI: "subscriptions", Methods: []string{"GET", "HEAD"}},
+			"profile.edit":         {URI: "profile", Methods: []string{"GET", "HEAD"}},
+			"profile.update":       {URI: "profile", Methods: []string{"PATCH"}},
+			"profile.destroy":      {URI: "profile", Methods: []string{"DELETE"}},
+			"profile.wipe":         {URI: "profile/wipe", Methods: []string{"POST"}},
 		},
+	}
+}
+
+func handleHealthCheck(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, err := w.Write([]byte("OK"))
+	if err != nil {
+		slog.Error("failed to write health check response", "error", err)
 	}
 }
 
@@ -88,6 +97,9 @@ func RegisterRoutes(
 	greaderHandler *api.GoogleReaderHandler,
 	feverHandler *api.FeverHandler,
 ) {
+	// Public process health check for load balancers and uptime monitors.
+	r.Get("/up", handleHealthCheck)
+
 	// Welcome page
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		// If authenticated, redirect to feeds

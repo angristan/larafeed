@@ -50,6 +50,8 @@ Edit `.env` before starting:
 
 For production, put a reverse proxy (nginx, Caddy, Traefik) in front and configure TLS.
 
+The unauthenticated `GET /up` endpoint returns `200 OK` with a plain-text `OK` body for load balancers and uptime monitors.
+
 ## Useful Commands
 
 ```bash
