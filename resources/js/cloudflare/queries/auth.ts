@@ -33,7 +33,15 @@ export const authSessionQueryOptions = queryOptions({
 });
 
 export function isUnauthenticatedError(error: unknown): boolean {
-    return error instanceof AuthClientError && error.status === 401;
+    if (error instanceof AuthClientError) {
+        return error.status === 401;
+    }
+
+    return (
+        typeof error === 'object' &&
+        error !== null &&
+        Reflect.get(error, 'status') === 401
+    );
 }
 
 export function clearAuthenticatedCache(queryClient: QueryClient): void {

@@ -2,8 +2,14 @@ import { QueryClient } from '@tanstack/react-query';
 import { describe, expect, it } from 'vitest';
 
 import { AuthClientError } from '../api/auth';
+import { ReaderClientError } from '../api/reader';
 import { createAppQueryClient } from '../queryClient';
-import { authKeys, clearAuthenticatedCache, protectedQueryKeys } from './auth';
+import {
+    authKeys,
+    clearAuthenticatedCache,
+    isUnauthenticatedError,
+    protectedQueryKeys,
+} from './auth';
 
 describe('authentication cache policy', () => {
     it('clears protected data but preserves public data', () => {
@@ -65,6 +71,19 @@ describe('authentication cache policy', () => {
         expect(queryClient.getQueryData(authKeys.session())).toEqual({
             authenticated: false,
         });
+    });
+
+    it('classifies reader API 401 responses as session expiry', () => {
+        expect(
+            isUnauthenticatedError(
+                new ReaderClientError(
+                    'status',
+                    'Sign in again.',
+                    401,
+                    'unauthenticated',
+                ),
+            ),
+        ).toBe(true);
     });
 
     it('disables retries globally for mutations', () => {

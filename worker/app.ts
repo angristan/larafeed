@@ -6,6 +6,10 @@ import {
     HealthResponse,
 } from '../shared/http';
 import { type AuthRouteDependencies, registerAuthRoutes } from './auth/routes';
+import {
+    type ReaderRouteDependencies,
+    registerReaderRoutes,
+} from './reader/routes';
 
 const jsonHeaders = {
     'cache-control': 'no-store',
@@ -41,6 +45,7 @@ export interface WorkerDependencies {
         HealthCheckUnavailable
     >;
     readonly authRoutes?: AuthRouteDependencies;
+    readonly readerRoutes?: ReaderRouteDependencies;
 }
 
 const defaultDependencies: WorkerDependencies = {
@@ -169,6 +174,7 @@ export const createApp = (
     });
 
     registerAuthRoutes(app, dependencies.authRoutes);
+    registerReaderRoutes(app, dependencies.readerRoutes);
 
     app.onError(() => fallbackInternalServerError());
 

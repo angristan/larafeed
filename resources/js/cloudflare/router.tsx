@@ -12,7 +12,19 @@ import {
     authSessionQueryOptions,
     clearAuthenticatedCache,
 } from './queries/auth';
+import {
+    categoryListQueryOptions,
+    entryDetailQueryOptions,
+    entryListQueryOptions,
+    readerCountsQueryOptions,
+    subscriptionListQueryOptions,
+} from './queries/reader';
 import { queryClient } from './queryClient';
+import {
+    canonicalReaderSearch,
+    parseReaderState,
+    READER_PAGE_SIZE,
+} from './readerState';
 
 async function protectedLoader({ url }: LoaderFunctionArgs) {
     const session = await queryClient.ensureQueryData(authSessionQueryOptions);
@@ -60,6 +72,46 @@ function accessTokenLoader(purpose: 'enrollment' | 'recovery') {
     };
 }
 
+async function rootLoader(args: LoaderFunctionArgs) {
+    await protectedLoader(args);
+    throw redirect('/feeds');
+}
+
+async function readerLoader(args: LoaderFunctionArgs) {
+    await protectedLoader(args);
+
+    const canonicalSearch = canonicalReaderSearch(args.url.searchParams);
+    if (args.url.search.slice(1) !== canonicalSearch) {
+        throw redirect(`/feeds?${canonicalSearch}`);
+    }
+
+    const state = parseReaderState(args.url.searchParams);
+    const prefetches = [
+        queryClient.prefetchQuery(categoryListQueryOptions),
+        queryClient.prefetchQuery(subscriptionListQueryOptions),
+        queryClient.prefetchQuery(readerCountsQueryOptions),
+        queryClient.prefetchQuery(
+            entryListQueryOptions({
+                feedId: state.feedId,
+                categoryId: state.categoryId,
+                filter: state.filter,
+                orderBy: state.orderBy,
+                page: state.page,
+                pageSize: READER_PAGE_SIZE,
+            }),
+        ),
+    ];
+
+    if (state.entryId !== null) {
+        prefetches.push(
+            queryClient.prefetchQuery(entryDetailQueryOptions(state.entryId)),
+        );
+    }
+
+    await Promise.all(prefetches);
+    return null;
+}
+
 const accessRegistrationRoute =
     (purpose: 'enrollment' | 'recovery') => async () => {
         const { AccessRegistrationPage } = await import(
@@ -92,10 +144,14 @@ export const router = createBrowserRouter([
     },
     {
         path: '/',
-        loader: protectedLoader,
+        loader: rootLoader,
+    },
+    {
+        path: '/feeds',
+        loader: readerLoader,
         lazy: async () => {
-            const { HomePage } = await import('./pages/HomePage');
-            return { Component: HomePage };
+            const { ReaderPage } = await import('./pages/ReaderPage');
+            return { Component: ReaderPage };
         },
     },
 ]);
