@@ -3,24 +3,23 @@ name: Lint
 on: [push]
 
 jobs:
-  biome:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
-      - name: npm ci
-        run: npm ci
-
-      - name: biome
-        run: npm run lint-check
-
-  golangci-lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
+          cache: npm
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      - name: Install JavaScript dependencies
+        run: npm ci
+      - name: Biome
+        run: npm run lint-check
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Generated Worker bindings
+        run: npm run types:check:cloudflare
       - uses: golangci/golangci-lint-action@v9

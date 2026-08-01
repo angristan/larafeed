@@ -1,12 +1,13 @@
 {
     "compilerOptions": {
-        "allowJs": true,
+        "allowJs": false,
         "module": "ESNext",
         "moduleResolution": "bundler",
         "jsx": "react-jsx",
         "strict": true,
         "isolatedModules": true,
         "target": "ESNext",
+        "lib": ["ESNext", "DOM", "DOM.Iterable"],
         "esModuleInterop": true,
         "forceConsistentCasingInFileNames": true,
         "skipLibCheck": true,
@@ -14,11 +15,21 @@
         "paths": {
             "@/*": ["./resources/js/*"],
             "@shared/*": ["./shared/*"]
-        }
+        },
+        "types": [
+            "./worker-configuration.d.ts",
+            "@cloudflare/vitest-pool-workers/types"
+        ]
     },
     "include": [
-        "resources/js/**/*.ts",
-        "resources/js/**/*.tsx",
-        "resources/js/**/*.d.ts"
+        "worker/**/*.ts",
+        "shared/**/*.ts",
+        "resources/js/cloudflare/**/*.ts",
+        "resources/js/cloudflare/**/*.tsx",
+        "resources/js/types/**/*.d.ts",
+        "worker-configuration.d.ts",
+        "vite.config.ts",
+        "vitest.config.ts",
+        "vitest.worker.config.ts"
     ]
 }

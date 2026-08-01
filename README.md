@@ -1,209 +1,91 @@
 # Larafeed
 
-<!-- badges -->
+Larafeed is a private feed reader built on Cloudflare Workers.
 
-![Larafeed logo](.github/readme/logo.png)
-
-Larafeed is a simple feed reader.
+![Larafeed reader](.github/readme/reader.png)
 
 ## Features
 
-- A pleasant and snappy UI
-  - Prefetching is leveraged to make the app feel snappy
-  - Entry is marked as read when you view it
-  - Entry content is modified so that links open in a new tab
-- RSS and Atom feed support
-- Background feed updates
-  - Failures are stored and displayed in the UI
-- Custom feed names and categories
-- Entry filtering per subscription (hide entries matching patterns by title, content, or author)
-- Read and starred entries
-- AI-generated summary of entries
-- Favicon display (proxified through imgproxy, with automatic dark mode background for dark favicons)
-- Spotlight-like go to feed
-- OPML import/export
-- Support for Google Reader API and Fever API
-  - Support is partial, but works with [Reeder classic](https://reederapp.com/classic/) at least
-  - Google Reader API is available at `/api/reader` and Fever API at `/api/fever`, both with username+password
-- Telegram notifications on user registration and login failures
-- Estimated reading time for each entry
+- Responsive React and Mantine reader with feed/category scopes and stable pagination
+- Read watermarks, sparse read exceptions, favorites, archives, and filtered-state preservation
+- RSS, Atom, and RDF ingestion with secure bounded fetching and sanitization
+- Durable refresh and OPML jobs with D1, Queues, Cron, outbox recovery, retries, and DLQs
+- Passkey-only authentication with Turnstile, private enrollment, recovery, and opaque sessions
+- Revocable app tokens for Google Reader and Fever clients
+- OPML import, progress, retry, and export
+- Ownership-bound Cloudflare Images transformations
+- Cached Gemini summaries through Cloudflare AI Gateway
+- Deterministic PostgreSQL-to-D1 migration tooling
 
-### Screenshots & demo
+See [the feature inventory](docs/cloudflare-feature-inventory.md) for implemented, replaced, and intentionally removed legacy behavior.
 
-#### Reader view
+## Architecture
 
-![Reader view screenshot](.github/readme/reader.png)
-
-#### Demo of the LLM summary generation
-
-<https://github.com/user-attachments/assets/0553f893-cc5a-4efa-b098-1b1e10545698>
-
-#### Demo of the feed refreshing UX
-
-<https://github.com/user-attachments/assets/a420f8cd-d306-4a0d-afe3-d391852055ad>
-
-#### Demo of the quick add feed from a bookmark
-
-<https://github.com/user-attachments/assets/bb266745-5d16-4d06-9534-653df38212bc>
-
-## Technical overview
-
-- Backend built with Go
-  - [Chi](https://github.com/go-chi/chi) for routing
-  - [gonertia](https://github.com/romsar/gonertia) for Inertia.js SSR
-  - [pgx](https://github.com/jackc/pgx) for PostgreSQL
-  - [sqlc](https://sqlc.dev/) for type-safe SQL queries
-  - [River](https://riverqueue.com/) for background jobs (PostgreSQL-backed)
-  - [Goose](https://pressly.github.io/goose/) for database migrations
-- React for the frontend with the amazing [Mantine](https://mantine.dev/) components and hooks
-- [Inertia.js](https://inertiajs.com/) that does the magic glue between the Go backend and React
-  - Prefetching is leveraged to make the app feel snappy
-- Feed parsing is powered by [gofeed](https://github.com/mmcdole/gofeed)
-  - Polite to publishers: uses ETag/Last-Modified headers to avoid re-downloading unchanged feeds
-- Summary generation is powered by Gemini
-- Favicon fetching and proxification through [imgproxy](https://github.com/imgproxy/imgproxy)
-- Images from articles are also proxified and optimized through `imgproxy`, for better privacy and performance
-- Google Reader API and Fever API are implemented from scratch
-  - I relied heavily on the implementations of [FreshRSS](https://github.com/FreshRSS/FreshRSS/tree/edge/p/api) and [Miniflux](https://github.com/miniflux/v2/tree/main/internal)
-  - And in practice, using [Reeder classic](https://reederapp.com/classic/) as a client with Miniflux as a backend, I inspected the API calls with [mitmproxy](https://mitmproxy.org/) to, in a way, _reverse-engineer_ the API
-
-### Database schema
-
-```mermaid
-erDiagram
-    users {
-        int8 id PK
-        varchar name
-        varchar email UK
-        timestamp email_verified_at
-        varchar password
-        varchar remember_token
-        text fever_api_key
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    feeds {
-        int8 id PK
-        varchar name
-        varchar feed_url UK
-        varchar site_url
-        varchar favicon_url
-        boolean favicon_is_dark
-        timestamp favicon_updated_at
-        timestamp last_successful_refresh_at
-        timestamp last_failed_refresh_at
-        varchar last_error_message
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    entries {
-        int8 id PK
-        varchar title
-        varchar url
-        varchar author
-        text content
-        timestamp published_at
-        int8 feed_id FK
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    feed_refreshes {
-        int8 id PK
-        int8 feed_id FK
-        timestamp refreshed_at
-        boolean was_successful
-        int4 entries_created
-        text error_message
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    feed_subscriptions {
-        int8 user_id PK,FK
-        int8 feed_id PK,FK
-        int8 category_id FK
-        varchar custom_feed_name
-        json filter_rules
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    subscription_categories {
-        int8 id PK
-        int8 user_id FK
-        varchar name
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    entry_interactions {
-        int8 user_id PK,FK
-        int8 entry_id PK,FK
-        timestamp read_at
-        timestamp starred_at
-        timestamp archived_at
-        timestamp filtered_at
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    users ||--o{ feed_subscriptions : "subscribes"
-    users ||--o{ entry_interactions : "interacts"
-    users ||--o{ subscription_categories : "has"
-    feeds ||--o{ entries : "contains"
-    feeds ||--o{ feed_subscriptions : "has"
-    feeds ||--o{ feed_refreshes : "refreshes"
-    entries ||--o{ entry_interactions : "has"
-    subscription_categories ||--o{ feed_subscriptions : "organizes"
+```text
+React + Mantine + React Router + TanStack Query
+                       |
+                 typed JSON APIs
+                       |
+             Hono + Effect Worker
+              /       |        \
+            D1     Queues/Cron  Images
+             \          |       /
+              durable jobs/outbox
+                       |
+                  AI Gateway
 ```
 
-### Self-hosting
+- `worker/` contains the Worker routes, services, repositories, and host handlers.
+- `resources/js/cloudflare/` contains the browser application.
+- `shared/` contains Effect Schema wire contracts.
+- `migrations/` contains D1 migrations.
+- `cmd/cloudflare-export/` is the read-only legacy PostgreSQL exporter. It is the only Go runtime.
 
-See [docs/self-hosting.md](docs/self-hosting.md) for Docker Compose setup instructions.
+The application does not use Inertia, Ziggy, passwords, TOTP, River, or a PostgreSQL production runtime.
 
-## Development
+## Local development
 
-### Cloudflare rebuild
-
-The Cloudflare rewrite currently runs alongside the Go application. See [the rebuild plan](docs/cloudflare-rebuild-plan.md), [migration baseline](docs/cloudflare-baseline.md), [feed refresh operations](docs/cloudflare-refresh-jobs.md), [OPML import operations](docs/cloudflare-opml.md), [compatibility API setup](docs/cloudflare-compatibility-apis.md), [Images and AI operations](docs/cloudflare-images-ai.md), and [PostgreSQL-to-D1 migration](docs/cloudflare-migration.md).
+Requirements: Node.js 24, npm, Go, and Bun.
 
 ```bash
-npm run types:cloudflare
+npm ci
+cp .dev.vars.example .dev.vars
+npm run types:check:cloudflare
 npm run d1:migrate:local
-npm run dev:cloudflare
-npm run test:cloudflare
-npm run build:cloudflare
-npm run deploy:check:cloudflare
+npm run dev
 ```
 
-Cloudflare local variables belong in `.dev.vars`; browser-exposed Vite variables belong in `cloudflare-env/.env.local`. The Cloudflare commands do not load the legacy root `.env` file. Copy `.dev.vars.example` for local passkey development; it uses Cloudflare's dummy Turnstile keys.
+The development server uses Cloudflare's local Worker runtime and Vite HMR. `.dev.vars` is local-only. Browser-exposed variables belong in `cloudflare-env/.env.local`.
 
-Production and test deployments require separate `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` Worker secrets. Their configured WebAuthn RP IDs and origins are exact and intentionally do not share passkeys. Set a strong `AUTH_OPERATOR_SECRET` Worker secret for initial-admin enrollment and last-admin recovery.
-
-The operator command performs an explicit HTTP write and prints a one-time fragment link. Pass its secret through the environment, never an argument:
+## Validation
 
 ```bash
-LARAFEED_OPERATOR_SECRET='...' npm run auth:access-link -- \
-  --url https://larafeed.stanislas.cloud/api/auth/operator/access-link \
-  --mode initial-admin \
-  --username admin \
-  --email admin@example.com \
-  --display-name Admin
+npm run lint-check
+npm run typecheck
+npm run types:check:cloudflare
+npm test
+go test -race ./...
+npm run d1:validate
+npm run build
+npm run deploy:check
 ```
 
-Use `--mode recover-admin --user-id ID` for last-admin recovery.
+Use `npm run d1:validate:large` before a migration rehearsal or cutover. Deployment checks are dry runs. They do not deploy.
 
-### Run locally
+## Operations and migration
 
-```bash
-cp .env.example .env # and adjust the values
-npm install
-npm run dev          # Vite dev server in another terminal
-docker compose -f docker-compose.dev.yml up  # Go backend with hot reload + PostgreSQL
-```
+- [Rebuild architecture and decisions](docs/cloudflare-rebuild-plan.md)
+- [Operations, provisioning, alerts, and incidents](docs/cloudflare-operations.md)
+- [PostgreSQL-to-D1 migration](docs/cloudflare-migration.md)
+- [Refresh jobs](docs/cloudflare-refresh-jobs.md)
+- [OPML](docs/cloudflare-opml.md)
+- [Google Reader and Fever](docs/cloudflare-compatibility-apis.md)
+- [Images and AI](docs/cloudflare-images-ai.md)
+- [D1 baseline and validation](docs/cloudflare-baseline.md)
+
+Production uses `larafeed.stanislas.cloud`. The test deployment uses a different hostname, WebAuthn RP ID, Turnstile keys, passkeys, D1 database, queues, and rate-limit namespace.
+
+No command should create resources, import production data, set secrets, or deploy without explicit operator approval.
 
 ## License
 

@@ -11,7 +11,7 @@
             "resources/js/**/*.tsx",
             "worker/**/*.ts",
             "shared/**/*.ts",
-            "vite.cloudflare.config.ts",
+            "vite.config.ts",
             "vitest.config.ts",
             "vitest.worker.config.ts"
         ]

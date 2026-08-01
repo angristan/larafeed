@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed architecture and delivery plan. The existing Go application remains the behavioral reference until cutover.
+Implemented locally on the `cloudflare` branch. The Worker, React frontend, D1 schema, durable jobs, OPML, compatibility APIs, Images, AI Gateway integration, and deterministic migration tooling are complete and validated. The legacy Go/Inertia runtime has been removed; only the read-only PostgreSQL exporter remains in Go. Cloudflare provisioning, remote D1 validation, production migration, and traffic cutover require explicit operator approval.
 
 ## Goals
 

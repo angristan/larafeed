@@ -1,15 +1,13 @@
-# Go
-larafeed
-tmp/
-
-# Node
+# Dependencies
 node_modules/
 
-# Vite build output
-public/build/
-dist/
+# Local environment files
+.env
+.env.*
 
-# Cloudflare
+# Build and local Cloudflare state
+dist/
+tmp/
 .wrangler/
 .dev.vars
 .dev.vars.*
@@ -17,8 +15,9 @@ dist/
 cloudflare-env/.env*
 !cloudflare-env/.env.example
 
-# Environment
-.env
+# Migration and validation artifacts
+artifacts/
+/cloudflare-export
 
 # IDE
 .idea/

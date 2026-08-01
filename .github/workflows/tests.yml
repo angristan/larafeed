@@ -3,12 +3,25 @@ name: Tests
 on: [push]
 
 jobs:
-  go-test:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - name: Run tests
-        run: go test ./... -race
+      - name: Install JavaScript dependencies
+        run: npm ci
+      - name: Unit and Workerd tests
+        run: npm test
+      - name: Migration exporter tests
+        run: go test -race ./...
+      - name: Production build and deployment dry run
+        run: npm run deploy:check
+      - name: Representative D1 validation
+        run: npm run d1:validate

@@ -109,4 +109,20 @@ At minimum, test:
 9. Content around the accepted cap and above the rejection threshold.
 10. Read/star mutations racing with unsubscribe and account deletion.
 
-Record p50/p95/p99 latency, errors/overload, D1 rows read/written, response bytes, and storage growth for local Workerd and remote D1 runs.
+The checked-in Workerd validator now covers this matrix with deterministic CI and large profiles. The large profile validated:
+
+- 4 users, 60 feeds, 12,000 entries, and 48,000 logical user-entry states;
+- about 115 MB estimated D1 storage and 9,588 estimated bytes per entry;
+- foreign keys, ownership, safe IDs, content splitting/caps, summary hashes, filtered visibility, equal timestamps, late old publications, and sparse watermark exceptions;
+- reader global/feed/category/unread/favorites/detail results and required indexes;
+- due-refresh, outbox lease, and refresh-history cleanup plans;
+- a 2.5% sparse-interaction amplification ratio;
+- bounded operation counts for reader list/count, read-through, and ingestion batches.
+
+Run it with:
+
+```bash
+npm run d1:validate:large
+```
+
+The emitted JSON and Markdown reports contain elapsed metadata but no flaky latency threshold. Local Workerd validation is evidence for schema semantics, query plans, operation bounds, and approximate capacity. Remote D1 latency, overload, billing, production PostgreSQL measurements, and twelve-month growth remain operator acceptance checks before provisioning and traffic cutover.

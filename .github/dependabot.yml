@@ -15,9 +15,6 @@ updates:
           - "react-dom"
           - "@types/react"
           - "@types/react-dom"
-      inertia:
-        patterns:
-          - "@inertiajs/*"
       minor-dependencies:
         update-types:
           - "minor"
@@ -30,7 +27,6 @@ updates:
           - "react-dom"
           - "@types/react"
           - "@types/react-dom"
-          - "@inertiajs/*"
 
   - package-ecosystem: gomod
     directory: /
@@ -44,11 +40,6 @@ updates:
           - "patch"
         patterns:
           - "*"
-
-  - package-ecosystem: docker
-    directory: /deploy
-    schedule:
-      interval: weekly
 
   - package-ecosystem: github-actions
     directory: /
