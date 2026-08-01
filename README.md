@@ -181,7 +181,20 @@ npm run deploy:check:cloudflare
 
 Cloudflare local variables belong in `.dev.vars`; browser-exposed Vite variables belong in `cloudflare-env/.env.local`. The Cloudflare commands do not load the legacy root `.env` file. Copy `.dev.vars.example` for local passkey development; it uses Cloudflare's dummy Turnstile keys.
 
-Production and test deployments require separate `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` Worker secrets. Their configured WebAuthn RP IDs and origins are exact and intentionally do not share passkeys.
+Production and test deployments require separate `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` Worker secrets. Their configured WebAuthn RP IDs and origins are exact and intentionally do not share passkeys. Set a strong `AUTH_OPERATOR_SECRET` Worker secret for initial-admin enrollment and last-admin recovery.
+
+The operator command performs an explicit HTTP write and prints a one-time fragment link. Pass its secret through the environment, never an argument:
+
+```bash
+LARAFEED_OPERATOR_SECRET='...' npm run auth:access-link -- \
+  --url https://larafeed.stanislas.cloud/api/auth/operator/access-link \
+  --mode initial-admin \
+  --username admin \
+  --email admin@example.com \
+  --display-name Admin
+```
+
+Use `--mode recover-admin --user-id ID` for last-admin recovery.
 
 ### Run locally
 

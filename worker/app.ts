@@ -1,16 +1,26 @@
 import { Effect, Schema } from 'effect';
 import { Hono } from 'hono';
-
 import {
     type ApiErrorCode,
     ApiErrorResponse,
     HealthResponse,
 } from '../shared/http';
+import { type AuthRouteDependencies, registerAuthRoutes } from './auth/routes';
 
 const jsonHeaders = {
     'cache-control': 'no-store',
     'content-type': 'application/json; charset=UTF-8',
 } as const;
+
+const rateLimitedAuthPaths = new Set([
+    '/api/auth/authentication/options',
+    '/api/auth/authentication/verify',
+    '/api/auth/access/registration/options',
+    '/api/auth/access/registration/verify',
+    '/api/auth/passkeys/registration/options',
+    '/api/auth/passkeys/registration/verify',
+    '/api/auth/operator/access-link',
+]);
 
 export class HealthCheckUnavailable extends Schema.TaggedErrorClass<HealthCheckUnavailable>()(
     'HealthCheckUnavailable',
@@ -30,6 +40,7 @@ export interface WorkerDependencies {
         HealthResponse,
         HealthCheckUnavailable
     >;
+    readonly authRoutes?: AuthRouteDependencies;
 }
 
 const defaultDependencies: WorkerDependencies = {
@@ -117,7 +128,37 @@ const mapRequestErrors = (
 export const createApp = (
     dependencies: WorkerDependencies = defaultDependencies,
 ) => {
-    const app = new Hono();
+    const app = new Hono<{ Bindings: Env }>();
+
+    app.use('/api/auth/*', async (context, next) => {
+        if (
+            context.req.method !== 'POST' ||
+            !rateLimitedAuthPaths.has(context.req.path)
+        ) {
+            return next();
+        }
+
+        try {
+            const outcome = await context.env.AUTH_RATE_LIMITER.limit({
+                key:
+                    context.req.header('CF-Connecting-IP') ??
+                    'local-development',
+            });
+            if (!outcome.success) {
+                return new Response(
+                    '{"error":{"code":"rate_limited","message":"Too many requests"}}',
+                    { status: 429, headers: jsonHeaders },
+                );
+            }
+        } catch {
+            return new Response(
+                '{"error":{"code":"service_unavailable","message":"Service unavailable"}}',
+                { status: 503, headers: jsonHeaders },
+            );
+        }
+
+        return next();
+    });
 
     app.get('/api/health', (context) => {
         const program = mapRequestErrors(makeHealthRequest(dependencies));
@@ -126,6 +167,8 @@ export const createApp = (
             signal: context.req.raw.signal,
         });
     });
+
+    registerAuthRoutes(app, dependencies.authRoutes);
 
     app.onError(() => fallbackInternalServerError());
 

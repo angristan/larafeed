@@ -1,5 +1,5 @@
 import { Effect } from 'effect';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { HealthResponse } from '../shared/http';
 import { createApp, HealthCheckUnavailable } from './app';
@@ -45,6 +45,43 @@ describe('Worker HTTP app', () => {
             '{"error":{"code":"internal_server_error","message":"Internal server error"}}',
         );
         expect(body).not.toContain('private failure detail');
+    });
+
+    it('rejects rate-limited authentication ceremonies before route work', async () => {
+        const limit = vi.fn(() => Promise.resolve({ success: false }));
+        const response = await createApp().request(
+            '/api/auth/authentication/options',
+            {
+                method: 'POST',
+                headers: { 'CF-Connecting-IP': '203.0.113.10' },
+            },
+            { AUTH_RATE_LIMITER: { limit } } as unknown as Env,
+        );
+
+        expect(limit).toHaveBeenCalledWith({ key: '203.0.113.10' });
+        expect(response.status).toBe(429);
+        expect(response.headers.get('cache-control')).toBe('no-store');
+        await expect(response.json()).resolves.toEqual({
+            error: {
+                code: 'rate_limited',
+                message: 'Too many requests',
+            },
+        });
+    });
+
+    it('fails closed when the rate-limit binding is unavailable', async () => {
+        const response = await createApp().request(
+            '/api/auth/operator/access-link',
+            { method: 'POST' },
+            {
+                AUTH_RATE_LIMITER: {
+                    limit: () => Promise.reject(new Error('private failure')),
+                },
+            } as unknown as Env,
+        );
+
+        expect(response.status).toBe(503);
+        expect(await response.text()).not.toContain('private failure');
     });
 
     it('propagates the request AbortSignal to the Effect program', async () => {

@@ -24,6 +24,13 @@
             "migrations_dir": "migrations"
         }
     ],
+    "ratelimits": [
+        {
+            "name": "AUTH_RATE_LIMITER",
+            "namespace_id": "1001",
+            "simple": { "limit": 20, "period": 60 }
+        }
+    ],
     "env": {
         "test": {
             "vars": {
@@ -40,6 +47,13 @@
                     "database_name": "larafeed-test",
                     "database_id": "00000000-0000-0000-0000-000000000002",
                     "migrations_dir": "migrations"
+                }
+            ],
+            "ratelimits": [
+                {
+                    "name": "AUTH_RATE_LIMITER",
+                    "namespace_id": "1002",
+                    "simple": { "limit": 1000, "period": 60 }
                 }
             ]
         }

@@ -13,6 +13,9 @@ export default defineConfig({
             miniflare: {
                 bindings: {
                     TEST_MIGRATIONS: await readD1Migrations(migrationsPath),
+                    TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
+                    TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA',
+                    AUTH_OPERATOR_SECRET: 'workerd-test-operator-secret',
                 },
             },
             wrangler: {
