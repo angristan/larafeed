@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
     generateRandomToken,
     generateSafeId,
+    md5Hex,
     sha256Base64Url,
     sha256Bytes,
     timingSafeEqual,
@@ -45,6 +46,31 @@ describe('authentication crypto primitives', () => {
         );
 
         expect(timingSafeEqual(textHash, byteHash)).toBe(true);
+    });
+
+    it('matches all RFC 1321 MD5 test vectors used by Fever', () => {
+        expect([
+            md5Hex(''),
+            md5Hex('a'),
+            md5Hex('abc'),
+            md5Hex('message digest'),
+            md5Hex('abcdefghijklmnopqrstuvwxyz'),
+            md5Hex(
+                'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
+            ),
+            md5Hex(
+                '12345678901234567890123456789012345678901234567890123456789012345678901234567890',
+            ),
+        ]).toEqual([
+            'd41d8cd98f00b204e9800998ecf8427e',
+            '0cc175b9c0f1b6a831c399e269772661',
+            '900150983cd24fb0d6963f7d28e17f72',
+            'f96b697d7cb7938d525a2f31aaf161d0',
+            'c3fcd3d76192e4007dfb496cca67e13b',
+            'd174ab98d277d9f5a5611c2c9f419d9f',
+            '57edf4a22be3c955ac49da2e2107b67a',
+        ]);
+        expect(md5Hex('é')).toBe('66ddcd97cfdeabb2f6fb8a999b4bc76f');
     });
 
     it('compares every byte and rejects unequal lengths', () => {

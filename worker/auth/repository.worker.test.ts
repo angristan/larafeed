@@ -256,6 +256,7 @@ describe('authentication D1 repository', () => {
                     expiresAt: null,
                 },
                 tokenHash,
+                feverVerifierHash: null,
                 eventId,
                 now,
             }),

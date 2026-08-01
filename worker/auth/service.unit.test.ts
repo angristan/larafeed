@@ -2,7 +2,7 @@ import { Effect } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import type { AuthConfig } from './config';
-import { sha256Bytes } from './crypto';
+import { md5Hex, sha256Bytes } from './crypto';
 import { CsrfInvalid } from './errors';
 import type { AuthRepository } from './repository';
 import {
@@ -109,6 +109,57 @@ describe('authentication service request guards', () => {
                 Effect.runPromise(service.authorizeMutation(session, metadata)),
             ).rejects.toBeInstanceOf(CsrfInvalid);
         }
+    });
+
+    it('derives a hash-only Fever verifier while plaintext exists', async () => {
+        let stored:
+            | {
+                  readonly tokenHash: Uint8Array;
+                  readonly feverVerifierHash: Uint8Array | null;
+              }
+            | undefined;
+        const repository: Partial<AuthRepository> = {
+            createAppToken: (input) => {
+                stored = {
+                    tokenHash: input.tokenHash,
+                    feverVerifierHash: input.feverVerifierHash,
+                };
+                return Effect.void;
+            },
+        };
+        const session = {
+            sessionId: 10,
+            user: {
+                id: 20,
+                username: 'fever-owner',
+                displayName: 'Fever Owner',
+                isAdmin: false,
+            },
+            expiresAt: 2_100_000_000_000,
+            csrfTokenHash: new Uint8Array(32),
+        };
+
+        const created = await Effect.runPromise(
+            makeService(repository).createAppToken(session, {
+                name: 'Fever client',
+                scopes: ['fever'],
+            }),
+        );
+        const expectedTokenHash = await Effect.runPromise(
+            sha256Bytes(created.plaintextToken),
+        );
+        const legacyApiKey = md5Hex(
+            `${session.user.username}:${created.plaintextToken}`,
+        );
+        const expectedVerifier = await Effect.runPromise(
+            sha256Bytes(legacyApiKey),
+        );
+
+        expect(stored?.tokenHash).toEqual(expectedTokenHash);
+        expect(stored?.feverVerifierHash).toEqual(expectedVerifier);
+        expect(stored?.feverVerifierHash).not.toEqual(
+            new TextEncoder().encode(legacyApiKey),
+        );
     });
 
     it('applies seven-day idle and fifteen-minute write throttles', async () => {

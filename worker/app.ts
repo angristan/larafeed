@@ -6,6 +6,10 @@ import {
     HealthResponse,
 } from '../shared/http';
 import { type AuthRouteDependencies, registerAuthRoutes } from './auth/routes';
+import {
+    type CompatibilityRouteDependencies,
+    registerCompatibilityRoutes,
+} from './compat';
 import { type OpmlRouteDependencies, registerOpmlRoutes } from './opml/routes';
 import {
     type ReaderRouteDependencies,
@@ -50,6 +54,7 @@ export interface WorkerDependencies {
         HealthCheckUnavailable
     >;
     readonly authRoutes?: AuthRouteDependencies;
+    readonly compatibilityRoutes?: CompatibilityRouteDependencies;
     readonly opmlRoutes?: OpmlRouteDependencies;
     readonly readerRoutes?: ReaderRouteDependencies;
     readonly refreshRoutes?: RefreshRouteDependencies;
@@ -181,6 +186,7 @@ export const createApp = (
     });
 
     registerAuthRoutes(app, dependencies.authRoutes);
+    registerCompatibilityRoutes(app, dependencies.compatibilityRoutes);
     registerReaderRoutes(app, dependencies.readerRoutes);
     registerRefreshRoutes(app, dependencies.refreshRoutes);
     registerOpmlRoutes(app, dependencies.opmlRoutes);

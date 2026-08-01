@@ -162,4 +162,12 @@ export const router = createBrowserRouter([
             return { Component: OpmlPage };
         },
     },
+    {
+        path: '/settings/app-tokens',
+        loader: protectedLoader,
+        lazy: async () => {
+            const { AppTokensPage } = await import('./pages/AppTokensPage');
+            return { Component: AppTokensPage };
+        },
+    },
 ]);

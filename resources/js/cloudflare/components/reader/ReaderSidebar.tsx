@@ -15,6 +15,7 @@ import {
     IconBook2,
     IconCategory,
     IconFileImport,
+    IconKey,
     IconRefresh,
     IconSearch,
     IconStar,
@@ -367,6 +368,13 @@ export function ReaderSidebar({
                     }
                     onClick={onNavigate}
                     to="/settings/opml"
+                />
+                <NavLink
+                    component={Link}
+                    label="Reader app tokens"
+                    leftSection={<IconKey aria-hidden="true" size={17} />}
+                    onClick={onNavigate}
+                    to="/settings/app-tokens"
                 />
             </Stack>
         </>

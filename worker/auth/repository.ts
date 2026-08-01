@@ -369,6 +369,7 @@ export interface AuthRepository {
         readonly userId: number;
         readonly token: AppTokenRecord;
         readonly tokenHash: Uint8Array;
+        readonly feverVerifierHash: Uint8Array | null;
         readonly eventId: number;
         readonly now: number;
     }) => Effect.Effect<
@@ -385,9 +386,17 @@ export interface AuthRepository {
         AuthNotFound | Forbidden | AuthStorageError | AuthInvariantError
     >;
     readonly authenticateAppToken: (input: {
-        readonly username: string;
+        readonly username?: string;
         readonly tokenHash: Uint8Array;
         readonly requiredScope: AppTokenScope;
+        readonly now: number;
+        readonly lastUsedThrottleCutoff: number;
+    }) => Effect.Effect<
+        AppTokenAuthentication,
+        AuthenticationFailed | AuthStorageError | AuthInvariantError
+    >;
+    readonly authenticateFeverVerifier: (input: {
+        readonly verifierHash: Uint8Array;
         readonly now: number;
         readonly lastUsedThrottleCutoff: number;
     }) => Effect.Effect<
@@ -1795,9 +1804,10 @@ export const makeAuthRepository = (d1: D1): AuthRepository => ({
                         sql: `
                             INSERT INTO app_tokens (
                                 id, user_id, name, token_hash, token_prefix,
-                                scopes_json, expires_at, created_at
+                                scopes_json, expires_at, fever_verifier_hash,
+                                created_at
                             )
-                            SELECT ?, id, ?, ?, ?, ?, ?, ?
+                            SELECT ?, id, ?, ?, ?, ?, ?, ?, ?
                             FROM users
                             WHERE id = ? AND disabled_at IS NULL
                         `,
@@ -1808,6 +1818,7 @@ export const makeAuthRepository = (d1: D1): AuthRepository => ({
                             input.token.prefix,
                             JSON.stringify(input.token.scopes),
                             input.token.expiresAt,
+                            input.feverVerifierHash,
                             input.now,
                             input.userId,
                         ],
@@ -1920,12 +1931,17 @@ export const makeAuthRepository = (d1: D1): AuthRepository => ({
                             t.last_used_at
                         FROM app_tokens t
                         JOIN users u ON u.id = t.user_id
-                        WHERE u.username = ? COLLATE NOCASE
+                        WHERE (? IS NULL OR u.username = ? COLLATE NOCASE)
                           AND t.token_hash = ? AND t.revoked_at IS NULL
                           AND (t.expires_at IS NULL OR t.expires_at > ?)
                           AND u.disabled_at IS NULL
                     `,
-                    bindings: [input.username, input.tokenHash, input.now],
+                    bindings: [
+                        input.username ?? null,
+                        input.username ?? null,
+                        input.tokenHash,
+                        input.now,
+                    ],
                 }),
             );
             if (value === null) {
@@ -1956,6 +1972,76 @@ export const makeAuthRepository = (d1: D1): AuthRepository => ({
                         bindings: [
                             input.now,
                             row.token_id,
+                            input.now,
+                            input.lastUsedThrottleCutoff,
+                        ],
+                    }),
+                );
+            }
+            return {
+                tokenId: row.token_id,
+                user: {
+                    id: row.user_id,
+                    handle: new Uint8Array(32),
+                    username: row.username,
+                    email: '',
+                    displayName: row.display_name,
+                    isAdmin: row.is_admin === 1,
+                },
+                scopes: tokenScopes,
+            };
+        }),
+
+    authenticateFeverVerifier: (input) =>
+        Effect.gen(function* () {
+            const operation = 'appToken.authenticateFever';
+            const value = yield* withStorageError(
+                operation,
+                d1.first({
+                    sql: `
+                        SELECT t.id AS token_id, t.user_id, u.username,
+                            u.display_name, u.is_admin, t.scopes_json,
+                            t.last_used_at
+                        FROM app_tokens t
+                        JOIN users u ON u.id = t.user_id
+                        WHERE t.fever_verifier_hash = ?
+                          AND t.revoked_at IS NULL
+                          AND (t.expires_at IS NULL OR t.expires_at > ?)
+                          AND u.disabled_at IS NULL
+                    `,
+                    bindings: [input.verifierHash, input.now],
+                }),
+            );
+            if (value === null) {
+                return yield* Effect.fail(new AuthenticationFailed());
+            }
+            const row = yield* decode(
+                operation,
+                AppTokenAuthenticationRowSchema,
+                value,
+            );
+            const tokenScopes = yield* scopes(operation, row.scopes_json);
+            if (!tokenScopes.includes('fever')) {
+                return yield* Effect.fail(new AuthenticationFailed());
+            }
+            if (
+                row.last_used_at === null ||
+                row.last_used_at <= input.lastUsedThrottleCutoff
+            ) {
+                yield* withStorageError(
+                    operation,
+                    d1.run({
+                        sql: `
+                            UPDATE app_tokens SET last_used_at = ?
+                            WHERE id = ? AND revoked_at IS NULL
+                              AND fever_verifier_hash = ?
+                              AND (expires_at IS NULL OR expires_at > ?)
+                              AND (last_used_at IS NULL OR last_used_at <= ?)
+                        `,
+                        bindings: [
+                            input.now,
+                            row.token_id,
+                            input.verifierHash,
                             input.now,
                             input.lastUsedThrottleCutoff,
                         ],

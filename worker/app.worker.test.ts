@@ -37,6 +37,35 @@ describe('Worker integration', () => {
         });
     });
 
+    it('serves protocol-specific compatibility failures', async () => {
+        const login = await SELF.fetch(
+            'https://larafeed-test.stanislas.cloud/api/reader/accounts/ClientLogin',
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    Email: 'missing-user',
+                    Passwd: 'invalid-app-token',
+                }),
+            },
+        );
+        expect(login.status).toBe(403);
+        expect(await login.text()).toBe('Error=BadAuthentication\n');
+        expect(login.headers.get('cache-control')).toBe('no-store');
+
+        const fever = await SELF.fetch(
+            'https://larafeed-test.stanislas.cloud/api/fever/?feeds',
+        );
+        expect(fever.status).toBe(200);
+        await expect(fever.json()).resolves.toEqual({
+            api_version: 3,
+            auth: 0,
+        });
+        expect(fever.headers.get('cache-control')).toBe('no-store');
+    });
+
     it('protects OPML progress and export routes', async () => {
         for (const path of ['/api/opml/imports', '/api/opml/export']) {
             const response = await SELF.fetch(

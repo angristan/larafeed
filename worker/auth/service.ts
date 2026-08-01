@@ -5,6 +5,7 @@ import type { AuthConfig, AuthCookieConfig } from './config';
 import {
     generateRandomToken,
     generateSafeId,
+    md5Hex,
     sha256Bytes,
     timingSafeEqual,
 } from './crypto';
@@ -732,10 +733,14 @@ export const makeAuthService = (dependencies: AuthServiceDependencies) => {
             lastUsedAt: null,
             expiresAt: null,
         };
+        const feverVerifierHash = input.scopes.includes('fever')
+            ? yield* hash(md5Hex(`${session.user.username}:${plaintextToken}`))
+            : null;
         yield* repository.createAppToken({
             userId: session.user.id,
             token: tokenRecord,
             tokenHash: yield* hash(plaintextToken),
+            feverVerifierHash,
             eventId: yield* safeId(),
             now,
         });
@@ -755,35 +760,69 @@ export const makeAuthService = (dependencies: AuthServiceDependencies) => {
             });
         });
 
-    const authenticateAppToken = Effect.fn('auth.appToken.authenticate')(
+    const appTokenResult = (
+        result: AppTokenAuthentication,
+    ): AppTokenAuthenticationResult => ({
+        tokenId: result.tokenId,
+        user: authUser(result.user),
+        scopes: result.scopes,
+    });
+
+    const authenticateTokenHash = Effect.fn('auth.appToken.authenticateHash')(
         function* (input: {
-            readonly username: string;
+            readonly username?: string;
             readonly plaintextToken: string;
             readonly requiredScope: AppTokenScope;
         }) {
             if (
-                input.username.length === 0 ||
-                input.plaintextToken.length === 0
+                input.username === '' ||
+                input.plaintextToken.length === 0 ||
+                input.plaintextToken.length > 2048
             ) {
                 return yield* Effect.fail(new AuthenticationFailed());
             }
             const now = currentTime();
-            const result: AppTokenAuthentication =
+            return appTokenResult(
                 yield* repository.authenticateAppToken({
-                    username: input.username,
+                    ...(input.username === undefined
+                        ? {}
+                        : { username: input.username }),
                     tokenHash: yield* hash(input.plaintextToken),
                     requiredScope: input.requiredScope,
                     now,
                     lastUsedThrottleCutoff:
                         now - APP_TOKEN_LAST_USED_THROTTLE_MS,
-                });
-            return {
-                tokenId: result.tokenId,
-                user: authUser(result.user),
-                scopes: result.scopes,
-            } satisfies AppTokenAuthenticationResult;
+                }),
+            );
         },
     );
+
+    const authenticateAppToken = (input: {
+        readonly username: string;
+        readonly plaintextToken: string;
+        readonly requiredScope: AppTokenScope;
+    }) => authenticateTokenHash(input);
+
+    const authenticateAppTokenCredential = (input: {
+        readonly plaintextToken: string;
+        readonly requiredScope: AppTokenScope;
+    }) => authenticateTokenHash(input);
+
+    const authenticateFeverApiKey = Effect.fn(
+        'auth.appToken.authenticateFever',
+    )(function* (apiKey: string) {
+        if (!/^[0-9a-fA-F]{32}$/u.test(apiKey)) {
+            return yield* Effect.fail(new AuthenticationFailed());
+        }
+        const now = currentTime();
+        return appTokenResult(
+            yield* repository.authenticateFeverVerifier({
+                verifierHash: yield* hash(apiKey.toLowerCase()),
+                now,
+                lastUsedThrottleCutoff: now - APP_TOKEN_LAST_USED_THROTTLE_MS,
+            }),
+        );
+    });
 
     return {
         authenticationOptions,
@@ -804,6 +843,8 @@ export const makeAuthService = (dependencies: AuthServiceDependencies) => {
         createAppToken,
         revokeAppToken,
         authenticateAppToken,
+        authenticateAppTokenCredential,
+        authenticateFeverApiKey,
     };
 };
 
