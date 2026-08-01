@@ -12,6 +12,7 @@
         "typecheck:cloudflare": "tsc --noEmit -p tsconfig.cloudflare.json",
         "types:cloudflare": "wrangler types --env-file .dev.vars.example",
         "types:check:cloudflare": "wrangler types --env-file .dev.vars.example --check",
+        "d1:migrate:local": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler d1 migrations apply DB --local --env-file .dev.vars.example",
         "deploy:check:cloudflare": "npm run build:cloudflare && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --dry-run",
         "test:cloudflare": "vitest run --config vitest.config.ts && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vitest run --config vitest.worker.config.ts"
     },

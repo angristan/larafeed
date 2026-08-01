@@ -172,6 +172,7 @@ The Cloudflare rewrite currently runs alongside the Go application. See [the reb
 
 ```bash
 npm run types:cloudflare
+npm run d1:migrate:local
 npm run dev:cloudflare
 npm run test:cloudflare
 npm run build:cloudflare
