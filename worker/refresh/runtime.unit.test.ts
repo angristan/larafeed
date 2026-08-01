@@ -19,6 +19,7 @@ const input = {
     siteUrl: 'https://stored.example.test/path',
     etag: null,
     lastModified: null,
+    subscriptionFilters: [],
 };
 
 describe('refresh runtime adapter', () => {
@@ -65,6 +66,40 @@ describe('refresh runtime adapter', () => {
                     : new Uint8Array(),
             ).toHaveLength(32);
         }
+    });
+
+    it('evaluates subscription filters without writing nonmatches', async () => {
+        const result = await makeRefreshProcessor({
+            now: () => 1_900_000_000_000,
+            fetch: async () =>
+                new Response(
+                    `<rss><channel><title>Example</title>
+                    <item><guid>entry-1</guid><title>Sponsored story</title></item>
+                    <item><guid>entry-2</guid><title>Ordinary story</title></item>
+                    </channel></rss>`,
+                    { headers: { 'content-type': 'application/rss+xml' } },
+                ),
+        })({
+            ...input,
+            subscriptionFilters: [
+                {
+                    userId: 7,
+                    rules: {
+                        excludeTitle: ['sponsor'],
+                        excludeContent: [],
+                        excludeAuthor: [],
+                    },
+                },
+            ],
+        });
+
+        expect(result).toMatchObject({
+            type: 'success',
+            entries: [
+                { sourceId: 'entry-1', filteredUserIds: [7] },
+                { sourceId: 'entry-2', filteredUserIds: [] },
+            ],
+        });
     });
 
     it('uses the stored site when refreshed metadata omits site and icon links', async () => {

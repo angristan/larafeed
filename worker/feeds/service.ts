@@ -3,6 +3,7 @@ import { Effect } from 'effect';
 import {
     FeedHttpError,
     FeedNetworkError,
+    FeedParseError,
     FeedPolicyError,
     type FeedRefreshError,
     FeedSizeError,
@@ -19,6 +20,7 @@ import { validateFeedUrl } from './policy';
 export const FEED_FETCH_TIMEOUT_MS = 15_000;
 export const MAX_FEED_RESPONSE_BYTES = 5 * 1024 * 1024;
 export const MAX_FEED_REDIRECTS = 5;
+export const MAX_FEED_DISCOVERY_CANDIDATES = 3;
 export const FEED_USER_AGENT =
     'Larafeed/1.0 (+https://larafeed.stanislas.cloud)';
 
@@ -173,6 +175,156 @@ const readBoundedBody = async (response: Response): Promise<Uint8Array> => {
     return body;
 };
 
+const htmlLinkAttributes = (tag: string): ReadonlyMap<string, string> => {
+    const attributes = new Map<string, string>();
+    const pattern =
+        /([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/giu;
+    for (const match of tag.matchAll(pattern)) {
+        const name = match[1]?.toLocaleLowerCase();
+        const value = match[2] ?? match[3] ?? match[4];
+        if (name !== undefined && value !== undefined) {
+            attributes.set(name, value);
+        }
+    }
+    return attributes;
+};
+
+export const discoverFeedLinks = (
+    body: Uint8Array,
+    pageUrl: URL,
+): readonly URL[] => {
+    const html = new TextDecoder().decode(body);
+    const tags = html.match(/<link\b[^>]{0,4096}>/giu) ?? [];
+    const candidates: URL[] = [];
+    const seen = new Set<string>();
+    for (const tag of tags.slice(0, 50)) {
+        const attributes = htmlLinkAttributes(tag);
+        const rel = (attributes.get('rel') ?? '')
+            .toLocaleLowerCase()
+            .split(/\s+/u);
+        const type = (attributes.get('type') ?? '').toLocaleLowerCase();
+        const href = attributes.get('href');
+        if (
+            !rel.includes('alternate') ||
+            href === undefined ||
+            ![
+                'application/atom+xml',
+                'application/rss+xml',
+                'application/rdf+xml',
+                'application/xml',
+                'text/xml',
+            ].includes(type)
+        ) {
+            continue;
+        }
+        try {
+            const candidate = validateFeedUrl(new URL(href, pageUrl));
+            if (!seen.has(candidate.href)) {
+                seen.add(candidate.href);
+                candidates.push(candidate);
+            }
+        } catch {
+            // Publisher-controlled invalid candidates are ignored.
+        }
+        if (candidates.length === MAX_FEED_DISCOVERY_CANDIDATES) break;
+    }
+    return candidates;
+};
+
+const fetchDiscoveryPage = async (
+    rawUrl: string,
+    dependencies: Required<FeedRefreshServiceDependencies>,
+    callerSignal: AbortSignal,
+): Promise<{ readonly finalUrl: URL; readonly links: readonly URL[] }> => {
+    let currentUrl = validateFeedUrl(rawUrl);
+    let redirects = 0;
+    let timedOut = false;
+    const controller = new AbortController();
+    const abortFromCaller = () => controller.abort(callerSignal.reason);
+    callerSignal.addEventListener('abort', abortFromCaller, { once: true });
+    const timeout = setTimeout(() => {
+        timedOut = true;
+        controller.abort(
+            new DOMException('Feed discovery timed out', 'TimeoutError'),
+        );
+    }, FEED_FETCH_TIMEOUT_MS);
+
+    try {
+        while (true) {
+            let response: Response;
+            try {
+                response = await dependencies.fetch(currentUrl, {
+                    method: 'GET',
+                    headers: {
+                        accept: 'text/html, application/xhtml+xml;q=0.9, */*;q=0.1',
+                        'user-agent': FEED_USER_AGENT,
+                    },
+                    redirect: 'manual',
+                    signal: controller.signal,
+                });
+            } catch {
+                if (timedOut) {
+                    throw new FeedTimeoutError({
+                        timeoutMs: FEED_FETCH_TIMEOUT_MS,
+                    });
+                }
+                throw new FeedNetworkError();
+            }
+
+            if (REDIRECT_STATUSES.has(response.status)) {
+                if (redirects === MAX_FEED_REDIRECTS) {
+                    await response.body?.cancel();
+                    throw new FeedPolicyError({
+                        reason: 'too_many_redirects',
+                    });
+                }
+                const location = response.headers.get('location');
+                await response.body?.cancel();
+                if (location === null) {
+                    throw new FeedPolicyError({
+                        reason: 'redirect_location_missing',
+                    });
+                }
+                try {
+                    currentUrl = validateFeedUrl(new URL(location, currentUrl));
+                } catch {
+                    throw new FeedPolicyError({ reason: 'invalid_url' });
+                }
+                redirects += 1;
+                continue;
+            }
+            if (response.status < 200 || response.status >= 300) {
+                await response.body?.cancel();
+                throw new FeedHttpError({
+                    status: response.status,
+                    retryable: retryableHttpStatus(response.status),
+                });
+            }
+            const contentType = response.headers
+                .get('content-type')
+                ?.split(';', 1)[0]
+                .trim()
+                .toLocaleLowerCase();
+            if (
+                contentType !== undefined &&
+                contentType !== 'text/html' &&
+                contentType !== 'application/xhtml+xml'
+            ) {
+                await response.body?.cancel();
+                throw new FeedParseError({ reason: 'unsupported_feed' });
+            }
+            const body = await readBoundedBody(response);
+            return {
+                finalUrl: currentUrl,
+                links: discoverFeedLinks(body, currentUrl),
+            };
+        }
+    } finally {
+        clearTimeout(timeout);
+        callerSignal.removeEventListener('abort', abortFromCaller);
+    }
+};
+
 const retryableHttpStatus = (status: number): boolean =>
     RETRYABLE_HTTP_STATUSES.has(status) || status >= 500;
 
@@ -324,16 +476,73 @@ export const makeFeedRefreshService = (
         webCrypto: provided.webCrypto ?? globalThis.crypto,
     };
 
-    return {
-        refresh: (
-            feed: AuthoritativeFeedSource,
-        ): Effect.Effect<FeedRefreshResult, FeedRefreshError> =>
-            Effect.tryPromise({
-                try: (signal) => fetchFeed(feed, dependencies, signal),
-                catch: (cause) =>
-                    isFeedRefreshError(cause) ? cause : new FeedNetworkError(),
-            }),
-    };
+    const refresh = (
+        feed: AuthoritativeFeedSource,
+    ): Effect.Effect<FeedRefreshResult, FeedRefreshError> =>
+        Effect.tryPromise({
+            try: (signal) => fetchFeed(feed, dependencies, signal),
+            catch: (cause) =>
+                isFeedRefreshError(cause) ? cause : new FeedNetworkError(),
+        });
+
+    const discover = (
+        url: string,
+    ): Effect.Effect<FeedUpdatedResult, FeedRefreshError> =>
+        refresh({ url, etag: null, lastModified: null }).pipe(
+            Effect.flatMap((result) =>
+                result.kind === 'updated'
+                    ? Effect.succeed(result)
+                    : Effect.fail(
+                          new FeedParseError({ reason: 'unsupported_feed' }),
+                      ),
+            ),
+            Effect.catchTag('FeedParseError', () =>
+                Effect.tryPromise({
+                    try: async (signal) => {
+                        const page = await fetchDiscoveryPage(
+                            url,
+                            dependencies,
+                            signal,
+                        );
+                        let lastError: FeedRefreshError = new FeedParseError({
+                            reason: 'unsupported_feed',
+                        });
+                        const candidates =
+                            page.links.length > 0
+                                ? page.links
+                                : ['/feed', '/rss', '/atom.xml'].map((path) =>
+                                      validateFeedUrl(
+                                          new URL(path, page.finalUrl.origin),
+                                      ),
+                                  );
+                        for (const candidate of candidates) {
+                            try {
+                                const result = await Effect.runPromise(
+                                    refresh({
+                                        url: candidate.href,
+                                        etag: null,
+                                        lastModified: null,
+                                    }),
+                                    { signal },
+                                );
+                                if (result.kind === 'updated') return result;
+                            } catch (cause) {
+                                if (isFeedRefreshError(cause)) {
+                                    lastError = cause;
+                                }
+                            }
+                        }
+                        throw lastError;
+                    },
+                    catch: (cause) =>
+                        isFeedRefreshError(cause)
+                            ? cause
+                            : new FeedNetworkError(),
+                }),
+            ),
+        );
+
+    return { refresh, discover };
 };
 
 export type FeedRefreshService = ReturnType<typeof makeFeedRefreshService>;

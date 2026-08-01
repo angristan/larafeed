@@ -16,6 +16,10 @@ import {
     type RefreshFailure,
     type RefreshProcessor,
 } from '../jobs';
+import {
+    compileFilterRules,
+    matchesSubscriptionFilter,
+} from '../subscriptions/filter';
 
 export interface RefreshRuntimeConfig {
     readonly schedulerEnabled: boolean;
@@ -62,27 +66,46 @@ export const parseRefreshRuntimeConfig = (env: Env): RefreshRuntimeConfig => ({
     dueLimit: parseDueLimit(env.REFRESH_DUE_LIMIT),
 });
 
+interface CompiledFeedSubscriptionFilter {
+    readonly userId: number;
+    readonly rules: ReturnType<typeof compileFilterRules>;
+}
+
 const normalizedEntry = async (
     entry: NormalizedFeedEntry,
-): Promise<ProcessedRefreshEntry> => ({
-    deduplicationKey: entry.deduplicationKey,
-    sourceId: entry.sourceId,
-    title: entry.title,
-    url: entry.url,
-    author: entry.author,
-    publishedAt: entry.publishedAt,
-    sourceUpdatedAt: entry.sourceUpdatedAt,
-    content:
-        entry.contentStatus === 'stored' && entry.contentHtml !== null
-            ? {
-                  type: 'stored',
-                  html: entry.contentHtml,
-                  hash: await Effect.runPromise(sha256Bytes(entry.contentHtml)),
-              }
-            : entry.contentStatus === 'oversized'
-              ? { type: 'oversized' }
-              : { type: 'empty' },
-});
+    subscriptionFilters: readonly CompiledFeedSubscriptionFilter[],
+): Promise<ProcessedRefreshEntry> => {
+    const candidate = {
+        title: entry.title,
+        author: entry.author,
+        contentHtml: entry.contentHtml,
+    };
+    const filteredUserIds = subscriptionFilters
+        .filter(({ rules }) => matchesSubscriptionFilter(candidate, rules))
+        .map(({ userId }) => userId);
+    return {
+        deduplicationKey: entry.deduplicationKey,
+        sourceId: entry.sourceId,
+        title: entry.title,
+        url: entry.url,
+        author: entry.author,
+        publishedAt: entry.publishedAt,
+        sourceUpdatedAt: entry.sourceUpdatedAt,
+        content:
+            entry.contentStatus === 'stored' && entry.contentHtml !== null
+                ? {
+                      type: 'stored',
+                      html: entry.contentHtml,
+                      hash: await Effect.runPromise(
+                          sha256Bytes(entry.contentHtml),
+                      ),
+                  }
+                : entry.contentStatus === 'oversized'
+                  ? { type: 'oversized' }
+                  : { type: 'empty' },
+        filteredUserIds,
+    };
+};
 
 export const resolveFeedFaviconUrl = (
     metadataUrl: string | null,
@@ -167,6 +190,12 @@ export const makeRefreshProcessor = (
             }
 
             const siteUrl = result.feed.siteUrl ?? input.siteUrl;
+            const subscriptionFilters = input.subscriptionFilters.map(
+                ({ userId, rules }) => ({
+                    userId,
+                    rules: compileFilterRules(rules),
+                }),
+            );
             return {
                 type: 'success',
                 etag: result.etag,
@@ -179,7 +208,11 @@ export const makeRefreshProcessor = (
                     result.feed.faviconUrl,
                     siteUrl,
                 ),
-                entries: await Promise.all(result.entries.map(normalizedEntry)),
+                entries: await Promise.all(
+                    result.entries.map((entry) =>
+                        normalizedEntry(entry, subscriptionFilters),
+                    ),
+                ),
             };
         } catch (cause) {
             return classifiedFailure(cause, Math.max(0, now() - startedAt));

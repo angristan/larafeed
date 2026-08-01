@@ -273,6 +273,7 @@ describe('durable feed refresh jobs', () => {
                         author: null,
                         publishedAt: now,
                         sourceUpdatedAt: null,
+                        filteredUserIds: [],
                         content: { type: 'empty' },
                     },
                     {
@@ -284,6 +285,7 @@ describe('durable feed refresh jobs', () => {
                         author: null,
                         publishedAt: now,
                         sourceUpdatedAt: null,
+                        filteredUserIds: [],
                         content: { type: 'empty' },
                     },
                 ],
@@ -339,6 +341,7 @@ describe('durable feed refresh jobs', () => {
                     author: null,
                     publishedAt: now,
                     sourceUpdatedAt: null,
+                    filteredUserIds: [],
                     content: {
                         type: 'stored',
                         html: '<p>Small article</p>',
@@ -354,6 +357,7 @@ describe('durable feed refresh jobs', () => {
                     author: null,
                     publishedAt: now - 1,
                     sourceUpdatedAt: null,
+                    filteredUserIds: [],
                     content: { type: 'oversized' },
                 },
             ],
@@ -410,6 +414,151 @@ describe('durable feed refresh jobs', () => {
             { source_id: 'stored', content_status: 'stored' },
             { source_id: 'oversized', content_status: 'oversized' },
         ]);
+    });
+
+    it('updates sparse filter matches without clearing starred state', async () => {
+        const now = 2_100_005_500_000;
+        const userId = 365_001;
+        const categoryId = 365_002;
+        const feedId = 365_003;
+        const deduplicationKey = bytes(36);
+        await insertFeed(feedId, now);
+        await run(
+            d1.batch([
+                {
+                    sql: `INSERT INTO users (
+                            id, webauthn_user_handle, username, email,
+                            display_name, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    bindings: [
+                        userId,
+                        bytes(37),
+                        'filter-reader',
+                        'filter-reader@example.test',
+                        'Filter Reader',
+                        now,
+                        now,
+                    ],
+                },
+                {
+                    sql: `INSERT INTO subscription_categories (
+                            id, user_id, name, created_at, updated_at
+                        ) VALUES (?, ?, 'Filtered', ?, ?)`,
+                    bindings: [categoryId, userId, now, now],
+                },
+                {
+                    sql: `INSERT INTO feed_subscriptions (
+                            user_id, feed_id, category_id, filter_rules_json,
+                            created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?)`,
+                    bindings: [
+                        userId,
+                        feedId,
+                        categoryId,
+                        '{"exclude_title":["sponsor"],"exclude_content":[],"exclude_author":[]}',
+                        now,
+                        now,
+                    ],
+                },
+            ]),
+        );
+        await createJob(feedId, 365_101, now);
+        const firstClaim = await claim('operation-365101', now);
+        await expect(
+            repository.loadFeedInput(firstClaim, now),
+        ).resolves.toMatchObject({
+            subscriptionFilters: [
+                {
+                    userId,
+                    rules: {
+                        excludeTitle: ['sponsor'],
+                        excludeContent: [],
+                        excludeAuthor: [],
+                    },
+                },
+            ],
+        });
+        await repository.commitRefresh({
+            claim: firstClaim,
+            historyId: 365_103,
+            completedAt: now + 1,
+            etag: null,
+            lastModified: null,
+            nextRefreshAt: now + 60_000,
+            httpStatus: 200,
+            durationMs: 5,
+            notModified: false,
+            entries: [
+                {
+                    id: 365_104,
+                    deduplicationKey,
+                    sourceId: 'filtered-entry',
+                    title: 'Sponsored post',
+                    url: null,
+                    author: null,
+                    publishedAt: now,
+                    sourceUpdatedAt: null,
+                    filteredUserIds: [userId],
+                    content: { type: 'empty' },
+                },
+            ],
+        });
+        await expect(
+            first<{ filtered_at: number | null }>(
+                `SELECT filtered_at FROM entry_interactions
+                 WHERE user_id = ? AND entry_id = ?`,
+                [userId, 365_104],
+            ),
+        ).resolves.toEqual({ filtered_at: now + 1 });
+
+        await run(
+            d1.run({
+                sql: `UPDATE entry_interactions
+                    SET starred_at = ?, updated_at = ?
+                    WHERE user_id = ? AND entry_id = ?`,
+                bindings: [now + 2, now + 2, userId, 365_104],
+            }),
+        );
+        await createJob(feedId, 365_201, now + 3);
+        const secondClaim = await claim('operation-365201', now + 3);
+        await repository.commitRefresh({
+            claim: secondClaim,
+            historyId: 365_203,
+            completedAt: now + 4,
+            etag: null,
+            lastModified: null,
+            nextRefreshAt: now + 60_000,
+            httpStatus: 200,
+            durationMs: 5,
+            notModified: false,
+            entries: [
+                {
+                    id: 365_204,
+                    deduplicationKey,
+                    sourceId: 'filtered-entry',
+                    title: 'Ordinary post',
+                    url: null,
+                    author: null,
+                    publishedAt: now,
+                    sourceUpdatedAt: null,
+                    filteredUserIds: [],
+                    content: { type: 'empty' },
+                },
+            ],
+        });
+        await expect(
+            first<{
+                filtered_at: number | null;
+                starred_at: number | null;
+            }>(
+                `SELECT filtered_at, starred_at FROM entry_interactions
+                 WHERE user_id = ? AND entry_id = ?`,
+                [userId, 365_104],
+            ),
+        ).resolves.toEqual({
+            filtered_at: null,
+            starred_at: now + 2,
+        });
     });
 
     it('records bounded retry backoff then terminates at max attempts', async () => {

@@ -19,6 +19,7 @@ import {
     readerCountsQueryOptions,
     subscriptionListQueryOptions,
 } from './queries/reader';
+import { subscriptionManagementQueryOptions } from './queries/subscriptions';
 import { queryClient } from './queryClient';
 import {
     canonicalReaderSearch,
@@ -75,6 +76,12 @@ function accessTokenLoader(purpose: 'enrollment' | 'recovery') {
 async function rootLoader(args: LoaderFunctionArgs) {
     await protectedLoader(args);
     throw redirect('/feeds');
+}
+
+async function subscriptionsLoader(args: LoaderFunctionArgs) {
+    await protectedLoader(args);
+    await queryClient.prefetchQuery(subscriptionManagementQueryOptions);
+    return null;
 }
 
 async function readerLoader(args: LoaderFunctionArgs) {
@@ -152,6 +159,16 @@ export const router = createBrowserRouter([
         lazy: async () => {
             const { ReaderPage } = await import('./pages/ReaderPage');
             return { Component: ReaderPage };
+        },
+    },
+    {
+        path: '/settings/subscriptions',
+        loader: subscriptionsLoader,
+        lazy: async () => {
+            const { SubscriptionsPage } = await import(
+                './pages/SubscriptionsPage'
+            );
+            return { Component: SubscriptionsPage };
         },
     },
     {

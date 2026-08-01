@@ -1,0 +1,244 @@
+import { env } from 'cloudflare:workers';
+import { Effect } from 'effect';
+import { describe, expect, it } from 'vitest';
+
+import { makeD1 } from '../infrastructure/d1';
+import { SubscriptionNotFound } from './errors';
+import { makeSubscriptionRepository } from './repository';
+
+const d1 = makeD1(env.DB);
+const repository = makeSubscriptionRepository(d1);
+const now = 2_200_000_000_000;
+const bytes = (value: number) => new Uint8Array(32).fill(value % 255 || 1);
+
+const insertUser = (id: number) =>
+    Effect.runPromise(
+        d1.run({
+            sql: `INSERT INTO users (
+                    id, webauthn_user_handle, username, email, display_name,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            bindings: [
+                id,
+                bytes(id),
+                `subscription-${id}`,
+                `subscription-${id}@example.test`,
+                `Subscription ${id}`,
+                now,
+                now,
+            ],
+        }),
+    );
+
+const insertEntry = (id: number, feedId: number, title: string) =>
+    Effect.runPromise(
+        d1.run({
+            sql: `INSERT INTO entries (
+                    id, feed_id, deduplication_key, title, author,
+                    published_at, content_status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'Author', ?, 'empty', ?, ?)`,
+            bindings: [id, feedId, bytes(id), title, now, now, now],
+        }),
+    );
+
+describe('subscription management D1 repository', () => {
+    it('creates owned categories and reuses a shared feed safely', async () => {
+        const firstUser = 810_001;
+        const secondUser = 810_002;
+        await insertUser(firstUser);
+        await insertUser(secondUser);
+        await expect(
+            Effect.runPromise(
+                repository.createCategory(
+                    811_001,
+                    firstUser,
+                    'Engineering',
+                    now,
+                ),
+            ),
+        ).resolves.toMatchObject({
+            id: 811_001,
+            name: 'Engineering',
+            subscriptionCount: 0,
+        });
+        await Effect.runPromise(
+            repository.createCategory(811_002, secondUser, 'News', now),
+        );
+
+        const first = await Effect.runPromise(
+            repository.subscribeDiscovered({
+                proposedId: 812_001,
+                feedUrl: 'https://subscriptions.example.test/feed.xml',
+                name: 'Shared feed',
+                siteUrl: 'https://subscriptions.example.test/',
+                faviconUrl: null,
+                categoryId: 811_001,
+                userId: firstUser,
+                now,
+            }),
+        );
+        const second = await Effect.runPromise(
+            repository.subscribeDiscovered({
+                proposedId: 812_002,
+                feedUrl: 'https://subscriptions.example.test/feed.xml',
+                name: 'Ignored duplicate name',
+                siteUrl: null,
+                faviconUrl: null,
+                categoryId: 811_002,
+                userId: secondUser,
+                now,
+            }),
+        );
+
+        expect(first).toEqual({
+            feedId: 812_001,
+            createdFeed: true,
+            createdSubscription: true,
+        });
+        expect(second).toEqual({
+            feedId: 812_001,
+            createdFeed: false,
+            createdSubscription: true,
+        });
+        await expect(
+            Effect.runPromise(repository.listManagement(firstUser)),
+        ).resolves.toMatchObject({
+            categories: [{ subscriptionCount: 1 }],
+            subscriptions: [
+                {
+                    feedId: 812_001,
+                    categoryName: 'Engineering',
+                    feedName: 'Shared feed',
+                    entryCount: 0,
+                    refreshes: [],
+                },
+            ],
+        });
+
+        await Effect.runPromise(repository.unsubscribe(firstUser, 812_001));
+        await expect(
+            Effect.runPromise(
+                d1.first<number>(
+                    {
+                        sql: 'SELECT COUNT(*) AS total FROM feeds WHERE id = ?',
+                        bindings: [812_001],
+                    },
+                    'total',
+                ),
+            ),
+        ).resolves.toBe(1);
+        await Effect.runPromise(repository.unsubscribe(secondUser, 812_001));
+        await expect(
+            Effect.runPromise(
+                d1.first<number>(
+                    {
+                        sql: 'SELECT COUNT(*) AS total FROM feeds WHERE id = ?',
+                        bindings: [812_001],
+                    },
+                    'total',
+                ),
+            ),
+        ).resolves.toBe(0);
+    });
+
+    it('enforces ownership and preserves read/star state while replacing sparse filters', async () => {
+        const owner = 820_001;
+        const otherUser = 820_002;
+        const categoryId = 821_001;
+        const feedId = 822_001;
+        await insertUser(owner);
+        await insertUser(otherUser);
+        await Effect.runPromise(
+            repository.createCategory(categoryId, owner, 'Security', now),
+        );
+        await Effect.runPromise(
+            repository.subscribeDiscovered({
+                proposedId: feedId,
+                feedUrl: 'https://filters.example.test/feed.xml',
+                name: 'Filter feed',
+                siteUrl: null,
+                faviconUrl: null,
+                categoryId,
+                userId: owner,
+                now,
+            }),
+        );
+        await insertEntry(823_001, feedId, 'Sponsored post');
+        await insertEntry(823_002, feedId, 'Ordinary post');
+        await Effect.runPromise(
+            d1.run({
+                sql: `INSERT INTO entry_interactions (
+                        user_id, feed_id, entry_id, starred_at,
+                        created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)`,
+                bindings: [owner, feedId, 823_001, now, now, now],
+            }),
+        );
+
+        await Effect.runPromise(
+            repository.replaceFilteredEntries(
+                owner,
+                feedId,
+                823_002,
+                [823_001, 823_002],
+                now + 1,
+            ),
+        );
+        await expect(
+            Effect.runPromise(
+                d1.all<{ entry_id: number; starred_at: number | null }>({
+                    sql: `SELECT entry_id, starred_at
+                            FROM entry_interactions
+                            WHERE user_id = ? AND filtered_at IS NOT NULL
+                            ORDER BY entry_id`,
+                    bindings: [owner],
+                }),
+            ).then((result) => result.results),
+        ).resolves.toEqual([
+            { entry_id: 823_001, starred_at: now },
+            { entry_id: 823_002, starred_at: null },
+        ]);
+
+        await Effect.runPromise(
+            repository.replaceFilteredEntries(
+                owner,
+                feedId,
+                823_002,
+                [],
+                now + 2,
+            ),
+        );
+        await expect(
+            Effect.runPromise(
+                d1.all<{
+                    entry_id: number;
+                    starred_at: number | null;
+                    filtered_at: number | null;
+                }>({
+                    sql: `SELECT entry_id, starred_at, filtered_at
+                        FROM entry_interactions WHERE user_id = ?`,
+                    bindings: [owner],
+                }),
+            ).then((result) => result.results),
+        ).resolves.toEqual([
+            { entry_id: 823_001, starred_at: now, filtered_at: null },
+        ]);
+
+        await expect(
+            Effect.runPromise(
+                repository.updateSubscription(
+                    otherUser,
+                    feedId,
+                    categoryId,
+                    null,
+                    {
+                        excludeTitle: [],
+                        excludeContent: [],
+                        excludeAuthor: [],
+                    },
+                    now,
+                ),
+            ),
+        ).rejects.toBeInstanceOf(SubscriptionNotFound);
+    });
+});

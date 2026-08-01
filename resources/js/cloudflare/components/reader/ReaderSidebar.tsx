@@ -18,6 +18,7 @@ import {
     IconKey,
     IconRefresh,
     IconSearch,
+    IconSettings,
     IconStar,
 } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -360,6 +361,13 @@ export function ReaderSidebar({
 
             <Divider />
             <Stack gap={2} p="sm">
+                <NavLink
+                    component={Link}
+                    label="Manage subscriptions"
+                    leftSection={<IconSettings aria-hidden="true" size={17} />}
+                    onClick={onNavigate}
+                    to="/settings/subscriptions"
+                />
                 <NavLink
                     component={Link}
                     label="Import & export"

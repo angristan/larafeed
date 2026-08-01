@@ -1,0 +1,59 @@
+.filterGrid {
+    display: grid;
+    grid-template-columns: minmax(14rem, 2fr) repeat(3, minmax(10rem, 1fr));
+    gap: var(--mantine-spacing-sm);
+    align-items: end;
+}
+
+.subscriptionCard {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--mantine-spacing-md);
+    align-items: center;
+}
+
+.subscriptionCopy {
+    min-width: 0;
+}
+
+.subscriptionMeta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--mantine-spacing-xs) var(--mantine-spacing-md);
+    align-items: center;
+}
+
+.categoryRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--mantine-spacing-sm);
+    align-items: center;
+}
+
+.patternRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--mantine-spacing-xs);
+    align-items: start;
+}
+
+.breakAnywhere {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 74.99em) {
+    .filterGrid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 47.99em) {
+    .filterGrid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .subscriptionCard,
+    .categoryRow {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

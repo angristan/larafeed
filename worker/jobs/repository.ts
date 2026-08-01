@@ -1,6 +1,7 @@
 import { Effect } from 'effect';
 
 import type { D1, D1Statement } from '../infrastructure/d1';
+import { parseStoredFilterRules } from '../subscriptions/filter';
 import {
     FeedNotFoundError,
     JobInvariantError,
@@ -61,6 +62,7 @@ interface FeedInputRow {
     readonly site_url: string | null;
     readonly etag: string | null;
     readonly last_modified: string | null;
+    readonly subscription_filters_json: string;
 }
 
 interface JobPayload {
@@ -172,6 +174,44 @@ const resultRows = <T>(result: D1Result<unknown> | undefined): readonly T[] => {
 
 const isSafeId = (value: unknown): value is number =>
     typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+const parseSubscriptionFilters = (
+    value: string,
+): FeedRefreshInput['subscriptionFilters'] => {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(value);
+    } catch {
+        throw new JobInvariantError(
+            'loadFeedInput',
+            'invalid subscription filters JSON',
+        );
+    }
+    if (!Array.isArray(parsed)) {
+        throw new JobInvariantError(
+            'loadFeedInput',
+            'unexpected subscription filters',
+        );
+    }
+    return parsed.map((item) => {
+        if (
+            typeof item !== 'object' ||
+            item === null ||
+            !isSafeId(Reflect.get(item, 'userId')) ||
+            typeof Reflect.get(item, 'rulesJson') !== 'string'
+        ) {
+            throw new JobInvariantError(
+                'loadFeedInput',
+                'unexpected subscription filter row',
+            );
+        }
+        return {
+            userId: Reflect.get(item, 'userId') as number,
+            rules: parseStoredFilterRules(
+                Reflect.get(item, 'rulesJson') as string,
+            ),
+        };
+    });
+};
 const isTimestamp = (value: unknown): value is number =>
     typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 
@@ -651,7 +691,16 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
         const row = await run(
             operation,
             d1.first<FeedInputRow>({
-                sql: `SELECT f.feed_url, f.site_url, f.etag, f.last_modified
+                sql: `SELECT f.feed_url, f.site_url, f.etag, f.last_modified,
+                    COALESCE((
+                        SELECT json_group_array(json_object(
+                            'userId', fs.user_id,
+                            'rulesJson', fs.filter_rules_json
+                        ))
+                        FROM feed_subscriptions fs
+                        WHERE fs.feed_id = f.id
+                          AND fs.filter_rules_json IS NOT NULL
+                    ), '[]') AS subscription_filters_json
                     FROM jobs j
                     JOIN feeds f ON f.id = json_extract(j.payload_json, '$.feedId')
                     WHERE ${leasePredicate} AND f.id = ? AND f.is_gone = 0`,
@@ -672,6 +721,9 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             siteUrl: row.site_url,
             etag: row.etag,
             lastModified: row.last_modified,
+            subscriptionFilters: parseSubscriptionFilters(
+                row.subscription_filters_json,
+            ),
         };
     },
 
@@ -757,7 +809,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             input.completedAt,
         ] as const;
         const statements: D1Statement[] = [];
-        const mutationKinds: ('exactlyOne' | 'atMostOne')[] = [];
+        const mutationKinds: ('exactlyOne' | 'atMostOne' | 'any')[] = [];
         const latestEntryAt = input.entries.reduce<number | null>(
             (latest, entry) =>
                 latest === null
@@ -899,6 +951,92 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 });
                 mutationKinds.push('atMostOne');
             }
+        }
+
+        if (input.entries.length > 0) {
+            const filterMappings = JSON.stringify(
+                input.entries.map((entry) => ({
+                    deduplicationKey: Array.from(
+                        entry.deduplicationKey,
+                        (byte) => byte.toString(16).padStart(2, '0'),
+                    )
+                        .join('')
+                        .toUpperCase(),
+                    filteredUserIds: entry.filteredUserIds,
+                })),
+            );
+            const refreshedEntryIds = `SELECT e.id
+                FROM entries e
+                JOIN json_each(?) mapping
+                  ON hex(e.deduplication_key) = json_extract(mapping.value, '$.deduplicationKey')
+                WHERE e.feed_id = ?`;
+            statements.push({
+                sql: `DELETE FROM entry_interactions
+                    WHERE feed_id = ? AND filtered_at IS NOT NULL
+                      AND read_override IS NULL AND starred_at IS NULL
+                      AND archived_at IS NULL
+                      AND entry_id IN (${refreshedEntryIds})
+                      AND EXISTS (
+                        SELECT 1 FROM jobs j WHERE ${leasePredicate}
+                      )`,
+                bindings: [
+                    input.claim.feedId,
+                    filterMappings,
+                    input.claim.feedId,
+                    ...conditionBindings,
+                ],
+            });
+            mutationKinds.push('any');
+            statements.push({
+                sql: `UPDATE entry_interactions
+                    SET filtered_at = NULL, updated_at = ?
+                    WHERE feed_id = ? AND filtered_at IS NOT NULL
+                      AND entry_id IN (${refreshedEntryIds})
+                      AND EXISTS (
+                        SELECT 1 FROM jobs j WHERE ${leasePredicate}
+                      )`,
+                bindings: [
+                    input.completedAt,
+                    input.claim.feedId,
+                    filterMappings,
+                    input.claim.feedId,
+                    ...conditionBindings,
+                ],
+            });
+            mutationKinds.push('any');
+            statements.push({
+                sql: `INSERT INTO entry_interactions (
+                        user_id, feed_id, entry_id, read_override,
+                        read_changed_at, starred_at, archived_at,
+                        filtered_at, created_at, updated_at
+                    )
+                    SELECT CAST(users.value AS INTEGER), ?, e.id,
+                        NULL, NULL, NULL, NULL, ?, ?, ?
+                    FROM json_each(?) mapping
+                    JOIN entries e
+                      ON e.feed_id = ?
+                     AND hex(e.deduplication_key) = json_extract(mapping.value, '$.deduplicationKey')
+                    JOIN json_each(mapping.value, '$.filteredUserIds') users
+                    JOIN feed_subscriptions fs
+                      ON fs.user_id = CAST(users.value AS INTEGER)
+                     AND fs.feed_id = e.feed_id
+                    WHERE EXISTS (
+                        SELECT 1 FROM jobs j WHERE ${leasePredicate}
+                    )
+                    ON CONFLICT(user_id, entry_id) DO UPDATE SET
+                        filtered_at = excluded.filtered_at,
+                        updated_at = excluded.updated_at`,
+                bindings: [
+                    input.claim.feedId,
+                    input.completedAt,
+                    input.completedAt,
+                    input.completedAt,
+                    filterMappings,
+                    input.claim.feedId,
+                    ...conditionBindings,
+                ],
+            });
+            mutationKinds.push('any');
         }
 
         statements.push({

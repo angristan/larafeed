@@ -203,6 +203,75 @@ describe('feed refresh service', () => {
         });
     });
 
+    it('discovers and validates an alternate feed from an HTML page', async () => {
+        const html = `<html><head>
+            <link rel="alternate" type="application/rss+xml" href="/news.xml">
+            <link rel="alternate" type="application/rss+xml" href="http://127.0.0.1/private">
+        </head></html>`;
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                new Response(html, {
+                    headers: { 'content-type': 'text/html' },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(html, {
+                    headers: { 'content-type': 'text/html' },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(rss, {
+                    headers: { 'content-type': 'application/rss+xml' },
+                }),
+            );
+        const service = makeFeedRefreshService({ fetch: fetchMock });
+
+        const result = await Effect.runPromise(
+            service.discover('https://example.com/articles'),
+        );
+
+        expect(result).toMatchObject({
+            kind: 'updated',
+            finalUrl: 'https://example.com/news.xml',
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+        expect(String(fetchMock.mock.calls[2]?.[0])).toBe(
+            'https://example.com/news.xml',
+        );
+    });
+
+    it('probes a bounded common path when a website has no alternate link', async () => {
+        const html = '<html><head><title>No links</title></head></html>';
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                new Response(html, {
+                    headers: { 'content-type': 'text/html' },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(html, {
+                    headers: { 'content-type': 'text/html' },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(rss, {
+                    headers: { 'content-type': 'application/rss+xml' },
+                }),
+            );
+        const service = makeFeedRefreshService({ fetch: fetchMock });
+
+        const result = await Effect.runPromise(
+            service.discover('https://example.com/'),
+        );
+
+        expect(result.finalUrl).toBe('https://example.com/feed');
+        expect(String(fetchMock.mock.calls[2]?.[0])).toBe(
+            'https://example.com/feed',
+        );
+    });
+
     it('classifies HTTP status and transport failures without retaining causes', async () => {
         const retryableService = makeFeedRefreshService({
             fetch: async () =>

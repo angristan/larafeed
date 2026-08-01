@@ -13,6 +13,9 @@ This inventory is the cutover contract. “Implemented” means the Cloudflare a
 | Manual refresh | Implemented as an authenticated, CSRF-protected durable command. |
 | OPML import and progress | Implemented with bounded parsing, one durable item per feed, partial failure reporting, retries, and progress polling. |
 | OPML export | Implemented as an authenticated download. |
+| Individual feed and website discovery | Implemented with bounded direct-feed parsing, HTML alternate discovery, safe redirects, common-path probes, category selection, shared-feed reuse, and an immediate durable refresh command. |
+| Category and subscription management | Implemented with category create/rename/delete, custom names, category moves, searchable refresh audit, manual refresh, and ownership-safe unsubscribe. The final subscriber removes the shared feed. |
+| Per-subscription title/content/author filters | Implemented with bounded safe regex evaluation, literal fallback for invalid regex, sparse matches only, existing-entry rebuilds, and refresh-time evaluation. Read/star/archive state is preserved. |
 | Login and account bootstrap | Replaced by passkeys, Turnstile, opaque D1 sessions, admin-generated one-time links, and the operator recovery command. |
 | Multiple passkeys | Backend list/add/delete behavior is implemented. Enrollment and recovery pages register passkeys. A separate passkey settings screen is intentionally omitted from the first private deployment. |
 | Google Reader and Fever | Implemented with scoped, revocable app tokens. Password authentication is removed. |
@@ -32,9 +35,6 @@ This inventory is the cutover contract. “Implemented” means the Cloudflare a
 | Profile name/email editing and account deletion UI | Identity and access are admin-controlled for the private deployment. Changes require an operator/admin process. |
 | Telegram login/registration notifications | Removed. Security events and Cloudflare observability are the operational record. |
 | Charts page | Removed from the initial private deployment. Native observability covers operations; product charts had no required compatibility contract. |
-| Individual feed creation/edit/delete screen | Removed initially. OPML import is the supported subscription-provisioning path. Migrated subscriptions remain readable. |
-| Category and subscription-settings editor | Removed initially. Categories and names are preserved by migration/import and displayed by the reader. |
-| Automatic per-subscription content filter rules for newly ingested entries | Removed because the legacy implementation amplified writes by user × entry. Existing filtered interaction state remains hidden. A future design must keep sparse storage. |
 | Server-rendered Inertia pages, Ziggy routes, and Laravel-style form helpers | Replaced by React Router, TanStack Query, and typed JSON HTTP APIs. |
 | Go HTTP server, River workers, PostgreSQL runtime, Docker image deployment | Replaced by Workers, D1, Queues, Cron, Static Assets, Images, and AI Gateway. Go remains only for the read-only migration exporter. |
 

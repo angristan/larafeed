@@ -1,3 +1,5 @@
+import type { SubscriptionFilterRules } from '@shared/schemas/subscriptions';
+
 export const FEED_REFRESH_JOB_KIND = 'feed_refresh';
 export const FEED_REFRESH_TOPIC = 'feed-refresh';
 export const MAX_CONTENT_BYTES = 1_800_000;
@@ -92,11 +94,17 @@ export interface RefreshJobClaim {
     readonly leaseExpiresAt: number;
 }
 
+export interface FeedSubscriptionFilter {
+    readonly userId: number;
+    readonly rules: SubscriptionFilterRules;
+}
+
 export interface FeedRefreshInput extends RefreshJobClaim {
     readonly feedUrl: string;
     readonly siteUrl: string | null;
     readonly etag: string | null;
     readonly lastModified: string | null;
+    readonly subscriptionFilters: readonly FeedSubscriptionFilter[];
 }
 
 export type RefreshEntryContent =
@@ -117,6 +125,7 @@ export interface ProcessedRefreshEntry {
     readonly publishedAt: number;
     readonly sourceUpdatedAt: number | null;
     readonly content: RefreshEntryContent;
+    readonly filteredUserIds: readonly number[];
 }
 
 export interface PersistedRefreshEntry extends ProcessedRefreshEntry {

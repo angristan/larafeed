@@ -21,6 +21,10 @@ import {
     registerRefreshRoutes,
 } from './refresh/routes';
 import {
+    registerSubscriptionRoutes,
+    type SubscriptionRouteDependencies,
+} from './subscriptions/routes';
+import {
     registerSummaryRoutes,
     type SummaryRouteDependencies,
 } from './summaries';
@@ -65,6 +69,7 @@ export interface WorkerDependencies {
     readonly readerRoutes?: ReaderRouteDependencies;
     readonly refreshRoutes?: RefreshRouteDependencies;
     readonly summaryRoutes?: SummaryRouteDependencies;
+    readonly subscriptionRoutes?: SubscriptionRouteDependencies;
 }
 
 const defaultDependencies: WorkerDependencies = {
@@ -199,6 +204,7 @@ export const createApp = (
     registerRefreshRoutes(app, dependencies.refreshRoutes);
     registerOpmlRoutes(app, dependencies.opmlRoutes);
     registerSummaryRoutes(app, dependencies.summaryRoutes);
+    registerSubscriptionRoutes(app, dependencies.subscriptionRoutes);
 
     app.onError(() => fallbackInternalServerError());
 
