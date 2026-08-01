@@ -32,7 +32,6 @@ const SubscriptionRow = Schema.Struct({
     category_id: SafeId,
     feed_name: Schema.String,
     custom_feed_name: Schema.NullOr(Schema.String),
-    favicon_url: Schema.NullOr(Schema.String),
     favicon_is_dark: Schema.NullOr(BooleanInt),
     total_count: Count,
     unread_count: Count,
@@ -53,7 +52,6 @@ const EntryRow = Schema.Struct({
     created_at: Timestamp,
     feed_name: Schema.String,
     custom_feed_name: Schema.NullOr(Schema.String),
-    favicon_url: Schema.NullOr(Schema.String),
     favicon_is_dark: Schema.NullOr(BooleanInt),
     is_read: BooleanInt,
     is_starred: BooleanInt,
@@ -177,7 +175,7 @@ const naturalRead = `CASE
     ELSE 0 END`;
 const entryColumns = `
     e.id, e.feed_id, e.title, e.url, e.author, e.published_at, e.created_at,
-    f.name AS feed_name, fs.custom_feed_name, f.favicon_url, f.favicon_is_dark,
+    f.name AS feed_name, fs.custom_feed_name, f.favicon_is_dark,
     ${effectiveRead} AS is_read,
     CASE WHEN ei.starred_at IS NULL THEN 0 ELSE 1 END AS is_starred,
     CASE WHEN ei.archived_at IS NULL THEN 0 ELSE 1 END AS is_archived`;
@@ -225,6 +223,9 @@ const categoryFromRow = (row: typeof CategoryRow.Type): ReaderCategory => ({
     id: row.id,
     name: row.name,
 });
+export const readerFeedImageUrl = (feedId: number): string =>
+    `/api/images/feeds/${feedId}/small`;
+
 const subscriptionFromRow = (
     row: typeof SubscriptionRow.Type,
 ): ReaderSubscription => ({
@@ -232,7 +233,7 @@ const subscriptionFromRow = (
     categoryId: row.category_id,
     feedName: row.feed_name,
     customFeedName: row.custom_feed_name,
-    faviconUrl: row.favicon_url,
+    faviconUrl: readerFeedImageUrl(row.feed_id),
     faviconIsDark:
         row.favicon_is_dark === null ? null : row.favicon_is_dark === 1,
     totalCount: row.total_count,
@@ -254,7 +255,7 @@ const entryFromRow = (row: typeof EntryRow.Type): ReaderEntry => ({
     createdAt: row.created_at,
     feedName: row.feed_name,
     customFeedName: row.custom_feed_name,
-    faviconUrl: row.favicon_url,
+    faviconUrl: readerFeedImageUrl(row.feed_id),
     faviconIsDark:
         row.favicon_is_dark === null ? null : row.favicon_is_dark === 1,
     read: row.is_read === 1,
@@ -388,7 +389,7 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
                 operation,
                 d1.all({
                     sql: `SELECT fs.feed_id, fs.category_id, f.name AS feed_name,
-                    fs.custom_feed_name, f.favicon_url, f.favicon_is_dark,
+                    fs.custom_feed_name, f.favicon_is_dark,
                     COALESCE(SUM(CASE WHEN ei.filtered_at IS NULL AND e.id IS NOT NULL THEN 1 ELSE 0 END), 0) AS total_count,
                     COALESCE(SUM(CASE WHEN ei.filtered_at IS NULL AND e.id IS NOT NULL AND ${effectiveRead} = 0 THEN 1 ELSE 0 END), 0) AS unread_count
                 FROM feed_subscriptions fs
@@ -397,7 +398,7 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
                 LEFT JOIN entry_interactions ei ON ei.user_id = fs.user_id AND ei.entry_id = e.id
                 WHERE fs.user_id = ?
                 GROUP BY fs.user_id, fs.feed_id, fs.category_id, f.name,
-                    fs.custom_feed_name, f.favicon_url, f.favicon_is_dark
+                    fs.custom_feed_name, f.favicon_is_dark
                 ORDER BY COALESCE(fs.custom_feed_name, f.name) COLLATE NOCASE, fs.feed_id`,
                     bindings: [userId],
                 }),

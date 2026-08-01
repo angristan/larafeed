@@ -5,6 +5,7 @@ export { HealthResponse } from './schemas/health';
 export * from './schemas/jobs';
 export * from './schemas/opml';
 export * from './schemas/reader';
+export * from './schemas/summaries';
 
 export const ApiErrorCode = Schema.Literals([
     'validation_error',

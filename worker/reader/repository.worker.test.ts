@@ -218,7 +218,13 @@ describe('reader D1 repository', () => {
         ).resolves.toEqual({ total: 0, unread: 0, read: 0, starred: 0 });
         await expect(
             Effect.runPromise(repository.listSubscriptions(ownerId)),
-        ).resolves.toMatchObject([{ totalCount: 0, unreadCount: 0 }]);
+        ).resolves.toMatchObject([
+            {
+                faviconUrl: `/api/images/feeds/${feedId}/small`,
+                totalCount: 0,
+                unreadCount: 0,
+            },
+        ]);
         await expect(
             Effect.runPromise(repository.findEntry(ownerId, entryId)),
         ).rejects.toBeInstanceOf(ReaderNotFound);
@@ -307,6 +313,7 @@ describe('reader D1 repository', () => {
             Effect.runPromise(repository.findEntry(userId, entryId)),
         ).resolves.toMatchObject({
             id: entryId,
+            faviconUrl: `/api/images/feeds/${feedId}/small`,
             contentHtml: content,
             read: false,
         });

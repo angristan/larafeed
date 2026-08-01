@@ -20,6 +20,7 @@ describe('feed parser', () => {
                 <title>Example &amp; News</title>
                 <link>../home</link>
                 <description>Updates</description>
+                <image><url>icons/favicon.png</url></image>
                 <lastBuildDate>Sat, 18 Jul 2026 10:00:00 GMT</lastBuildDate>
                 <item>
                   <guid isPermaLink="false">post-2</guid>
@@ -37,6 +38,7 @@ describe('feed parser', () => {
         expect(feed.metadata).toEqual({
             title: 'Example & News',
             siteUrl: 'https://feeds.example.com/home',
+            faviconUrl: 'https://feeds.example.com/path/icons/favicon.png',
             description: 'Updates',
             sourceUpdatedAt: Date.parse('2026-07-18T10:00:00Z'),
         });
@@ -65,6 +67,7 @@ describe('feed parser', () => {
             <title>Atom Feed</title>
             <link rel="self" href="feed.xml"/>
             <link rel="alternate" href="/site"/>
+            <icon>/assets/icon.png</icon>
             <updated>2026-07-18T10:00:00Z</updated>
             <entry>
               <id>tag:example.com,2026:1</id>
@@ -77,7 +80,10 @@ describe('feed parser', () => {
             </entry>
         </feed>`);
 
-        expect(feed.metadata.siteUrl).toBe('https://feeds.example.com/site');
+        expect(feed.metadata).toMatchObject({
+            siteUrl: 'https://feeds.example.com/site',
+            faviconUrl: 'https://feeds.example.com/assets/icon.png',
+        });
         expect(feed.entries).toHaveLength(1);
         expect(feed.entries[0]).toMatchObject({
             sourceIdentity: 'id:tag:example.com,2026:1',

@@ -58,6 +58,7 @@ interface OutboxRow {
 
 interface FeedInputRow {
     readonly feed_url: string;
+    readonly site_url: string | null;
     readonly etag: string | null;
     readonly last_modified: string | null;
 }
@@ -650,7 +651,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
         const row = await run(
             operation,
             d1.first<FeedInputRow>({
-                sql: `SELECT f.feed_url, f.etag, f.last_modified
+                sql: `SELECT f.feed_url, f.site_url, f.etag, f.last_modified
                     FROM jobs j
                     JOIN feeds f ON f.id = json_extract(j.payload_json, '$.feedId')
                     WHERE ${leasePredicate} AND f.id = ? AND f.is_gone = 0`,
@@ -668,6 +669,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
         return {
             ...claim,
             feedUrl: row.feed_url,
+            siteUrl: row.site_url,
             etag: row.etag,
             lastModified: row.last_modified,
         };
@@ -768,6 +770,8 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             sql: `UPDATE feeds
                 SET name = COALESCE(?, name),
                     site_url = CASE WHEN ? = 1 THEN ? ELSE site_url END,
+                    favicon_url = CASE WHEN ? = 1 THEN ? ELSE favicon_url END,
+                    favicon_updated_at = CASE WHEN ? = 1 THEN ? ELSE favicon_updated_at END,
                     etag = ?, last_modified = ?, consecutive_failures = 0,
                     is_gone = 0,
                     last_attempt_at = ?, last_successful_refresh_at = ?,
@@ -784,6 +788,10 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 input.feedName ?? null,
                 input.siteUrl === undefined ? 0 : 1,
                 input.siteUrl ?? null,
+                input.faviconUrl === undefined ? 0 : 1,
+                input.faviconUrl ?? null,
+                input.faviconUrl === undefined ? 0 : 1,
+                input.completedAt,
                 input.etag,
                 input.lastModified,
                 input.completedAt,

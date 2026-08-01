@@ -11,6 +11,9 @@
         "AUTH_RP_NAME": "Larafeed",
         "AUTH_CHALLENGE_TTL_SECONDS": "300",
         "AUTH_SESSION_TTL_SECONDS": "2592000",
+        "AI_SUMMARY_ENABLED": "false",
+        "AI_GATEWAY_NAME": "larafeed",
+        "AI_MODEL": "gemini-2.5-flash",
         "REFRESH_SCHEDULER_ENABLED": "true",
         "REFRESH_DISPATCH_ENABLED": "true",
         "REFRESH_DUE_LIMIT": "10"
@@ -19,6 +22,7 @@
         "not_found_handling": "single-page-application",
         "run_worker_first": ["/api/*"]
     },
+    "images": { "binding": "IMAGES" },
     "d1_databases": [
         {
             "binding": "DB",
@@ -88,10 +92,16 @@
                 "AUTH_RP_NAME": "Larafeed Test",
                 "AUTH_CHALLENGE_TTL_SECONDS": "300",
                 "AUTH_SESSION_TTL_SECONDS": "2592000",
+                "AI_SUMMARY_ENABLED": "false",
+                "AI_GATEWAY_ACCOUNT_ID": "00000000000000000000000000000000",
+                "AI_GATEWAY_NAME": "larafeed-test",
+                "GEMINI_API_KEY": "test-only-not-a-real-secret",
+                "AI_MODEL": "gemini-2.5-flash",
                 "REFRESH_SCHEDULER_ENABLED": "true",
                 "REFRESH_DISPATCH_ENABLED": "true",
                 "REFRESH_DUE_LIMIT": "5"
             },
+            "images": { "binding": "IMAGES" },
             "d1_databases": [
                 {
                     "binding": "DB",

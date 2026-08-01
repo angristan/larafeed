@@ -6,6 +6,7 @@ import {
     isFeedRefreshError,
     makeFeedRefreshService,
     type NormalizedFeedEntry,
+    validateFeedUrl,
 } from '../feeds';
 import { makeD1 } from '../infrastructure/d1';
 import {
@@ -83,6 +84,26 @@ const normalizedEntry = async (
               : { type: 'empty' },
 });
 
+export const resolveFeedFaviconUrl = (
+    metadataUrl: string | null,
+    siteUrl: string | null,
+): string | null => {
+    if (metadataUrl !== null) {
+        try {
+            return validateFeedUrl(metadataUrl).href;
+        } catch {
+            // Invalid feed-controlled icon metadata falls back to the site origin.
+        }
+    }
+    if (siteUrl === null) return null;
+    try {
+        const site = validateFeedUrl(siteUrl);
+        return new URL('/favicon.ico', site.origin).href;
+    } catch {
+        return null;
+    }
+};
+
 const classifiedFailure = (
     cause: unknown,
     durationMs: number,
@@ -145,6 +166,7 @@ export const makeRefreshProcessor = (
                 };
             }
 
+            const siteUrl = result.feed.siteUrl ?? input.siteUrl;
             return {
                 type: 'success',
                 etag: result.etag,
@@ -152,7 +174,11 @@ export const makeRefreshProcessor = (
                 httpStatus: result.httpStatus,
                 durationMs,
                 feedName: result.feed.title,
-                siteUrl: result.feed.siteUrl,
+                siteUrl,
+                faviconUrl: resolveFeedFaviconUrl(
+                    result.feed.faviconUrl,
+                    siteUrl,
+                ),
                 entries: await Promise.all(result.entries.map(normalizedEntry)),
             };
         } catch (cause) {

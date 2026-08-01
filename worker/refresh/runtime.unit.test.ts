@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { makeRefreshProcessor, parseRefreshRuntimeConfig } from './runtime';
+import {
+    makeRefreshProcessor,
+    parseRefreshRuntimeConfig,
+    resolveFeedFaviconUrl,
+} from './runtime';
 
 const input = {
     jobId: 1,
@@ -12,6 +16,7 @@ const input = {
     leaseOwner: 'worker',
     leaseExpiresAt: 2_000_000,
     feedUrl: 'https://feeds.example.test/rss.xml',
+    siteUrl: 'https://stored.example.test/path',
     etag: null,
     lastModified: null,
 };
@@ -42,6 +47,7 @@ describe('refresh runtime adapter', () => {
             etag: '"v2"',
             feedName: 'Example',
             siteUrl: 'https://example.test/',
+            faviconUrl: 'https://example.test/favicon.ico',
             entries: [
                 {
                     sourceId: 'entry-1',
@@ -59,6 +65,43 @@ describe('refresh runtime adapter', () => {
                     : new Uint8Array(),
             ).toHaveLength(32);
         }
+    });
+
+    it('uses the stored site when refreshed metadata omits site and icon links', async () => {
+        const result = await makeRefreshProcessor({
+            now: () => 1_900_000_000_000,
+            fetch: async () =>
+                new Response(
+                    '<rss><channel><title>Example</title></channel></rss>',
+                    {
+                        headers: { 'content-type': 'application/rss+xml' },
+                    },
+                ),
+        })(input);
+
+        expect(result).toMatchObject({
+            type: 'success',
+            siteUrl: 'https://stored.example.test/path',
+            faviconUrl: 'https://stored.example.test/favicon.ico',
+        });
+    });
+
+    it('prefers safe icon metadata and derives only same-origin fallbacks', () => {
+        expect(
+            resolveFeedFaviconUrl(
+                'https://cdn.example.test/icon.png',
+                'https://example.test/articles?view=all',
+            ),
+        ).toBe('https://cdn.example.test/icon.png');
+        expect(
+            resolveFeedFaviconUrl(
+                'http://127.0.0.1/private.png',
+                'https://example.test/articles?view=all',
+            ),
+        ).toBe('https://example.test/favicon.ico');
+        expect(
+            resolveFeedFaviconUrl(null, 'https://example.test:8443/site'),
+        ).toBeNull();
     });
 
     it('marks terminal gone responses without persisting provider details', async () => {

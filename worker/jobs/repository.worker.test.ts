@@ -328,6 +328,7 @@ describe('durable feed refresh jobs', () => {
             notModified: false,
             feedName: 'Updated feed name',
             siteUrl: 'https://jobs.example.test/',
+            faviconUrl: 'https://jobs.example.test/favicon.ico',
             entries: [
                 {
                     id: 363_001,
@@ -359,13 +360,21 @@ describe('durable feed refresh jobs', () => {
         });
 
         await expect(
-            first<{ name: string; site_url: string | null }>(
-                'SELECT name, site_url FROM feeds WHERE id = ?',
+            first<{
+                name: string;
+                site_url: string | null;
+                favicon_url: string | null;
+                favicon_updated_at: number | null;
+            }>(
+                `SELECT name, site_url, favicon_url, favicon_updated_at
+                 FROM feeds WHERE id = ?`,
                 [feedId],
             ),
         ).resolves.toEqual({
             name: 'Updated feed name',
             site_url: 'https://jobs.example.test/',
+            favicon_url: 'https://jobs.example.test/favicon.ico',
+            favicon_updated_at: now + 1,
         });
         await expect(
             scalar(

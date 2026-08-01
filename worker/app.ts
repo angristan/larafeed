@@ -10,6 +10,7 @@ import {
     type CompatibilityRouteDependencies,
     registerCompatibilityRoutes,
 } from './compat';
+import { type ImageRouteDependencies, registerImageRoutes } from './images';
 import { type OpmlRouteDependencies, registerOpmlRoutes } from './opml/routes';
 import {
     type ReaderRouteDependencies,
@@ -19,6 +20,10 @@ import {
     type RefreshRouteDependencies,
     registerRefreshRoutes,
 } from './refresh/routes';
+import {
+    registerSummaryRoutes,
+    type SummaryRouteDependencies,
+} from './summaries';
 
 const jsonHeaders = {
     'cache-control': 'no-store',
@@ -55,9 +60,11 @@ export interface WorkerDependencies {
     >;
     readonly authRoutes?: AuthRouteDependencies;
     readonly compatibilityRoutes?: CompatibilityRouteDependencies;
+    readonly imageRoutes?: ImageRouteDependencies;
     readonly opmlRoutes?: OpmlRouteDependencies;
     readonly readerRoutes?: ReaderRouteDependencies;
     readonly refreshRoutes?: RefreshRouteDependencies;
+    readonly summaryRoutes?: SummaryRouteDependencies;
 }
 
 const defaultDependencies: WorkerDependencies = {
@@ -187,9 +194,11 @@ export const createApp = (
 
     registerAuthRoutes(app, dependencies.authRoutes);
     registerCompatibilityRoutes(app, dependencies.compatibilityRoutes);
+    registerImageRoutes(app, dependencies.imageRoutes);
     registerReaderRoutes(app, dependencies.readerRoutes);
     registerRefreshRoutes(app, dependencies.refreshRoutes);
     registerOpmlRoutes(app, dependencies.opmlRoutes);
+    registerSummaryRoutes(app, dependencies.summaryRoutes);
 
     app.onError(() => fallbackInternalServerError());
 

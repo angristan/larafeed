@@ -1,0 +1,65 @@
+# Cloudflare Images and AI Gateway
+
+## Feed images
+
+Larafeed does not expose an arbitrary-origin image proxy. Reader payloads contain only opaque application URLs:
+
+```text
+/api/images/feeds/{ownedFeedId}/small
+/api/images/feeds/{ownedFeedId}/medium
+```
+
+The route authenticates the web session, checks subscription ownership, and loads the source from the feed row. Feed refresh stores explicit feed icon metadata when valid. Otherwise it derives only the stored site origin's `/favicon.ico` URL.
+
+Two fixed Cloudflare Images presets exist:
+
+| Preset | Transform |
+| --- | --- |
+| `small` | 32 × 32, cover, quality 80 |
+| `medium` | 64 × 64, cover, quality 80 |
+
+Each fetch validates the source and every redirect with the feed SSRF policy. It permits at most three redirects, five seconds, and 2 MiB. It rejects non-image responses and SVG. Missing or failed sources return a fixed transparent PNG without source details. Responses are private and `no-store`; route-specific rate limits bound transformations.
+
+Wrangler declares the `IMAGES` binding. It stores no images in Cloudflare Images and creates no variants or hosted assets.
+
+## AI summaries
+
+`GET /api/entries/{id}/summary` is side-effect-free. `POST` requires the web session, exact CSRF checks, and per-user rate limiting.
+
+The Worker:
+
+1. Checks entry ownership and filtered state.
+2. Reuses a D1 summary keyed by entry content hash, model, and prompt version.
+3. Sanitizes article HTML and sends at most 50 KiB of article text.
+4. Calls Gemini only through the configured AI Gateway.
+5. Uses a 15-second total deadline and at most one retry for transport, `429`, or `5xx` failures.
+6. Bounds the provider body and sanitized summary HTML.
+7. Inserts idempotently and reloads the winner on a unique race.
+
+The request disables AI Gateway response caching because D1 owns the semantic cache key. It also disables prompt/response log collection so article content is not stored in Gateway logs. Gateway request counts and provider metrics remain available.
+
+### Configuration
+
+AI summaries are disabled by default:
+
+```json
+"AI_SUMMARY_ENABLED": "false"
+```
+
+Required production secrets:
+
+```bash
+wrangler secret put AI_GATEWAY_ACCOUNT_ID
+wrangler secret put GEMINI_API_KEY
+```
+
+Non-secret variables select the gateway and model:
+
+```text
+AI_GATEWAY_NAME=larafeed
+AI_MODEL=gemini-2.5-flash
+```
+
+Before enabling summaries, create and authenticate the `larafeed` AI Gateway outside this repository. Configure provider budgets and Gateway rate limits, then change the kill switch in a reviewed deployment. This branch has not created a Gateway, written secrets, deployed, or enabled AI calls.
+
+The application rate limiter is a second cost boundary. Cached D1 summaries avoid provider calls until article content, model, or prompt version changes.

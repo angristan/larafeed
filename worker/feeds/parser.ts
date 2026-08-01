@@ -11,6 +11,7 @@ export type ContentStatus = 'stored' | 'empty' | 'oversized';
 export interface NormalizedFeedMetadata {
     readonly title: string;
     readonly siteUrl: string | null;
+    readonly faviconUrl: string | null;
     readonly description: string | null;
     readonly sourceUpdatedAt: number | null;
 }
@@ -272,6 +273,21 @@ const feedShape = (document: unknown): FeedShape => {
     throw new FeedParseError({ reason: 'unsupported_feed' });
 };
 
+const feedIconUrl = (shape: FeedShape, finalUrl: URL): string | null => {
+    if (shape.kind === 'atom') {
+        return resolveHttpUrl(
+            firstText(shape.metadata, 'icon', 'logo'),
+            finalUrl,
+        );
+    }
+
+    const image = firstRecord(shape.metadata.image);
+    return resolveHttpUrl(
+        firstText(image ?? {}, 'url') ?? scalarText(image?.['@_href']),
+        finalUrl,
+    );
+};
+
 const metadataFromShape = (
     shape: FeedShape,
     finalUrl: URL,
@@ -292,6 +308,7 @@ const metadataFromShape = (
     return {
         title,
         siteUrl,
+        faviconUrl: feedIconUrl(shape, finalUrl),
         description:
             boundedText(
                 firstText(shape.metadata, 'subtitle', 'description'),

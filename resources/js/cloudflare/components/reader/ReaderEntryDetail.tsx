@@ -24,12 +24,18 @@ import {
     IconExternalLink,
     IconRefresh,
     IconRss,
+    IconSparkles,
     IconStar,
     IconStarFilled,
 } from '@tabler/icons-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 
 import type { ReaderEntry } from '../../api/reader';
+import {
+    entrySummaryQueryOptions,
+    generateEntrySummaryMutationOptions,
+} from '../../queries/summaries';
 import { FeedFavicon } from './FeedFavicon';
 import classes from './Reader.module.css';
 
@@ -55,6 +61,81 @@ function formatTimestamp(timestamp: number): string {
         dateStyle: 'long',
         timeStyle: 'short',
     }).format(new Date(timestamp));
+}
+
+function ReaderEntrySummary({ entryId }: { readonly entryId: number }) {
+    const queryClient = useQueryClient();
+    const summaryQuery = useQuery(entrySummaryQueryOptions(entryId));
+    const generateMutation = useMutation(
+        generateEntrySummaryMutationOptions(queryClient, entryId),
+    );
+    const summary = summaryQuery.data?.summary ?? null;
+
+    if (summaryQuery.isPending) {
+        return (
+            <Group aria-label="Loading AI summary" gap="xs" mt="xl">
+                <Loader size={15} />
+                <Text c="dimmed" size="sm">
+                    Loading summary…
+                </Text>
+            </Group>
+        );
+    }
+
+    if (summaryQuery.error !== null) {
+        return (
+            <Alert color="red" mt="xl" title="Summary unavailable">
+                <Stack gap="sm">
+                    <Text size="sm">{summaryQuery.error.message}</Text>
+                    <Button
+                        onClick={() => void summaryQuery.refetch()}
+                        size="xs"
+                        variant="light"
+                    >
+                        Retry
+                    </Button>
+                </Stack>
+            </Alert>
+        );
+    }
+
+    return (
+        <Stack gap="sm" mt="xl">
+            {summary === null ? (
+                <Text c="dimmed" size="sm">
+                    Generate a concise AI summary of this article.
+                </Text>
+            ) : (
+                <Alert
+                    color="blue"
+                    icon={<IconSparkles size={17} />}
+                    title="AI summary"
+                >
+                    <div
+                        // Summary HTML is sanitized by the Worker before persistence.
+                        dangerouslySetInnerHTML={{ __html: summary.html }}
+                    />
+                </Alert>
+            )}
+            {generateMutation.error !== null && (
+                <Alert color="red" role="alert">
+                    {generateMutation.error.message}
+                </Alert>
+            )}
+            {summary === null && (
+                <Button
+                    leftSection={<IconSparkles aria-hidden="true" size={16} />}
+                    loading={generateMutation.isPending}
+                    onClick={() => generateMutation.mutate()}
+                    size="xs"
+                    variant="light"
+                    w="fit-content"
+                >
+                    Generate summary
+                </Button>
+            )}
+        </Stack>
+    );
 }
 
 export function ReaderEntryDetail({
@@ -345,6 +426,8 @@ export function ReaderEntryDetail({
                             {formatTimestamp(entry.publishedAt)}
                         </Text>
                     </Group>
+
+                    <ReaderEntrySummary entryId={entry.id} />
 
                     <Typography mt="xl">
                         {entry.contentHtml === null ||

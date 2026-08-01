@@ -358,6 +358,7 @@ export const makeJobOrchestrator = (
                     ? {
                           feedName: result.feedName,
                           siteUrl: result.siteUrl,
+                          faviconUrl: result.faviconUrl,
                       }
                     : {}),
                 entries,

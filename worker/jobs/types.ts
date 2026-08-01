@@ -94,6 +94,7 @@ export interface RefreshJobClaim {
 
 export interface FeedRefreshInput extends RefreshJobClaim {
     readonly feedUrl: string;
+    readonly siteUrl: string | null;
     readonly etag: string | null;
     readonly lastModified: string | null;
 }
@@ -134,6 +135,7 @@ export interface RefreshSuccess extends RefreshCompletionBase {
     readonly type: 'success';
     readonly feedName?: string;
     readonly siteUrl?: string | null;
+    readonly faviconUrl?: string | null;
     readonly entries: readonly ProcessedRefreshEntry[];
 }
 
@@ -170,6 +172,7 @@ export interface CommitRefreshInput {
     readonly notModified: boolean;
     readonly feedName?: string;
     readonly siteUrl?: string | null;
+    readonly faviconUrl?: string | null;
     readonly entries: readonly PersistedRefreshEntry[];
 }
 

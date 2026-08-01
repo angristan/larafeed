@@ -37,6 +37,22 @@ describe('Worker integration', () => {
         });
     });
 
+    it('registers protected summary and fixed image routes', async () => {
+        const summary = await SELF.fetch(
+            'https://larafeed-test.stanislas.cloud/api/entries/1/summary',
+        );
+        expect(summary.status).toBe(401);
+        expect(summary.headers.get('cache-control')).toBe('no-store');
+
+        const arbitraryImage = await SELF.fetch(
+            'https://larafeed-test.stanislas.cloud/api/images/feeds/1/arbitrary',
+        );
+        expect(arbitraryImage.status).toBe(404);
+        expect(arbitraryImage.headers.get('cache-control')).toBe(
+            'private, no-store',
+        );
+    });
+
     it('serves protocol-specific compatibility failures', async () => {
         const login = await SELF.fetch(
             'https://larafeed-test.stanislas.cloud/api/reader/accounts/ClientLogin',
