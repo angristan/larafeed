@@ -16,6 +16,10 @@ export default defineConfig({
                     TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
                     TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA',
                     AUTH_OPERATOR_SECRET: 'workerd-test-operator-secret',
+                    D1_VALIDATION_PROFILE:
+                        process.env.LARAFEED_D1_FIXTURE_PROFILE === 'large'
+                            ? 'large'
+                            : 'ci',
                 },
             },
             wrangler: {
