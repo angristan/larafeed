@@ -1,8 +1,19 @@
 import { Schema } from 'effect';
 
+export * from './schemas/auth';
 export { HealthResponse } from './schemas/health';
 
 export const ApiErrorCode = Schema.Literals([
+    'validation_error',
+    'authentication_failed',
+    'unauthenticated',
+    'forbidden',
+    'csrf_invalid',
+    'human_verification_failed',
+    'access_link_invalid',
+    'not_found',
+    'conflict',
+    'rate_limited',
     'service_unavailable',
     'internal_server_error',
 ]);

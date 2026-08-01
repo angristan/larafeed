@@ -4,6 +4,14 @@
     "main": "./worker/index.ts",
     "compatibility_date": "2026-07-18",
     "compatibility_flags": ["nodejs_compat"],
+    "vars": {
+        "AUTH_ENVIRONMENT": "production",
+        "AUTH_RP_ID": "larafeed.stanislas.cloud",
+        "AUTH_ORIGIN": "https://larafeed.stanislas.cloud",
+        "AUTH_RP_NAME": "Larafeed",
+        "AUTH_CHALLENGE_TTL_SECONDS": "300",
+        "AUTH_SESSION_TTL_SECONDS": "2592000"
+    },
     "assets": {
         "not_found_handling": "single-page-application",
         "run_worker_first": ["/api/*"]
@@ -18,6 +26,14 @@
     ],
     "env": {
         "test": {
+            "vars": {
+                "AUTH_ENVIRONMENT": "test",
+                "AUTH_RP_ID": "larafeed-test.stanislas.cloud",
+                "AUTH_ORIGIN": "https://larafeed-test.stanislas.cloud",
+                "AUTH_RP_NAME": "Larafeed Test",
+                "AUTH_CHALLENGE_TTL_SECONDS": "300",
+                "AUTH_SESSION_TTL_SECONDS": "2592000"
+            },
             "d1_databases": [
                 {
                     "binding": "DB",

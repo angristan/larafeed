@@ -50,6 +50,8 @@
         "ziggy-js": "^2.0"
     },
     "dependencies": {
+        "@simplewebauthn/browser": "13.3.0",
+        "@simplewebauthn/server": "13.3.2",
         "@tanstack/react-query": "5.101.4",
         "effect": "4.0.0-beta.102",
         "hono": "4.12.33",

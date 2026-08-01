@@ -179,7 +179,9 @@ npm run build:cloudflare
 npm run deploy:check:cloudflare
 ```
 
-Cloudflare local variables belong in `.dev.vars`; browser-exposed Vite variables belong in `cloudflare-env/.env.local`. The Cloudflare commands do not load the legacy root `.env` file.
+Cloudflare local variables belong in `.dev.vars`; browser-exposed Vite variables belong in `cloudflare-env/.env.local`. The Cloudflare commands do not load the legacy root `.env` file. Copy `.dev.vars.example` for local passkey development; it uses Cloudflare's dummy Turnstile keys.
+
+Production and test deployments require separate `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` Worker secrets. Their configured WebAuthn RP IDs and origins are exact and intentionally do not share passkeys.
 
 ### Run locally
 

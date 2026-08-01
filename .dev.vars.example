@@ -1,1 +1,10 @@
-# Copy to .dev.vars and add local Worker secrets as they are introduced.
+# Copy to .dev.vars for local Worker development.
+# These are Cloudflare's public dummy Turnstile keys and are not production secrets.
+AUTH_ENVIRONMENT="development"
+AUTH_RP_ID="localhost"
+AUTH_ORIGIN="http://localhost:5173"
+AUTH_RP_NAME="Larafeed Local"
+AUTH_CHALLENGE_TTL_SECONDS="300"
+AUTH_SESSION_TTL_SECONDS="2592000"
+TURNSTILE_SITE_KEY="1x00000000000000000000AA"
+TURNSTILE_SECRET_KEY="1x0000000000000000000000000000000AA"
