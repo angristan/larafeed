@@ -10,6 +10,10 @@ import {
     type ReaderRouteDependencies,
     registerReaderRoutes,
 } from './reader/routes';
+import {
+    type RefreshRouteDependencies,
+    registerRefreshRoutes,
+} from './refresh/routes';
 
 const jsonHeaders = {
     'cache-control': 'no-store',
@@ -46,6 +50,7 @@ export interface WorkerDependencies {
     >;
     readonly authRoutes?: AuthRouteDependencies;
     readonly readerRoutes?: ReaderRouteDependencies;
+    readonly refreshRoutes?: RefreshRouteDependencies;
 }
 
 const defaultDependencies: WorkerDependencies = {
@@ -175,6 +180,7 @@ export const createApp = (
 
     registerAuthRoutes(app, dependencies.authRoutes);
     registerReaderRoutes(app, dependencies.readerRoutes);
+    registerRefreshRoutes(app, dependencies.refreshRoutes);
 
     app.onError(() => fallbackInternalServerError());
 

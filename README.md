@@ -168,7 +168,7 @@ See [docs/self-hosting.md](docs/self-hosting.md) for Docker Compose setup instru
 
 ### Cloudflare rebuild
 
-The Cloudflare rewrite currently runs alongside the Go application. See [the rebuild plan](docs/cloudflare-rebuild-plan.md) and [migration baseline](docs/cloudflare-baseline.md).
+The Cloudflare rewrite currently runs alongside the Go application. See [the rebuild plan](docs/cloudflare-rebuild-plan.md), [migration baseline](docs/cloudflare-baseline.md), and [feed refresh operations](docs/cloudflare-refresh-jobs.md).
 
 ```bash
 npm run types:cloudflare

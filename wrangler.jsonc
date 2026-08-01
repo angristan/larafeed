@@ -10,7 +10,10 @@
         "AUTH_ORIGIN": "https://larafeed.stanislas.cloud",
         "AUTH_RP_NAME": "Larafeed",
         "AUTH_CHALLENGE_TTL_SECONDS": "300",
-        "AUTH_SESSION_TTL_SECONDS": "2592000"
+        "AUTH_SESSION_TTL_SECONDS": "2592000",
+        "REFRESH_SCHEDULER_ENABLED": "true",
+        "REFRESH_DISPATCH_ENABLED": "true",
+        "REFRESH_DUE_LIMIT": "10"
     },
     "assets": {
         "not_found_handling": "single-page-application",
@@ -31,6 +34,32 @@
             "simple": { "limit": 20, "period": 60 }
         }
     ],
+    "queues": {
+        "producers": [
+            {
+                "binding": "FEED_REFRESH_QUEUE",
+                "queue": "larafeed-feed-refresh"
+            }
+        ],
+        "consumers": [
+            {
+                "queue": "larafeed-feed-refresh",
+                "max_batch_size": 5,
+                "max_batch_timeout": 5,
+                "max_retries": 5,
+                "dead_letter_queue": "larafeed-feed-refresh-dlq",
+                "max_concurrency": 3
+            },
+            {
+                "queue": "larafeed-feed-refresh-dlq",
+                "max_batch_size": 5,
+                "max_batch_timeout": 5,
+                "max_retries": 2,
+                "max_concurrency": 1
+            }
+        ]
+    },
+    "triggers": { "crons": ["*/5 * * * *"] },
     "env": {
         "test": {
             "vars": {
@@ -39,7 +68,10 @@
                 "AUTH_ORIGIN": "https://larafeed-test.stanislas.cloud",
                 "AUTH_RP_NAME": "Larafeed Test",
                 "AUTH_CHALLENGE_TTL_SECONDS": "300",
-                "AUTH_SESSION_TTL_SECONDS": "2592000"
+                "AUTH_SESSION_TTL_SECONDS": "2592000",
+                "REFRESH_SCHEDULER_ENABLED": "true",
+                "REFRESH_DISPATCH_ENABLED": "true",
+                "REFRESH_DUE_LIMIT": "5"
             },
             "d1_databases": [
                 {
@@ -55,7 +87,33 @@
                     "namespace_id": "1002",
                     "simple": { "limit": 1000, "period": 60 }
                 }
-            ]
+            ],
+            "queues": {
+                "producers": [
+                    {
+                        "binding": "FEED_REFRESH_QUEUE",
+                        "queue": "larafeed-test-feed-refresh"
+                    }
+                ],
+                "consumers": [
+                    {
+                        "queue": "larafeed-test-feed-refresh",
+                        "max_batch_size": 5,
+                        "max_batch_timeout": 5,
+                        "max_retries": 5,
+                        "dead_letter_queue": "larafeed-test-feed-refresh-dlq",
+                        "max_concurrency": 2
+                    },
+                    {
+                        "queue": "larafeed-test-feed-refresh-dlq",
+                        "max_batch_size": 5,
+                        "max_batch_timeout": 5,
+                        "max_retries": 2,
+                        "max_concurrency": 1
+                    }
+                ]
+            },
+            "triggers": { "crons": ["*/10 * * * *"] }
         }
     }
 }
