@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -23,6 +24,11 @@ import (
 var testDBURL string
 
 func TestMain(m *testing.M) {
+	flag.Parse()
+	if testing.Short() {
+		os.Exit(m.Run())
+	}
+
 	ctx := context.Background()
 	container, err := postgres.Run(ctx,
 		"postgres:17-alpine",
