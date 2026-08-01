@@ -7,6 +7,15 @@ node_modules/
 
 # Vite build output
 public/build/
+dist/
+
+# Cloudflare
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+cloudflare-env/.env*
+!cloudflare-env/.env.example
 
 # Environment
 .env

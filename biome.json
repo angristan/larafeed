@@ -6,7 +6,15 @@
         "useIgnoreFile": true
     },
     "files": {
-        "includes": ["resources/js/**/*.ts", "resources/js/**/*.tsx"]
+        "includes": [
+            "resources/js/**/*.ts",
+            "resources/js/**/*.tsx",
+            "worker/**/*.ts",
+            "shared/**/*.ts",
+            "vite.cloudflare.config.ts",
+            "vitest.config.ts",
+            "vitest.worker.config.ts"
+        ]
     },
     "formatter": {
         "enabled": true,

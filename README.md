@@ -166,6 +166,20 @@ See [docs/self-hosting.md](docs/self-hosting.md) for Docker Compose setup instru
 
 ## Development
 
+### Cloudflare rebuild
+
+The Cloudflare rewrite currently runs alongside the Go application. See [the rebuild plan](docs/cloudflare-rebuild-plan.md) and [migration baseline](docs/cloudflare-baseline.md).
+
+```bash
+npm run types:cloudflare
+npm run dev:cloudflare
+npm run test:cloudflare
+npm run build:cloudflare
+npm run deploy:check:cloudflare
+```
+
+Cloudflare local variables belong in `.dev.vars`; browser-exposed Vite variables belong in `cloudflare-env/.env.local`. The Cloudflare commands do not load the legacy root `.env` file.
+
 ### Run locally
 
 ```bash

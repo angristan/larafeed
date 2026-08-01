@@ -4,11 +4,22 @@
     "scripts": {
         "dev": "vite",
         "build": "vite build",
+        "dev:cloudflare": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vite --config vite.cloudflare.config.ts",
+        "build:cloudflare": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vite build --config vite.cloudflare.config.ts",
+        "preview:cloudflare": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vite preview --config vite.cloudflare.config.ts",
         "lint-check": "biome check --no-errors-on-unmatched",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc --noEmit",
+        "typecheck:cloudflare": "tsc --noEmit -p tsconfig.cloudflare.json",
+        "types:cloudflare": "wrangler types --env-file .dev.vars.example",
+        "types:check:cloudflare": "wrangler types --env-file .dev.vars.example --check",
+        "deploy:check:cloudflare": "npm run build:cloudflare && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --dry-run",
+        "test:cloudflare": "vitest run --config vitest.config.ts && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vitest run --config vitest.worker.config.ts"
     },
     "devDependencies": {
         "@biomejs/biome": "^2.4.16",
+        "@cloudflare/vite-plugin": "1.50.0",
+        "@cloudflare/vitest-pool-workers": "0.20.1",
+        "@effect/vitest": "4.0.0-beta.102",
         "@gfazioli/mantine-split-pane": "^1.1.5",
         "@headlessui/react": "^2.2.10",
         "@inertiajs/react": "^3.0.3",
@@ -25,14 +36,22 @@
         "@vitejs/plugin-react": "^5.1.4",
         "autoprefixer": "^10.5.0",
         "dayjs": "^1.11.21",
-        "postcss": "^8.5.15",
+        "postcss": "8.5.25",
         "postcss-preset-mantine": "^1.18.0",
         "postcss-simple-vars": "^7.0.1",
-        "react": "^19.2.5",
-        "react-dom": "^19.2.5",
+        "react": "19.2.8",
+        "react-dom": "19.2.8",
         "recharts": "^3.8.1",
         "typescript": "^6.0.3",
-        "vite": "^7.3",
+        "vite": "7.3.6",
+        "vitest": "4.1.10",
+        "wrangler": "4.118.0",
         "ziggy-js": "^2.0"
+    },
+    "dependencies": {
+        "@tanstack/react-query": "5.101.4",
+        "effect": "4.0.0-beta.102",
+        "hono": "4.12.33",
+        "react-router": "8.3.0"
     }
 }

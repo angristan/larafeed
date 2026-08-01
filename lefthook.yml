@@ -6,7 +6,10 @@ pre-commit:
       run: npm run lint-check
     typecheck:
       glob: "*.{ts,tsx}"
-      run: npm run typecheck
+      run: npm run typecheck && npm run typecheck:cloudflare
+    cloudflare-test:
+      glob: "{worker,shared}/**/*.ts"
+      run: npm run test:cloudflare
     golangci-lint:
       glob: "*.go"
       run: golangci-lint run --new-from-rev=HEAD
