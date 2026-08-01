@@ -6,6 +6,7 @@ import {
     HealthResponse,
 } from '../shared/http';
 import { type AuthRouteDependencies, registerAuthRoutes } from './auth/routes';
+import { type OpmlRouteDependencies, registerOpmlRoutes } from './opml/routes';
 import {
     type ReaderRouteDependencies,
     registerReaderRoutes,
@@ -49,6 +50,7 @@ export interface WorkerDependencies {
         HealthCheckUnavailable
     >;
     readonly authRoutes?: AuthRouteDependencies;
+    readonly opmlRoutes?: OpmlRouteDependencies;
     readonly readerRoutes?: ReaderRouteDependencies;
     readonly refreshRoutes?: RefreshRouteDependencies;
 }
@@ -181,6 +183,7 @@ export const createApp = (
     registerAuthRoutes(app, dependencies.authRoutes);
     registerReaderRoutes(app, dependencies.readerRoutes);
     registerRefreshRoutes(app, dependencies.refreshRoutes);
+    registerOpmlRoutes(app, dependencies.opmlRoutes);
 
     app.onError(() => fallbackInternalServerError());
 

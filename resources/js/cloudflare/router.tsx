@@ -154,4 +154,12 @@ export const router = createBrowserRouter([
             return { Component: ReaderPage };
         },
     },
+    {
+        path: '/settings/opml',
+        loader: protectedLoader,
+        lazy: async () => {
+            const { OpmlPage } = await import('./pages/OpmlPage');
+            return { Component: OpmlPage };
+        },
+    },
 ]);

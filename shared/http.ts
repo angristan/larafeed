@@ -3,6 +3,7 @@ import { Schema } from 'effect';
 export * from './schemas/auth';
 export { HealthResponse } from './schemas/health';
 export * from './schemas/jobs';
+export * from './schemas/opml';
 export * from './schemas/reader';
 
 export const ApiErrorCode = Schema.Literals([

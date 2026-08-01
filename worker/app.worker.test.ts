@@ -37,6 +37,16 @@ describe('Worker integration', () => {
         });
     });
 
+    it('protects OPML progress and export routes', async () => {
+        for (const path of ['/api/opml/imports', '/api/opml/export']) {
+            const response = await SELF.fetch(
+                `https://larafeed-test.stanislas.cloud${path}`,
+            );
+            expect(response.status).toBe(401);
+            expect(response.headers.get('cache-control')).toBe('no-store');
+        }
+    });
+
     it('protects manual feed refresh commands', async () => {
         const response = await SELF.fetch(
             'https://larafeed-test.stanislas.cloud/api/feeds/1/refresh',

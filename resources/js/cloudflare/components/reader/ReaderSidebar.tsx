@@ -14,6 +14,7 @@ import {
 import {
     IconBook2,
     IconCategory,
+    IconFileImport,
     IconRefresh,
     IconSearch,
     IconStar,
@@ -355,6 +356,19 @@ export function ReaderSidebar({
                         )}
                 </Stack>
             </ScrollArea>
+
+            <Divider />
+            <Stack gap={2} p="sm">
+                <NavLink
+                    component={Link}
+                    label="Import & export"
+                    leftSection={
+                        <IconFileImport aria-hidden="true" size={17} />
+                    }
+                    onClick={onNavigate}
+                    to="/settings/opml"
+                />
+            </Stack>
         </>
     );
 }

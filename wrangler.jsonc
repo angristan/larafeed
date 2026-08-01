@@ -39,6 +39,10 @@
             {
                 "binding": "FEED_REFRESH_QUEUE",
                 "queue": "larafeed-feed-refresh"
+            },
+            {
+                "binding": "OPML_IMPORT_QUEUE",
+                "queue": "larafeed-opml-import"
             }
         ],
         "consumers": [
@@ -53,6 +57,21 @@
             {
                 "queue": "larafeed-feed-refresh-dlq",
                 "max_batch_size": 5,
+                "max_batch_timeout": 5,
+                "max_retries": 2,
+                "max_concurrency": 1
+            },
+            {
+                "queue": "larafeed-opml-import",
+                "max_batch_size": 10,
+                "max_batch_timeout": 5,
+                "max_retries": 5,
+                "dead_letter_queue": "larafeed-opml-import-dlq",
+                "max_concurrency": 2
+            },
+            {
+                "queue": "larafeed-opml-import-dlq",
+                "max_batch_size": 10,
                 "max_batch_timeout": 5,
                 "max_retries": 2,
                 "max_concurrency": 1
@@ -93,6 +112,10 @@
                     {
                         "binding": "FEED_REFRESH_QUEUE",
                         "queue": "larafeed-test-feed-refresh"
+                    },
+                    {
+                        "binding": "OPML_IMPORT_QUEUE",
+                        "queue": "larafeed-test-opml-import"
                     }
                 ],
                 "consumers": [
@@ -107,6 +130,21 @@
                     {
                         "queue": "larafeed-test-feed-refresh-dlq",
                         "max_batch_size": 5,
+                        "max_batch_timeout": 5,
+                        "max_retries": 2,
+                        "max_concurrency": 1
+                    },
+                    {
+                        "queue": "larafeed-test-opml-import",
+                        "max_batch_size": 10,
+                        "max_batch_timeout": 5,
+                        "max_retries": 5,
+                        "dead_letter_queue": "larafeed-test-opml-import-dlq",
+                        "max_concurrency": 2
+                    },
+                    {
+                        "queue": "larafeed-test-opml-import-dlq",
+                        "max_batch_size": 10,
                         "max_batch_timeout": 5,
                         "max_retries": 2,
                         "max_concurrency": 1
