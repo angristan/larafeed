@@ -3,8 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     AuthClientError,
+    deletePasskey,
     getAuthConfig,
     getAuthSession,
+    getPasskeyRegistrationOptions,
+    listPasskeys,
     readCsrfToken,
 } from './auth';
 
@@ -45,6 +48,61 @@ describe('AuthClient', () => {
 
         expect(error).toBeInstanceOf(AuthClientError);
         expect(error).toMatchObject({ kind: 'decode', status: 200 });
+    });
+
+    it('lists passkeys and protects registration requests with CSRF', async () => {
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                Response.json({
+                    passkeys: [
+                        {
+                            id: 1,
+                            name: 'Laptop',
+                            transports: ['internal'],
+                            backedUp: true,
+                            createdAt: 1,
+                            lastUsedAt: null,
+                        },
+                    ],
+                }),
+            )
+            .mockResolvedValueOnce(
+                Response.json({
+                    challengeId: 2,
+                    purpose: 'enrollment',
+                    options: {},
+                }),
+            )
+            .mockResolvedValueOnce(new Response(null, { status: 204 }));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(Effect.runPromise(listPasskeys())).resolves.toMatchObject({
+            passkeys: [{ name: 'Laptop' }],
+        });
+        await Effect.runPromise(
+            getPasskeyRegistrationOptions({
+                turnstileToken: 'turnstile',
+                csrfToken: 'csrf',
+            }),
+        );
+        await Effect.runPromise(
+            deletePasskey({ passkeyId: 1, csrfToken: 'csrf' }),
+        );
+
+        expect(fetchMock).toHaveBeenNthCalledWith(
+            2,
+            '/api/auth/passkeys/registration/options',
+            expect.objectContaining({
+                method: 'POST',
+                headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf' }),
+            }),
+        );
+        expect(fetchMock).toHaveBeenNthCalledWith(
+            3,
+            '/api/auth/passkeys/1',
+            expect.objectContaining({ method: 'DELETE' }),
+        );
     });
 
     it('decodes a safe API error envelope', async () => {

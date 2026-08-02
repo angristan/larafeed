@@ -8,6 +8,10 @@ import {
     AuthenticationOptionsResponse,
     type AuthenticationVerifyRequest,
     AuthSessionResponse,
+    PasskeyListResponse,
+    type PasskeyRegistrationOptionsRequest,
+    type PasskeyRegistrationVerifyRequest,
+    PasskeyResponse,
     RegistrationOptionsResponse,
 } from '@shared/http';
 import { Effect, Schema } from 'effect';
@@ -17,6 +21,8 @@ export type AuthSession = typeof AuthSessionResponse.Type;
 export type AuthenticatedSession = typeof AuthenticatedSessionResponse.Type;
 export type AuthenticationOptions = typeof AuthenticationOptionsResponse.Type;
 export type RegistrationOptions = typeof RegistrationOptionsResponse.Type;
+export type PasskeyList = typeof PasskeyListResponse.Type;
+export type PasskeyRecord = PasskeyList['passkeys'][number];
 
 export type AuthClientErrorKind = 'transport' | 'status' | 'decode';
 
@@ -39,10 +45,12 @@ type RequestBody =
     | typeof AuthenticationOptionsRequest.Type
     | typeof AuthenticationVerifyRequest.Type
     | typeof AccessRegistrationOptionsRequest.Type
-    | typeof AccessRegistrationVerifyRequest.Type;
+    | typeof AccessRegistrationVerifyRequest.Type
+    | typeof PasskeyRegistrationOptionsRequest.Type
+    | typeof PasskeyRegistrationVerifyRequest.Type;
 
 interface JsonRequestOptions {
-    readonly method?: 'GET' | 'POST';
+    readonly method?: 'GET' | 'POST' | 'DELETE';
     readonly body?: RequestBody;
     readonly headers?: Readonly<Record<string, string>>;
 }
@@ -187,6 +195,74 @@ export const verifyAccessRegistration = Effect.fn(
         AuthenticatedSessionResponse,
         body,
     ),
+);
+
+export const listPasskeys = Effect.fn('AuthClient.listPasskeys')(() =>
+    requestJson('/api/auth/passkeys', PasskeyListResponse),
+);
+
+export const getPasskeyRegistrationOptions = Effect.fn(
+    'AuthClient.getPasskeyRegistrationOptions',
+)((input: { readonly turnstileToken: string; readonly csrfToken: string }) =>
+    requestJson(
+        '/api/auth/passkeys/registration/options',
+        RegistrationOptionsResponse,
+        {
+            method: 'POST',
+            body: { turnstileToken: input.turnstileToken },
+            headers: { 'X-CSRF-Token': input.csrfToken },
+        },
+    ),
+);
+
+export const verifyPasskeyRegistration = Effect.fn(
+    'AuthClient.verifyPasskeyRegistration',
+)(
+    (
+        input: typeof PasskeyRegistrationVerifyRequest.Type & {
+            readonly csrfToken: string;
+        },
+    ) =>
+        requestJson('/api/auth/passkeys/registration/verify', PasskeyResponse, {
+            method: 'POST',
+            body: {
+                challengeId: input.challengeId,
+                name: input.name,
+                turnstileToken: input.turnstileToken,
+                response: input.response,
+            },
+            headers: { 'X-CSRF-Token': input.csrfToken },
+        }),
+);
+
+export const deletePasskey = Effect.fn('AuthClient.deletePasskey')(
+    (input: { readonly passkeyId: number; readonly csrfToken: string }) =>
+        Effect.gen(function* () {
+            const response = yield* Effect.tryPromise({
+                try: (signal) =>
+                    fetch(`/api/auth/passkeys/${input.passkeyId}`, {
+                        method: 'DELETE',
+                        credentials: 'same-origin',
+                        headers: {
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': input.csrfToken,
+                        },
+                        signal,
+                    }),
+                catch: (cause) =>
+                    new AuthClientError(
+                        'transport',
+                        'The authentication service is unavailable.',
+                        undefined,
+                        undefined,
+                        cause,
+                    ),
+            });
+            if (response.ok) return;
+            const body = yield* readJson(response);
+            return yield* Effect.fail(yield* statusError(response, body));
+        }),
 );
 
 export const logout = Effect.fn('AuthClient.logout')((csrfToken: string) =>

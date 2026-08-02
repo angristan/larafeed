@@ -105,7 +105,17 @@ LARAFEED_OPERATOR_SECRET='...' npm run auth:access-link -- \
   --display-name Admin
 ```
 
-Use `--mode recover-admin --user-id ID` only for an existing enabled administrator. One-time tokens are returned in URL fragments and expire after 30 minutes. Admins use the protected enrollment/recovery APIs for ordinary user provisioning.
+Use `--mode recover-admin --user-id ID` only for an existing enabled administrator. One-time tokens are returned in URL fragments and expire after 30 minutes.
+
+Enabled administrators use `/admin/users` for ordinary operations:
+
+- Create one-time enrollment links and copy each plaintext URL once.
+- Create recovery links for existing enabled users.
+- Revoke outstanding links.
+- Disable or reactivate accounts. Disabling revokes active sessions and outstanding links.
+- Review recent D1 security events. The final active administrator and the current administrator's own account are protected from dashboard disablement.
+
+Users use `/settings/security` to edit profile fields, add or remove passkeys, clear reader data, or delete their account. Destructive operations require a fresh passkey ceremony and exact username confirmation. Account deletion clears session cookies, preserves shared feeds, removes orphan feeds, and refuses to remove the final active administrator.
 
 ## Rollout controls
 
@@ -173,7 +183,7 @@ Disable AI generation immediately or enforce a Gateway budget. Pause/limit image
 
 - Test and production passkeys cannot cross environments.
 - Security headers and SPA deep links work.
-- Passkey login/logout/recovery and CSRF rejection work.
+- Passkey login/logout/recovery, user passkey management, fresh-auth account deletion, admin enrollment/recovery, and CSRF rejection work.
 - Reader lists, detail, state mutations, and read-through work on migrated data.
 - Manual/Cron refresh, Queue retry, outbox recovery, and DLQ state work.
 - OPML import/progress/export work.

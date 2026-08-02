@@ -5,6 +5,10 @@ import {
     ApiErrorResponse,
     HealthResponse,
 } from '../shared/http';
+import {
+    type AccountRouteDependencies,
+    registerAccountRoutes,
+} from './account/routes';
 import { type AuthRouteDependencies, registerAuthRoutes } from './auth/routes';
 import {
     type ChartRouteDependencies,
@@ -66,6 +70,7 @@ export interface WorkerDependencies {
         HealthResponse,
         HealthCheckUnavailable
     >;
+    readonly accountRoutes?: AccountRouteDependencies;
     readonly authRoutes?: AuthRouteDependencies;
     readonly chartRoutes?: ChartRouteDependencies;
     readonly compatibilityRoutes?: CompatibilityRouteDependencies;
@@ -203,6 +208,7 @@ export const createApp = (
     });
 
     registerAuthRoutes(app, dependencies.authRoutes);
+    registerAccountRoutes(app, dependencies.accountRoutes);
     registerChartRoutes(app, dependencies.chartRoutes);
     registerCompatibilityRoutes(app, dependencies.compatibilityRoutes);
     registerImageRoutes(app, dependencies.imageRoutes);

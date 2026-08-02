@@ -10,6 +10,12 @@ import {
 } from './auth/accessToken';
 import { canonicalChartSearch, parseChartState } from './chartState';
 import {
+    accountQueryOptions,
+    adminOverviewQueryOptions,
+    passkeysQueryOptions,
+} from './queries/account';
+import {
+    authConfigQueryOptions,
     authSessionQueryOptions,
     clearAuthenticatedCache,
 } from './queries/auth';
@@ -78,6 +84,26 @@ function accessTokenLoader(purpose: 'enrollment' | 'recovery') {
 async function rootLoader(args: LoaderFunctionArgs) {
     await protectedLoader(args);
     throw redirect('/feeds');
+}
+
+async function securityLoader(args: LoaderFunctionArgs) {
+    await protectedLoader(args);
+    await Promise.all([
+        queryClient.prefetchQuery(accountQueryOptions),
+        queryClient.prefetchQuery(passkeysQueryOptions),
+        queryClient.prefetchQuery(authConfigQueryOptions),
+    ]);
+    return null;
+}
+
+async function adminLoader(args: LoaderFunctionArgs) {
+    await protectedLoader(args);
+    const session = queryClient.getQueryData(authSessionQueryOptions.queryKey);
+    if (session?.authenticated !== true || !session.user.isAdmin) {
+        throw redirect('/feeds');
+    }
+    await queryClient.prefetchQuery(adminOverviewQueryOptions);
+    return null;
 }
 
 async function subscriptionsLoader(args: LoaderFunctionArgs) {
@@ -185,6 +211,22 @@ export const router = createBrowserRouter([
         lazy: async () => {
             const { ChartsPage } = await import('./pages/ChartsPage');
             return { Component: ChartsPage };
+        },
+    },
+    {
+        path: '/settings/security',
+        loader: securityLoader,
+        lazy: async () => {
+            const { SecurityPage } = await import('./pages/SecurityPage');
+            return { Component: SecurityPage };
+        },
+    },
+    {
+        path: '/admin/users',
+        loader: adminLoader,
+        lazy: async () => {
+            const { AdminUsersPage } = await import('./pages/AdminUsersPage');
+            return { Component: AdminUsersPage };
         },
     },
     {

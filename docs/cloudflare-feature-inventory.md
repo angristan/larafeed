@@ -18,7 +18,10 @@ This inventory is the cutover contract. “Implemented” means the Cloudflare a
 | Per-subscription title/content/author filters | Implemented with bounded safe regex evaluation, literal fallback for invalid regex, sparse matches only, existing-entry rebuilds, and refresh-time evaluation. Read/star/archive state is preserved. |
 | Product charts | Implemented with bounded UTC windows and feed/category ownership checks. Entry cohorts report their current read/saved state, sparse daily aggregates record real user transitions without user-by-entry amplification, and refresh charts use durable refresh history. Pre-aggregate activity is shown as unavailable rather than zero. |
 | Login and account bootstrap | Replaced by passkeys, Turnstile, opaque D1 sessions, admin-generated one-time links, and the operator recovery command. |
-| Multiple passkeys | Backend list/add/delete behavior is implemented. Enrollment and recovery pages register passkeys. A separate passkey settings screen is intentionally omitted from the first private deployment. |
+| Multiple passkeys | Implemented end to end. Users can list, add, and remove passkeys from account settings. The final passkey is protected. |
+| Profile and account lifecycle | Implemented with normalized unique email/display-name editing, fresh-passkey and username confirmation for reader-data clearing or account deletion, shared-feed preservation, orphan cleanup, and final-active-administrator protection. |
+| Administrator invitations and recovery | Implemented with a role-guarded dashboard for bounded user/link listings, one-time enrollment and recovery URLs, link revocation, account disable/reactivation, session revocation, and recent security events. |
+| Security notifications and audit | Password-login failure and public-registration Telegram triggers no longer exist. Passkey-era account, credential, access-link, token, and authentication events are stored in D1 and visible in the administrator security ledger; rate-limit and infrastructure alerts remain in Cloudflare observability. |
 | Google Reader and Fever | Implemented with scoped, revocable app tokens. Password authentication is removed. |
 | API token settings | Implemented with one-time plaintext display and revocation. |
 | Favicons and article image privacy | Replaced by ownership-bound opaque routes and fixed Cloudflare Images transforms. The application is not an arbitrary image proxy. |
@@ -33,13 +36,11 @@ This inventory is the cutover contract. “Implemented” means the Cloudflare a
 | Email verification | Private admin-controlled enrollment replaces public registration. |
 | TOTP/two-factor challenge and settings | Passkeys are the only web credential. TOTP secrets are not migrated. |
 | Public registration | Users are provisioned through short-lived admin enrollment links. |
-| Profile name/email editing and account deletion UI | Identity and access are admin-controlled for the private deployment. Changes require an operator/admin process. |
-| Telegram login/registration notifications | Removed. Security events and Cloudflare observability are the operational record. |
 | Server-rendered Inertia pages, Ziggy routes, and Laravel-style form helpers | Replaced by React Router, TanStack Query, and typed JSON HTTP APIs. |
 | Go HTTP server, River workers, PostgreSQL runtime, Docker image deployment | Replaced by Workers, D1, Queues, Cron, Static Assets, Images, and AI Gateway. Go remains only for the read-only migration exporter. |
 
 ## Operator-only surfaces
 
 - Initial administrator enrollment and last-administrator recovery use `scripts/auth-access-link.ts` with `AUTH_OPERATOR_SECRET`.
-- Admin enrollment/recovery APIs exist for private user provisioning. A dedicated admin dashboard is intentionally omitted.
+- Ordinary administrators use `/admin/users` for invitations, recovery, link revocation, account state, and the security ledger.
 - Cloudflare resource provisioning, secret writes, D1 imports, deployment, and traffic cutover remain explicit operator actions. Nothing in normal tests performs them.

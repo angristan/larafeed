@@ -1,5 +1,6 @@
 import { Schema } from 'effect';
 
+export * from './schemas/account';
 export * from './schemas/auth';
 export * from './schemas/charts';
 export { HealthResponse } from './schemas/health';

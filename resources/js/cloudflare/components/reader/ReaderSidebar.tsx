@@ -20,6 +20,7 @@ import {
     IconRefresh,
     IconSearch,
     IconSettings,
+    IconShieldLock,
     IconStar,
 } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -384,6 +385,15 @@ export function ReaderSidebar({
                     }
                     onClick={onNavigate}
                     to="/settings/opml"
+                />
+                <NavLink
+                    component={Link}
+                    label="Account & security"
+                    leftSection={
+                        <IconShieldLock aria-hidden="true" size={17} />
+                    }
+                    onClick={onNavigate}
+                    to="/settings/security"
                 />
                 <NavLink
                     component={Link}
