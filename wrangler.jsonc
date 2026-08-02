@@ -107,6 +107,20 @@
                     "custom_domain": true
                 }
             ],
+            "observability": {
+                "enabled": true,
+                "logs": {
+                    "enabled": false,
+                    "head_sampling_rate": 0,
+                    "invocation_logs": false,
+                    "persist": false
+                },
+                "traces": {
+                    "enabled": true,
+                    "head_sampling_rate": 1,
+                    "persist": true
+                }
+            },
             "images": { "binding": "IMAGES" },
             "d1_databases": [
                 {
