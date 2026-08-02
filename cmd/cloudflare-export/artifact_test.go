@@ -79,6 +79,7 @@ func TestRenderedSQLAppliesToTargetSchema(t *testing.T) {
 		filepath.Join("..", "..", "migrations", "0001_initial.sql"),
 		filepath.Join("..", "..", "migrations", "0002_reader_indexes.sql"),
 		filepath.Join("..", "..", "migrations", "0003_compatibility_tokens.sql"),
+		filepath.Join("..", "..", "migrations", "0004_chart_daily_activity.sql"),
 		filepath.Join(sqlDir, "0000-clean-target.sql"),
 	}
 	for _, table := range manifest.Tables {
@@ -126,6 +127,7 @@ func TestRepresentativeRenderedSQLAppliesAllTables(t *testing.T) {
 		filepath.Join("..", "..", "migrations", "0001_initial.sql"),
 		filepath.Join("..", "..", "migrations", "0002_reader_indexes.sql"),
 		filepath.Join("..", "..", "migrations", "0003_compatibility_tokens.sql"),
+		filepath.Join("..", "..", "migrations", "0004_chart_daily_activity.sql"),
 		filepath.Join(sqlDir, "0000-clean-target.sql"),
 	}
 	for _, table := range manifest.Tables {
@@ -155,6 +157,7 @@ FROM (
   UNION ALL SELECT 'subscription_categories', COUNT(*) FROM subscription_categories
   UNION ALL SELECT 'feed_subscriptions', COUNT(*) FROM feed_subscriptions
   UNION ALL SELECT 'entry_interactions', COUNT(*) FROM entry_interactions
+  UNION ALL SELECT 'chart_daily_activity', COUNT(*) FROM chart_daily_activity
   UNION ALL SELECT 'app_tokens', COUNT(*) FROM app_tokens
   UNION ALL SELECT 'feed_refreshes', COUNT(*) FROM feed_refreshes
   UNION ALL SELECT 'entry_summaries', COUNT(*) FROM entry_summaries
@@ -162,7 +165,7 @@ FROM (
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "users:1,feeds:1,entries:1,entry_contents:1,subscription_categories:1,feed_subscriptions:1,entry_interactions:1,app_tokens:1,feed_refreshes:1,entry_summaries:1"
+	want := "users:1,feeds:1,entries:1,entry_contents:1,subscription_categories:1,feed_subscriptions:1,entry_interactions:1,chart_daily_activity:0,app_tokens:1,feed_refreshes:1,entry_summaries:1"
 	if strings.TrimSpace(string(output)) != want {
 		t.Fatalf("representative target output = %q, want %q", output, want)
 	}
@@ -307,7 +310,7 @@ func writeRepresentativeArtifact(t *testing.T, root string) {
 func testManifest(dryRun bool) Manifest {
 	return Manifest{
 		ArtifactVersion: artifactVersion,
-		SchemaVersion:   "0003_compatibility_tokens",
+		SchemaVersion:   "0004_chart_daily_activity",
 		SourceVersion: SourceVersion{
 			Database: "representative", PostgreSQL: "test", SnapshotPolicy: "REPEATABLE READ READ ONLY",
 		},

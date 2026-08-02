@@ -86,6 +86,12 @@ CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false \
 
 Compare target table counts with `manifest.json`. Test login enrollment for the selected administrator, reader totals, unread/read boundaries, stars, filters, categories, article content, and compatibility tokens.
 
+## Chart activity coverage
+
+Migration `0004_chart_daily_activity.sql` adds sparse daily aggregates for real read/unread and save/unsave transitions. The PostgreSQL source does not contain a trustworthy event history for these transitions, so the exporter intentionally does not invent or backfill it. Activity coverage begins with the first post-cutover transition for each current subscription. The charts API returns the earliest covered UTC day and the UI presents earlier activity as unavailable, not as zero.
+
+Entry cohort state and feed refresh history still use migrated entries, sparse interactions, read watermarks, and refresh records. They remain available across the full selected chart window.
+
 ## Production-shaped D1 validation
 
 The Workerd benchmark generates deterministic fixtures and validates foreign keys, ownership, content caps, sparse interactions, read-watermark semantics, query results, query plans, and bounded D1 operation counts.

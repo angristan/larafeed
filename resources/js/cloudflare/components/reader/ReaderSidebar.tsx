@@ -14,6 +14,7 @@ import {
 import {
     IconBook2,
     IconCategory,
+    IconChartLine,
     IconFileImport,
     IconKey,
     IconRefresh,
@@ -361,6 +362,13 @@ export function ReaderSidebar({
 
             <Divider />
             <Stack gap={2} p="sm">
+                <NavLink
+                    component={Link}
+                    label="Charts"
+                    leftSection={<IconChartLine aria-hidden="true" size={17} />}
+                    onClick={onNavigate}
+                    to="/charts"
+                />
                 <NavLink
                     component={Link}
                     label="Manage subscriptions"

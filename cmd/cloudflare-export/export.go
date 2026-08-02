@@ -461,7 +461,7 @@ func inspectMetadata(ctx context.Context, tx pgx.Tx, columns map[string]map[stri
 		source.GooseVersion = gooseVersion
 	}
 
-	manifest := Manifest{ArtifactVersion: artifactVersion, SchemaVersion: "0003_compatibility_tokens", SourceVersion: source, DryRun: dryRun, ChunkSize: chunkSize}
+	manifest := Manifest{ArtifactVersion: artifactVersion, SchemaVersion: "0004_chart_daily_activity", SourceVersion: source, DryRun: dryRun, ChunkSize: chunkSize}
 	sources := []struct{ name, table, key, predicate string }{
 		{"users", "users", "id", ""}, {"feeds", "feeds", "id", ""}, {"entries", "entries", "id", ""},
 		{"entry_contents", "entries", "id", "content IS NOT NULL"}, {"subscription_categories", "subscription_categories", "id", ""},

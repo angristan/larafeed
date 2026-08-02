@@ -7,6 +7,10 @@ import {
 } from '../shared/http';
 import { type AuthRouteDependencies, registerAuthRoutes } from './auth/routes';
 import {
+    type ChartRouteDependencies,
+    registerChartRoutes,
+} from './charts/routes';
+import {
     type CompatibilityRouteDependencies,
     registerCompatibilityRoutes,
 } from './compat';
@@ -63,6 +67,7 @@ export interface WorkerDependencies {
         HealthCheckUnavailable
     >;
     readonly authRoutes?: AuthRouteDependencies;
+    readonly chartRoutes?: ChartRouteDependencies;
     readonly compatibilityRoutes?: CompatibilityRouteDependencies;
     readonly imageRoutes?: ImageRouteDependencies;
     readonly opmlRoutes?: OpmlRouteDependencies;
@@ -198,6 +203,7 @@ export const createApp = (
     });
 
     registerAuthRoutes(app, dependencies.authRoutes);
+    registerChartRoutes(app, dependencies.chartRoutes);
     registerCompatibilityRoutes(app, dependencies.compatibilityRoutes);
     registerImageRoutes(app, dependencies.imageRoutes);
     registerReaderRoutes(app, dependencies.readerRoutes);

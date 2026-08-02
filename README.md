@@ -13,6 +13,7 @@ Larafeed is a private feed reader built on Cloudflare Workers.
 - Passkey-only authentication with Turnstile, private enrollment, recovery, and opaque sessions
 - Revocable app tokens for Google Reader and Fever clients
 - Direct feed or website discovery, category management, subscription editing, sparse regex filters, refresh audit, and unsubscribe
+- Bounded UTC charts for entry cohorts, real reader transitions, and refresh health
 - OPML import, progress, retry, and export
 - Ownership-bound Cloudflare Images transformations
 - Cached Gemini summaries through Cloudflare AI Gateway

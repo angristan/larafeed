@@ -8,10 +8,12 @@ import {
     captureAccessTokenFromFragment,
     clearCapturedAccessToken,
 } from './auth/accessToken';
+import { canonicalChartSearch, parseChartState } from './chartState';
 import {
     authSessionQueryOptions,
     clearAuthenticatedCache,
 } from './queries/auth';
+import { chartQueryOptions } from './queries/charts';
 import {
     categoryListQueryOptions,
     entryDetailQueryOptions,
@@ -81,6 +83,22 @@ async function rootLoader(args: LoaderFunctionArgs) {
 async function subscriptionsLoader(args: LoaderFunctionArgs) {
     await protectedLoader(args);
     await queryClient.prefetchQuery(subscriptionManagementQueryOptions);
+    return null;
+}
+
+async function chartsLoader(args: LoaderFunctionArgs) {
+    await protectedLoader(args);
+    const state = parseChartState(args.url.searchParams);
+    const canonicalSearch = canonicalChartSearch(state);
+    if (args.url.search.slice(1) !== canonicalSearch) {
+        throw redirect(
+            `/charts${canonicalSearch.length > 0 ? `?${canonicalSearch}` : ''}`,
+        );
+    }
+    await Promise.all([
+        queryClient.prefetchQuery(subscriptionManagementQueryOptions),
+        queryClient.prefetchQuery(chartQueryOptions(state)),
+    ]);
     return null;
 }
 
@@ -159,6 +177,14 @@ export const router = createBrowserRouter([
         lazy: async () => {
             const { ReaderPage } = await import('./pages/ReaderPage');
             return { Component: ReaderPage };
+        },
+    },
+    {
+        path: '/charts',
+        loader: chartsLoader,
+        lazy: async () => {
+            const { ChartsPage } = await import('./pages/ChartsPage');
+            return { Component: ChartsPage };
         },
     },
     {

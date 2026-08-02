@@ -19,6 +19,7 @@ var cleanTargetDeleteOrder = []string{
 	"entry_summaries",
 	"feed_refreshes",
 	"jobs",
+	"chart_daily_activity",
 	"entry_interactions",
 	"feed_subscriptions",
 	"subscription_categories",

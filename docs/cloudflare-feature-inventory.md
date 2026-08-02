@@ -16,6 +16,7 @@ This inventory is the cutover contract. “Implemented” means the Cloudflare a
 | Individual feed and website discovery | Implemented with bounded direct-feed parsing, HTML alternate discovery, safe redirects, common-path probes, category selection, shared-feed reuse, and an immediate durable refresh command. |
 | Category and subscription management | Implemented with category create/rename/delete, custom names, category moves, searchable refresh audit, manual refresh, and ownership-safe unsubscribe. The final subscriber removes the shared feed. |
 | Per-subscription title/content/author filters | Implemented with bounded safe regex evaluation, literal fallback for invalid regex, sparse matches only, existing-entry rebuilds, and refresh-time evaluation. Read/star/archive state is preserved. |
+| Product charts | Implemented with bounded UTC windows and feed/category ownership checks. Entry cohorts report their current read/saved state, sparse daily aggregates record real user transitions without user-by-entry amplification, and refresh charts use durable refresh history. Pre-aggregate activity is shown as unavailable rather than zero. |
 | Login and account bootstrap | Replaced by passkeys, Turnstile, opaque D1 sessions, admin-generated one-time links, and the operator recovery command. |
 | Multiple passkeys | Backend list/add/delete behavior is implemented. Enrollment and recovery pages register passkeys. A separate passkey settings screen is intentionally omitted from the first private deployment. |
 | Google Reader and Fever | Implemented with scoped, revocable app tokens. Password authentication is removed. |
@@ -34,7 +35,6 @@ This inventory is the cutover contract. “Implemented” means the Cloudflare a
 | Public registration | Users are provisioned through short-lived admin enrollment links. |
 | Profile name/email editing and account deletion UI | Identity and access are admin-controlled for the private deployment. Changes require an operator/admin process. |
 | Telegram login/registration notifications | Removed. Security events and Cloudflare observability are the operational record. |
-| Charts page | Removed from the initial private deployment. Native observability covers operations; product charts had no required compatibility contract. |
 | Server-rendered Inertia pages, Ziggy routes, and Laravel-style form helpers | Replaced by React Router, TanStack Query, and typed JSON HTTP APIs. |
 | Go HTTP server, River workers, PostgreSQL runtime, Docker image deployment | Replaced by Workers, D1, Queues, Cron, Static Assets, Images, and AI Gateway. Go remains only for the read-only migration exporter. |
 

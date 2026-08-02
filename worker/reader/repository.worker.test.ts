@@ -421,6 +421,27 @@ describe('reader D1 repository', () => {
             repository.setStarred(userId, 54_001, false, now + 8),
         );
         expect(await interactionCount(userId, feedId)).toBe(2);
+        await expect(
+            Effect.runPromise(
+                d1.first<{
+                    marked_read_count: number;
+                    marked_unread_count: number;
+                    saved_count: number;
+                    unsaved_count: number;
+                }>({
+                    sql: `SELECT marked_read_count, marked_unread_count,
+                            saved_count, unsaved_count
+                        FROM chart_daily_activity
+                        WHERE user_id = ? AND feed_id = ?`,
+                    bindings: [userId, feedId],
+                }),
+            ),
+        ).resolves.toEqual({
+            marked_read_count: 2,
+            marked_unread_count: 0,
+            saved_count: 1,
+            unsaved_count: 1,
+        });
         await Effect.runPromise(
             repository.setArchived(userId, 54_001, false, now + 9),
         );

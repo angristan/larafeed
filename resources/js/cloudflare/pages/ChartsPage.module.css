@@ -1,0 +1,29 @@
+.chartFrame {
+    min-width: 0;
+}
+
+.chart {
+    display: block;
+    width: 100%;
+    height: clamp(12rem, 28vw, 17rem);
+    overflow: visible;
+}
+
+.gridLine {
+    stroke: light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+}
+
+.legendSwatch {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 999px;
+    flex: 0 0 auto;
+}
+
+.metricValue {
+    font-size: clamp(1.4rem, 4vw, 2rem);
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
