@@ -4,6 +4,7 @@
     "scripts": {
         "dev": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vite",
         "build": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vite build",
+        "build:test": "CLOUDFLARE_ENV=test CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vite build",
         "preview": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vite preview",
         "dev:cloudflare": "npm run dev",
         "build:cloudflare": "npm run build",
@@ -18,6 +19,8 @@
         "d1:validate": "bun scripts/cloudflare-validation/run.ts --profile ci --output-dir scripts/cloudflare-validation/output",
         "d1:validate:large": "bun scripts/cloudflare-validation/run.ts --profile large --output-dir scripts/cloudflare-validation/output",
         "deploy:check": "npm run build && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --dry-run",
+        "deploy:check:test": "npm run build:test && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --dry-run",
+        "deploy:test": "npm run build:test && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy",
         "deploy:check:cloudflare": "npm run deploy:check",
         "test": "vitest run --config vitest.config.ts && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vitest run --config vitest.worker.config.ts",
         "test:cloudflare": "npm test"

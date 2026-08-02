@@ -1,6 +1,6 @@
 # Cloudflare operations
 
-This runbook covers the private production deployment at `larafeed.stanislas.cloud` and the isolated test deployment at `larafeed-test.stanislas.cloud`. It does not authorize a deployment or resource write.
+This runbook covers the private production deployment at `larafeed.stanislas.cloud` and the isolated test deployment at `larafeedcf.stanislas.cloud`. It does not authorize a deployment or resource write.
 
 ## Topology
 
@@ -32,7 +32,7 @@ D1 is authoritative for users, sessions, reader data, durable jobs, outbox comma
 - Five-minute production Cron and ten-minute test Cron.
 - Refresh and AI rollout variables.
 
-The checked-in D1 IDs and rate-limit namespace IDs are placeholders until an operator provisions the environments. Resource creation is an explicit one-time operator action.
+The test environment uses the checked-in D1 ID and rate-limit namespace. Production identifiers remain placeholders until an operator provisions production. Resource creation is an explicit one-time operator action.
 
 ## Secrets
 
@@ -56,27 +56,46 @@ npm test
 go test -race ./...
 npm run d1:validate:large
 npm run deploy:check
+npm run deploy:check:test
 npm audit
 ```
 
+The Vite plugin selects named Cloudflare environments at build time. `npm run build:test` sets `CLOUDFLARE_ENV=test`; the following Wrangler command then uses the generated flattened test configuration. Do not add `--env test` to the post-build deploy command.
+
 The Vite large-chunk warning is advisory. Review bundle composition before accepting a material increase.
 
-## Provisioning order
+## Test deployment state
 
-Do not run these actions until the operator approves external writes.
+The isolated test environment is provisioned:
 
-1. Create isolated production and test D1 databases.
-2. Replace placeholder D1 IDs in `wrangler.jsonc`.
-3. Create feed refresh, feed DLQ, OPML import, and OPML DLQ queues for each environment.
-4. Replace placeholder rate-limit namespace IDs.
-5. Configure both DNS hostnames and exact custom domains/routes.
-6. Configure separate Turnstile widgets for both hostnames.
+- Worker and custom domain: `larafeed-test` at `larafeedcf.stanislas.cloud`.
+- D1: `larafeed-test` in Western Europe.
+- Dedicated feed refresh, feed DLQ, OPML import, and OPML DLQ queues.
+- A hostname-bound managed Turnstile widget and separate Worker secrets.
+- AI summaries, refresh scheduling, and Queue dispatch disabled for the initial rollout.
+
+Wrangler owns the Worker custom domain and its DNS record. Deploy the test environment only after explicit approval:
+
+```bash
+npm run deploy:test
+```
+
+## Production provisioning order
+
+Do not run these actions until the operator approves production writes.
+
+1. Create the isolated production D1 database.
+2. Replace the production placeholder D1 ID in `wrangler.jsonc`.
+3. Create the production feed refresh, feed DLQ, OPML import, and OPML DLQ queues.
+4. Replace the production placeholder rate-limit namespace ID.
+5. Declare the exact production custom domain in Wrangler.
+6. Configure the production Turnstile widget.
 7. Configure the AI Gateway and provider budget/rate limits.
-8. Set Worker secrets separately in both environments.
-9. Apply D1 migrations to test, then production.
-10. Deploy test and complete smoke tests before production cutover.
+8. Set production Worker secrets.
+9. Apply production D1 migrations.
+10. Deploy and complete smoke tests before traffic cutover.
 
-Wrangler declarations should remain the source of truth after IDs are known.
+Wrangler declarations remain the source of truth after identifiers are known.
 
 ## Migrations and cutover
 

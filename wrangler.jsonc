@@ -87,8 +87,8 @@
         "test": {
             "vars": {
                 "AUTH_ENVIRONMENT": "test",
-                "AUTH_RP_ID": "larafeed-test.stanislas.cloud",
-                "AUTH_ORIGIN": "https://larafeed-test.stanislas.cloud",
+                "AUTH_RP_ID": "larafeedcf.stanislas.cloud",
+                "AUTH_ORIGIN": "https://larafeedcf.stanislas.cloud",
                 "AUTH_RP_NAME": "Larafeed Test",
                 "AUTH_CHALLENGE_TTL_SECONDS": "300",
                 "AUTH_SESSION_TTL_SECONDS": "2592000",
@@ -97,16 +97,22 @@
                 "AI_GATEWAY_NAME": "larafeed-test",
                 "GEMINI_API_KEY": "test-only-not-a-real-secret",
                 "AI_MODEL": "gemini-2.5-flash",
-                "REFRESH_SCHEDULER_ENABLED": "true",
-                "REFRESH_DISPATCH_ENABLED": "true",
+                "REFRESH_SCHEDULER_ENABLED": "false",
+                "REFRESH_DISPATCH_ENABLED": "false",
                 "REFRESH_DUE_LIMIT": "5"
             },
+            "routes": [
+                {
+                    "pattern": "larafeedcf.stanislas.cloud",
+                    "custom_domain": true
+                }
+            ],
             "images": { "binding": "IMAGES" },
             "d1_databases": [
                 {
                     "binding": "DB",
                     "database_name": "larafeed-test",
-                    "database_id": "00000000-0000-0000-0000-000000000002",
+                    "database_id": "05458985-c8cf-4925-adea-7508e05196b3",
                     "migrations_dir": "migrations"
                 }
             ],

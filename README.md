@@ -71,6 +71,7 @@ go test -race ./...
 npm run d1:validate
 npm run build
 npm run deploy:check
+npm run deploy:check:test
 ```
 
 Use `npm run d1:validate:large` before a migration rehearsal or cutover. Deployment checks are dry runs. They do not deploy.
@@ -86,7 +87,7 @@ Use `npm run d1:validate:large` before a migration rehearsal or cutover. Deploym
 - [Images and AI](docs/cloudflare-images-ai.md)
 - [D1 baseline and validation](docs/cloudflare-baseline.md)
 
-Production uses `larafeed.stanislas.cloud`. The test deployment uses a different hostname, WebAuthn RP ID, Turnstile keys, passkeys, D1 database, queues, and rate-limit namespace.
+Production uses `larafeed.stanislas.cloud`. The isolated test deployment uses `larafeedcf.stanislas.cloud` with its own WebAuthn RP ID, Turnstile keys, passkeys, D1 database, queues, and rate-limit namespace.
 
 No command should create resources, import production data, set secrets, or deploy without explicit operator approval.
 
