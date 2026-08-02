@@ -52,6 +52,30 @@ export interface SubscriptionRouteDependencies {
     readonly runtimeFactory?: SubscriptionRuntimeFactory;
 }
 
+const logFeedDiscoveryFailure = (rawUrl: string, error: unknown) =>
+    Effect.sync(() => {
+        let hostname = 'invalid';
+        try {
+            hostname = new URL(rawUrl).hostname;
+        } catch {
+            // The validated caller URL should always be absolute.
+        }
+        const field = (name: string): unknown =>
+            typeof error === 'object' && error !== null
+                ? Reflect.get(error, name)
+                : undefined;
+        console.warn({
+            event: 'feed.discovery.failed',
+            hostname,
+            errorTag: field('_tag'),
+            retryable: field('retryable'),
+            status: field('status'),
+            reason: field('reason'),
+            timeoutMs: field('timeoutMs'),
+            limitBytes: field('limitBytes'),
+        });
+    });
+
 export const defaultSubscriptionRuntimeFactory: SubscriptionRuntimeFactory = (
     env,
 ) =>
@@ -64,7 +88,14 @@ export const defaultSubscriptionRuntimeFactory: SubscriptionRuntimeFactory = (
                 auth,
                 service: makeSubscriptionService({
                     repository: makeSubscriptionRepository(d1),
-                    discoverFeed: (url) => feedService.discover(url),
+                    discoverFeed: (url) =>
+                        feedService
+                            .discover(url)
+                            .pipe(
+                                Effect.tapError((error) =>
+                                    logFeedDiscoveryFailure(url, error),
+                                ),
+                            ),
                     scheduleRefresh: (feedId) =>
                         Effect.tryPromise({
                             try: async () => {
