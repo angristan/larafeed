@@ -9,6 +9,7 @@ import {
     clearCapturedAccessToken,
 } from './auth/accessToken';
 import { canonicalChartSearch, parseChartState } from './chartState';
+import { NotFoundPage, RouteErrorPage } from './pages/RouteStatePage';
 import {
     accountQueryOptions,
     adminOverviewQueryOptions,
@@ -176,83 +177,99 @@ const accessRegistrationRoute =
 
 export const router = createBrowserRouter([
     {
-        path: '/login',
-        loader: loginLoader,
-        lazy: async () => {
-            const { LoginPage } = await import('./pages/LoginPage');
-            return { Component: LoginPage };
-        },
-    },
-    {
-        path: '/auth/enroll',
-        loader: accessTokenLoader('enrollment'),
-        lazy: accessRegistrationRoute('enrollment'),
-    },
-    {
-        path: '/auth/recover',
-        loader: accessTokenLoader('recovery'),
-        lazy: accessRegistrationRoute('recovery'),
-    },
-    {
-        path: '/',
-        loader: rootLoader,
-    },
-    {
-        path: '/feeds',
-        loader: readerLoader,
-        lazy: async () => {
-            const { ReaderPage } = await import('./pages/ReaderPage');
-            return { Component: ReaderPage };
-        },
-    },
-    {
-        path: '/charts',
-        loader: chartsLoader,
-        lazy: async () => {
-            const { ChartsPage } = await import('./pages/ChartsPage');
-            return { Component: ChartsPage };
-        },
-    },
-    {
-        path: '/settings/security',
-        loader: securityLoader,
-        lazy: async () => {
-            const { SecurityPage } = await import('./pages/SecurityPage');
-            return { Component: SecurityPage };
-        },
-    },
-    {
-        path: '/admin/users',
-        loader: adminLoader,
-        lazy: async () => {
-            const { AdminUsersPage } = await import('./pages/AdminUsersPage');
-            return { Component: AdminUsersPage };
-        },
-    },
-    {
-        path: '/settings/subscriptions',
-        loader: subscriptionsLoader,
-        lazy: async () => {
-            const { SubscriptionsPage } = await import(
-                './pages/SubscriptionsPage'
-            );
-            return { Component: SubscriptionsPage };
-        },
-    },
-    {
-        path: '/settings/opml',
-        loader: protectedLoader,
-        lazy: async () => {
-            const { OpmlPage } = await import('./pages/OpmlPage');
-            return { Component: OpmlPage };
-        },
-    },
-    {
-        path: '/settings/app-tokens',
-        loader: protectedLoader,
-        lazy: async () => {
-            const { AppTokensPage } = await import('./pages/AppTokensPage');
-            return { Component: AppTokensPage };
-        },
+        errorElement: <RouteErrorPage />,
+        children: [
+            {
+                path: '/login',
+                loader: loginLoader,
+                lazy: async () => {
+                    const { LoginPage } = await import('./pages/LoginPage');
+                    return { Component: LoginPage };
+                },
+            },
+            {
+                path: '/auth/enroll',
+                loader: accessTokenLoader('enrollment'),
+                lazy: accessRegistrationRoute('enrollment'),
+            },
+            {
+                path: '/auth/recover',
+                loader: accessTokenLoader('recovery'),
+                lazy: accessRegistrationRoute('recovery'),
+            },
+            {
+                path: '/',
+                loader: rootLoader,
+            },
+            {
+                path: '/feeds',
+                loader: readerLoader,
+                lazy: async () => {
+                    const { ReaderPage } = await import('./pages/ReaderPage');
+                    return { Component: ReaderPage };
+                },
+            },
+            {
+                path: '/charts',
+                loader: chartsLoader,
+                lazy: async () => {
+                    const { ChartsPage } = await import('./pages/ChartsPage');
+                    return { Component: ChartsPage };
+                },
+            },
+            {
+                path: '/settings/security',
+                loader: securityLoader,
+                lazy: async () => {
+                    const { SecurityPage } = await import(
+                        './pages/SecurityPage'
+                    );
+                    return { Component: SecurityPage };
+                },
+            },
+            {
+                path: '/admin/users',
+                loader: adminLoader,
+                lazy: async () => {
+                    const { AdminUsersPage } = await import(
+                        './pages/AdminUsersPage'
+                    );
+                    return { Component: AdminUsersPage };
+                },
+            },
+            {
+                path: '/settings/subscriptions',
+                loader: subscriptionsLoader,
+                lazy: async () => {
+                    const { SubscriptionsPage } = await import(
+                        './pages/SubscriptionsPage'
+                    );
+                    return { Component: SubscriptionsPage };
+                },
+            },
+            {
+                path: '/settings/opml',
+                loader: protectedLoader,
+                lazy: async () => {
+                    const { OpmlPage } = await import('./pages/OpmlPage');
+                    return { Component: OpmlPage };
+                },
+            },
+            {
+                path: '/settings/app-tokens',
+                loader: protectedLoader,
+                lazy: async () => {
+                    const { AppTokensPage } = await import(
+                        './pages/AppTokensPage'
+                    );
+                    return { Component: AppTokensPage };
+                },
+            },
+            {
+                path: '*',
+                loader: protectedLoader,
+                Component: NotFoundPage,
+            },
+        ],
     },
 ]);

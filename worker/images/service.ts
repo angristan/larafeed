@@ -111,7 +111,7 @@ const boundedImageBody = async (response: Response): Promise<Uint8Array> => {
     return bytes;
 };
 
-const fetchImageBytes = async (
+export const fetchImageBytes = async (
     sourceUrl: string,
     fetchImplementation: typeof globalThis.fetch,
 ): Promise<Uint8Array> => {

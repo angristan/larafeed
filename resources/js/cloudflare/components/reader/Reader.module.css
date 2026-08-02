@@ -28,11 +28,26 @@
 }
 
 .readerGrid {
-    display: grid;
-    grid-template-columns: minmax(20rem, 38%) minmax(0, 1fr);
+    display: flex;
     height: 100%;
     min-height: 0;
     overflow: hidden;
+}
+
+.listPaneContainer,
+.detailPaneContainer {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.listPaneContainer {
+    min-width: 20rem;
+}
+
+.detailPaneContainer {
+    min-width: 0;
 }
 
 .listPane,
@@ -207,13 +222,25 @@
 
 @media (max-width: 61.99em) {
     .readerGrid {
-        grid-template-columns: minmax(0, 1fr);
+        display: block;
     }
 
+    .readerGrid > :global(button) {
+        display: none;
+    }
+
+    .listPaneContainer,
+    .detailPaneContainer {
+        width: 100% !important;
+        min-width: 0;
+    }
+
+    .readerGrid[data-detail] .listPaneContainer,
     .readerGrid[data-detail] .listPane {
         display: none;
     }
 
+    .readerGrid:not([data-detail]) .detailPaneContainer,
     .readerGrid:not([data-detail]) .detailPane {
         display: none;
     }

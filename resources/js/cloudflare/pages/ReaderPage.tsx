@@ -1,3 +1,4 @@
+import { Split } from '@gfazioli/mantine-split-pane';
 import {
     ActionIcon,
     AppShell,
@@ -12,7 +13,7 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconLogout, IconRss } from '@tabler/icons-react';
+import { IconKeyboard, IconLogout, IconRss } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Effect } from 'effect';
 import { useEffect, useMemo, useRef } from 'react';
@@ -22,7 +23,9 @@ import { AuthClientError, logout, readCsrfToken } from '../api/auth';
 import classes from '../components/reader/Reader.module.css';
 import { ReaderEntryDetail } from '../components/reader/ReaderEntryDetail';
 import { ReaderEntryList } from '../components/reader/ReaderEntryList';
+import { ReaderShortcutHelp } from '../components/reader/ReaderShortcutHelp';
 import { ReaderSidebar } from '../components/reader/ReaderSidebar';
+import { isShortcutHelpKey } from '../components/reader/readerShortcuts';
 import {
     authKeys,
     authSessionQueryOptions,
@@ -61,6 +64,7 @@ export function ReaderPage() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [navbarOpened, navbar] = useDisclosure(false);
+    const [shortcutsOpened, shortcuts] = useDisclosure(false);
 
     const sessionQuery = useQuery(authSessionQueryOptions);
     const categoriesQuery = useQuery(categoryListQueryOptions);
@@ -132,9 +136,18 @@ export function ReaderPage() {
                 event.metaKey ||
                 event.ctrlKey ||
                 event.altKey ||
-                isEditableTarget(event.target) ||
-                entryPageQuery.isPlaceholderData
+                isEditableTarget(event.target)
             ) {
+                return;
+            }
+
+            if (isShortcutHelpKey(event)) {
+                event.preventDefault();
+                shortcuts.open();
+                return;
+            }
+
+            if (entryPageQuery.isPlaceholderData) {
                 return;
             }
 
@@ -169,6 +182,7 @@ export function ReaderPage() {
         entryPageQuery.data?.entries,
         entryPageQuery.isPlaceholderData,
         navigate,
+        shortcuts.open,
         state,
     ]);
 
@@ -306,6 +320,13 @@ export function ReaderPage() {
                         value={state.orderBy}
                         w={160}
                     />
+                    <ActionIcon
+                        aria-label="Keyboard shortcuts"
+                        onClick={shortcuts.open}
+                        variant="subtle"
+                    >
+                        <IconKeyboard aria-hidden="true" size={17} />
+                    </ActionIcon>
                     {session?.authenticated === true && (
                         <Avatar
                             aria-label={`Signed in as ${session.user.displayName}`}
@@ -361,57 +382,79 @@ export function ReaderPage() {
             </AppShell.Navbar>
 
             <AppShell.Main className={classes.main}>
-                <div
+                <Split
                     className={classes.readerGrid}
                     data-detail={state.entryId !== null || undefined}
+                    knobAlwaysOn
+                    orientation="vertical"
+                    shiftStep={60}
+                    size={6}
+                    step={12}
+                    withKnob
                 >
-                    <ReaderEntryList
-                        error={entryPageQuery.error}
-                        isFetching={entryPageQuery.isFetching}
-                        isPending={entryPageQuery.isPending}
-                        isPlaceholderData={entryPageQuery.isPlaceholderData}
-                        markFeedReadError={readThroughMutation.error}
-                        markFeedReadPending={readThroughMutation.isPending}
-                        onMarkFeedRead={
-                            state.feedId === null
-                                ? null
-                                : () => readThroughMutation.mutate()
-                        }
-                        onPageChange={(page) =>
-                            void navigate(readerHref(state, { page }))
-                        }
-                        onPrefetchEntry={(entryId) => {
-                            void queryClient.prefetchQuery(
-                                entryDetailQueryOptions(entryId),
-                            );
-                        }}
-                        onRetry={() => void entryPageQuery.refetch()}
-                        page={entryPageQuery.data}
-                        selectedFeedName={selectedFeedName}
-                        state={state}
-                    />
-                    <ReaderEntryDetail
-                        archivePending={entryMutations.archive.isPending}
-                        entry={entryDetailQuery.data}
-                        error={entryDetailQuery.error}
-                        isFetching={entryDetailQuery.isFetching}
-                        isPending={entryDetailQuery.isPending}
-                        mutationError={mutationError}
-                        onBack={backToList}
-                        onRetry={() => void entryDetailQuery.refetch()}
-                        onSetArchived={(archived) =>
-                            entryMutations.archive.mutate(archived)
-                        }
-                        onSetRead={(read) => entryMutations.read.mutate(read)}
-                        onSetStarred={(starred) =>
-                            entryMutations.star.mutate(starred)
-                        }
-                        readPending={entryMutations.read.isPending}
-                        selected={state.entryId !== null}
-                        starPending={entryMutations.star.isPending}
-                    />
-                </div>
+                    <Split.Pane
+                        className={classes.listPaneContainer}
+                        initialWidth="38%"
+                        maxWidth={720}
+                        minWidth={320}
+                    >
+                        <ReaderEntryList
+                            error={entryPageQuery.error}
+                            isFetching={entryPageQuery.isFetching}
+                            isPending={entryPageQuery.isPending}
+                            isPlaceholderData={entryPageQuery.isPlaceholderData}
+                            markFeedReadError={readThroughMutation.error}
+                            markFeedReadPending={readThroughMutation.isPending}
+                            onMarkFeedRead={
+                                state.feedId === null
+                                    ? null
+                                    : () => readThroughMutation.mutate()
+                            }
+                            onPageChange={(page) =>
+                                void navigate(readerHref(state, { page }))
+                            }
+                            onPrefetchEntry={(entryId) => {
+                                void queryClient.prefetchQuery(
+                                    entryDetailQueryOptions(entryId),
+                                );
+                            }}
+                            onRetry={() => void entryPageQuery.refetch()}
+                            page={entryPageQuery.data}
+                            selectedFeedName={selectedFeedName}
+                            state={state}
+                        />
+                    </Split.Pane>
+                    <Split.Pane className={classes.detailPaneContainer} grow>
+                        <ReaderEntryDetail
+                            archivePending={entryMutations.archive.isPending}
+                            entry={entryDetailQuery.data}
+                            error={entryDetailQuery.error}
+                            isFetching={entryDetailQuery.isFetching}
+                            isPending={entryDetailQuery.isPending}
+                            mutationError={mutationError}
+                            onBack={backToList}
+                            onRetry={() => void entryDetailQuery.refetch()}
+                            onSetArchived={(archived) =>
+                                entryMutations.archive.mutate(archived)
+                            }
+                            onSetRead={(read) =>
+                                entryMutations.read.mutate(read)
+                            }
+                            onSetStarred={(starred) =>
+                                entryMutations.star.mutate(starred)
+                            }
+                            readPending={entryMutations.read.isPending}
+                            selected={state.entryId !== null}
+                            starPending={entryMutations.star.isPending}
+                        />
+                    </Split.Pane>
+                </Split>
             </AppShell.Main>
+
+            <ReaderShortcutHelp
+                onClose={shortcuts.close}
+                opened={shortcutsOpened}
+            />
         </AppShell>
     );
 }

@@ -1,4 +1,8 @@
-import { ApiErrorResponse, RefreshCommandResponse } from '@shared/http';
+import {
+    ApiErrorResponse,
+    FaviconRefreshResponse,
+    RefreshCommandResponse,
+} from '@shared/http';
 import {
     CategoryMutationResponse,
     type CreateCategoryRequest,
@@ -20,6 +24,7 @@ export type SubscriptionRefreshRecord =
     ManagedSubscription['refreshes'][number];
 export type SubscriptionFilterRules = ManagedSubscription['filterRules'];
 export type RefreshCommand = typeof RefreshCommandResponse.Type;
+export type FaviconRefresh = typeof FaviconRefreshResponse.Type;
 
 export interface CreateCategoryInput {
     readonly name: typeof CreateCategoryRequest.Type.name;
@@ -267,4 +272,17 @@ export const refreshSubscription = Effect.fn(
         csrfToken: input.csrfToken,
         idempotencyKey: crypto.randomUUID(),
     }),
+);
+
+export const refreshFavicon = Effect.fn('SubscriptionClient.refreshFavicon')(
+    (input: RefreshSubscriptionInput) =>
+        requestJson(
+            `/api/feeds/${input.feedId}/favicon/refresh`,
+            FaviconRefreshResponse,
+            {
+                method: 'POST',
+                body: {},
+                csrfToken: input.csrfToken,
+            },
+        ),
 );

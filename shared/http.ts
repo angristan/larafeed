@@ -4,6 +4,7 @@ export * from './schemas/account';
 export * from './schemas/auth';
 export * from './schemas/charts';
 export { HealthResponse } from './schemas/health';
+export * from './schemas/images';
 export * from './schemas/jobs';
 export * from './schemas/opml';
 export * from './schemas/reader';

@@ -1,0 +1,274 @@
+import { Effect, Schema } from 'effect';
+
+import { validateFeedUrl } from '../feeds/policy';
+import { FeedImageUnavailable, fetchImageBytes } from '../images/service';
+import type { FaviconRepository, FaviconTarget } from './repository';
+
+const MAX_HTML_BYTES = 1024 * 1024;
+const MAX_REDIRECTS = 3;
+const MAX_HTML_CANDIDATES = 4;
+const FETCH_TIMEOUT_MS = 5_000;
+const STALE_AFTER_MS = 30 * 24 * 60 * 60_000;
+const REDIRECTS = new Set([301, 302, 303, 307, 308]);
+
+export class FaviconDiscoveryError extends Schema.TaggedErrorClass<FaviconDiscoveryError>()(
+    'FaviconDiscoveryError',
+    {},
+) {}
+
+export interface FaviconServiceDependencies {
+    readonly repository: FaviconRepository;
+    readonly fetch?: typeof globalThis.fetch;
+    readonly now?: () => number;
+}
+
+const attributes = (tag: string): ReadonlyMap<string, string> => {
+    const values = new Map<string, string>();
+    const pattern =
+        /([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/giu;
+    for (const match of tag.matchAll(pattern)) {
+        const key = match[1]?.toLocaleLowerCase();
+        const value = match[2] ?? match[3] ?? match[4];
+        if (key !== undefined && value !== undefined) values.set(key, value);
+    }
+    return values;
+};
+const sizeScore = (value: string): number => {
+    if (value.trim().toLocaleLowerCase() === 'any') return 5;
+    let best = 0;
+    for (const token of value.split(/\s+/u)) {
+        const match = /^(\d{1,4})x(\d{1,4})$/u.exec(token.toLocaleLowerCase());
+        const width = Number(match?.[1]);
+        const height = Number(match?.[2]);
+        if (width > 0 && width === height)
+            best = Math.max(best, Math.max(0, 64 - Math.abs(width - 32)));
+    }
+    return best;
+};
+export const discoverFaviconLinks = (
+    html: Uint8Array,
+    pageUrl: URL,
+): readonly URL[] => {
+    const source = new TextDecoder().decode(html);
+    const ranked: { readonly url: URL; readonly score: number }[] = [];
+    const seen = new Set<string>();
+    for (const tag of (source.match(/<link\b[^>]{0,4096}>/giu) ?? []).slice(
+        0,
+        50,
+    )) {
+        const values = attributes(tag);
+        const rel = (values.get('rel') ?? '').toLocaleLowerCase().split(/\s+/u);
+        const href = values.get('href');
+        const icon = rel.includes('icon');
+        const apple =
+            rel.includes('apple-touch-icon') ||
+            rel.includes('apple-touch-icon-precomposed');
+        if (href === undefined || (!icon && !apple)) continue;
+        try {
+            const url = validateFeedUrl(new URL(href, pageUrl));
+            if (seen.has(url.href)) continue;
+            seen.add(url.href);
+            const type = (values.get('type') ?? '').toLocaleLowerCase();
+            if (type.includes('svg')) continue;
+            const score =
+                (icon ? 300 : 200) +
+                (type.includes('png') ? 30 : type.includes('icon') ? 25 : 0) +
+                sizeScore(values.get('sizes') ?? '');
+            ranked.push({ url, score });
+        } catch {
+            // Invalid publisher-controlled candidates are ignored.
+        }
+    }
+    return ranked
+        .toSorted((left, right) => right.score - left.score)
+        .slice(0, MAX_HTML_CANDIDATES)
+        .map(({ url }) => url);
+};
+
+const boundedBody = async (response: Response): Promise<Uint8Array> => {
+    const contentLength = response.headers.get('content-length');
+    if (contentLength !== null) {
+        if (
+            !/^\d+$/u.test(contentLength) ||
+            Number(contentLength) > MAX_HTML_BYTES
+        )
+            throw new FaviconDiscoveryError();
+    }
+    if (response.body === null) throw new FaviconDiscoveryError();
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            total += value.byteLength;
+            if (total > MAX_HTML_BYTES) {
+                await reader.cancel();
+                throw new FaviconDiscoveryError();
+            }
+            chunks.push(value);
+        }
+    } finally {
+        reader.releaseLock();
+    }
+    const body = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+        body.set(chunk, offset);
+        offset += chunk.byteLength;
+    }
+    return body;
+};
+const fetchPage = async (
+    rawUrl: URL,
+    fetchImplementation: typeof globalThis.fetch,
+): Promise<{ readonly url: URL; readonly body: Uint8Array }> => {
+    let url = validateFeedUrl(rawUrl);
+    let redirects = 0;
+    const controller = new AbortController();
+    const timeout = setTimeout(
+        () =>
+            controller.abort(
+                new DOMException('Favicon discovery timed out', 'TimeoutError'),
+            ),
+        FETCH_TIMEOUT_MS,
+    );
+    try {
+        while (true) {
+            const response = await fetchImplementation(url, {
+                method: 'GET',
+                redirect: 'manual',
+                signal: controller.signal,
+                headers: {
+                    accept: 'text/html,application/xhtml+xml;q=0.9',
+                    'user-agent':
+                        'Larafeed/1.0 (+https://larafeed.stanislas.cloud)',
+                },
+            });
+            if (REDIRECTS.has(response.status)) {
+                const location = response.headers.get('location');
+                await response.body?.cancel();
+                if (location === null || redirects === MAX_REDIRECTS)
+                    throw new FaviconDiscoveryError();
+                url = validateFeedUrl(new URL(location, url));
+                redirects += 1;
+                continue;
+            }
+            const mime = response.headers
+                .get('content-type')
+                ?.split(';', 1)[0]
+                ?.trim()
+                .toLocaleLowerCase();
+            if (
+                !response.ok ||
+                (mime !== 'text/html' && mime !== 'application/xhtml+xml')
+            ) {
+                await response.body?.cancel();
+                throw new FaviconDiscoveryError();
+            }
+            return { url, body: await boundedBody(response) };
+        }
+    } catch (cause) {
+        if (cause instanceof FaviconDiscoveryError) throw cause;
+        throw new FaviconDiscoveryError();
+    } finally {
+        clearTimeout(timeout);
+    }
+};
+const targetPage = (target: FaviconTarget): URL => {
+    if (target.siteUrl !== null) {
+        try {
+            return validateFeedUrl(target.siteUrl);
+        } catch {
+            // Imported invalid site metadata falls back to the feed origin.
+        }
+    }
+    try {
+        const feed = validateFeedUrl(target.feedUrl);
+        return new URL('/', feed.origin);
+    } catch {
+        throw new FaviconDiscoveryError();
+    }
+};
+
+export const makeFaviconService = (
+    dependencies: FaviconServiceDependencies,
+) => {
+    const fetchImplementation =
+        dependencies.fetch ?? globalThis.fetch.bind(globalThis);
+    const now = dependencies.now ?? Date.now;
+    const refreshTarget = (target: FaviconTarget) =>
+        Effect.tryPromise({
+            try: async () => {
+                const site = targetPage(target);
+                let links: readonly URL[] = [];
+                let fallbackSite = site;
+                try {
+                    const page = await fetchPage(site, fetchImplementation);
+                    fallbackSite = page.url;
+                    links = discoverFaviconLinks(page.body, page.url);
+                } catch {
+                    // Common same-origin candidates still provide a safe fallback.
+                }
+                const candidates = [
+                    ...links,
+                    new URL('/favicon.ico', fallbackSite),
+                    new URL('/favicon.png', fallbackSite),
+                    new URL('/apple-touch-icon.png', fallbackSite),
+                ];
+                let selected: string | null = null;
+                const seen = new Set<string>();
+                for (const candidate of candidates) {
+                    if (seen.has(candidate.href)) continue;
+                    seen.add(candidate.href);
+                    try {
+                        await fetchImageBytes(
+                            candidate.href,
+                            fetchImplementation,
+                        );
+                        selected = candidate.href;
+                        break;
+                    } catch (cause) {
+                        if (!(cause instanceof FeedImageUnavailable))
+                            throw cause;
+                    }
+                }
+                const faviconUrl = selected ?? target.faviconUrl;
+                await Effect.runPromise(
+                    dependencies.repository.update(
+                        target.feedId,
+                        faviconUrl,
+                        now(),
+                    ),
+                );
+                return { feedId: target.feedId, faviconUrl };
+            },
+            catch: (cause) =>
+                cause instanceof FaviconDiscoveryError ||
+                (typeof cause === 'object' && cause !== null && '_tag' in cause)
+                    ? cause
+                    : new FaviconDiscoveryError(),
+        });
+    return {
+        refreshOwned: (userId: number, feedId: number) =>
+            dependencies.repository
+                .findOwnedTarget(userId, feedId)
+                .pipe(Effect.flatMap(refreshTarget)),
+        refreshStale: (limit = 1) =>
+            dependencies.repository
+                .listStaleTargets(
+                    now() - STALE_AFTER_MS,
+                    Math.max(1, Math.min(limit, 5)),
+                )
+                .pipe(
+                    Effect.flatMap((targets) =>
+                        Effect.forEach(targets, refreshTarget, {
+                            concurrency: 1,
+                        }),
+                    ),
+                ),
+    };
+};
+
+export type FaviconService = ReturnType<typeof makeFaviconService>;

@@ -11,6 +11,7 @@ import {
     createSubscription,
     deleteCategory,
     listManagedSubscriptions,
+    refreshFavicon,
     refreshSubscription,
     SubscriptionClientError,
     type SubscriptionFilterRules,
@@ -210,6 +211,24 @@ export function refreshSubscriptionMutationOptions(queryClient: QueryClient) {
         mutationFn: (input: FeedMutationVariables) =>
             Effect.runPromise(
                 refreshSubscription({
+                    ...input,
+                    csrfToken: requireCsrfToken(),
+                }),
+            ),
+        onSuccess: async () => invalidateSubscriptionReadModels(queryClient),
+    });
+}
+
+export function refreshFaviconMutationOptions(queryClient: QueryClient) {
+    return mutationOptions({
+        mutationKey: [
+            ...subscriptionManagementKeys.subscriptions(),
+            'refresh-favicon',
+        ],
+        retry: false,
+        mutationFn: (input: FeedMutationVariables) =>
+            Effect.runPromise(
+                refreshFavicon({
                     ...input,
                     csrfToken: requireCsrfToken(),
                 }),

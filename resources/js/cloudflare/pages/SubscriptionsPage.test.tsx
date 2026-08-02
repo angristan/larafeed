@@ -6,7 +6,11 @@ import { describe, expect, it } from 'vitest';
 
 import type { ManagedSubscription } from '../api/subscriptions';
 import { subscriptionManagementKeys } from '../queries/subscriptions';
-import { getSubscriptionStatus, SubscriptionsPage } from './SubscriptionsPage';
+import {
+    buildAddFeedBookmarklet,
+    getSubscriptionStatus,
+    SubscriptionsPage,
+} from './SubscriptionsPage';
 
 const subscription: ManagedSubscription = {
     feedId: 7,
@@ -45,14 +49,17 @@ const subscription: ManagedSubscription = {
     ],
 };
 
-function renderPage(data?: {
-    readonly categories: readonly {
-        readonly id: number;
-        readonly name: string;
-        readonly subscriptionCount: number;
-    }[];
-    readonly subscriptions: readonly ManagedSubscription[];
-}): string {
+function renderPage(
+    data?: {
+        readonly categories: readonly {
+            readonly id: number;
+            readonly name: string;
+            readonly subscriptionCount: number;
+        }[];
+        readonly subscriptions: readonly ManagedSubscription[];
+    },
+    initialEntry = '/settings/subscriptions',
+): string {
     const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false } },
     });
@@ -63,7 +70,7 @@ function renderPage(data?: {
     return renderToStaticMarkup(
         <QueryClientProvider client={queryClient}>
             <MantineProvider>
-                <MemoryRouter>
+                <MemoryRouter initialEntries={[initialEntry]}>
                     <SubscriptionsPage />
                 </MemoryRouter>
             </MantineProvider>
@@ -99,6 +106,33 @@ describe('SubscriptionsPage', () => {
         expect(markup).toContain('Manage');
         expect(markup).toContain(
             'Move or unsubscribe every feed before deleting this category',
+        );
+    });
+
+    it('prefills the add form from canonical url without subscribing', () => {
+        const markup = renderPage(
+            {
+                categories: [
+                    { id: 3, name: 'Technology', subscriptionCount: 0 },
+                ],
+                subscriptions: [],
+            },
+            '/settings/subscriptions?url=https%3A%2F%2Fexample.com%2Fnews',
+        );
+
+        expect(markup).toContain('value="https://example.com/news"');
+        expect(markup).toContain(
+            'The bookmarklet never subscribes automatically',
+        );
+        expect(markup).not.toContain('Feed added');
+    });
+
+    it('builds a same-origin prefill-only bookmarklet', () => {
+        expect(buildAddFeedBookmarklet('https://reader.example')).toBe(
+            'javascript:location.href="https://reader.example/settings/subscriptions?url="+encodeURIComponent(location.href)',
+        );
+        expect(() => buildAddFeedBookmarklet('javascript:alert(1)')).toThrow(
+            TypeError,
         );
     });
 

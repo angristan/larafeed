@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     createSubscription,
     listManagedSubscriptions,
+    refreshFavicon,
     SubscriptionClientError,
     updateSubscription,
 } from './subscriptions';
@@ -132,6 +133,37 @@ describe('SubscriptionClient', () => {
                         excludeContent: [],
                         excludeAuthor: ['bot'],
                     },
+                }),
+            }),
+        );
+    });
+
+    it('refreshes an owned favicon with CSRF protection', async () => {
+        const fetchMock = vi.fn(() =>
+            Promise.resolve(
+                Response.json({
+                    feedId: subscription.feedId,
+                    faviconUrl: `/api/images/feeds/${subscription.feedId}/small`,
+                }),
+            ),
+        );
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(
+            Effect.runPromise(
+                refreshFavicon({
+                    feedId: subscription.feedId,
+                    csrfToken: 'csrf-token',
+                }),
+            ),
+        ).resolves.toMatchObject({ feedId: subscription.feedId });
+        expect(fetchMock).toHaveBeenCalledWith(
+            '/api/feeds/7/favicon/refresh',
+            expect.objectContaining({
+                method: 'POST',
+                body: '{}',
+                headers: expect.objectContaining({
+                    'X-CSRF-Token': 'csrf-token',
                 }),
             }),
         );

@@ -73,6 +73,10 @@ describe('ReaderEntryDetail summaries', () => {
             },
         });
         expect(markup).toContain('AI summary');
+        expect(markup).toContain('1 min read');
+        expect(markup).toContain(
+            'Estimated reading time at 300 words per minute',
+        );
         expect(markup).toContain('<strong>Cached summary.</strong>');
         expect(markup).not.toContain('Generate summary');
     });

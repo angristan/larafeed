@@ -11,6 +11,10 @@ Larafeed does not expose an arbitrary-origin image proxy. Reader payloads contai
 
 The route authenticates the web session, checks subscription ownership, and loads the source from the feed row. Feed refresh stores explicit feed icon metadata when valid. Otherwise it derives only the stored site origin's `/favicon.ico` URL.
 
+Users can request an ownership-checked refresh with `POST /api/feeds/{ownedFeedId}/favicon/refresh`. The command is CSRF- and rate-limit-protected. It fetches at most 1 MiB of site HTML, ranks at most four non-SVG icon links, probes three same-origin fallback paths, and validates every URL and redirect with the feed SSRF policy. Image probes allow at most three redirects, five seconds, and 2 MiB, require a non-SVG image MIME type, and reject empty bodies. The API returns only the opaque Larafeed image URL.
+
+Cron checks one actively subscribed stale or missing favicon per tick. A successful check, including a bounded no-icon result, advances `favicon_updated_at`; the same feed is not retried until its 30-day refresh interval passes. Favicon maintenance failures do not block feed refresh or OPML Cron work.
+
 Two fixed Cloudflare Images presets exist:
 
 | Preset | Transform |

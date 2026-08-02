@@ -29,7 +29,7 @@ import {
     IconStarFilled,
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 import type { ReaderEntry } from '../../api/reader';
 import {
@@ -38,6 +38,7 @@ import {
 } from '../../queries/summaries';
 import { FeedFavicon } from './FeedFavicon';
 import classes from './Reader.module.css';
+import { estimateReadingTime, textFromSanitizedHtml } from './readingTime';
 
 interface ReaderEntryDetailProps {
     readonly entry: ReaderEntry | undefined;
@@ -156,6 +157,13 @@ export function ReaderEntryDetail({
 }: ReaderEntryDetailProps) {
     const articleContent = useRef<HTMLDivElement>(null);
     const heading = useRef<HTMLHeadingElement>(null);
+    const readingTime = useMemo(
+        () =>
+            entry?.contentHtml == null
+                ? null
+                : estimateReadingTime(textFromSanitizedHtml(entry.contentHtml)),
+        [entry?.contentHtml],
+    );
 
     useEffect(() => {
         if (entry === undefined) {
@@ -417,14 +425,27 @@ export function ReaderEntryDetail({
                         <Text c="dimmed" size="sm">
                             {entry.author ?? feedName}
                         </Text>
-                        <Text
-                            c="dimmed"
-                            component="time"
-                            dateTime={new Date(entry.publishedAt).toISOString()}
-                            size="sm"
-                        >
-                            {formatTimestamp(entry.publishedAt)}
-                        </Text>
+                        <Group gap="xs">
+                            {readingTime !== null && readingTime.words > 0 && (
+                                <Text
+                                    aria-label="Estimated reading time at 300 words per minute"
+                                    c="dimmed"
+                                    size="sm"
+                                >
+                                    {readingTime.minutes} min read
+                                </Text>
+                            )}
+                            <Text
+                                c="dimmed"
+                                component="time"
+                                dateTime={new Date(
+                                    entry.publishedAt,
+                                ).toISOString()}
+                                size="sm"
+                            >
+                                {formatTimestamp(entry.publishedAt)}
+                            </Text>
+                        </Group>
                     </Group>
 
                     <ReaderEntrySummary entryId={entry.id} />

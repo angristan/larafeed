@@ -185,7 +185,7 @@ Disable AI generation immediately or enforce a Gateway budget. Pause/limit image
 - Security headers and SPA deep links work.
 - Passkey login/logout/recovery, user passkey management, fresh-auth account deletion, admin enrollment/recovery, and CSRF rejection work.
 - Reader lists, detail, state mutations, and read-through work on migrated data.
-- Manual/Cron refresh, Queue retry, outbox recovery, and DLQ state work.
+- Manual/Cron feed refresh, manual/stale favicon refresh, Queue retry, outbox recovery, and DLQ state work.
 - OPML import/progress/export work.
 - Google Reader and Fever token auth, scope, and revocation work.
 - Opaque Images routes enforce ownership and fixed presets.

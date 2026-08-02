@@ -1,4 +1,5 @@
 import { app } from './app';
+import { handleFaviconCron } from './favicons/cron';
 import type { RefreshQueueMessage } from './jobs';
 import {
     handleOpmlCron,
@@ -29,5 +30,6 @@ export default {
     scheduled: async (controller, env) => {
         await handleRefreshCron(controller, env);
         await handleOpmlCron(makeDefaultOpmlOrchestrator(env));
+        await handleFaviconCron(env);
     },
 } satisfies ExportedHandler<Env, RefreshQueueMessage>;

@@ -18,6 +18,10 @@ import {
     type CompatibilityRouteDependencies,
     registerCompatibilityRoutes,
 } from './compat';
+import {
+    type FaviconRouteDependencies,
+    registerFaviconRoutes,
+} from './favicons/routes';
 import { type ImageRouteDependencies, registerImageRoutes } from './images';
 import { type OpmlRouteDependencies, registerOpmlRoutes } from './opml/routes';
 import {
@@ -74,6 +78,7 @@ export interface WorkerDependencies {
     readonly authRoutes?: AuthRouteDependencies;
     readonly chartRoutes?: ChartRouteDependencies;
     readonly compatibilityRoutes?: CompatibilityRouteDependencies;
+    readonly faviconRoutes?: FaviconRouteDependencies;
     readonly imageRoutes?: ImageRouteDependencies;
     readonly opmlRoutes?: OpmlRouteDependencies;
     readonly readerRoutes?: ReaderRouteDependencies;
@@ -211,6 +216,7 @@ export const createApp = (
     registerAccountRoutes(app, dependencies.accountRoutes);
     registerChartRoutes(app, dependencies.chartRoutes);
     registerCompatibilityRoutes(app, dependencies.compatibilityRoutes);
+    registerFaviconRoutes(app, dependencies.faviconRoutes);
     registerImageRoutes(app, dependencies.imageRoutes);
     registerReaderRoutes(app, dependencies.readerRoutes);
     registerRefreshRoutes(app, dependencies.refreshRoutes);

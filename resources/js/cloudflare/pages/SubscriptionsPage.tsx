@@ -24,6 +24,7 @@ import {
     IconCheck,
     IconEdit,
     IconExternalLink,
+    IconPhoto,
     IconPlus,
     IconRefresh,
     IconRss,
@@ -33,8 +34,15 @@ import {
     IconX,
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type FormEvent, type ReactNode, useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import {
+    type FormEvent,
+    type ReactNode,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
+import { Link, useSearchParams } from 'react-router';
 
 import type {
     ManagedCategory,
@@ -46,6 +54,7 @@ import {
     createCategoryMutationOptions,
     createSubscriptionMutationOptions,
     deleteCategoryMutationOptions,
+    refreshFaviconMutationOptions,
     refreshSubscriptionMutationOptions,
     subscriptionManagementQueryOptions,
     unsubscribeMutationOptions,
@@ -128,16 +137,76 @@ function MutationError({
     );
 }
 
+export function buildAddFeedBookmarklet(origin: string): string {
+    const parsedOrigin = new URL(origin);
+    if (
+        (parsedOrigin.protocol !== 'https:' &&
+            parsedOrigin.protocol !== 'http:') ||
+        parsedOrigin.origin !== origin
+    ) {
+        throw new TypeError('Bookmarklet origin must be an HTTP origin.');
+    }
+
+    const destination = new URL('/settings/subscriptions?url=', parsedOrigin)
+        .href;
+    return `javascript:location.href=${JSON.stringify(destination)}+encodeURIComponent(location.href)`;
+}
+
+function BookmarkletHelp() {
+    const bookmarklet = useRef<HTMLAnchorElement>(null);
+
+    useEffect(() => {
+        const link = bookmarklet.current;
+        if (link === null) {
+            return;
+        }
+
+        link.setAttribute(
+            'href',
+            buildAddFeedBookmarklet(window.location.origin),
+        );
+        return () => {
+            link.setAttribute('href', '#bookmarklet-instructions');
+        };
+    }, []);
+
+    return (
+        <Stack gap={4} id="bookmarklet-instructions">
+            <Text fw={600} size="sm">
+                Add pages from your bookmarks bar
+            </Text>
+            <Text c="dimmed" size="sm">
+                Drag{' '}
+                <Anchor
+                    ref={bookmarklet}
+                    href="#bookmarklet-instructions"
+                    onClick={(event) => event.preventDefault()}
+                >
+                    Add to Larafeed
+                </Anchor>{' '}
+                to your bookmarks bar. Use it on a website to open this form
+                with that page’s URL filled in.
+            </Text>
+            <Text c="dimmed" size="xs">
+                The bookmarklet never subscribes automatically. Review the URL
+                and choose Add feed yourself.
+            </Text>
+        </Stack>
+    );
+}
+
 function AddSubscriptionForm({
     categories,
+    prefilledUrl,
 }: {
     readonly categories: readonly ManagedCategory[];
+    readonly prefilledUrl: string;
 }) {
     const queryClient = useQueryClient();
     const mutation = useMutation(
         createSubscriptionMutationOptions(queryClient),
     );
-    const [feedUrl, setFeedUrl] = useState('');
+    const [feedUrl, setFeedUrl] = useState(prefilledUrl);
     const [categoryId, setCategoryId] = useState<string | null>(
         categories[0] === undefined ? null : String(categories[0].id),
     );
@@ -235,6 +304,8 @@ function AddSubscriptionForm({
                             Create a category before adding your first feed.
                         </Text>
                     )}
+                    <Divider />
+                    <BookmarkletHelp />
                     <MutationError
                         error={mutation.error}
                         title="Feed could not be added"
@@ -694,6 +765,9 @@ function SubscriptionDetails({
     const refreshMutation = useMutation(
         refreshSubscriptionMutationOptions(queryClient),
     );
+    const faviconMutation = useMutation(
+        refreshFaviconMutationOptions(queryClient),
+    );
     const unsubscribeMutation = useMutation(
         unsubscribeMutationOptions(queryClient),
     );
@@ -904,6 +978,20 @@ function SubscriptionDetails({
                         >
                             Refresh now
                         </Button>
+                        <Button
+                            leftSection={
+                                <IconPhoto aria-hidden="true" size={16} />
+                            }
+                            loading={faviconMutation.isPending}
+                            onClick={() =>
+                                faviconMutation.mutate({
+                                    feedId: subscription.feedId,
+                                })
+                            }
+                            variant="light"
+                        >
+                            Refresh icon
+                        </Button>
                         <Text c="dimmed" size="sm">
                             Last successful refresh:{' '}
                             {formatTimestamp(
@@ -915,6 +1003,15 @@ function SubscriptionDetails({
                         error={refreshMutation.error}
                         title="Refresh could not be queued"
                     />
+                    <MutationError
+                        error={faviconMutation.error}
+                        title="Icon could not be refreshed"
+                    />
+                    {faviconMutation.isSuccess && (
+                        <Alert color="green" role="status">
+                            Feed icon check completed.
+                        </Alert>
+                    )}
                     {refreshMutation.isSuccess && (
                         <Alert
                             color="green"
@@ -1420,8 +1517,10 @@ function PageState({ children }: { readonly children: ReactNode }) {
 }
 
 export function SubscriptionsPage() {
+    const [searchParams] = useSearchParams();
     const managementQuery = useQuery(subscriptionManagementQueryOptions);
     const data = managementQuery.data;
+    const prefilledUrl = searchParams.get('url') ?? '';
     const categories = useMemo(
         () =>
             [...(data?.categories ?? [])].sort((left, right) =>
@@ -1520,7 +1619,11 @@ export function SubscriptionsPage() {
 
                 {data !== undefined && (
                     <>
-                        <AddSubscriptionForm categories={categories} />
+                        <AddSubscriptionForm
+                            key={prefilledUrl}
+                            categories={categories}
+                            prefilledUrl={prefilledUrl}
+                        />
                         <CategoryManager categories={categories} />
                         <SubscriptionList
                             categories={categories}

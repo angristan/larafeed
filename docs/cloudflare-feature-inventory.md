@@ -7,13 +7,14 @@ This inventory is the cutover contract. “Implemented” means the Cloudflare a
 | Legacy surface | Cloudflare disposition |
 | --- | --- |
 | Reader sidebar, feed/category scopes, unread/read/favorites filters | Implemented with D1-backed typed APIs and React Router URL state. |
+| Reader interface conveniences | Implemented with persistent system/light/dark themes, keyboard-accessible resizable desktop panes, J/K and search shortcuts, Shift+? help, Unicode-aware reading-time estimates, and friendly route/error recovery pages. |
 | Entry list/detail, numbered pagination, read/unread, star/unstar, archive state | Implemented with sparse interactions and ingestion-ID read watermarks. Detail prefetch is side-effect-free. |
 | Mark feed as read | Implemented as an atomic read-through watermark update without user-by-entry writes. |
 | RSS, Atom, RDF, and JSON Feed refresh | Implemented with bounded secure fetch, parsing, sanitization, conditional requests, JSON Feed 1.0/1.1 discovery, Queues, Cron, durable jobs, outbox, retries, and DLQs. |
 | Manual refresh | Implemented as an authenticated, CSRF-protected durable command. |
 | OPML import and progress | Implemented with bounded parsing, one durable item per feed, partial failure reporting, retries, and progress polling. |
 | OPML export | Implemented as an authenticated download. |
-| Individual feed and website discovery | Implemented with bounded direct-feed parsing, HTML alternate discovery, safe redirects, common-path probes, category selection, shared-feed reuse, and an immediate durable refresh command. |
+| Individual feed and website discovery | Implemented with bounded direct-feed parsing, HTML alternate discovery, safe redirects, common-path probes, category selection, shared-feed reuse, an immediate durable refresh command, and a review-before-submit bookmarklet URL prefill. |
 | Category and subscription management | Implemented with category create/rename/delete, custom names, category moves, searchable refresh audit, manual refresh, and ownership-safe unsubscribe. The final subscriber removes the shared feed. |
 | Per-subscription title/content/author filters | Implemented with bounded safe regex evaluation, literal fallback for invalid regex, sparse matches only, existing-entry rebuilds, and refresh-time evaluation. Read/star/archive state is preserved. |
 | Product charts | Implemented with bounded UTC windows and feed/category ownership checks. Entry cohorts report their current read/saved state, sparse daily aggregates record real user transitions without user-by-entry amplification, and refresh charts use durable refresh history. Pre-aggregate activity is shown as unavailable rather than zero. |
@@ -24,7 +25,7 @@ This inventory is the cutover contract. “Implemented” means the Cloudflare a
 | Security notifications and audit | Password-login failure and public-registration Telegram triggers no longer exist. Passkey-era account, credential, access-link, token, and authentication events are stored in D1 and visible in the administrator security ledger; rate-limit and infrastructure alerts remain in Cloudflare observability. |
 | Google Reader and Fever | Implemented with scoped, revocable app tokens. Password authentication is removed. |
 | API token settings | Implemented with one-time plaintext display and revocation. |
-| Favicons and article image privacy | Replaced by ownership-bound opaque routes and fixed Cloudflare Images transforms. The application is not an arbitrary image proxy. |
+| Favicons and article image privacy | Replaced by ownership-bound opaque routes and fixed Cloudflare Images transforms. Manual and bounded monthly stale refreshes discover ranked HTML icons, probe safe same-origin fallbacks, and validate every redirect/MIME/size before storing a source URL. The application is not an arbitrary image proxy. |
 | Gemini summaries | Replaced by bounded, cached AI Gateway requests with a kill switch and application rate limits. |
 | Existing users, feeds, entries, categories, subscriptions, interactions, compatible tokens, and refresh history | Migrated by the deterministic PostgreSQL exporter. Existing users enroll new passkeys after cutover. |
 
