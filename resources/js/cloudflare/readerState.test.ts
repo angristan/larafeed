@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    canonicalReaderRouteSearch,
     canonicalReaderSearch,
     parseReaderState,
     patchReaderState,
@@ -16,14 +17,31 @@ describe('reader URL state', () => {
         expect(parseReaderState(search)).toEqual({
             feedId: null,
             categoryId: null,
-            filter: 'unread',
+            filter: 'all',
             orderBy: 'published_at',
             page: 1,
             entryId: null,
         });
         expect(canonicalReaderSearch(search)).toBe(
-            'filter=unread&order_by=published_at&page=1',
+            'filter=all&order_by=published_at&page=1',
         );
+    });
+
+    it('preserves bounded bookmarklet prefill while dropping other unknowns', () => {
+        expect(
+            canonicalReaderRouteSearch(
+                new URLSearchParams(
+                    'addFeedUrl=https%3A%2F%2Fexample.test%2Fnews&extra=drop',
+                ),
+            ),
+        ).toBe(
+            'filter=all&order_by=published_at&page=1&addFeedUrl=https%3A%2F%2Fexample.test%2Fnews',
+        );
+        expect(
+            canonicalReaderRouteSearch(
+                new URLSearchParams(`addFeedUrl=${'x'.repeat(2_049)}`),
+            ),
+        ).toBe('filter=all&order_by=published_at&page=1');
     });
 
     it('gives feed selection precedence over category selection', () => {
@@ -36,7 +54,7 @@ describe('reader URL state', () => {
         expect(state).toMatchObject({ feedId: 7, categoryId: null });
         expect(
             canonicalReaderSearch(new URLSearchParams('feed=7&category=4')),
-        ).toBe('feed=7&filter=unread&order_by=published_at&page=1');
+        ).toBe('feed=7&filter=all&order_by=published_at&page=1');
     });
 
     it('resets page and entry when list inputs change', () => {

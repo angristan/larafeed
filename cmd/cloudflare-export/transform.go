@@ -73,7 +73,7 @@ func feedRecord(row sourceRow) (Record, error) {
 		nullableTextValue(row["favicon_url"]), nullableBoolValue(row["favicon_is_dark"]),
 		nullableTimestampValue(row["favicon_updated_at"]), nullableTextValue(row["etag"]),
 		nullableTextValue(row["last_modified"]), boolValue(row["is_gone"]), nonNegativeIntValue(row["consecutive_failures"]),
-		nullableIntValue(lastAttempt), nullableIntValue(lastSuccessful), nullableTimestampValue(row["latest_entry_at"]),
+		nullableIntValue(lastAttempt), nullableIntValue(lastSuccessful), nullableIntValue(lastFailed), nullableTimestampValue(row["latest_entry_at"]),
 		IntValue(*nextRefresh), lastErrorClass, nullableTextValue(row["last_error_message"]), IntValue(created), IntValue(updated),
 	}}, nil
 }
@@ -296,6 +296,24 @@ func refreshRecord(row sourceRow) (Record, error) {
 		IntValue(id), IntValue(feedID), NullValue(), IntValue(refreshed), success, IntValue(0), NullValue(),
 		IntValue(0), nonNegativeIntValue(row["entries_created"]), IntValue(0), NullValue(), errorClass,
 		nullableTextValue(row["error_message"]), IntValue(created),
+	}}, nil
+}
+
+func dailyRefreshRecord(row sourceRow) (Record, error) {
+	feedID, err := requiredInt(row, "feed_id")
+	if err != nil {
+		return Record{}, err
+	}
+	dayStart, err := requiredInt(row, "day_start")
+	if err != nil {
+		return Record{}, err
+	}
+	created := timestampOr(row["created_at"], dayStart)
+	updated := maxInt64(created, timestampOr(row["updated_at"], created))
+	return Record{Values: []Value{
+		IntValue(feedID), IntValue(dayStart), nonNegativeIntValue(row["attempts_count"]),
+		nonNegativeIntValue(row["successes_count"]), nonNegativeIntValue(row["failures_count"]),
+		nonNegativeIntValue(row["entries_created_count"]), IntValue(created), IntValue(updated),
 	}}, nil
 }
 

@@ -2,8 +2,12 @@ import type { OpmlImportResponse } from '@shared/http';
 import { Effect } from 'effect';
 
 import { generateRandomToken, generateSafeId } from '../auth/crypto';
-import { FeedPolicyError } from '../feeds/errors';
+import { isFeedRefreshError } from '../feeds/errors';
 import { validateFeedUrl } from '../feeds/policy';
+import {
+    type FeedUpdatedResult,
+    makeFeedRefreshService,
+} from '../feeds/service';
 import { OpmlValidationError } from './errors';
 import { parseOpml } from './parser';
 import { flattenCategoryPath, type OpmlRepository } from './repository';
@@ -25,6 +29,8 @@ const ACTIVE_RECOVERY_AGE_MS = 10 * 60_000;
 
 const defaultGenerateId = () => Effect.runPromise(generateSafeId());
 const defaultGenerateToken = () => Effect.runPromise(generateRandomToken());
+const defaultDiscoverFeed = (url: string) =>
+    Effect.runPromise(makeFeedRefreshService().discover(url));
 const limit = (value: number | undefined, maximum: number) =>
     Math.max(1, Math.min(maximum, Math.trunc(value ?? maximum)));
 
@@ -83,15 +89,23 @@ const safeSiteUrl = (value: string | null): string | null => {
 };
 
 const classifyFailure = (cause: unknown) => {
-    if (
-        cause instanceof FeedPolicyError ||
-        cause instanceof OpmlValidationError
-    ) {
+    if (isFeedRefreshError(cause)) {
+        return {
+            retryable: cause.retryable,
+            errorClass: cause._tag,
+            errorMessage:
+                'reason' in cause
+                    ? cause.reason
+                    : 'status' in cause
+                      ? `HTTP ${cause.status}`
+                      : 'Feed verification failed',
+        };
+    }
+    if (cause instanceof OpmlValidationError) {
         return {
             retryable: false,
             errorClass: cause._tag,
-            errorMessage:
-                cause instanceof FeedPolicyError ? cause.reason : cause.reason,
+            errorMessage: cause.reason,
         };
     }
     return {
@@ -121,6 +135,7 @@ export interface OpmlOrchestratorDependencies {
     readonly now?: () => number;
     readonly generateId?: () => Promise<number>;
     readonly generateToken?: () => Promise<string>;
+    readonly discoverFeed?: (url: string) => Promise<FeedUpdatedResult>;
     readonly maxAttempts?: number;
     readonly jobLeaseMs?: number;
     readonly outboxLeaseMs?: number;
@@ -166,6 +181,7 @@ export const makeOpmlOrchestrator = (
         now = Date.now,
         generateId = defaultGenerateId,
         generateToken = defaultGenerateToken,
+        discoverFeed = defaultDiscoverFeed,
         maxAttempts = DEFAULT_ITEM_MAX_ATTEMPTS,
         jobLeaseMs = DEFAULT_JOB_LEASE_MS,
         outboxLeaseMs = DEFAULT_OUTBOX_LEASE_MS,
@@ -299,6 +315,10 @@ export const makeOpmlOrchestrator = (
                 if (validated.href !== claim.normalizedFeedUrl) {
                     throw new OpmlValidationError('noncanonical_feed_url');
                 }
+                const discovered = await discoverFeed(validated.href);
+                const canonicalFeedUrl = validateFeedUrl(
+                    discovered.finalUrl,
+                ).href;
                 const completedAt = now();
                 const [feedId, categoryId] = await Promise.all([
                     generateId(),
@@ -308,9 +328,16 @@ export const makeOpmlOrchestrator = (
                     claim,
                     feedId,
                     categoryId,
-                    feedName: claim.title?.trim() || validated.hostname,
+                    feedUrl: canonicalFeedUrl,
+                    feedName:
+                        discovered.feed.title ||
+                        claim.title?.trim() ||
+                        validated.hostname,
                     categoryName: flattenCategoryPath(claim.categoryPath),
-                    siteUrl: safeSiteUrl(claim.siteUrl),
+                    siteUrl: safeSiteUrl(
+                        discovered.feed.siteUrl ?? claim.siteUrl,
+                    ),
+                    faviconUrl: safeSiteUrl(discovered.feed.faviconUrl),
                     completedAt,
                 });
                 return { action: 'ack', reason: outcome };

@@ -163,20 +163,22 @@ describe('chart D1 repository', () => {
                     ],
                 },
                 {
-                    sql: `INSERT INTO feed_refreshes (
-                            id, feed_id, refreshed_at, was_successful,
-                            was_not_modified, entries_seen, entries_created,
-                            entries_updated, created_at
-                        ) VALUES (?, ?, ?, 1, 0, 2, 2, 0, ?)`,
-                    bindings: [914_001, feedId, start, start],
-                },
-                {
-                    sql: `INSERT INTO feed_refreshes (
-                            id, feed_id, refreshed_at, was_successful,
-                            was_not_modified, entries_seen, entries_created,
-                            entries_updated, created_at
-                        ) VALUES (?, ?, ?, 0, 0, 0, 0, 0, ?)`,
-                    bindings: [914_002, feedId, start + day, start + day],
+                    sql: `INSERT INTO chart_daily_refreshes (
+                            feed_id, day_start, attempts_count,
+                            successes_count, failures_count,
+                            entries_created_count, created_at, updated_at
+                        ) VALUES (?, ?, 1, 1, 0, 2, ?, ?),
+                                 (?, ?, 1, 0, 1, 0, ?, ?)`,
+                    bindings: [
+                        feedId,
+                        start,
+                        start,
+                        start,
+                        feedId,
+                        start + day,
+                        start + day,
+                        start + day,
+                    ],
                 },
                 {
                     sql: `INSERT INTO chart_daily_activity (

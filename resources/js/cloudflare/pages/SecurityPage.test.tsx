@@ -9,7 +9,7 @@ import { authKeys } from '../queries/auth';
 import { SecurityPage } from './SecurityPage';
 
 describe('SecurityPage', () => {
-    it('renders profile, passkey, and confirmed destructive controls', () => {
+    it('switches between profile and passkey sections', () => {
         const queryClient = new QueryClient({
             defaultOptions: { queries: { retry: false } },
         });
@@ -47,25 +47,31 @@ describe('SecurityPage', () => {
             expiresAt: 3_000_000_000_000,
         });
 
-        const markup = renderToStaticMarkup(
-            <MemoryRouter>
-                <QueryClientProvider client={queryClient}>
-                    <MantineProvider>
-                        <SecurityPage />
-                    </MantineProvider>
-                </QueryClientProvider>
-            </MemoryRouter>,
-        );
+        const render = (entry: string) =>
+            renderToStaticMarkup(
+                <MemoryRouter initialEntries={[entry]}>
+                    <QueryClientProvider client={queryClient}>
+                        <MantineProvider>
+                            <SecurityPage />
+                        </MantineProvider>
+                    </QueryClientProvider>
+                </MemoryRouter>,
+            );
 
-        expect(markup).toContain('Settings');
-        expect(markup).toContain('Profile settings');
-        expect(markup).toContain('Security');
-        expect(markup).toContain('reader@example.test');
-        expect(markup).toContain('Laptop');
-        expect(markup).toContain('Add another passkey before deleting');
-        expect(markup).toContain('Clear reader data');
-        expect(markup).toContain('Delete account');
-        expect(markup).toContain('Import &amp; export');
-        expect(markup).not.toContain('Administration');
+        const profileMarkup = render('/settings/security#profile');
+        expect(profileMarkup).toContain('Settings');
+        expect(profileMarkup).toContain('Profile settings');
+        expect(profileMarkup).toContain('reader@example.test');
+        expect(profileMarkup).toContain('Clear reader data');
+        expect(profileMarkup).toContain('Delete account');
+        expect(profileMarkup).not.toContain('Laptop');
+
+        const securityMarkup = render('/settings/security#security');
+        expect(securityMarkup).toContain('Security');
+        expect(securityMarkup).toContain('Laptop');
+        expect(securityMarkup).toContain('Add another passkey before deleting');
+        expect(securityMarkup).not.toContain('Profile settings');
+        expect(securityMarkup).toContain('Import &amp; export');
+        expect(securityMarkup).not.toContain('Administration');
     });
 });

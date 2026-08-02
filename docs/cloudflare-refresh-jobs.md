@@ -21,7 +21,7 @@ Cron/manual command
 - A refresh keeps at most 50 entries. Sanitized article HTML is stored only below 1.8 MB.
 - Jobs use leased, conditional state transitions and at most 8 processing attempts.
 - Queue messages contain only an operation ID. Retries reload feed and job state from D1.
-- Refresh history older than 90 days is deleted in bounded batches. The newest row for each feed is retained.
+- Detailed refresh history older than 90 days is deleted in bounded batches, and the newest row for each feed is always retained. Daily refresh aggregates preserve complete 365-day charts without retaining every attempt row.
 
 ## Failure behavior
 

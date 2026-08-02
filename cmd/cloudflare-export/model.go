@@ -17,6 +17,7 @@ var cleanTargetDeleteOrder = []string{
 	"opml_import_items",
 	"opml_imports",
 	"entry_summaries",
+	"chart_daily_refreshes",
 	"feed_refreshes",
 	"jobs",
 	"chart_daily_activity",
@@ -45,6 +46,7 @@ var foreignKeyOrder = []string{
 	"entry_interactions",
 	"app_tokens",
 	"feed_refreshes",
+	"chart_daily_refreshes",
 	"entry_summaries",
 }
 
@@ -129,7 +131,7 @@ var tableColumns = map[string][]string{
 	"feeds": {
 		"id", "name", "feed_url", "site_url", "favicon_url", "favicon_is_dark",
 		"favicon_updated_at", "etag", "last_modified", "is_gone", "consecutive_failures",
-		"last_attempt_at", "last_successful_refresh_at", "latest_entry_at", "next_refresh_at",
+		"last_attempt_at", "last_successful_refresh_at", "last_failed_refresh_at", "latest_entry_at", "next_refresh_at",
 		"last_error_class", "last_error_message", "created_at", "updated_at",
 	},
 	"entries": {
@@ -158,6 +160,10 @@ var tableColumns = map[string][]string{
 		"id", "feed_id", "job_id", "refreshed_at", "was_successful", "was_not_modified",
 		"http_status", "entries_seen", "entries_created", "entries_updated", "duration_ms",
 		"error_class", "error_message", "created_at",
+	},
+	"chart_daily_refreshes": {
+		"feed_id", "day_start", "attempts_count", "successes_count", "failures_count",
+		"entries_created_count", "created_at", "updated_at",
 	},
 	"entry_summaries": {
 		"id", "entry_id", "requested_by_user_id", "job_id", "content_hash", "model",

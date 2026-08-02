@@ -615,10 +615,11 @@ describe('durable feed refresh jobs', () => {
                 class_length: number;
                 message_length: number;
                 is_gone: number;
+                last_failed_refresh_at: number;
             }>(
                 `SELECT j.state, length(j.last_error_class) AS class_length,
                     length(j.last_error_message) AS message_length,
-                    f.is_gone
+                    f.is_gone, f.last_failed_refresh_at
                  FROM jobs j
                  JOIN feeds f ON f.id = json_extract(j.payload_json, '$.feedId')
                  WHERE j.operation_id = ?`,
@@ -629,6 +630,7 @@ describe('durable feed refresh jobs', () => {
             class_length: 17,
             message_length: 14,
             is_gone: 1,
+            last_failed_refresh_at: retryAt + 1,
         });
     });
 

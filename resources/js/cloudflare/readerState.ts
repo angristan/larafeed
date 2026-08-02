@@ -41,7 +41,7 @@ export function parseReaderState(search: URLSearchParams): ReaderState {
             requestedFilter !== null &&
             filters.has(requestedFilter as ReaderFilter)
                 ? (requestedFilter as ReaderFilter)
-                : 'unread',
+                : 'all',
         orderBy:
             requestedOrder !== null && orders.has(requestedOrder as ReaderOrder)
                 ? (requestedOrder as ReaderOrder)
@@ -73,6 +73,15 @@ export function readerStateSearch(state: ReaderState): URLSearchParams {
 
 export function canonicalReaderSearch(search: URLSearchParams): string {
     return readerStateSearch(parseReaderState(search)).toString();
+}
+
+export function canonicalReaderRouteSearch(search: URLSearchParams): string {
+    const canonical = new URLSearchParams(canonicalReaderSearch(search));
+    const addFeedUrl = search.get('addFeedUrl');
+    if (addFeedUrl !== null && addFeedUrl.length <= 2_048) {
+        canonical.set('addFeedUrl', addFeedUrl);
+    }
+    return canonical.toString();
 }
 
 export function patchReaderState(

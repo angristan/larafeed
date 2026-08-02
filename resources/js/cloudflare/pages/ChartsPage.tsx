@@ -37,6 +37,24 @@ import { ApplicationPage } from '../components/ApplicationPage';
 import { chartQueryOptions } from '../queries/charts';
 import { subscriptionManagementQueryOptions } from '../queries/subscriptions';
 
+export const refreshAttemptSeries = [
+    {
+        name: 'successes',
+        label: 'Successful',
+        color: 'teal.6',
+    },
+    {
+        name: 'failures',
+        label: 'Failed',
+        color: 'red.6',
+    },
+    {
+        name: 'totalAttempts',
+        label: 'Total attempts',
+        color: 'blue.6',
+    },
+];
+
 const formatDate = (date: string) =>
     new Date(`${date}T00:00:00.000Z`).toLocaleDateString('en-US', {
         weekday: 'long',
@@ -270,23 +288,7 @@ function ChartsDashboard({ data }: { readonly data: ChartData }) {
                                 data={refreshActivity}
                                 dataKey="date"
                                 h={300}
-                                series={[
-                                    {
-                                        name: 'successes',
-                                        label: 'Successful',
-                                        color: 'teal.6',
-                                    },
-                                    {
-                                        name: 'failures',
-                                        label: 'Failed',
-                                        color: 'red.6',
-                                    },
-                                    {
-                                        name: 'entriesCreated',
-                                        label: 'Entries created',
-                                        color: 'blue.6',
-                                    },
-                                ]}
+                                series={refreshAttemptSeries}
                                 valueFormatter={(value) =>
                                     Number.isFinite(value)
                                         ? Number(value).toLocaleString()
@@ -395,6 +397,13 @@ export function ChartsPage() {
     const charts = useQuery(chartQueryOptions(state));
     const [startDate, setStartDate] = useState(state.startDate ?? '');
     const [endDate, setEndDate] = useState(state.endDate ?? '');
+    const [group, setGroup] = useState<'all' | 'feed' | 'category'>(() =>
+        state.feedId !== null
+            ? 'feed'
+            : state.categoryId !== null
+              ? 'category'
+              : 'all',
+    );
 
     useEffect(() => {
         setStartDate(state.startDate ?? '');
@@ -412,12 +421,15 @@ export function ChartsPage() {
         event.preventDefault();
         update({ ...state, range: 'custom', startDate, endDate });
     };
-    const group =
-        state.feedId !== null
-            ? 'feed'
-            : state.categoryId !== null
-              ? 'category'
-              : 'all';
+    useEffect(() => {
+        if (state.feedId !== null) {
+            setGroup('feed');
+        } else if (state.categoryId !== null) {
+            setGroup('category');
+        } else {
+            setGroup('all');
+        }
+    }, [state.categoryId, state.feedId]);
 
     const sidebar = (
         <ScrollArea style={{ height: 'calc(100vh - 96px)' }} type="auto">
@@ -550,21 +562,29 @@ export function ChartsPage() {
                                     { value: 'category', label: 'By category' },
                                 ]}
                                 onChange={(value) => {
-                                    if (value === 'feed') {
+                                    const nextGroup = value as
+                                        | 'all'
+                                        | 'feed'
+                                        | 'category';
+                                    setGroup(nextGroup);
+                                    if (nextGroup === 'feed') {
+                                        const feedId =
+                                            subscriptions.data?.subscriptions[0]
+                                                ?.feedId;
+                                        if (feedId === undefined) return;
                                         update({
                                             ...state,
-                                            feedId:
-                                                subscriptions.data
-                                                    ?.subscriptions[0]
-                                                    ?.feedId ?? null,
+                                            feedId,
                                             categoryId: null,
                                         });
-                                    } else if (value === 'category') {
+                                    } else if (nextGroup === 'category') {
+                                        const categoryId =
+                                            subscriptions.data?.categories[0]
+                                                ?.id;
+                                        if (categoryId === undefined) return;
                                         update({
                                             ...state,
-                                            categoryId:
-                                                subscriptions.data
-                                                    ?.categories[0]?.id ?? null,
+                                            categoryId,
                                             feedId: null,
                                         });
                                     } else {
@@ -642,6 +662,32 @@ export function ChartsPage() {
                                 />
                             )}
                         </Group>
+                        {subscriptions.isPending && (
+                            <Group gap="xs">
+                                <Loader size="xs" />
+                                <Text c="dimmed" size="sm">
+                                    Loading feeds and categories…
+                                </Text>
+                            </Group>
+                        )}
+                        {subscriptions.isError && (
+                            <Alert color="red" title="Chart scopes unavailable">
+                                <Stack align="flex-start" gap="xs">
+                                    <Text size="sm">
+                                        {subscriptions.error.message}
+                                    </Text>
+                                    <Button
+                                        onClick={() =>
+                                            void subscriptions.refetch()
+                                        }
+                                        size="xs"
+                                        variant="light"
+                                    >
+                                        Retry
+                                    </Button>
+                                </Stack>
+                            </Alert>
+                        )}
                         {charts.data !== undefined && (
                             <Text c="dimmed" size="sm">
                                 Showing data from{' '}

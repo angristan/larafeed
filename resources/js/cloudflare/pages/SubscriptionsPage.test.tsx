@@ -28,6 +28,7 @@ const subscription: ManagedSubscription = {
     consecutiveFailures: 0,
     lastAttemptAt: 1_900_000_000_000,
     lastSuccessfulRefreshAt: 1_900_000_000_000,
+    lastFailedRefreshAt: null,
     lastErrorClass: null,
     lastErrorMessage: null,
     filterRules: {
@@ -125,7 +126,7 @@ describe('SubscriptionsPage', () => {
 
     it('builds a same-origin prefill-only bookmarklet', () => {
         expect(buildAddFeedBookmarklet('https://reader.example')).toBe(
-            'javascript:location.href="https://reader.example/settings/subscriptions?url="+encodeURIComponent(location.href)',
+            'javascript:location.href="https://reader.example/feeds?addFeedUrl="+encodeURIComponent(location.href)',
         );
         expect(() => buildAddFeedBookmarklet('javascript:alert(1)')).toThrow(
             TypeError,

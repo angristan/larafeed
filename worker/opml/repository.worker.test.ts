@@ -113,9 +113,11 @@ describe('OPML D1 repository', () => {
                 claim: claimed.claim,
                 feedId: 715_001,
                 categoryId: 716_001,
+                feedUrl: 'https://opml-workerd.example.test/feed.xml',
                 feedName: 'Example feed',
                 categoryName: 'Tech / Web',
                 siteUrl: 'https://opml-workerd.example.test/',
+                faviconUrl: 'https://opml-workerd.example.test/favicon.ico',
                 completedAt: now + 1,
             }),
         ).resolves.toBe('succeeded');

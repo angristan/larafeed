@@ -157,7 +157,7 @@ export function ApplicationHeader({
                     ),
                     onClick: () =>
                         void navigate(
-                            `/feeds?feed=${subscription.feedId}&filter=unread&order_by=published_at&page=1`,
+                            `/feeds?feed=${subscription.feedId}&filter=all&order_by=published_at&page=1`,
                         ),
                 };
             }),

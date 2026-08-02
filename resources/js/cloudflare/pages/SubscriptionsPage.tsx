@@ -2,7 +2,6 @@ import {
     ActionIcon,
     Alert,
     Anchor,
-    Avatar,
     Badge,
     Button,
     Divider,
@@ -29,10 +28,13 @@ import { useMemo, useState } from 'react';
 
 import type { ManagedSubscription } from '../api/subscriptions';
 import { ApplicationPage } from '../components/ApplicationPage';
+import { FeedFavicon } from '../components/reader/FeedFavicon';
 import {
     refreshSubscriptionMutationOptions,
     subscriptionManagementQueryOptions,
 } from '../queries/subscriptions';
+
+export { buildAddFeedBookmarklet } from '../bookmarklet';
 
 type SubscriptionStatus = 'healthy' | 'failing' | 'never' | 'gone';
 type LegacyStatus = 'success' | 'failed' | 'never';
@@ -75,20 +77,6 @@ function formatAbsolute(timestamp: number | null): string {
     })
         .format(new Date(timestamp))
         .replace(' ', ' ');
-}
-
-export function buildAddFeedBookmarklet(origin: string): string {
-    const parsedOrigin = new URL(origin);
-    if (
-        (parsedOrigin.protocol !== 'https:' &&
-            parsedOrigin.protocol !== 'http:') ||
-        parsedOrigin.origin !== origin
-    ) {
-        throw new TypeError('Bookmarklet origin must be an HTTP origin.');
-    }
-    const destination = new URL('/settings/subscriptions?url=', parsedOrigin)
-        .href;
-    return `javascript:location.href=${JSON.stringify(destination)}+encodeURIComponent(location.href)`;
 }
 
 export function getSubscriptionStatus(
@@ -332,14 +320,10 @@ export function SubscriptionsPage() {
                     );
                 }
                 if (sortField === 'lastFailure') {
-                    const leftFailure = left.refreshes.find(
-                        (record) => !record.successful,
-                    )?.refreshedAt;
-                    const rightFailure = right.refreshes.find(
-                        (record) => !record.successful,
-                    )?.refreshedAt;
                     return (
-                        direction * ((leftFailure ?? 0) - (rightFailure ?? 0))
+                        direction *
+                        ((left.lastFailedRefreshAt ?? 0) -
+                            (right.lastFailedRefreshAt ?? 0))
                     );
                 }
                 const leftName = left.customFeedName ?? left.feedName;
@@ -540,9 +524,7 @@ export function SubscriptionsPage() {
                                         subscription.customFeedName ??
                                         subscription.feedName;
                                     const lastFailure =
-                                        subscription.refreshes.find(
-                                            (record) => !record.successful,
-                                        )?.refreshedAt ?? null;
+                                        subscription.lastFailedRefreshAt;
                                     return (
                                         <Table.Tr
                                             key={subscription.feedId}
@@ -578,15 +560,15 @@ export function SubscriptionsPage() {
                                                 }}
                                             >
                                                 <Group gap="sm" wrap="nowrap">
-                                                    <Avatar
-                                                        radius="sm"
-                                                        size="md"
+                                                    <FeedFavicon
+                                                        isDark={
+                                                            subscription.faviconIsDark
+                                                        }
+                                                        size={32}
                                                         src={
                                                             subscription.faviconUrl
                                                         }
-                                                    >
-                                                        {name[0]?.toUpperCase()}
-                                                    </Avatar>
+                                                    />
                                                     <Stack gap={0}>
                                                         <Group gap={6}>
                                                             <Text fw={600}>

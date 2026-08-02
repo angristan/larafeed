@@ -16,7 +16,7 @@ import { IconCheck, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Effect } from 'effect';
 import { type FormEvent, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 
 import { deleteAccount, wipeAccount } from '../api/account';
 import {
@@ -321,6 +321,24 @@ function PasskeysSection() {
                     recovery.
                 </Text>
             </Stack>
+            {config.isError && (
+                <Alert
+                    color="red"
+                    role="alert"
+                    title="Human verification unavailable"
+                >
+                    <Stack align="flex-start" gap="xs">
+                        <Text size="sm">{config.error.message}</Text>
+                        <Button
+                            onClick={() => void config.refetch()}
+                            size="xs"
+                            variant="light"
+                        >
+                            Retry
+                        </Button>
+                    </Stack>
+                </Alert>
+            )}
             {config.data !== undefined && (
                 <Turnstile
                     ref={turnstile}
@@ -474,6 +492,24 @@ function DangerSection({
     const error = wipe.error ?? remove.error;
     return (
         <Stack component="section" gap="md" maw={520}>
+            {config.isError && (
+                <Alert
+                    color="red"
+                    role="alert"
+                    title="Human verification unavailable"
+                >
+                    <Stack align="flex-start" gap="xs">
+                        <Text size="sm">{config.error.message}</Text>
+                        <Button
+                            onClick={() => void config.refetch()}
+                            size="xs"
+                            variant="light"
+                        >
+                            Retry
+                        </Button>
+                    </Stack>
+                </Alert>
+            )}
             {config.data !== undefined && (
                 <Turnstile
                     ref={turnstile}
@@ -583,6 +619,9 @@ function DangerSection({
 
 export function SecurityPage() {
     const profile = useQuery(accountQueryOptions);
+    const location = useLocation();
+    const section = location.hash === '#security' ? 'security' : 'profile';
+
     return (
         <ApplicationPage activePage="settings" settingsNavigation>
             <Stack gap="xl" maw={720} mx="auto" my="md">
@@ -593,13 +632,18 @@ export function SecurityPage() {
                         tools.
                     </Text>
                 </Stack>
-                <ProfileSection />
-                <PasskeysSection />
-                {profile.data !== undefined && (
-                    <DangerSection
-                        userId={profile.data.id}
-                        username={profile.data.username}
-                    />
+                {section === 'security' ? (
+                    <PasskeysSection />
+                ) : (
+                    <>
+                        <ProfileSection />
+                        {profile.data !== undefined && (
+                            <DangerSection
+                                userId={profile.data.id}
+                                username={profile.data.username}
+                            />
+                        )}
+                    </>
                 )}
             </Stack>
         </ApplicationPage>

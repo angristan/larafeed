@@ -42,11 +42,19 @@ export interface DeleteCategoryInput {
     readonly csrfToken: string;
 }
 
-export interface CreateSubscriptionInput {
+export type CreateSubscriptionInput = {
     readonly feedUrl: typeof CreateSubscriptionRequest.Type.feedUrl;
-    readonly categoryId: typeof CreateSubscriptionRequest.Type.categoryId;
     readonly csrfToken: string;
-}
+} & (
+    | {
+          readonly categoryId: number;
+          readonly categoryName?: never;
+      }
+    | {
+          readonly categoryId?: never;
+          readonly categoryName: string;
+      }
+);
 
 export interface UpdateSubscriptionInput {
     readonly feedId: number;
@@ -230,7 +238,9 @@ export const createSubscription = Effect.fn(
         method: 'POST',
         body: {
             feedUrl: input.feedUrl,
-            categoryId: input.categoryId,
+            ...(input.categoryId === undefined
+                ? { categoryName: input.categoryName }
+                : { categoryId: input.categoryId }),
         } satisfies typeof CreateSubscriptionRequest.Type,
         csrfToken: input.csrfToken,
     }),

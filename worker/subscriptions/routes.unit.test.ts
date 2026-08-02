@@ -68,6 +68,7 @@ const subscription = {
     consecutiveFailures: 0,
     lastAttemptAt: null,
     lastSuccessfulRefreshAt: null,
+    lastFailedRefreshAt: null,
     lastErrorClass: null,
     lastErrorMessage: null,
     filterRules: {
@@ -183,6 +184,21 @@ describe('subscription management routes', () => {
         expect(createSubscription).toHaveBeenCalledWith(7, {
             feedUrl: 'https://example.test/feed.xml',
             categoryId: 11,
+        });
+
+        const firstFeed = await app(
+            subscriptionService({ createSubscription }),
+        ).request(
+            '/api/subscriptions',
+            request('POST', {
+                feedUrl: 'https://example.test/feed.xml',
+                categoryName: 'Tech',
+            }),
+        );
+        expect(firstFeed.status).toBe(200);
+        expect(createSubscription).toHaveBeenCalledWith(7, {
+            feedUrl: 'https://example.test/feed.xml',
+            categoryName: 'Tech',
         });
 
         const invalid = await app().request(

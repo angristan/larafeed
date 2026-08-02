@@ -92,6 +92,12 @@ Migration `0004_chart_daily_activity.sql` adds sparse daily aggregates for real 
 
 Entry cohort state and feed refresh history still use migrated entries, sparse interactions, read watermarks, and refresh records. They remain available across the full selected chart window.
 
+## Feed failure history
+
+Migration `0005_feed_last_failure.sql` adds a durable `last_failed_refresh_at` value. The PostgreSQL exporter preserves the legacy timestamp, and the migration backfills existing D1 rows from retained refresh history. New refresh and dead-letter failures update it directly, so the subscriptions page does not lose the last-failure value when detailed history is cleaned up.
+
+Migration `0006_chart_daily_refreshes.sql` adds daily refresh aggregates. The exporter derives them from PostgreSQL refresh history, and new Worker refresh outcomes update them with the detailed history row. Detailed rows can keep their bounded 90-day retention while 365-day attempt, success-rate, and entry-creation charts remain complete.
+
 ## Production-shaped D1 validation
 
 The Workerd benchmark generates deterministic fixtures and validates foreign keys, ownership, content caps, sparse interactions, read-watermark semantics, query results, query plans, and bounded D1 operation counts.

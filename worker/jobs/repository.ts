@@ -154,6 +154,28 @@ const errorClass = (value: string) =>
 const errorMessage = (value: string) =>
     boundedText(value, MAX_ERROR_MESSAGE_LENGTH);
 
+const dailyRefreshAggregate = (
+    historyId: number,
+    successful: boolean,
+): D1Statement => ({
+    sql: `INSERT INTO chart_daily_refreshes (
+            feed_id, day_start, attempts_count, successes_count,
+            failures_count, entries_created_count, created_at, updated_at
+        )
+        SELECT feed_id,
+            refreshed_at - (refreshed_at % 86400000),
+            1, ?, ?, entries_created, refreshed_at, refreshed_at
+        FROM feed_refreshes
+        WHERE id = ? AND changes() = 1
+        ON CONFLICT(feed_id, day_start) DO UPDATE SET
+            attempts_count = attempts_count + 1,
+            successes_count = successes_count + excluded.successes_count,
+            failures_count = failures_count + excluded.failures_count,
+            entries_created_count = entries_created_count + excluded.entries_created_count,
+            updated_at = excluded.updated_at`,
+    bindings: [successful ? 1 : 0, successful ? 0 : 1, historyId],
+});
+
 const changeCount = (
     operation: string,
     result: D1Result<unknown> | undefined,
@@ -1072,6 +1094,8 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             ],
         });
         mutationKinds.push('exactlyOne');
+        statements.push(dailyRefreshAggregate(input.historyId, true));
+        mutationKinds.push('exactlyOne');
         statements.push({
             sql: `UPDATE jobs
                 SET state = 'succeeded', lease_owner = NULL,
@@ -1116,14 +1140,16 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 sql: `UPDATE feeds
                     SET consecutive_failures = consecutive_failures + 1,
                         is_gone = CASE WHEN ? = 1 THEN 1 ELSE is_gone END,
-                        last_attempt_at = ?, next_refresh_at = ?,
-                        last_error_class = ?, last_error_message = ?,
+                        last_attempt_at = ?, last_failed_refresh_at = ?,
+                        next_refresh_at = ?, last_error_class = ?,
+                        last_error_message = ?,
                         updated_at = ?
                     WHERE id = ? AND EXISTS (
                         SELECT 1 FROM jobs j WHERE ${leasePredicate}
                     )`,
                 bindings: [
                     input.markGone === true ? 1 : 0,
+                    input.failedAt,
                     input.failedAt,
                     Math.max(input.failedAt, input.retryAt),
                     klass,
@@ -1155,6 +1181,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     ...conditionBindings,
                 ],
             });
+            statements.push(dailyRefreshAggregate(input.historyId, false));
         }
         statements.push({
             sql: `UPDATE jobs
@@ -1179,7 +1206,11 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             throw new RefreshLeaseLostError(input.claim.operationId);
         }
         const jobIndex = statements.length - 1;
-        if (terminal && changeCount(operation, results[1]) !== 1) {
+        if (
+            terminal &&
+            (changeCount(operation, results[1]) !== 1 ||
+                changeCount(operation, results[2]) !== 1)
+        ) {
             throw new RefreshLeaseLostError(input.claim.operationId);
         }
         if (changeCount(operation, results[jobIndex]) !== 1) {
@@ -1231,6 +1262,28 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         FEED_REFRESH_JOB_KIND,
                     ],
                 },
+                dailyRefreshAggregate(input.historyId, false),
+                {
+                    sql: `UPDATE feeds
+                        SET consecutive_failures = consecutive_failures + 1,
+                            last_attempt_at = ?, last_failed_refresh_at = ?,
+                            last_error_class = ?, last_error_message = ?,
+                            updated_at = ?
+                        WHERE id = (
+                            SELECT json_extract(j.payload_json, '$.feedId')
+                            FROM jobs j
+                            WHERE j.operation_id = ? AND j.kind = ?
+                        )`,
+                    bindings: [
+                        input.now,
+                        input.now,
+                        klass,
+                        message,
+                        input.now,
+                        input.operationId,
+                        FEED_REFRESH_JOB_KIND,
+                    ],
+                },
                 {
                     sql: `UPDATE jobs
                         SET state = 'dead_lettered', lease_owner = NULL,
@@ -1254,8 +1307,16 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
         );
         const outboxChanges = changeCount(operation, results[0]);
         const historyChanges = changeCount(operation, results[1]);
-        const jobChanges = changeCount(operation, results[2]);
-        if (outboxChanges > 1 || historyChanges > 1 || jobChanges > 1) {
+        const aggregateChanges = changeCount(operation, results[2]);
+        const feedChanges = changeCount(operation, results[3]);
+        const jobChanges = changeCount(operation, results[4]);
+        if (
+            outboxChanges > 1 ||
+            historyChanges > 1 ||
+            aggregateChanges > 1 ||
+            feedChanges > 1 ||
+            jobChanges > 1
+        ) {
             throw new JobInvariantError(operation, 'updated multiple job rows');
         }
         return jobChanges === 1;

@@ -26,6 +26,7 @@ const subscription = {
     consecutiveFailures: 0,
     lastAttemptAt: 1_900_000_000_000,
     lastSuccessfulRefreshAt: 1_900_000_000_000,
+    lastFailedRefreshAt: null,
     lastErrorClass: null,
     lastErrorMessage: null,
     filterRules: {
@@ -96,6 +97,38 @@ describe('SubscriptionClient', () => {
                 headers: expect.objectContaining({
                     'Content-Type': 'application/json',
                     'X-CSRF-Token': 'csrf-token',
+                }),
+            }),
+        );
+    });
+
+    it('adds a first feed with a new category in one request', async () => {
+        const fetchMock = vi.fn(() =>
+            Promise.resolve(
+                Response.json({
+                    subscription,
+                    createdFeed: true,
+                    createdSubscription: true,
+                    refreshOperationId: 'refresh-7',
+                }),
+            ),
+        );
+        vi.stubGlobal('fetch', fetchMock);
+
+        await Effect.runPromise(
+            createSubscription({
+                feedUrl: subscription.feedUrl,
+                categoryName: 'Technology',
+                csrfToken: 'csrf-token',
+            }),
+        );
+
+        expect(fetchMock).toHaveBeenCalledWith(
+            '/api/subscriptions',
+            expect.objectContaining({
+                body: JSON.stringify({
+                    feedUrl: subscription.feedUrl,
+                    categoryName: 'Technology',
                 }),
             }),
         );

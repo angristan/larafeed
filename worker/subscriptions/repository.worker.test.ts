@@ -100,6 +100,14 @@ describe('subscription management D1 repository', () => {
             createdFeed: false,
             createdSubscription: true,
         });
+        await Effect.runPromise(
+            d1.run({
+                sql: `UPDATE feeds
+                    SET last_failed_refresh_at = ?
+                    WHERE id = ?`,
+                bindings: [now - 1, 812_001],
+            }),
+        );
         await expect(
             Effect.runPromise(repository.listManagement(firstUser)),
         ).resolves.toMatchObject({
@@ -110,6 +118,7 @@ describe('subscription management D1 repository', () => {
                     categoryName: 'Engineering',
                     feedName: 'Shared feed',
                     entryCount: 0,
+                    lastFailedRefreshAt: now - 1,
                     refreshes: [],
                 },
             ],
@@ -139,6 +148,53 @@ describe('subscription management D1 repository', () => {
                 ),
             ),
         ).resolves.toBe(0);
+    });
+
+    it('finds or creates a category by case-insensitive name', async () => {
+        const userId = 830_001;
+        await insertUser(userId);
+
+        await expect(
+            Effect.runPromise(
+                repository.findOrCreateCategory(
+                    831_001,
+                    userId,
+                    'Technology',
+                    now,
+                ),
+            ),
+        ).resolves.toMatchObject({
+            id: 831_001,
+            name: 'Technology',
+            subscriptionCount: 0,
+        });
+        await expect(
+            Effect.runPromise(
+                repository.findOrCreateCategory(
+                    831_002,
+                    userId,
+                    'technology',
+                    now + 1,
+                ),
+            ),
+        ).resolves.toMatchObject({
+            id: 831_001,
+            name: 'Technology',
+            subscriptionCount: 0,
+        });
+        await expect(
+            Effect.runPromise(
+                d1.first<number>(
+                    {
+                        sql: `SELECT COUNT(*) AS total
+                            FROM subscription_categories
+                            WHERE user_id = ?`,
+                        bindings: [userId],
+                    },
+                    'total',
+                ),
+            ),
+        ).resolves.toBe(1);
     });
 
     it('enforces ownership and preserves read/star state while replacing sparse filters', async () => {

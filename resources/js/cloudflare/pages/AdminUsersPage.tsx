@@ -321,7 +321,11 @@ export function AdminUsersPage() {
     );
     const currentUserId = session?.user?.id ?? -1;
     return (
-        <ApplicationPage activePage="settings" settingsNavigation>
+        <ApplicationPage
+            activePage="settings"
+            pageTitle="Administration"
+            settingsNavigation
+        >
             <Container component="div" size="xl" py="md">
                 <Stack gap="xl">
                     <Stack gap="xs" align="flex-start">

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { FeedParseError } from '../feeds/errors';
 import { makeOpmlOrchestrator } from './orchestration';
 import type { OpmlRepository } from './repository';
 
@@ -107,6 +108,130 @@ describe('OPML orchestration', () => {
                 retryable: false,
                 errorClass: 'FeedPolicyError',
                 errorMessage: 'forbidden_ip_address',
+            }),
+        );
+    });
+
+    it('verifies and persists discovered feed metadata before success', async () => {
+        const completeItem = vi.fn(() => Promise.resolve('succeeded' as const));
+        const repository = repositoryStub({
+            claimJob: vi.fn(() =>
+                Promise.resolve({
+                    type: 'claimed' as const,
+                    claim: {
+                        itemId: 1,
+                        importId: 2,
+                        userId: 3,
+                        jobId: 4,
+                        operationId: 'verified-feed',
+                        title: 'Custom title',
+                        feedUrl: 'https://site.example.test/',
+                        normalizedFeedUrl: 'https://site.example.test/',
+                        siteUrl: null,
+                        categoryPath: ['Tech'],
+                        attemptCount: 1,
+                        maxAttempts: 5,
+                        leaseOwner: 'consumer',
+                        leaseExpiresAt: 6_000,
+                    },
+                }),
+            ),
+            completeItem,
+        });
+        const generatedIds = [10, 11];
+        const orchestrator = makeOpmlOrchestrator({
+            repository,
+            queue: { send: async () => undefined },
+            now: () => 1_000,
+            generateId: async () => generatedIds.shift() ?? Number.NaN,
+            discoverFeed: async () => ({
+                kind: 'updated',
+                finalUrl: 'https://site.example.test/feed.xml',
+                etag: null,
+                lastModified: null,
+                httpStatus: 200,
+                feed: {
+                    title: 'Discovered feed',
+                    description: null,
+                    siteUrl: 'https://site.example.test/',
+                    faviconUrl: 'https://site.example.test/favicon.ico',
+                    sourceUpdatedAt: null,
+                },
+                entries: [],
+            }),
+        });
+
+        await expect(
+            orchestrator.processQueueMessage(
+                { operationId: 'verified-feed' },
+                'consumer',
+            ),
+        ).resolves.toEqual({ action: 'ack', reason: 'succeeded' });
+        expect(completeItem).toHaveBeenCalledWith(
+            expect.objectContaining({
+                feedId: 10,
+                categoryId: 11,
+                feedUrl: 'https://site.example.test/feed.xml',
+                feedName: 'Discovered feed',
+                categoryName: 'Tech',
+                siteUrl: 'https://site.example.test/',
+                faviconUrl: 'https://site.example.test/favicon.ico',
+            }),
+        );
+    });
+
+    it('does not mark an unparseable OPML URL as added', async () => {
+        const completeItem = vi.fn();
+        const recordFailure = vi.fn(() =>
+            Promise.resolve({ terminal: true, availableAt: null }),
+        );
+        const repository = repositoryStub({
+            claimJob: vi.fn(() =>
+                Promise.resolve({
+                    type: 'claimed' as const,
+                    claim: {
+                        itemId: 1,
+                        importId: 2,
+                        userId: 3,
+                        jobId: 4,
+                        operationId: 'invalid-feed',
+                        title: null,
+                        feedUrl: 'https://site.example.test/page',
+                        normalizedFeedUrl: 'https://site.example.test/page',
+                        siteUrl: null,
+                        categoryPath: [],
+                        attemptCount: 1,
+                        maxAttempts: 5,
+                        leaseOwner: 'consumer',
+                        leaseExpiresAt: 6_000,
+                    },
+                }),
+            ),
+            completeItem,
+            recordFailure,
+        });
+        const orchestrator = makeOpmlOrchestrator({
+            repository,
+            queue: { send: async () => undefined },
+            now: () => 1_000,
+            discoverFeed: async () =>
+                Promise.reject(
+                    new FeedParseError({ reason: 'unsupported_feed' }),
+                ),
+        });
+
+        await expect(
+            orchestrator.processQueueMessage(
+                { operationId: 'invalid-feed' },
+                'consumer',
+            ),
+        ).resolves.toEqual({ action: 'dead', reason: 'terminal_failure' });
+        expect(completeItem).not.toHaveBeenCalled();
+        expect(recordFailure).toHaveBeenCalledWith(
+            expect.objectContaining({
+                retryable: false,
+                errorClass: 'FeedParseError',
+                errorMessage: 'unsupported_feed',
             }),
         );
     });

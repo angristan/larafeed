@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type { ChartData, ChartRequest } from '../api/charts';
 import { chartKeys } from '../queries/charts';
 import { subscriptionManagementKeys } from '../queries/subscriptions';
-import { ChartsPage } from './ChartsPage';
+import { ChartsPage, refreshAttemptSeries } from './ChartsPage';
 
 const request: ChartRequest = {
     range: '30',
@@ -103,6 +103,11 @@ describe('ChartsPage', () => {
         expect(markup).toContain('Daily Saved Entries');
         expect(markup).toContain('Refresh Activity');
         expect(markup).toContain('Daily attempts');
+        expect(refreshAttemptSeries).toContainEqual({
+            name: 'totalAttempts',
+            label: 'Total attempts',
+            color: 'blue.6',
+        });
         expect(markup).toContain('Success rate');
         expect(markup).toContain('Unread Backlog Trend');
         expect(markup).toContain('Daily Read-through Rate');

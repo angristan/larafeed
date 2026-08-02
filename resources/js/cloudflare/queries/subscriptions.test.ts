@@ -11,6 +11,7 @@ import {
     createSubscriptionMutationOptions,
     subscriptionManagementKeys,
     subscriptionManagementQueryOptions,
+    unsubscribeMutationOptions,
 } from './subscriptions';
 
 const subscription = {
@@ -29,6 +30,7 @@ const subscription = {
     consecutiveFailures: 0,
     lastAttemptAt: null,
     lastSuccessfulRefreshAt: null,
+    lastFailedRefreshAt: null,
     lastErrorClass: null,
     lastErrorMessage: null,
     filterRules: {
@@ -117,6 +119,23 @@ describe('subscription management query contracts', () => {
         for (const key of keys) {
             expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
         }
+    });
+
+    it('removes cached entry details after unsubscribe', async () => {
+        vi.stubGlobal('document', { cookie: 'larafeed-csrf=csrf-token' });
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(() => Promise.resolve(Response.json({ deleted: true }))),
+        );
+        const queryClient = makeQueryClient();
+        queryClient.setQueryData(entryKeys.detail(99), { id: 99 });
+        const mutation = queryClient
+            .getMutationCache()
+            .build(queryClient, unsubscribeMutationOptions(queryClient));
+
+        await mutation.execute({ feedId: subscription.feedId });
+
+        expect(queryClient.getQueryData(entryKeys.detail(99))).toBeUndefined();
     });
 
     it('fails locally when the CSRF cookie is missing', async () => {

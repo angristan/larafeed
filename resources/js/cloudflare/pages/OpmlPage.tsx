@@ -337,7 +337,11 @@ export function OpmlPage() {
     const uploadPending = readingFile || uploadMutation.isPending;
 
     return (
-        <ApplicationPage activePage="settings" settingsNavigation>
+        <ApplicationPage
+            activePage="settings"
+            pageTitle="Import & export"
+            settingsNavigation
+        >
             <Stack gap="xl" maw={720} mx="auto" my="md">
                 <Stack gap={4}>
                     <Title order={1}>Settings</Title>

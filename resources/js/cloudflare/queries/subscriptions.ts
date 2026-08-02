@@ -143,10 +143,18 @@ export function deleteCategoryMutationOptions(queryClient: QueryClient) {
     });
 }
 
-export interface CreateSubscriptionVariables {
+export type CreateSubscriptionVariables = {
     readonly feedUrl: string;
-    readonly categoryId: number;
-}
+} & (
+    | {
+          readonly categoryId: number;
+          readonly categoryName?: never;
+      }
+    | {
+          readonly categoryId?: never;
+          readonly categoryName: string;
+      }
+);
 
 export function createSubscriptionMutationOptions(queryClient: QueryClient) {
     return mutationOptions({
@@ -200,7 +208,10 @@ export function unsubscribeMutationOptions(queryClient: QueryClient) {
                     csrfToken: requireCsrfToken(),
                 }),
             ),
-        onSuccess: async () => invalidateSubscriptionReadModels(queryClient),
+        onSuccess: async () => {
+            queryClient.removeQueries({ queryKey: entryKeys.details() });
+            await invalidateSubscriptionReadModels(queryClient);
+        },
     });
 }
 

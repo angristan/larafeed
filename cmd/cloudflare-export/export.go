@@ -95,7 +95,7 @@ func (e *exporter) exportAll(ctx context.Context) error {
 		e.exportUsers, e.exportFeeds, e.exportEntries, e.exportEntryContents,
 		e.exportCategories, e.exportSubscriptions, e.exportInteractions,
 		e.exportPersonalAccessTokens, e.exportFeverCredentials, e.exportRefreshes,
-		e.exportSummaries,
+		e.exportDailyRefreshes, e.exportSummaries,
 	}
 	for _, step := range steps {
 		err := step(ctx)
@@ -285,6 +285,31 @@ func (e *exporter) exportRefreshes(ctx context.Context) error {
 	})
 }
 
+func (e *exporter) exportDailyRefreshes(ctx context.Context) error {
+	query := `WITH daily AS (
+		SELECT feed_id,
+			(EXTRACT(EPOCH FROM date_trunc('day', refreshed_at AT TIME ZONE 'UTC')) * 1000)::bigint AS day_start,
+			COUNT(*)::bigint AS attempts_count,
+			COUNT(*) FILTER (WHERE was_successful)::bigint AS successes_count,
+			COUNT(*) FILTER (WHERE NOT was_successful)::bigint AS failures_count,
+			COALESCE(SUM(entries_created), 0)::bigint AS entries_created_count,
+			MIN(created_at) AS created_at,
+			MAX(created_at) AS updated_at
+		FROM feed_refreshes
+		GROUP BY feed_id, date_trunc('day', refreshed_at AT TIME ZONE 'UTC')
+	)
+	SELECT * FROM daily
+	WHERE (feed_id, day_start) > ($1, $2)
+	ORDER BY feed_id, day_start LIMIT $3`
+	return e.compositeKeyset(ctx, "chart_daily_refreshes", query, func(row sourceRow) error {
+		record, err := dailyRefreshRecord(row)
+		if err != nil {
+			return fmt.Errorf("transform daily feed refresh: %w", err)
+		}
+		return e.writer.append("chart_daily_refreshes", record, nullableInt(row["feed_id"]))
+	})
+}
+
 func (e *exporter) exportSummaries(ctx context.Context) error {
 	if !e.hasTable("entry_summaries") {
 		return nil
@@ -353,6 +378,10 @@ func (e *exporter) compositeKeyset(ctx context.Context, name, query string, cons
 	secondColumn := "feed_id"
 	if name == "entry_interactions" {
 		secondColumn = "entry_id"
+	}
+	if name == "chart_daily_refreshes" {
+		firstColumn = "feed_id"
+		secondColumn = "day_start"
 	}
 	for {
 		rows, err := e.tx.Query(ctx, query, lastFirst, lastSecond, e.chunkSize)
@@ -461,7 +490,7 @@ func inspectMetadata(ctx context.Context, tx pgx.Tx, columns map[string]map[stri
 		source.GooseVersion = gooseVersion
 	}
 
-	manifest := Manifest{ArtifactVersion: artifactVersion, SchemaVersion: "0004_chart_daily_activity", SourceVersion: source, DryRun: dryRun, ChunkSize: chunkSize}
+	manifest := Manifest{ArtifactVersion: artifactVersion, SchemaVersion: "0006_chart_daily_refreshes", SourceVersion: source, DryRun: dryRun, ChunkSize: chunkSize}
 	sources := []struct{ name, table, key, predicate string }{
 		{"users", "users", "id", ""}, {"feeds", "feeds", "id", ""}, {"entries", "entries", "id", ""},
 		{"entry_contents", "entries", "id", "content IS NOT NULL"}, {"subscription_categories", "subscription_categories", "id", ""},

@@ -268,7 +268,11 @@ export function AppTokensPage() {
     };
 
     return (
-        <ApplicationPage activePage="settings" settingsNavigation>
+        <ApplicationPage
+            activePage="settings"
+            pageTitle="App tokens"
+            settingsNavigation
+        >
             <Container component="div" size="md" py="md">
                 <Modal
                     centered

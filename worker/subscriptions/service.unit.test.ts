@@ -21,6 +21,7 @@ const baseSubscription = {
     consecutiveFailures: 0,
     lastAttemptAt: null,
     lastSuccessfulRefreshAt: null,
+    lastFailedRefreshAt: null,
     lastErrorClass: null,
     lastErrorMessage: null,
     filterRules: {
@@ -39,6 +40,7 @@ const repository = (
             Effect.succeed({ categories: [], subscriptions: [] }),
         findSubscription: () => Effect.succeed(baseSubscription),
         createCategory: () => Effect.die('unused'),
+        findOrCreateCategory: () => Effect.die('unused'),
         updateCategory: () => Effect.die('unused'),
         deleteCategory: () => Effect.die('unused'),
         findFeedByUrl: () => Effect.succeed(null),
@@ -132,6 +134,91 @@ describe('subscription management service', () => {
         expect(scheduleRefresh).toHaveBeenCalledWith(21);
     });
 
+    it('creates or reuses a category while adding the first feed', async () => {
+        const findOrCreateCategory = vi.fn(() =>
+            Effect.succeed({
+                id: 11,
+                name: 'Tech',
+                subscriptionCount: 0,
+            }),
+        );
+        const subscribeDiscovered = vi.fn(() =>
+            Effect.succeed({
+                feedId: 21,
+                createdFeed: true,
+                createdSubscription: true,
+            }),
+        );
+        const generatedIds = [10, 101];
+        const service = makeSubscriptionService({
+            repository: repository({
+                findOrCreateCategory,
+                subscribeDiscovered,
+            }),
+            discoverFeed: () =>
+                Effect.succeed({
+                    kind: 'updated' as const,
+                    finalUrl: 'https://example.test/feed.xml',
+                    etag: null,
+                    lastModified: null,
+                    httpStatus: 200,
+                    feed: {
+                        title: 'Feed',
+                        description: null,
+                        siteUrl: 'https://example.test/',
+                        faviconUrl: null,
+                        sourceUpdatedAt: null,
+                    },
+                    entries: [],
+                }),
+            scheduleRefresh: () =>
+                Effect.succeed({ operationId: 'refresh-operation' }),
+            generateId: () =>
+                Effect.succeed(generatedIds.shift() ?? Number.NaN),
+            now: () => 1_000,
+        });
+
+        await expect(
+            Effect.runPromise(
+                service.createSubscription(7, {
+                    feedUrl: 'https://example.test/feed.xml',
+                    categoryName: 'Tech',
+                }),
+            ),
+        ).resolves.toMatchObject({ subscription: { categoryId: 11 } });
+        expect(findOrCreateCategory).toHaveBeenCalledWith(10, 7, 'Tech', 1_000);
+        expect(subscribeDiscovered).toHaveBeenCalledWith(
+            expect.objectContaining({ proposedId: 101, categoryId: 11 }),
+        );
+    });
+
+    it('rejects ambiguous or missing category choices', async () => {
+        const findFeedByUrl = vi.fn(() => Effect.succeed(null));
+        const service = makeSubscriptionService({
+            repository: repository({ findFeedByUrl }),
+            discoverFeed: () => Effect.die('unused'),
+            scheduleRefresh: () => Effect.die('unused'),
+        });
+
+        await expect(
+            Effect.runPromise(
+                service.createSubscription(7, {
+                    feedUrl: 'https://example.test/feed.xml',
+                }),
+            ),
+        ).rejects.toBeInstanceOf(SubscriptionValidationError);
+        await expect(
+            Effect.runPromise(
+                service.createSubscription(7, {
+                    feedUrl: 'https://example.test/feed.xml',
+                    categoryId: 11,
+                    categoryName: 'Tech',
+                }),
+            ),
+        ).rejects.toBeInstanceOf(SubscriptionValidationError);
+        expect(findFeedByUrl).not.toHaveBeenCalled();
+    });
+
     it('subscribes to a cached feed while its origin is unavailable', async () => {
         const discoverFeed = vi.fn(() => Effect.die('must not fetch'));
         const subscribeExisting = vi.fn(() => Effect.succeed(false));
@@ -160,6 +247,33 @@ describe('subscription management service', () => {
         });
         expect(discoverFeed).not.toHaveBeenCalled();
         expect(subscribeExisting).toHaveBeenCalledWith(7, 21, 11, 1_000);
+    });
+
+    it('stores an empty custom feed name as null', async () => {
+        const updateSubscription = vi.fn(() => Effect.void);
+        const service = makeSubscriptionService({
+            repository: repository({ updateSubscription }),
+            discoverFeed: () => Effect.die('unused'),
+            scheduleRefresh: () => Effect.die('unused'),
+            now: () => 2_000,
+        });
+
+        await Effect.runPromise(
+            service.updateSubscription(7, 21, {
+                categoryId: 11,
+                customFeedName: '',
+                filterRules: baseSubscription.filterRules,
+            }),
+        );
+
+        expect(updateSubscription).toHaveBeenCalledWith(
+            7,
+            21,
+            11,
+            null,
+            baseSubscription.filterRules,
+            2_000,
+        );
     });
 
     it('rebuilds only sparse matching entries when filter rules change', async () => {

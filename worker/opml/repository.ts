@@ -256,9 +256,11 @@ export interface OpmlRepository {
         readonly claim: OpmlItemClaim;
         readonly feedId: number;
         readonly categoryId: number;
+        readonly feedUrl: string;
         readonly feedName: string;
         readonly categoryName: string;
         readonly siteUrl: string | null;
+        readonly faviconUrl: string | null;
         readonly completedAt: number;
     }) => Promise<'succeeded' | 'skipped'>;
     readonly recordFailure: (input: {
@@ -863,14 +865,15 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                     ],
                 },
                 {
-                    sql: `INSERT INTO feeds (id, name, feed_url, site_url, next_refresh_at, created_at, updated_at)
-                    SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})
+                    sql: `INSERT INTO feeds (id, name, feed_url, site_url, favicon_url, next_refresh_at, created_at, updated_at)
+                    SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})
                     ON CONFLICT(feed_url) DO NOTHING`,
                     bindings: [
                         input.feedId,
                         input.feedName,
-                        input.claim.normalizedFeedUrl,
+                        input.feedUrl,
                         input.siteUrl,
+                        input.faviconUrl,
                         input.completedAt,
                         input.completedAt,
                         input.completedAt,
@@ -888,7 +891,7 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                         input.claim.title,
                         input.completedAt,
                         input.completedAt,
-                        input.claim.normalizedFeedUrl,
+                        input.feedUrl,
                         input.claim.userId,
                         input.categoryName,
                         ...condition,
@@ -903,7 +906,7 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                     WHERE id = ? AND operation_id = ? AND state = 'running' AND completed_at IS NULL
                         AND EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})`,
                     bindings: [
-                        input.claim.normalizedFeedUrl,
+                        input.feedUrl,
                         input.claim.userId,
                         input.categoryName,
                         input.completedAt,

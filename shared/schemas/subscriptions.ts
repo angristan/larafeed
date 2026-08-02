@@ -66,6 +66,7 @@ export class ManagedSubscription extends Schema.Class<ManagedSubscription>(
     consecutiveFailures: Count,
     lastAttemptAt: Schema.NullOr(Timestamp),
     lastSuccessfulRefreshAt: Schema.NullOr(Timestamp),
+    lastFailedRefreshAt: Schema.NullOr(Timestamp),
     lastErrorClass: Schema.NullOr(Schema.String),
     lastErrorMessage: Schema.NullOr(Schema.String),
     filterRules: SubscriptionFilterRules,
@@ -101,7 +102,8 @@ export class CreateSubscriptionRequest extends Schema.Class<CreateSubscriptionRe
     'CreateSubscriptionRequest',
 )({
     feedUrl: NonEmptyString.check(Schema.isMaxLength(2_048)),
-    categoryId: SafeId,
+    categoryId: Schema.optionalKey(SafeId),
+    categoryName: Schema.optionalKey(CategoryName),
 }) {}
 
 export class CreateSubscriptionResponse extends Schema.Class<CreateSubscriptionResponse>(

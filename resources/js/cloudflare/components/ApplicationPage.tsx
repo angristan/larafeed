@@ -5,7 +5,7 @@ import {
     IconShieldLock,
     IconUserCircle,
 } from '@tabler/icons-react';
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import { Link, useLocation } from 'react-router';
 
 import {
@@ -19,6 +19,7 @@ interface ApplicationPageProps {
     readonly settingsNavigation?: boolean;
     readonly sidebar?: ReactNode;
     readonly navbarWidth?: number;
+    readonly pageTitle?: string;
 }
 
 function SettingsNavigation({
@@ -34,7 +35,7 @@ function SettingsNavigation({
                 location.pathname === '/settings/security' &&
                 location.hash !== '#security',
             label: 'Profile',
-            description: 'Account details & password',
+            description: 'Account details and data',
             icon: IconUserCircle,
         },
         {
@@ -43,7 +44,7 @@ function SettingsNavigation({
                 location.pathname === '/settings/security' &&
                 location.hash === '#security',
             label: 'Security',
-            description: 'Two-factor authentication',
+            description: 'Passkeys and account recovery',
             icon: IconShieldLock,
         },
         {
@@ -97,8 +98,26 @@ export function ApplicationPage({
     settingsNavigation = false,
     sidebar,
     navbarWidth = 300,
+    pageTitle,
 }: ApplicationPageProps) {
     const [navbarOpened, navbar] = useDisclosure(false);
+    const resolvedTitle =
+        pageTitle ??
+        (
+            {
+                reader: 'Reader',
+                subscriptions: 'Subscriptions',
+                charts: 'Charts',
+                settings: 'Settings',
+            } satisfies Record<ActivePage, string>
+        )[activePage];
+
+    useEffect(() => {
+        document.title = `${resolvedTitle} - Larafeed`;
+        return () => {
+            document.title = 'Larafeed';
+        };
+    }, [resolvedTitle]);
     const hasSidebar = settingsNavigation || sidebar !== undefined;
 
     return (

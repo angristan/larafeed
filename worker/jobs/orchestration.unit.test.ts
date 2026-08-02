@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { makeJobOrchestrator, retryBackoffMs } from './orchestration';
 import type { JobRepository } from './repository';
-import type { LeasedOutboxMessage, RefreshQueueMessage } from './types';
+import {
+    FEED_REFRESH_RETENTION_MS,
+    type LeasedOutboxMessage,
+    type RefreshQueueMessage,
+} from './types';
 
 const unusedProcessor = async () => ({
     type: 'not_modified' as const,
@@ -167,7 +171,7 @@ describe('job orchestration', () => {
             }),
             queue: { send: async () => undefined },
             processor: unusedProcessor,
-            now: () => 100 * 24 * 60 * 60_000,
+            now: () => 400 * 24 * 60 * 60_000,
             generateId: sequentialIds(),
             generateToken: async () => 'token',
         });
@@ -187,7 +191,7 @@ describe('job orchestration', () => {
         });
         expect(calls).toEqual([
             'recover:6',
-            `cleanup:${10 * 24 * 60 * 60_000}:5`,
+            `cleanup:${400 * 24 * 60 * 60_000 - FEED_REFRESH_RETENTION_MS}:5`,
             'due:7',
         ]);
     });

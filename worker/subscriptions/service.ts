@@ -158,7 +158,11 @@ export const makeSubscriptionService = (
 
         createSubscription: (
             userId: number,
-            input: { readonly feedUrl: string; readonly categoryId: number },
+            input: {
+                readonly feedUrl: string;
+                readonly categoryId?: number;
+                readonly categoryName?: string;
+            },
         ) =>
             Effect.gen(function* () {
                 const requestedUrl = /^[a-z][a-z\d+.-]*:\/\//iu.test(
@@ -174,6 +178,30 @@ export const makeSubscriptionService = (
                         new SubscriptionFeedError({ retryable: false }),
                     );
                 }
+
+                let categoryId: number;
+                if (
+                    input.categoryId !== undefined &&
+                    input.categoryName === undefined
+                ) {
+                    categoryId = input.categoryId;
+                } else if (
+                    input.categoryId === undefined &&
+                    input.categoryName !== undefined
+                ) {
+                    const category = yield* repository.findOrCreateCategory(
+                        yield* nextId(),
+                        userId,
+                        input.categoryName,
+                        now(),
+                    );
+                    categoryId = category.id;
+                } else {
+                    return yield* Effect.fail(
+                        new SubscriptionValidationError(),
+                    );
+                }
+
                 const existingFeedId = yield* repository.findFeedByUrl(
                     canonicalRequestedUrl,
                 );
@@ -197,7 +225,7 @@ export const makeSubscriptionService = (
                                   name: discovered.feed.title || feedUrl,
                                   siteUrl: discovered.feed.siteUrl,
                                   faviconUrl: discovered.feed.faviconUrl,
-                                  categoryId: input.categoryId,
+                                  categoryId,
                                   userId,
                                   now: now(),
                               });
@@ -209,7 +237,7 @@ export const makeSubscriptionService = (
                                   yield* repository.subscribeExisting(
                                       userId,
                                       existingFeedId,
-                                      input.categoryId,
+                                      categoryId,
                                       now(),
                                   ),
                           };
@@ -268,7 +296,7 @@ export const makeSubscriptionService = (
                     userId,
                     feedId,
                     input.categoryId,
-                    input.customFeedName,
+                    input.customFeedName?.trim() || null,
                     input.filterRules,
                     now(),
                 );

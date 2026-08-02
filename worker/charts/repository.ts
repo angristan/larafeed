@@ -194,14 +194,14 @@ export const makeChartRepository = (d1: D1): ChartRepository => ({
                         bindings: scoped.bindings,
                     },
                     {
-                        sql: `SELECT ${dayExpression('r.refreshed_at')} AS date,
-                            SUM(CASE WHEN r.was_successful = 1 THEN 1 ELSE 0 END) AS successes,
-                            SUM(CASE WHEN r.was_successful = 0 THEN 1 ELSE 0 END) AS failures,
-                            SUM(r.entries_created) AS entries_created
-                        FROM feed_refreshes r
+                        sql: `SELECT ${dayExpression('r.day_start')} AS date,
+                            SUM(r.successes_count) AS successes,
+                            SUM(r.failures_count) AS failures,
+                            SUM(r.entries_created_count) AS entries_created
+                        FROM chart_daily_refreshes r
                         JOIN feed_subscriptions fs ON fs.feed_id = r.feed_id
                         WHERE ${scoped.clause}
-                          AND r.refreshed_at >= ? AND r.refreshed_at < ?
+                          AND r.day_start >= ? AND r.day_start < ?
                         GROUP BY date ORDER BY date`,
                         bindings: refreshBindings,
                     },

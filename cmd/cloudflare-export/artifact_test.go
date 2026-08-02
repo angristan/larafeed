@@ -80,6 +80,8 @@ func TestRenderedSQLAppliesToTargetSchema(t *testing.T) {
 		filepath.Join("..", "..", "migrations", "0002_reader_indexes.sql"),
 		filepath.Join("..", "..", "migrations", "0003_compatibility_tokens.sql"),
 		filepath.Join("..", "..", "migrations", "0004_chart_daily_activity.sql"),
+		filepath.Join("..", "..", "migrations", "0005_feed_last_failure.sql"),
+		filepath.Join("..", "..", "migrations", "0006_chart_daily_refreshes.sql"),
 		filepath.Join(sqlDir, "0000-clean-target.sql"),
 	}
 	for _, table := range manifest.Tables {
@@ -128,6 +130,8 @@ func TestRepresentativeRenderedSQLAppliesAllTables(t *testing.T) {
 		filepath.Join("..", "..", "migrations", "0002_reader_indexes.sql"),
 		filepath.Join("..", "..", "migrations", "0003_compatibility_tokens.sql"),
 		filepath.Join("..", "..", "migrations", "0004_chart_daily_activity.sql"),
+		filepath.Join("..", "..", "migrations", "0005_feed_last_failure.sql"),
+		filepath.Join("..", "..", "migrations", "0006_chart_daily_refreshes.sql"),
 		filepath.Join(sqlDir, "0000-clean-target.sql"),
 	}
 	for _, table := range manifest.Tables {
@@ -158,6 +162,7 @@ FROM (
   UNION ALL SELECT 'feed_subscriptions', COUNT(*) FROM feed_subscriptions
   UNION ALL SELECT 'entry_interactions', COUNT(*) FROM entry_interactions
   UNION ALL SELECT 'chart_daily_activity', COUNT(*) FROM chart_daily_activity
+  UNION ALL SELECT 'chart_daily_refreshes', COUNT(*) FROM chart_daily_refreshes
   UNION ALL SELECT 'app_tokens', COUNT(*) FROM app_tokens
   UNION ALL SELECT 'feed_refreshes', COUNT(*) FROM feed_refreshes
   UNION ALL SELECT 'entry_summaries', COUNT(*) FROM entry_summaries
@@ -165,7 +170,7 @@ FROM (
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "users:1,feeds:1,entries:1,entry_contents:1,subscription_categories:1,feed_subscriptions:1,entry_interactions:1,chart_daily_activity:0,app_tokens:1,feed_refreshes:1,entry_summaries:1"
+	want := "users:1,feeds:1,entries:1,entry_contents:1,subscription_categories:1,feed_subscriptions:1,entry_interactions:1,chart_daily_activity:0,chart_daily_refreshes:1,app_tokens:1,feed_refreshes:1,entry_summaries:1"
 	if strings.TrimSpace(string(output)) != want {
 		t.Fatalf("representative target output = %q, want %q", output, want)
 	}
@@ -256,7 +261,7 @@ func writeRepresentativeArtifact(t *testing.T, root string) {
 		"feeds": {Values: []Value{
 			IntValue(10), TextValue("Feed"), TextValue("https://example.test/feed.xml"), TextValue("https://example.test/"),
 			NullValue(), NullValue(), NullValue(), TextValue("etag"), NullValue(), IntValue(0), IntValue(0),
-			NullValue(), IntValue(1_000), IntValue(1_000), IntValue(1_000), NullValue(), NullValue(),
+			NullValue(), IntValue(1_000), NullValue(), IntValue(1_000), IntValue(1_000), NullValue(), NullValue(),
 			IntValue(1_000), IntValue(1_000),
 		}},
 		"entries": {Values: []Value{
@@ -287,6 +292,10 @@ func writeRepresentativeArtifact(t *testing.T, root string) {
 			IntValue(40), IntValue(10), NullValue(), IntValue(1_000), IntValue(1), IntValue(0), IntValue(200),
 			IntValue(1), IntValue(1), IntValue(0), IntValue(20), NullValue(), NullValue(), IntValue(1_000),
 		}},
+		"chart_daily_refreshes": {Values: []Value{
+			IntValue(10), IntValue(0), IntValue(1), IntValue(1), IntValue(0), IntValue(1),
+			IntValue(1_000), IntValue(1_000),
+		}},
 		"entry_summaries": {Values: []Value{
 			IntValue(50), IntValue(100), IntValue(1), NullValue(), BlobValue(contentHash[:]), TextValue("gemini-test"),
 			TextValue("v1"), TextValue("<p>Summary</p>"), IntValue(1_000), IntValue(1_000),
@@ -310,7 +319,7 @@ func writeRepresentativeArtifact(t *testing.T, root string) {
 func testManifest(dryRun bool) Manifest {
 	return Manifest{
 		ArtifactVersion: artifactVersion,
-		SchemaVersion:   "0004_chart_daily_activity",
+		SchemaVersion:   "0006_chart_daily_refreshes",
 		SourceVersion: SourceVersion{
 			Database: "representative", PostgreSQL: "test", SnapshotPolicy: "REPEATABLE READ READ ONLY",
 		},

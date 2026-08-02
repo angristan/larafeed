@@ -31,7 +31,7 @@ import {
 import { subscriptionManagementQueryOptions } from './queries/subscriptions';
 import { queryClient } from './queryClient';
 import {
-    canonicalReaderSearch,
+    canonicalReaderRouteSearch,
     parseReaderState,
     READER_PAGE_SIZE,
 } from './readerState';
@@ -132,7 +132,7 @@ async function chartsLoader(args: LoaderFunctionArgs) {
 async function readerLoader(args: LoaderFunctionArgs) {
     await protectedLoader(args);
 
-    const canonicalSearch = canonicalReaderSearch(args.url.searchParams);
+    const canonicalSearch = canonicalReaderRouteSearch(args.url.searchParams);
     if (args.url.search.slice(1) !== canonicalSearch) {
         throw redirect(`/feeds?${canonicalSearch}`);
     }

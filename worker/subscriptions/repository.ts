@@ -43,6 +43,7 @@ const SubscriptionRow = Schema.Struct({
     consecutive_failures: Count,
     last_attempt_at: NullableTimestamp,
     last_successful_refresh_at: NullableTimestamp,
+    last_failed_refresh_at: NullableTimestamp,
     last_error_class: Schema.NullOr(Schema.String),
     last_error_message: Schema.NullOr(Schema.String),
     filter_rules_json: Schema.NullOr(Schema.String),
@@ -125,6 +126,15 @@ export interface SubscriptionRepository {
         | SubscriptionConflict
         | SubscriptionStorageError
         | SubscriptionInvariantError
+    >;
+    readonly findOrCreateCategory: (
+        id: number,
+        userId: number,
+        name: string,
+        now: number,
+    ) => Effect.Effect<
+        ManagedCategory,
+        SubscriptionStorageError | SubscriptionInvariantError
     >;
     readonly updateCategory: (
         userId: number,
@@ -254,7 +264,8 @@ const subscriptionSelect = `SELECT
         WHERE e.feed_id = fs.feed_id AND ei.filtered_at IS NULL
           AND ${effectiveRead} = 0) AS unread_count,
     f.is_gone, f.consecutive_failures, f.last_attempt_at,
-    f.last_successful_refresh_at, f.last_error_class, f.last_error_message,
+    f.last_successful_refresh_at, f.last_failed_refresh_at,
+    f.last_error_class, f.last_error_message,
     fs.filter_rules_json,
     COALESCE((SELECT json_group_array(json_object(
         'id', history.id,
@@ -361,6 +372,7 @@ const subscriptionFromRow = (
             consecutiveFailures: row.consecutive_failures,
             lastAttemptAt: row.last_attempt_at,
             lastSuccessfulRefreshAt: row.last_successful_refresh_at,
+            lastFailedRefreshAt: row.last_failed_refresh_at,
             lastErrorClass: row.last_error_class,
             lastErrorMessage: row.last_error_message,
             filterRules: parseStoredFilterRules(row.filter_rules_json),
@@ -495,6 +507,42 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                 if (category === null)
                     return yield* Effect.fail(invariant(operation));
                 return category;
+            }),
+
+        findOrCreateCategory: (id, userId, name, now) =>
+            Effect.gen(function* () {
+                const operation = 'subscriptions.category.findOrCreate';
+                const result = yield* mapStorage(
+                    operation,
+                    d1.run({
+                        sql: `INSERT OR IGNORE INTO subscription_categories
+                            (id, user_id, name, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?)`,
+                        bindings: [id, userId, name, now, now],
+                    }),
+                );
+                const changed = yield* changeCount(operation, result);
+                if (changed > 1) {
+                    return yield* Effect.fail(invariant(operation));
+                }
+                const row = yield* mapStorage(
+                    operation,
+                    d1.first({
+                        sql: `SELECT c.id, c.name,
+                            (SELECT COUNT(*) FROM feed_subscriptions fs
+                                WHERE fs.user_id = c.user_id
+                                  AND fs.category_id = c.id) AS subscription_count
+                            FROM subscription_categories c
+                            WHERE c.user_id = ? AND c.name = ? COLLATE NOCASE`,
+                        bindings: [userId, name],
+                    }),
+                );
+                if (row === null) {
+                    return yield* Effect.fail(invariant(operation));
+                }
+                return categoryFromRow(
+                    yield* decode(operation, CategoryRow, row),
+                );
             }),
 
         updateCategory: (userId, categoryId, name, now) =>

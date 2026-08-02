@@ -38,15 +38,16 @@ import {
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router';
 
 import type { ReaderEntry } from '../../api/reader';
+import { subscriptionManagementQueryOptions } from '../../queries/subscriptions';
 import {
     entrySummaryQueryOptions,
     generateEntrySummaryMutationOptions,
 } from '../../queries/summaries';
 import { FeedFavicon } from './FeedFavicon';
 import classes from './Reader.module.css';
+import { FeedActions } from './ReaderSidebar';
 import { estimateReadingTime, textFromSanitizedHtml } from './readingTime';
 
 interface ReaderEntryDetailProps {
@@ -193,6 +194,10 @@ export function ReaderEntryDetail({
     onSetArchived,
 }: ReaderEntryDetailProps) {
     const theme = useMantineTheme();
+    const management = useQuery(subscriptionManagementQueryOptions);
+    const managedSubscription = management.data?.subscriptions.find(
+        (subscription) => subscription.feedId === entry?.feedId,
+    );
     const articleContent = useRef<HTMLDivElement>(null);
     const viewport = useRef<HTMLDivElement>(null);
     const [view, setView] = useState<'content' | 'summary'>('content');
@@ -319,9 +324,34 @@ export function ReaderEntryDetail({
                         size={20}
                         src={entry.faviconUrl}
                     />
-                    <Text c="dimmed" size="sm">
-                        {feedName}
-                    </Text>
+                    <Group gap={6} wrap="nowrap">
+                        <Text c="dimmed" size="sm">
+                            {feedName}
+                        </Text>
+                        {entry !== undefined &&
+                            managedSubscription !== undefined && (
+                                <FeedActions
+                                    categories={
+                                        management.data?.categories ?? []
+                                    }
+                                    managed={managedSubscription}
+                                    onUnsubscribed={onBack}
+                                    subscription={{
+                                        feedId: entry.feedId,
+                                        categoryId:
+                                            managedSubscription.categoryId,
+                                        feedName: entry.feedName,
+                                        customFeedName: entry.customFeedName,
+                                        faviconUrl: entry.faviconUrl,
+                                        faviconIsDark: entry.faviconIsDark,
+                                        totalCount:
+                                            managedSubscription.entryCount,
+                                        unreadCount:
+                                            managedSubscription.unreadCount,
+                                    }}
+                                />
+                            )}
+                    </Group>
                     <Group>
                         <Tooltip
                             label="Summarize content with AI or switch back to content"
@@ -471,13 +501,6 @@ export function ReaderEntryDetail({
                                     {entry.archived
                                         ? 'Restore entry'
                                         : 'Archive entry'}
-                                </Menu.Item>
-                                <Menu.Divider />
-                                <Menu.Item
-                                    component={Link}
-                                    to="/settings/subscriptions"
-                                >
-                                    Manage feed
                                 </Menu.Item>
                             </Menu.Dropdown>
                         </Menu>
