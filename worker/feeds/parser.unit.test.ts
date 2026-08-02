@@ -110,6 +110,122 @@ describe('feed parser', () => {
         });
     });
 
+    it('normalizes JSON Feed 1.1 metadata, authors, URLs, and HTML', async () => {
+        const feed = await parse(
+            JSON.stringify({
+                version: 'https://jsonfeed.org/version/1.1',
+                title: 'JSON News',
+                home_page_url: '../home',
+                description: 'JSON updates',
+                icon: '/assets/icon.png',
+                favicon: '/assets/favicon.png',
+                authors: [{ name: 'Feed Author' }],
+                items: [
+                    {
+                        id: 'post-1',
+                        title: 'JSON entry',
+                        url: '../posts/1',
+                        authors: [{ name: 'Item Author' }],
+                        date_published: '2026-07-18T08:00:00Z',
+                        date_modified: '2026-07-18T09:00:00Z',
+                        content_html:
+                            '<p onclick="bad()">Read <a href="images/full">more</a><script>bad()</script></p>',
+                    },
+                ],
+            }),
+        );
+
+        expect(feed.metadata).toEqual({
+            title: 'JSON News',
+            siteUrl: 'https://feeds.example.com/home',
+            faviconUrl: 'https://feeds.example.com/assets/favicon.png',
+            description: 'JSON updates',
+            sourceUpdatedAt: null,
+        });
+        expect(feed.entries).toHaveLength(1);
+        expect(feed.entries[0]).toMatchObject({
+            sourceIdentity: 'id:post-1',
+            sourceId: 'post-1',
+            title: 'JSON entry',
+            url: 'https://feeds.example.com/posts/1',
+            author: 'Item Author',
+            publishedAt: Date.parse('2026-07-18T08:00:00Z'),
+            sourceUpdatedAt: Date.parse('2026-07-18T09:00:00Z'),
+            contentStatus: 'stored',
+            contentHtml:
+                '<p>Read <a href="https://feeds.example.com/path/images/full">more</a></p>',
+        });
+    });
+
+    it('normalizes JSON Feed 1.0 text, authors, and content bounds', async () => {
+        const feed = await parse(
+            JSON.stringify({
+                version: 'https://jsonfeed.org/version/1',
+                title: 'JSON 1.0',
+                icon: '/icon.png',
+                author: { name: 'Feed Author' },
+                items: [
+                    {
+                        id: 'text-entry',
+                        external_url: '/external/1',
+                        date_modified: '2026-07-18T09:00:00Z',
+                        content_text: 'Plain <b>text</b> & safe',
+                    },
+                    {
+                        id: 'oversized-entry',
+                        content_html: 'a'.repeat(MAX_CONTENT_BYTES + 1),
+                    },
+                ],
+            }),
+        );
+
+        expect(feed.metadata.faviconUrl).toBe(
+            'https://feeds.example.com/icon.png',
+        );
+        expect(feed.entries[0]).toMatchObject({
+            sourceIdentity: 'id:text-entry',
+            title: 'Untitled',
+            url: 'https://feeds.example.com/external/1',
+            author: 'Feed Author',
+            publishedAt: Date.parse('2026-07-18T09:00:00Z'),
+            sourceUpdatedAt: Date.parse('2026-07-18T09:00:00Z'),
+            contentHtml: 'Plain &lt;b&gt;text&lt;/b&gt; &amp; safe',
+        });
+        expect(feed.entries[1]).toMatchObject({
+            sourceIdentity: 'id:oversized-entry',
+            contentHtml: null,
+            contentEncodedSize: MAX_CONTENT_BYTES + 1,
+            contentStatus: 'oversized',
+        });
+    });
+
+    it('rejects malformed, unsupported, and structurally invalid JSON', async () => {
+        await expect(
+            parseFeedDocument(bytes('{"version":'), {
+                finalUrl,
+                fetchedAt,
+                contentType: 'application/feed+json; charset=utf-8',
+            }),
+        ).rejects.toMatchObject({ reason: 'malformed_json' });
+
+        for (const document of [
+            { status: 'ok' },
+            {
+                version: 'https://jsonfeed.org/version/2',
+                title: 'Future',
+                items: [],
+            },
+            {
+                version: 'https://jsonfeed.org/version/1.1',
+                title: 'Missing items',
+            },
+        ]) {
+            await expect(parse(JSON.stringify(document))).rejects.toMatchObject(
+                { reason: 'unsupported_feed' },
+            );
+        }
+    });
+
     it('rejects DTD and external entity declarations before parsing', async () => {
         await expect(
             parse(

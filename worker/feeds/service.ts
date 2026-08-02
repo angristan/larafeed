@@ -20,7 +20,7 @@ import { validateFeedUrl } from './policy';
 export const FEED_FETCH_TIMEOUT_MS = 15_000;
 export const MAX_FEED_RESPONSE_BYTES = 5 * 1024 * 1024;
 export const MAX_FEED_REDIRECTS = 5;
-export const MAX_FEED_DISCOVERY_CANDIDATES = 3;
+export const MAX_FEED_DISCOVERY_CANDIDATES = 4;
 export const FEED_USER_AGENT =
     'Larafeed/1.0 (+https://larafeed.stanislas.cloud)';
 
@@ -86,7 +86,7 @@ const safeConditionalHeader = (value: string | null): string | undefined =>
 
 const requestHeaders = (feed: AuthoritativeFeedSource): Headers => {
     const headers = new Headers({
-        accept: 'application/atom+xml, application/rss+xml, application/rdf+xml, application/xml, text/xml, */*;q=0.1',
+        accept: 'application/feed+json, application/json;q=0.9, application/atom+xml, application/rss+xml, application/rdf+xml, application/xml, text/xml, */*;q=0.1',
         'user-agent': FEED_USER_AGENT,
     });
     const etag = safeConditionalHeader(feed.etag);
@@ -209,6 +209,8 @@ export const discoverFeedLinks = (
             href === undefined ||
             ![
                 'application/atom+xml',
+                'application/feed+json',
+                'application/json',
                 'application/rss+xml',
                 'application/rdf+xml',
                 'application/xml',
@@ -452,6 +454,7 @@ const fetchFeed = async (
             const parsed = await parseFeedDocument(body, {
                 finalUrl: currentUrl,
                 fetchedAt: dependencies.now(),
+                contentType: response.headers.get('content-type'),
                 webCrypto: dependencies.webCrypto,
             });
             return {
@@ -510,7 +513,12 @@ export const makeFeedRefreshService = (
                         const candidates =
                             page.links.length > 0
                                 ? page.links
-                                : ['/feed', '/rss', '/atom.xml'].map((path) =>
+                                : [
+                                      '/feed',
+                                      '/rss',
+                                      '/atom.xml',
+                                      '/feed.json',
+                                  ].map((path) =>
                                       validateFeedUrl(
                                           new URL(path, page.finalUrl.origin),
                                       ),

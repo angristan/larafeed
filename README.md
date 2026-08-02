@@ -8,7 +8,7 @@ Larafeed is a private feed reader built on Cloudflare Workers.
 
 - Responsive React and Mantine reader with feed/category scopes and stable pagination
 - Read watermarks, sparse read exceptions, favorites, archives, and filtered-state preservation
-- RSS, Atom, and RDF ingestion with secure bounded fetching and sanitization
+- RSS, Atom, RDF, and JSON Feed ingestion with secure bounded fetching and sanitization
 - Durable refresh and OPML jobs with D1, Queues, Cron, outbox recovery, retries, and DLQs
 - Passkey-only authentication with Turnstile, private enrollment, recovery, and opaque sessions
 - Revocable app tokens for Google Reader and Fever clients

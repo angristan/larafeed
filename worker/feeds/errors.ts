@@ -30,6 +30,7 @@ export class FeedParseError extends Schema.TaggedErrorClass<FeedParseError>()(
         reason: Schema.Literals([
             'empty_document',
             'forbidden_declaration',
+            'malformed_json',
             'malformed_xml',
             'unsupported_feed',
         ]),

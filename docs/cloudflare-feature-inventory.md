@@ -9,7 +9,7 @@ This inventory is the cutover contract. “Implemented” means the Cloudflare a
 | Reader sidebar, feed/category scopes, unread/read/favorites filters | Implemented with D1-backed typed APIs and React Router URL state. |
 | Entry list/detail, numbered pagination, read/unread, star/unstar, archive state | Implemented with sparse interactions and ingestion-ID read watermarks. Detail prefetch is side-effect-free. |
 | Mark feed as read | Implemented as an atomic read-through watermark update without user-by-entry writes. |
-| RSS, Atom, and RDF refresh | Implemented with bounded secure fetch, parsing, sanitization, conditional requests, Queues, Cron, durable jobs, outbox, retries, and DLQs. |
+| RSS, Atom, RDF, and JSON Feed refresh | Implemented with bounded secure fetch, parsing, sanitization, conditional requests, JSON Feed 1.0/1.1 discovery, Queues, Cron, durable jobs, outbox, retries, and DLQs. |
 | Manual refresh | Implemented as an authenticated, CSRF-protected durable command. |
 | OPML import and progress | Implemented with bounded parsing, one durable item per feed, partial failure reporting, retries, and progress polling. |
 | OPML export | Implemented as an authenticated download. |

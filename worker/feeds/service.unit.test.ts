@@ -22,6 +22,17 @@ const source = {
     lastModified: 'Sat, 18 Jul 2026 10:00:00 GMT',
 } as const;
 const rss = `<rss><channel><title>Example</title><item><guid>1</guid><title>One</title><pubDate>2026-07-18T10:00:00Z</pubDate></item></channel></rss>`;
+const jsonFeed = JSON.stringify({
+    version: 'https://jsonfeed.org/version/1.1',
+    title: 'JSON Feed',
+    items: [
+        {
+            id: 'json-1',
+            url: '/posts/1',
+            content_html: '<p>JSON body</p>',
+        },
+    ],
+});
 
 const failure = <A>(effect: Effect.Effect<A, unknown>) =>
     Effect.runPromise(Effect.flip(effect));
@@ -58,6 +69,8 @@ describe('feed refresh service', () => {
         expect(headers.get('if-none-match')).toBe(source.etag);
         expect(headers.get('if-modified-since')).toBe(source.lastModified);
         expect(headers.get('user-agent')).toBe(FEED_USER_AGENT);
+        expect(headers.get('accept')).toContain('application/feed+json');
+        expect(headers.get('accept')).toContain('application/json');
         expect(init?.signal).toBeInstanceOf(AbortSignal);
     });
 
@@ -203,10 +216,34 @@ describe('feed refresh service', () => {
         });
     });
 
-    it('discovers and validates an alternate feed from an HTML page', async () => {
+    it('refreshes a structurally valid JSON Feed served as application/json', async () => {
+        const service = makeFeedRefreshService({
+            fetch: async () =>
+                new Response(jsonFeed, {
+                    headers: { 'content-type': 'application/json' },
+                }),
+            now: () => Date.parse('2026-07-18T12:00:00Z'),
+        });
+
+        const result = await Effect.runPromise(service.refresh(source));
+
+        expect(result).toMatchObject({
+            kind: 'updated',
+            feed: { title: 'JSON Feed' },
+            entries: [
+                {
+                    sourceId: 'json-1',
+                    url: 'https://feeds.example.com/posts/1',
+                    contentHtml: '<p>JSON body</p>',
+                },
+            ],
+        });
+    });
+
+    it('discovers and validates a JSON Feed alternate from an HTML page', async () => {
         const html = `<html><head>
-            <link rel="alternate" type="application/rss+xml" href="/news.xml">
-            <link rel="alternate" type="application/rss+xml" href="http://127.0.0.1/private">
+            <link rel="alternate" type="application/feed+json" href="/feed.json">
+            <link rel="alternate" type="application/feed+json" href="http://127.0.0.1/private">
         </head></html>`;
         const fetchMock = vi
             .fn()
@@ -221,8 +258,8 @@ describe('feed refresh service', () => {
                 }),
             )
             .mockResolvedValueOnce(
-                new Response(rss, {
-                    headers: { 'content-type': 'application/rss+xml' },
+                new Response(jsonFeed, {
+                    headers: { 'content-type': 'application/feed+json' },
                 }),
             );
         const service = makeFeedRefreshService({ fetch: fetchMock });
@@ -233,11 +270,12 @@ describe('feed refresh service', () => {
 
         expect(result).toMatchObject({
             kind: 'updated',
-            finalUrl: 'https://example.com/news.xml',
+            finalUrl: 'https://example.com/feed.json',
+            feed: { title: 'JSON Feed' },
         });
         expect(fetchMock).toHaveBeenCalledTimes(3);
         expect(String(fetchMock.mock.calls[2]?.[0])).toBe(
-            'https://example.com/news.xml',
+            'https://example.com/feed.json',
         );
     });
 
@@ -270,6 +308,38 @@ describe('feed refresh service', () => {
         expect(String(fetchMock.mock.calls[2]?.[0])).toBe(
             'https://example.com/feed',
         );
+    });
+
+    it('finds JSON Feed at the bounded common feed.json path', async () => {
+        const html = '<html><head><title>No links</title></head></html>';
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                new Response(html, {
+                    headers: { 'content-type': 'text/html' },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(html, {
+                    headers: { 'content-type': 'text/html' },
+                }),
+            )
+            .mockResolvedValueOnce(new Response('missing', { status: 404 }))
+            .mockResolvedValueOnce(new Response('missing', { status: 404 }))
+            .mockResolvedValueOnce(new Response('missing', { status: 404 }))
+            .mockResolvedValueOnce(
+                new Response(jsonFeed, {
+                    headers: { 'content-type': 'application/feed+json' },
+                }),
+            );
+        const service = makeFeedRefreshService({ fetch: fetchMock });
+
+        const result = await Effect.runPromise(
+            service.discover('https://example.com/'),
+        );
+
+        expect(result.finalUrl).toBe('https://example.com/feed.json');
+        expect(fetchMock).toHaveBeenCalledTimes(6);
     });
 
     it('classifies HTTP status and transport failures without retaining causes', async () => {

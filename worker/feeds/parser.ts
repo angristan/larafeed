@@ -39,6 +39,7 @@ export interface ParsedFeed {
 interface ParseFeedOptions {
     readonly finalUrl: URL;
     readonly fetchedAt: number;
+    readonly contentType?: string | null;
     readonly webCrypto?: Crypto;
 }
 
@@ -375,6 +376,137 @@ const normalizedContent = (
           };
 };
 
+const JSON_FEED_VERSIONS = new Set([
+    'https://jsonfeed.org/version/1',
+    'https://jsonfeed.org/version/1.1',
+]);
+const JSON_FEED_MIME_TYPES = new Set([
+    'application/feed+json',
+    'application/json',
+]);
+const MAX_JSON_FEED_ITEMS_TO_PARSE = 1_000;
+
+const jsonText = (value: unknown): string | undefined => {
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+    const text = value.trim();
+    return text === '' ? undefined : text;
+};
+
+const jsonContent = (value: unknown): string | undefined =>
+    typeof value === 'string' && value.trim() !== '' ? value : undefined;
+
+const jsonAuthor = (container: XmlRecord): string | undefined => {
+    if (Array.isArray(container.authors)) {
+        for (const value of container.authors) {
+            const name = jsonText(record(value)?.name);
+            if (name !== undefined) {
+                return boundedText(name, 1_000);
+            }
+        }
+    }
+    return boundedText(jsonText(record(container.author)?.name), 1_000);
+};
+
+const candidateFromJsonItem = (
+    value: unknown,
+    sourceIndex: number,
+    finalUrl: URL,
+    fetchedAt: number,
+    feedAuthor: string | undefined,
+): EntryCandidate | undefined => {
+    const item = record(value);
+    if (item === undefined) {
+        return undefined;
+    }
+
+    const sourceId = jsonText(item.id);
+    if (sourceId === undefined || sourceId.length > 4_096) {
+        return undefined;
+    }
+
+    const contentHtml = jsonContent(item.content_html);
+    const contentText = jsonContent(item.content_text);
+    if (contentHtml === undefined && contentText === undefined) {
+        return undefined;
+    }
+    const content = normalizedContent(
+        contentHtml ??
+            (contentText === undefined ? undefined : escaped(contentText)),
+        finalUrl,
+    );
+    const rawPublished = jsonText(item.date_published);
+    const rawUpdated = jsonText(item.date_modified);
+    const published = parseDate(rawPublished, fetchedAt);
+    const sourceUpdatedAt = parseDate(rawUpdated, fetchedAt);
+    const url =
+        resolveHttpUrl(jsonText(item.url), finalUrl) ??
+        resolveHttpUrl(jsonText(item.external_url), finalUrl);
+
+    return {
+        sourceIdentity: `id:${sourceId}`,
+        sourceId,
+        title: boundedText(jsonText(item.title), 2_000) ?? 'Untitled',
+        url,
+        author: jsonAuthor(item) ?? feedAuthor ?? null,
+        publishedAt: published ?? sourceUpdatedAt ?? fetchedAt,
+        sourceUpdatedAt,
+        sortTimestamp: published ?? sourceUpdatedAt,
+        ...content,
+        sourceIndex,
+    };
+};
+
+const jsonFeed = (
+    document: unknown,
+    finalUrl: URL,
+    fetchedAt: number,
+): {
+    readonly metadata: NormalizedFeedMetadata;
+    readonly candidates: readonly EntryCandidate[];
+} => {
+    const feed = record(document);
+    const version = jsonText(feed?.version);
+    const title = jsonText(feed?.title);
+    if (
+        feed === undefined ||
+        version === undefined ||
+        !JSON_FEED_VERSIONS.has(version) ||
+        title === undefined ||
+        !Array.isArray(feed.items)
+    ) {
+        throw new FeedParseError({ reason: 'unsupported_feed' });
+    }
+
+    const metadata: NormalizedFeedMetadata = {
+        title: boundedText(title, 500) ?? finalUrl.hostname,
+        siteUrl: resolveHttpUrl(jsonText(feed.home_page_url), finalUrl),
+        faviconUrl:
+            resolveHttpUrl(jsonText(feed.favicon), finalUrl) ??
+            resolveHttpUrl(jsonText(feed.icon), finalUrl),
+        description: boundedText(jsonText(feed.description), 4_000) ?? null,
+        sourceUpdatedAt: null,
+    };
+    const feedAuthor = jsonAuthor(feed);
+    const candidates = feed.items
+        .slice(0, MAX_JSON_FEED_ITEMS_TO_PARSE)
+        .map((item, sourceIndex) =>
+            candidateFromJsonItem(
+                item,
+                sourceIndex,
+                finalUrl,
+                fetchedAt,
+                feedAuthor,
+            ),
+        )
+        .filter(
+            (candidate): candidate is EntryCandidate => candidate !== undefined,
+        );
+
+    return { metadata, candidates };
+};
+
 const candidateFromItem = (
     kind: FeedKind,
     value: unknown,
@@ -456,69 +588,28 @@ const digestIdentity = async (
         ),
     );
 
-export const parseFeedDocument = async (
-    bytes: Uint8Array,
-    options: ParseFeedOptions,
-): Promise<ParsedFeed> => {
-    if (bytes.byteLength === 0) {
-        throw new FeedParseError({ reason: 'empty_document' });
-    }
-    const source = new TextDecoder().decode(bytes);
-    if (/<!\s*(?:doctype|entity)\b/iu.test(source)) {
-        throw new FeedParseError({ reason: 'forbidden_declaration' });
-    }
-
-    let document: unknown;
-    try {
-        document = parser.parse(source, true);
-    } catch {
-        throw new FeedParseError({ reason: 'malformed_xml' });
-    }
-
-    const shape = feedShape(document);
-    const metadata = metadataFromShape(
-        shape,
-        options.finalUrl,
-        options.fetchedAt,
-    );
-    const candidates = shape.items
-        .map((item, sourceIndex) => {
-            try {
-                return candidateFromItem(
-                    shape.kind,
-                    item,
-                    sourceIndex,
-                    options.finalUrl,
-                    options.fetchedAt,
-                    metadata.sourceUpdatedAt,
-                );
-            } catch {
-                return undefined;
-            }
-        })
-        .filter(
-            (candidate): candidate is EntryCandidate => candidate !== undefined,
-        )
-        .sort((left, right) => {
-            if (left.sortTimestamp === null && right.sortTimestamp === null) {
-                return left.sourceIndex - right.sourceIndex;
-            }
-            if (left.sortTimestamp === null) {
-                return 1;
-            }
-            if (right.sortTimestamp === null) {
-                return -1;
-            }
-            return (
-                right.sortTimestamp - left.sortTimestamp ||
-                left.sourceIndex - right.sourceIndex
-            );
-        });
-
+const entriesFromCandidates = async (
+    candidates: readonly EntryCandidate[],
+    webCrypto: Crypto,
+): Promise<readonly NormalizedFeedEntry[]> => {
+    const sorted = [...candidates].sort((left, right) => {
+        if (left.sortTimestamp === null && right.sortTimestamp === null) {
+            return left.sourceIndex - right.sourceIndex;
+        }
+        if (left.sortTimestamp === null) {
+            return 1;
+        }
+        if (right.sortTimestamp === null) {
+            return -1;
+        }
+        return (
+            right.sortTimestamp - left.sortTimestamp ||
+            left.sourceIndex - right.sourceIndex
+        );
+    });
     const entries: NormalizedFeedEntry[] = [];
     const seen = new Set<string>();
-    const webCrypto = options.webCrypto ?? globalThis.crypto;
-    for (const candidate of candidates) {
+    for (const candidate of sorted) {
         const deduplicationKey = await digestIdentity(
             candidate.sourceIdentity,
             webCrypto,
@@ -537,6 +628,84 @@ export const parseFeedDocument = async (
             break;
         }
     }
+    return entries;
+};
 
+export const parseFeedDocument = async (
+    bytes: Uint8Array,
+    options: ParseFeedOptions,
+): Promise<ParsedFeed> => {
+    if (bytes.byteLength === 0) {
+        throw new FeedParseError({ reason: 'empty_document' });
+    }
+    const decoded = new TextDecoder().decode(bytes);
+    const source = decoded.startsWith('\ufeff') ? decoded.slice(1) : decoded;
+    const contentType = options.contentType
+        ?.split(';', 1)[0]
+        .trim()
+        .toLowerCase();
+    const firstCharacter = source.trimStart().at(0);
+    const isJson =
+        (contentType !== undefined && JSON_FEED_MIME_TYPES.has(contentType)) ||
+        firstCharacter === '{' ||
+        firstCharacter === '[';
+
+    let metadata: NormalizedFeedMetadata;
+    let candidates: readonly EntryCandidate[];
+    if (isJson) {
+        let document: unknown;
+        try {
+            document = JSON.parse(source);
+        } catch {
+            throw new FeedParseError({ reason: 'malformed_json' });
+        }
+        ({ metadata, candidates } = jsonFeed(
+            document,
+            options.finalUrl,
+            options.fetchedAt,
+        ));
+    } else {
+        if (/<!\s*(?:doctype|entity)\b/iu.test(source)) {
+            throw new FeedParseError({ reason: 'forbidden_declaration' });
+        }
+
+        let document: unknown;
+        try {
+            document = parser.parse(source, true);
+        } catch {
+            throw new FeedParseError({ reason: 'malformed_xml' });
+        }
+
+        const shape = feedShape(document);
+        metadata = metadataFromShape(
+            shape,
+            options.finalUrl,
+            options.fetchedAt,
+        );
+        candidates = shape.items
+            .map((item, sourceIndex) => {
+                try {
+                    return candidateFromItem(
+                        shape.kind,
+                        item,
+                        sourceIndex,
+                        options.finalUrl,
+                        options.fetchedAt,
+                        metadata.sourceUpdatedAt,
+                    );
+                } catch {
+                    return undefined;
+                }
+            })
+            .filter(
+                (candidate): candidate is EntryCandidate =>
+                    candidate !== undefined,
+            );
+    }
+
+    const entries = await entriesFromCandidates(
+        candidates,
+        options.webCrypto ?? globalThis.crypto,
+    );
     return { metadata, entries };
 };
