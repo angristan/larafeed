@@ -41,7 +41,7 @@ describe('ApplicationHeader', () => {
         expect(markup).toContain('aria-label="Charts page"');
         expect(markup).toContain('aria-label="Settings page"');
         expect(markup).toContain('aria-label="Keyboard shortcuts"');
-        expect(markup).toContain('aria-label="Color scheme"');
+        expect(markup).toContain('aria-label="Toggle color scheme"');
         expect(markup).toContain('aria-label="Signed in as Reader"');
         expect(markup).toContain('github.com/angristan/larafeed');
     });

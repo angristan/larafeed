@@ -22,10 +22,7 @@ import {
     readerCountsQueryOptions,
     subscriptionListQueryOptions,
 } from '../queries/reader';
-import {
-    useEntryInteractionMutations,
-    useReadThroughMutation,
-} from '../queries/readerMutations';
+import { useEntryInteractionMutations } from '../queries/readerMutations';
 import { parseReaderState, READER_PAGE_SIZE, readerHref } from '../readerState';
 
 function firstError(...errors: Array<Error | null>): Error | null {
@@ -71,7 +68,6 @@ export function ReaderPage() {
         enabled: state.entryId !== null,
     });
     const entryMutations = useEntryInteractionMutations(selectedEntryId);
-    const readThroughMutation = useReadThroughMutation(state.feedId ?? 1);
     const openedReadAttempt = useRef<number | null>(null);
 
     useEffect(() => {
@@ -168,14 +164,6 @@ export function ReaderPage() {
     }
 
     const subscriptions = subscriptionsQuery.data?.subscriptions;
-    const selectedSubscription = subscriptions?.find(
-        (subscription) => subscription.feedId === state.feedId,
-    );
-    const selectedFeedName =
-        selectedSubscription === undefined
-            ? null
-            : (selectedSubscription.customFeedName ??
-              selectedSubscription.feedName);
     const sidebarError = firstError(
         categoriesQuery.error,
         subscriptionsQuery.error,
@@ -247,31 +235,20 @@ export function ReaderPage() {
                             : undefined
                     }
                     data-detail={state.entryId !== null || undefined}
-                    orientation="vertical"
                     radius="xs"
-                    shiftStep={60}
                     size="sm"
                     spacing="md"
-                    step={12}
                 >
                     <Split.Pane
                         className={classes.listPaneContainer}
-                        initialWidth="38%"
-                        maxWidth={720}
-                        minWidth={320}
+                        initialWidth="40%"
+                        minWidth={300}
                     >
                         <ReaderEntryList
                             error={entryPageQuery.error}
                             isFetching={entryPageQuery.isFetching}
                             isPending={entryPageQuery.isPending}
                             isPlaceholderData={entryPageQuery.isPlaceholderData}
-                            markFeedReadError={readThroughMutation.error}
-                            markFeedReadPending={readThroughMutation.isPending}
-                            onMarkFeedRead={
-                                state.feedId === null
-                                    ? null
-                                    : () => readThroughMutation.mutate()
-                            }
                             onPageChange={(page) =>
                                 void navigate(readerHref(state, { page }))
                             }
@@ -282,11 +259,6 @@ export function ReaderPage() {
                             }}
                             onRetry={() => void entryPageQuery.refetch()}
                             page={entryPageQuery.data}
-                            onOrderChange={(orderBy) =>
-                                void navigate(readerHref(state, { orderBy }))
-                            }
-                            orderBy={state.orderBy}
-                            selectedFeedName={selectedFeedName}
                             state={state}
                         />
                     </Split.Pane>

@@ -1,24 +1,20 @@
 import {
     Alert,
-    Badge,
     Button,
+    Card,
     Center,
+    Divider,
+    Flex,
     Group,
-    Loader,
+    Indicator,
+    List,
     Pagination,
     ScrollArea,
-    Select,
     Skeleton,
     Stack,
     Text,
-    Title,
 } from '@mantine/core';
-import {
-    IconCheck,
-    IconRefresh,
-    IconRss,
-    IconStarFilled,
-} from '@tabler/icons-react';
+import { IconRefresh, IconStarFilled } from '@tabler/icons-react';
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 
@@ -37,19 +33,33 @@ interface ReaderEntryListProps {
     readonly onRetry: () => void;
     readonly onPrefetchEntry: (entryId: number) => void;
     readonly onPageChange: (page: number) => void;
-    readonly orderBy: ReaderState['orderBy'];
-    readonly onOrderChange: (orderBy: ReaderState['orderBy']) => void;
-    readonly selectedFeedName: string | null;
-    readonly onMarkFeedRead: (() => void) | null;
-    readonly markFeedReadPending: boolean;
-    readonly markFeedReadError: Error | null;
 }
 
-function formatTimestamp(timestamp: number): string {
-    return new Intl.DateTimeFormat(undefined, {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    }).format(new Date(timestamp));
+const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, {
+    numeric: 'auto',
+});
+
+function formatRelativeTime(timestamp: number): string {
+    const seconds = Math.round((timestamp - Date.now()) / 1_000);
+    const ranges = [
+        ['year', 31_536_000],
+        ['month', 2_592_000],
+        ['week', 604_800],
+        ['day', 86_400],
+        ['hour', 3_600],
+        ['minute', 60],
+    ] as const;
+
+    for (const [unit, duration] of ranges) {
+        if (Math.abs(seconds) >= duration) {
+            return relativeTimeFormatter.format(
+                Math.round(seconds / duration),
+                unit,
+            );
+        }
+    }
+
+    return relativeTimeFormatter.format(seconds, 'second');
 }
 
 export function ReaderEntryList({
@@ -62,12 +72,6 @@ export function ReaderEntryList({
     onRetry,
     onPrefetchEntry,
     onPageChange,
-    orderBy,
-    onOrderChange,
-    selectedFeedName,
-    onMarkFeedRead,
-    markFeedReadPending,
-    markFeedReadError,
 }: ReaderEntryListProps) {
     const viewport = useRef<HTMLDivElement>(null);
 
@@ -78,100 +82,30 @@ export function ReaderEntryList({
     }, [isPlaceholderData, page?.pagination.page]);
 
     return (
-        <section
+        <List
             aria-busy={isPending || isFetching}
-            aria-labelledby="entry-list-title"
-            className={classes.listPane}
+            listStyleType="none"
+            style={{
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%',
+                width: '100%',
+                paddingLeft: 0,
+            }}
         >
-            <Group
-                className={classes.paneHeader}
-                justify="space-between"
-                wrap="nowrap"
-            >
-                <Stack gap={0} className={classes.headingClamp}>
-                    <Title id="entry-list-title" order={2} size="h4">
-                        {selectedFeedName ?? 'Entries'}
-                    </Title>
-                    {page !== undefined && (
-                        <Text c="dimmed" size="xs">
-                            {page.pagination.total.toLocaleString()} entries
-                        </Text>
-                    )}
-                </Stack>
-
-                <Group gap="xs" wrap="nowrap">
-                    {isFetching && !isPending && (
-                        <Loader aria-label="Refreshing entries" size={16} />
-                    )}
-                    <Select
-                        aria-label="Order entries"
-                        allowDeselect={false}
-                        data={[
-                            {
-                                value: 'published_at',
-                                label: 'Newest published',
-                            },
-                            { value: 'created_at', label: 'Recently added' },
-                        ]}
-                        onChange={(value) => {
-                            if (
-                                value === 'published_at' ||
-                                value === 'created_at'
-                            ) {
-                                onOrderChange(value);
-                            }
-                        }}
-                        size="xs"
-                        value={orderBy}
-                        w={150}
-                    />
-                    {onMarkFeedRead !== null && (
-                        <Button
-                            aria-label="Mark all entries in this feed as read"
-                            leftSection={
-                                <IconCheck aria-hidden="true" size={15} />
-                            }
-                            loading={markFeedReadPending}
-                            onClick={onMarkFeedRead}
-                            size="xs"
-                            variant="light"
-                        >
-                            Mark feed read
-                        </Button>
-                    )}
-                </Group>
-            </Group>
-
-            {markFeedReadError !== null && (
-                <Alert color="red" m="sm" role="alert">
-                    {markFeedReadError.message}
-                </Alert>
-            )}
-
-            <ScrollArea
-                className={classes.entryScroll}
-                offsetScrollbars="y"
-                viewportRef={viewport}
-            >
+            <ScrollArea style={{ flex: 1 }} viewportRef={viewport}>
                 {isPending && page === undefined && (
                     <Stack gap="sm" p="sm">
-                        {[
-                            'first',
-                            'second',
-                            'third',
-                            'fourth',
-                            'fifth',
-                            'sixth',
-                            'seventh',
-                            'eighth',
-                        ].map((key) => (
-                            <Skeleton key={key} height={96} radius="md" />
-                        ))}
+                        {['first', 'second', 'third', 'fourth', 'fifth'].map(
+                            (key) => (
+                                <Skeleton key={key} height={92} radius="sm" />
+                            ),
+                        )}
                     </Stack>
                 )}
 
                 {error !== null && page === undefined && (
-                    <Center className={classes.paneState}>
+                    <Center p="xl">
                         <Alert color="red" title="Entries unavailable">
                             <Stack gap="sm">
                                 <Text size="sm">{error.message}</Text>
@@ -193,176 +127,96 @@ export function ReaderEntryList({
                     </Center>
                 )}
 
-                {page !== undefined && page.entries.length === 0 && (
-                    <Center className={classes.paneState}>
-                        <Stack align="center" gap="xs">
-                            <IconRss
-                                aria-hidden="true"
-                                color="var(--mantine-color-dimmed)"
-                                size={32}
-                            />
-                            <Text fw={600}>No entries here</Text>
-                            <Text c="dimmed" size="sm" ta="center">
-                                Try another feed or filter.
-                            </Text>
-                        </Stack>
-                    </Center>
-                )}
-
-                {page !== undefined && page.entries.length > 0 && (
-                    <ol
-                        aria-label="Feed entries"
-                        className={classes.entryList}
-                        data-placeholder={isPlaceholderData || undefined}
-                    >
-                        {page.entries.map((entry) => {
-                            const active = state.entryId === entry.id;
-                            const feedName =
-                                entry.customFeedName ?? entry.feedName;
-
-                            return (
-                                <li key={entry.id}>
-                                    <Link
-                                        id={`reader-entry-${entry.id}`}
-                                        aria-current={
-                                            active ? 'true' : undefined
-                                        }
-                                        className={classes.entryLink}
-                                        data-active={active || undefined}
-                                        data-read={entry.read || undefined}
-                                        onFocus={() =>
-                                            onPrefetchEntry(entry.id)
-                                        }
-                                        onMouseEnter={() =>
-                                            onPrefetchEntry(entry.id)
-                                        }
-                                        to={readerHref(state, {
-                                            entryId: entry.id,
-                                        })}
-                                    >
-                                        <Group
-                                            align="flex-start"
-                                            gap="sm"
-                                            justify="space-between"
-                                            wrap="nowrap"
+                {page?.entries.map((entry) => {
+                    const active = state.entryId === entry.id;
+                    const feedName = entry.customFeedName ?? entry.feedName;
+                    return (
+                        <Link
+                            key={entry.id}
+                            id={`reader-entry-${entry.id}`}
+                            aria-current={active ? 'true' : undefined}
+                            className={classes.entry}
+                            onFocus={() => onPrefetchEntry(entry.id)}
+                            onMouseEnter={() => onPrefetchEntry(entry.id)}
+                            to={readerHref(state, { entryId: entry.id })}
+                        >
+                            <Indicator
+                                color="gray"
+                                disabled={entry.read}
+                                offset={15}
+                                size={12}
+                                withBorder
+                            >
+                                <Card
+                                    className={`${classes.entryCard} ${
+                                        active ? classes.activeEntry : ''
+                                    } ${entry.read ? classes.readEntry : ''}`}
+                                    mb={10}
+                                    pb={10}
+                                    pl={12}
+                                    pt={10}
+                                    radius="sm"
+                                    shadow="sm"
+                                    withBorder
+                                >
+                                    <span className={classes.entryTitle}>
+                                        {entry.title || 'Untitled entry'}{' '}
+                                        {entry.starred && (
+                                            <IconStarFilled size={15} />
+                                        )}
+                                    </span>
+                                    <Flex justify="space-between" mt={10}>
+                                        <Flex>
+                                            <FeedFavicon
+                                                isDark={entry.faviconIsDark}
+                                                size={20}
+                                                src={entry.faviconUrl}
+                                            />
+                                            <Text c="dimmed" ml={9} size="xs">
+                                                {feedName}
+                                            </Text>
+                                        </Flex>
+                                        <Text
+                                            c="dimmed"
+                                            component="time"
+                                            dateTime={new Date(
+                                                entry.publishedAt,
+                                            ).toISOString()}
+                                            size="xs"
                                         >
-                                            <Stack
-                                                className={classes.entryCopy}
-                                                gap="xs"
-                                            >
-                                                <Group gap={6} wrap="nowrap">
-                                                    {!entry.read && (
-                                                        <span
-                                                            aria-label="Unread"
-                                                            className={
-                                                                classes.unreadDot
-                                                            }
-                                                            role="img"
-                                                        />
-                                                    )}
-                                                    <Text
-                                                        className={
-                                                            classes.entryTitle
-                                                        }
-                                                        fw={
-                                                            entry.read
-                                                                ? 500
-                                                                : 700
-                                                        }
-                                                        lineClamp={2}
-                                                    >
-                                                        {entry.title ||
-                                                            'Untitled entry'}
-                                                    </Text>
-                                                    {entry.starred && (
-                                                        <IconStarFilled
-                                                            aria-label="Favorite"
-                                                            className={
-                                                                classes.starIcon
-                                                            }
-                                                            role="img"
-                                                            size={15}
-                                                        />
-                                                    )}
-                                                </Group>
-
-                                                <Group
-                                                    gap="xs"
-                                                    justify="space-between"
-                                                    wrap="nowrap"
-                                                >
-                                                    <Group
-                                                        className={
-                                                            classes.entryFeed
-                                                        }
-                                                        gap={6}
-                                                        wrap="nowrap"
-                                                    >
-                                                        <FeedFavicon
-                                                            isDark={
-                                                                entry.faviconIsDark
-                                                            }
-                                                            size={16}
-                                                            src={
-                                                                entry.faviconUrl
-                                                            }
-                                                        />
-                                                        <Text
-                                                            c="dimmed"
-                                                            lineClamp={1}
-                                                            size="xs"
-                                                        >
-                                                            {feedName}
-                                                        </Text>
-                                                    </Group>
-                                                    <Text
-                                                        c="dimmed"
-                                                        component="time"
-                                                        dateTime={new Date(
-                                                            entry.publishedAt,
-                                                        ).toISOString()}
-                                                        size="xs"
-                                                        title={formatTimestamp(
-                                                            entry.publishedAt,
-                                                        )}
-                                                    >
-                                                        {formatTimestamp(
-                                                            entry.publishedAt,
-                                                        )}
-                                                    </Text>
-                                                </Group>
-                                            </Stack>
-                                            {entry.archived && (
-                                                <Badge
-                                                    color="gray"
-                                                    size="xs"
-                                                    variant="light"
-                                                >
-                                                    Archived
-                                                </Badge>
+                                            {formatRelativeTime(
+                                                entry.publishedAt,
                                             )}
-                                        </Group>
-                                    </Link>
-                                </li>
-                            );
-                        })}
-                    </ol>
-                )}
+                                        </Text>
+                                    </Flex>
+                                </Card>
+                            </Indicator>
+                        </Link>
+                    );
+                })}
             </ScrollArea>
 
             {page !== undefined && page.pagination.totalPages > 1 && (
-                <div className={classes.pagination}>
-                    <Pagination
-                        aria-label="Entry pages"
-                        disabled={isPlaceholderData}
-                        onChange={onPageChange}
-                        size="sm"
-                        total={page.pagination.totalPages}
-                        value={state.page}
-                        withEdges
-                    />
-                </div>
+                <>
+                    <Divider />
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                        <Pagination.Root
+                            onChange={onPageChange}
+                            size="sm"
+                            total={page.pagination.totalPages}
+                            value={state.page}
+                        >
+                            <Group gap={7} mt="md">
+                                <Pagination.First />
+                                <Pagination.Previous />
+                                <Pagination.Items />
+                                <Pagination.Next />
+                                <Pagination.Last />
+                            </Group>
+                        </Pagination.Root>
+                    </div>
+                </>
             )}
-        </section>
+        </List>
     );
 }

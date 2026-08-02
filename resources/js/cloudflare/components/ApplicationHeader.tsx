@@ -13,21 +13,22 @@ import {
 } from '@mantine/core';
 import { useDisclosure, useHotkeys } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
+import { Spotlight, type SpotlightActionData } from '@mantine/spotlight';
 import {
     IconBook2,
     IconBrandGithub,
     IconChartBar,
-    IconCheck,
-    IconDeviceDesktop,
     IconKeyboard,
     IconList,
     IconLogout,
     IconMoon,
+    IconSearch,
     IconSettings,
     IconSun,
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Effect } from 'effect';
+import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import { AuthClientError, logout, readCsrfToken } from '../api/auth';
@@ -37,8 +38,10 @@ import {
     clearAuthenticatedCache,
     isUnauthenticatedError,
 } from '../queries/auth';
+import { subscriptionListQueryOptions } from '../queries/reader';
 import classes from './ApplicationHeader.module.css';
 import ApplicationLogo from './ApplicationLogo';
+import { FeedFavicon } from './reader/FeedFavicon';
 import { ReaderShortcutHelp } from './reader/ReaderShortcutHelp';
 
 export type ApplicationPage =
@@ -78,21 +81,21 @@ export function ApplicationHeader({
     onNavbarToggle,
 }: ApplicationHeaderProps) {
     const session = useQuery(authSessionQueryOptions);
+    const subscriptions = useQuery(subscriptionListQueryOptions);
     const queryClient = useQueryClient();
     const navigate = useNavigate();
     const [shortcutsOpened, shortcuts] = useDisclosure(false);
-    const { colorScheme, setColorScheme } = useMantineColorScheme();
-    const computedColorScheme = useComputedColorScheme('light');
+    const { setColorScheme } = useMantineColorScheme();
+    const computedColorScheme = useComputedColorScheme('light', {
+        getInitialValueInEffect: true,
+    });
+
+    const toggleColorScheme = () =>
+        setColorScheme(computedColorScheme === 'light' ? 'dark' : 'light');
 
     useHotkeys([
         ['shift+?', shortcuts.toggle],
-        [
-            'mod+j',
-            () =>
-                setColorScheme(
-                    computedColorScheme === 'light' ? 'dark' : 'light',
-                ),
-        ],
+        ['mod+j', toggleColorScheme],
     ]);
 
     const logoutMutation = useMutation({
@@ -133,22 +136,58 @@ export function ApplicationHeader({
 
     const user =
         session.data?.authenticated === true ? session.data.user : undefined;
-    const ThemeIcon =
-        colorScheme === 'auto'
-            ? IconDeviceDesktop
-            : computedColorScheme === 'dark'
-              ? IconMoon
-              : IconSun;
+    const spotlightActions = useMemo<SpotlightActionData[]>(
+        () =>
+            (subscriptions.data?.subscriptions ?? []).map((subscription) => {
+                const label =
+                    subscription.customFeedName ?? subscription.feedName;
+                return {
+                    id: `feed-${subscription.feedId}`,
+                    label,
+                    description:
+                        subscription.customFeedName === null
+                            ? undefined
+                            : subscription.feedName,
+                    leftSection: (
+                        <FeedFavicon
+                            isDark={subscription.faviconIsDark}
+                            size={20}
+                            src={subscription.faviconUrl}
+                        />
+                    ),
+                    onClick: () =>
+                        void navigate(
+                            `/feeds?feed=${subscription.feedId}&filter=unread&order_by=published_at&page=1`,
+                        ),
+                };
+            }),
+        [navigate, subscriptions.data?.subscriptions],
+    );
 
     return (
         <>
+            {spotlightActions.length > 0 && (
+                <Spotlight
+                    actions={spotlightActions}
+                    highlightQuery
+                    maxHeight="calc(100vh * 0.6)"
+                    nothingFound="Nothing found..."
+                    scrollable
+                    searchProps={{
+                        leftSection: (
+                            <IconSearch
+                                style={{ width: rem(20), height: rem(20) }}
+                                stroke={1.5}
+                            />
+                        ),
+                        placeholder: 'Search feeds...',
+                    }}
+                    shortcut="mod + K"
+                />
+            )}
             <AppShell.Header>
-                <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-                    <Group
-                        className={classes.headerGroup}
-                        gap="sm"
-                        wrap="nowrap"
-                    >
+                <Group h="100%" px="md" justify="space-between">
+                    <Group gap="sm">
                         {hasSidebar && (
                             <Burger
                                 aria-label="Toggle navigation"
@@ -159,13 +198,9 @@ export function ApplicationHeader({
                             />
                         )}
                         <Link className={classes.logoLink} to="/feeds">
-                            <Group gap="xs" wrap="nowrap">
+                            <Group gap="xs">
                                 <ApplicationLogo width={36} />
-                                <Title
-                                    className={classes.brandTitle}
-                                    order={3}
-                                    style={{ margin: 0 }}
-                                >
+                                <Title order={3} style={{ margin: 0 }}>
                                     Larafeed
                                 </Title>
                             </Group>
@@ -200,10 +235,9 @@ export function ApplicationHeader({
                         </Group>
                     </Group>
 
-                    <Group gap="sm" wrap="nowrap">
+                    <Group>
                         <ActionIcon
                             aria-label="Open Larafeed GitHub repository"
-                            className={classes.githubButton}
                             component="a"
                             href="https://github.com/angristan/larafeed"
                             rel="noopener noreferrer"
@@ -214,84 +248,34 @@ export function ApplicationHeader({
                             <IconBrandGithub size={20} stroke={1.5} />
                         </ActionIcon>
 
-                        <Tooltip label="Keyboard shortcuts" withArrow>
-                            <ActionIcon
-                                aria-label="Keyboard shortcuts"
-                                onClick={shortcuts.open}
-                                size="lg"
-                                variant="default"
-                            >
-                                <IconKeyboard
-                                    aria-hidden="true"
-                                    size={20}
-                                    stroke={1.5}
-                                />
-                            </ActionIcon>
-                        </Tooltip>
+                        <ActionIcon
+                            aria-label="Keyboard shortcuts"
+                            mt={1}
+                            onClick={shortcuts.open}
+                            size="lg"
+                            variant="default"
+                        >
+                            <IconKeyboard stroke={1.5} size={20} />
+                        </ActionIcon>
 
-                        <Menu position="bottom-end" shadow="md" width={180}>
-                            <Menu.Target>
-                                <ActionIcon
-                                    aria-label="Color scheme"
-                                    size="lg"
-                                    variant="default"
-                                >
-                                    <ThemeIcon
-                                        className={classes.themeIcon}
-                                        stroke={1.5}
-                                    />
-                                </ActionIcon>
-                            </Menu.Target>
-                            <Menu.Dropdown>
-                                <Menu.Label>Color scheme</Menu.Label>
-                                {[
-                                    {
-                                        value: 'auto' as const,
-                                        label: 'System',
-                                        icon: IconDeviceDesktop,
-                                    },
-                                    {
-                                        value: 'light' as const,
-                                        label: 'Light',
-                                        icon: IconSun,
-                                    },
-                                    {
-                                        value: 'dark' as const,
-                                        label: 'Dark',
-                                        icon: IconMoon,
-                                    },
-                                ].map((option) => {
-                                    const Icon = option.icon;
-                                    return (
-                                        <Menu.Item
-                                            key={option.value}
-                                            leftSection={
-                                                <Icon
-                                                    style={{
-                                                        width: rem(14),
-                                                        height: rem(14),
-                                                    }}
-                                                />
-                                            }
-                                            onClick={() =>
-                                                setColorScheme(option.value)
-                                            }
-                                            rightSection={
-                                                colorScheme === option.value ? (
-                                                    <IconCheck size={14} />
-                                                ) : null
-                                            }
-                                        >
-                                            {option.label}
-                                        </Menu.Item>
-                                    );
-                                })}
-                            </Menu.Dropdown>
-                        </Menu>
+                        <ActionIcon
+                            aria-label="Toggle color scheme"
+                            mt={1}
+                            onClick={toggleColorScheme}
+                            size="lg"
+                            variant="default"
+                        >
+                            {computedColorScheme === 'light' ? (
+                                <IconSun stroke={1.5} size={20} />
+                            ) : (
+                                <IconMoon stroke={1.5} size={20} />
+                            )}
+                        </ActionIcon>
 
                         {user !== undefined && (
                             <Menu
-                                position="bottom-end"
+                                closeDelay={300}
+                                position="top-end"
                                 shadow="md"
                                 trigger="click-hover"
                                 width={220}
@@ -300,10 +284,10 @@ export function ApplicationHeader({
                                     <Avatar
                                         aria-label={`Signed in as ${user.displayName}`}
                                         className={classes.user}
-                                        name={user.displayName}
                                         radius="xl"
-                                        size="md"
-                                    />
+                                    >
+                                        {user.displayName[0]}
+                                    </Avatar>
                                 </Menu.Target>
                                 <Menu.Dropdown>
                                     <Menu.Label>@{user.username}</Menu.Label>
@@ -320,7 +304,6 @@ export function ApplicationHeader({
                                     )}
                                     <Menu.Divider />
                                     <Menu.Item
-                                        color="red"
                                         disabled={logoutMutation.isPending}
                                         leftSection={
                                             <IconLogout

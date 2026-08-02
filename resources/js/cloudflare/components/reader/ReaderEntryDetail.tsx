@@ -1,21 +1,25 @@
 import {
     ActionIcon,
     Alert,
+    Badge,
     Box,
     Button,
-    Center,
+    Card,
     Divider,
+    Flex,
     Group,
-    Loader,
+    Menu,
     Paper,
     ScrollArea,
     SegmentedControl,
     Skeleton,
+    Space,
     Stack,
     Text,
     Title,
     Tooltip,
     Typography,
+    useMantineTheme,
 } from '@mantine/core';
 import {
     IconArchive,
@@ -25,15 +29,16 @@ import {
     IconBrain,
     IconCircle,
     IconCircleFilled,
+    IconDots,
     IconExternalLink,
     IconRefresh,
-    IconRss,
-    IconSparkles,
+    IconRobot,
     IconStar,
     IconStarFilled,
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router';
 
 import type { ReaderEntry } from '../../api/reader';
 import {
@@ -61,11 +66,50 @@ interface ReaderEntryDetailProps {
     readonly onSetArchived: (archived: boolean) => void;
 }
 
-function formatTimestamp(timestamp: number): string {
-    return new Intl.DateTimeFormat(undefined, {
-        dateStyle: 'long',
-        timeStyle: 'short',
-    }).format(new Date(timestamp));
+const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, {
+    numeric: 'auto',
+});
+
+function formatRelativeTime(timestamp: number): string {
+    const seconds = Math.round((timestamp - Date.now()) / 1_000);
+    const ranges = [
+        ['year', 31_536_000],
+        ['month', 2_592_000],
+        ['week', 604_800],
+        ['day', 86_400],
+        ['hour', 3_600],
+        ['minute', 60],
+    ] as const;
+
+    for (const [unit, duration] of ranges) {
+        if (Math.abs(seconds) >= duration) {
+            return relativeTimeFormatter.format(
+                Math.round(seconds / duration),
+                unit,
+            );
+        }
+    }
+
+    return relativeTimeFormatter.format(seconds, 'second');
+}
+
+function SummarySkeleton() {
+    return (
+        <div
+            aria-label="Loading summary"
+            className={classes.articleContent}
+            role="status"
+        >
+            <Skeleton height={8} radius="xl" width="95%" />
+            <Skeleton height={8} mt={6} radius="xl" width="100%" />
+            <Skeleton height={8} mt={6} radius="xl" width="89%" />
+            <Skeleton height={8} mt={6} radius="xl" width="92%" />
+            <Box mt={16} />
+            <Skeleton height={8} radius="xl" width="97%" />
+            <Skeleton height={8} mt={6} radius="xl" width="85%" />
+            <Skeleton height={8} mb={20} mt={6} radius="xl" width="91%" />
+        </div>
+    );
 }
 
 function ReaderEntrySummary({ entryId }: { readonly entryId: number }) {
@@ -76,20 +120,13 @@ function ReaderEntrySummary({ entryId }: { readonly entryId: number }) {
     );
     const summary = summaryQuery.data?.summary ?? null;
 
-    if (summaryQuery.isPending) {
-        return (
-            <Group aria-label="Loading AI summary" gap="xs" mt="xl">
-                <Loader size={15} />
-                <Text c="dimmed" size="sm">
-                    Loading summary…
-                </Text>
-            </Group>
-        );
+    if (summaryQuery.isPending || generateMutation.isPending) {
+        return <SummarySkeleton />;
     }
 
     if (summaryQuery.error !== null) {
         return (
-            <Alert color="red" mt="xl" title="Summary unavailable">
+            <Alert color="red" title="Summary unavailable">
                 <Stack gap="sm">
                     <Text size="sm">{summaryQuery.error.message}</Text>
                     <Button
@@ -104,42 +141,38 @@ function ReaderEntrySummary({ entryId }: { readonly entryId: number }) {
         );
     }
 
-    return (
-        <Stack gap="sm" mt="xl">
-            {summary === null ? (
+    if (summary === null) {
+        return (
+            <Stack align="flex-start" gap="sm">
                 <Text c="dimmed" size="sm">
                     Generate a concise AI summary of this article.
                 </Text>
-            ) : (
-                <Alert
-                    color="blue"
-                    icon={<IconSparkles size={17} />}
-                    title="AI summary"
-                >
-                    <div
-                        // Summary HTML is sanitized by the Worker before persistence.
-                        dangerouslySetInnerHTML={{ __html: summary.html }}
-                    />
-                </Alert>
-            )}
-            {generateMutation.error !== null && (
-                <Alert color="red" role="alert">
-                    {generateMutation.error.message}
-                </Alert>
-            )}
-            {summary === null && (
+                {generateMutation.error !== null && (
+                    <Alert color="red" role="alert">
+                        {generateMutation.error.message}
+                    </Alert>
+                )}
                 <Button
-                    leftSection={<IconSparkles aria-hidden="true" size={16} />}
                     loading={generateMutation.isPending}
                     onClick={() => generateMutation.mutate()}
                     size="xs"
                     variant="light"
-                    w="fit-content"
                 >
                     Generate summary
                 </Button>
-            )}
-        </Stack>
+            </Stack>
+        );
+    }
+
+    return (
+        <>
+            <div
+                className={classes.articleContent}
+                // Summary HTML is sanitized by the Worker before persistence.
+                dangerouslySetInnerHTML={{ __html: summary.html }}
+            />
+            <Space mt={20} />
+        </>
     );
 }
 
@@ -159,8 +192,9 @@ export function ReaderEntryDetail({
     onSetStarred,
     onSetArchived,
 }: ReaderEntryDetailProps) {
+    const theme = useMantineTheme();
     const articleContent = useRef<HTMLDivElement>(null);
-    const heading = useRef<HTMLHeadingElement>(null);
+    const viewport = useRef<HTMLDivElement>(null);
     const [view, setView] = useState<'content' | 'summary'>('content');
     const readingTime = useMemo(
         () =>
@@ -169,18 +203,16 @@ export function ReaderEntryDetail({
                 : estimateReadingTime(textFromSanitizedHtml(entry.contentHtml)),
         [entry?.contentHtml],
     );
+    const scrollToTop = useCallback(
+        () => viewport.current?.scrollTo({ top: 0, behavior: 'instant' }),
+        [],
+    );
 
     useEffect(() => {
-        if (entry === undefined) {
-            return;
-        }
-
-        heading.current?.focus({ preventScroll: true });
+        if (entry === undefined) return;
+        scrollToTop();
         const content = articleContent.current;
-        if (content === null) {
-            return;
-        }
-
+        if (content === null) return;
         for (const anchor of content.querySelectorAll<HTMLAnchorElement>(
             'a[href]',
         )) {
@@ -192,25 +224,11 @@ export function ReaderEntryDetail({
             rel.add('noreferrer');
             anchor.rel = [...rel].join(' ');
         }
-    }, [entry]);
+    }, [entry, scrollToTop]);
 
     if (!selected) {
         return (
-            <section aria-label="Entry detail" className={classes.detailPane}>
-                <Center className={classes.paneState}>
-                    <Stack align="center" gap="xs">
-                        <IconRss
-                            aria-hidden="true"
-                            color="var(--mantine-color-dimmed)"
-                            size={36}
-                        />
-                        <Text fw={600}>Select an entry to read</Text>
-                        <Text c="dimmed" size="sm">
-                            Use J and K to move through the list.
-                        </Text>
-                    </Stack>
-                </Center>
-            </section>
+            <section aria-label="Entry detail" className={classes.detailPane} />
         );
     }
 
@@ -236,64 +254,54 @@ export function ReaderEntryDetail({
     if (error !== null && entry === undefined) {
         return (
             <section aria-label="Entry error" className={classes.detailPane}>
-                <Center className={classes.paneState}>
-                    <Alert color="red" title="Entry unavailable">
-                        <Stack gap="sm">
-                            <Text size="sm">{error.message}</Text>
-                            <Group>
-                                <Button
-                                    className={classes.mobileOnly}
-                                    leftSection={
-                                        <IconArrowLeft
-                                            aria-hidden="true"
-                                            size={15}
-                                        />
-                                    }
-                                    onClick={onBack}
-                                    size="xs"
-                                    variant="default"
-                                >
-                                    Back to entries
-                                </Button>
-                                <Button
-                                    leftSection={
-                                        <IconRefresh
-                                            aria-hidden="true"
-                                            size={15}
-                                        />
-                                    }
-                                    onClick={onRetry}
-                                    size="xs"
-                                    variant="light"
-                                >
-                                    Retry
-                                </Button>
-                            </Group>
-                        </Stack>
-                    </Alert>
-                </Center>
+                <Alert color="red" m="lg" title="Entry unavailable">
+                    <Stack gap="sm">
+                        <Text size="sm">{error.message}</Text>
+                        <Group>
+                            <Button
+                                className={classes.mobileOnly}
+                                leftSection={
+                                    <IconArrowLeft
+                                        aria-hidden="true"
+                                        size={15}
+                                    />
+                                }
+                                onClick={onBack}
+                                size="xs"
+                                variant="default"
+                            >
+                                Back to entries
+                            </Button>
+                            <Button
+                                leftSection={
+                                    <IconRefresh aria-hidden="true" size={15} />
+                                }
+                                onClick={onRetry}
+                                size="xs"
+                                variant="light"
+                            >
+                                Retry
+                            </Button>
+                        </Group>
+                    </Stack>
+                </Alert>
             </section>
         );
     }
 
-    if (entry === undefined) {
-        return null;
-    }
+    if (entry === undefined) return null;
 
     const feedName = entry.customFeedName ?? entry.feedName;
 
     return (
-        <article
+        <Flex
             aria-busy={isFetching}
-            aria-labelledby="entry-detail-title"
             className={classes.detailPane}
+            direction="column"
+            w="100%"
         >
-            <Group
-                className={classes.paneHeader}
-                justify="space-between"
-                wrap="nowrap"
-            >
-                <Group className={classes.headingClamp} gap="xs" wrap="nowrap">
+            <Card bg="transparent" pb={10} pl={10} pr={10} pt={0}>
+                <Flex align="center" direction="row" justify="space-between">
                     <Button
                         aria-label="Back to entry list"
                         className={classes.mobileOnly}
@@ -308,135 +316,174 @@ export function ReaderEntryDetail({
                     </Button>
                     <FeedFavicon
                         isDark={entry.faviconIsDark}
+                        size={20}
                         src={entry.faviconUrl}
-                        size={18}
                     />
-                    <Text c="dimmed" lineClamp={1} size="sm">
+                    <Text c="dimmed" size="sm">
                         {feedName}
                     </Text>
-                </Group>
+                    <Group>
+                        <Tooltip
+                            label="Summarize content with AI or switch back to content"
+                            openDelay={500}
+                            transitionProps={{
+                                transition: 'fade',
+                                duration: 300,
+                            }}
+                        >
+                            <SegmentedControl
+                                aria-label="Entry view"
+                                data={[
+                                    {
+                                        label: (
+                                            <IconBook
+                                                aria-label="Article content"
+                                                size={16}
+                                                style={{ marginBottom: -3 }}
+                                            />
+                                        ),
+                                        value: 'content',
+                                    },
+                                    {
+                                        label: (
+                                            <IconBrain
+                                                aria-label="AI summary"
+                                                size={15}
+                                                style={{ marginBottom: -3 }}
+                                            />
+                                        ),
+                                        value: 'summary',
+                                    },
+                                ]}
+                                onChange={(value) =>
+                                    setView(value as 'content' | 'summary')
+                                }
+                                size="xs"
+                                styles={{
+                                    label: {
+                                        paddingInline: '10px',
+                                        paddingBlock: '3px',
+                                    },
+                                }}
+                                value={view}
+                            />
+                        </Tooltip>
 
-                <Group gap={6} wrap="nowrap">
-                    <Tooltip label="Read article or view its AI summary">
-                        <SegmentedControl
-                            aria-label="Entry view"
-                            data={[
-                                {
-                                    value: 'content',
-                                    label: (
-                                        <IconBook
-                                            aria-label="Article content"
-                                            size={16}
-                                        />
-                                    ),
-                                },
-                                {
-                                    value: 'summary',
-                                    label: (
-                                        <IconBrain
-                                            aria-label="AI summary"
-                                            size={15}
-                                        />
-                                    ),
-                                },
-                            ]}
-                            onChange={(value) =>
-                                setView(value as 'content' | 'summary')
-                            }
-                            size="xs"
-                            value={view}
-                        />
-                    </Tooltip>
-                    {isFetching && (
-                        <Loader aria-label="Refreshing entry" size={15} />
-                    )}
-                    {entry.url !== null && (
-                        <Tooltip label="Open original article">
-                            <ActionIcon
-                                aria-label="Open original article in a new tab"
-                                component="a"
-                                href={entry.url}
-                                rel="noopener noreferrer"
-                                target="_blank"
-                                variant="default"
+                        {entry.url !== null && (
+                            <Tooltip
+                                label="Open in a new tab"
+                                transitionProps={{
+                                    transition: 'fade',
+                                    duration: 300,
+                                }}
                             >
-                                <IconExternalLink
-                                    aria-hidden="true"
-                                    size={16}
-                                />
+                                <ActionIcon
+                                    aria-label="Open original article in a new tab"
+                                    color="gray"
+                                    component="a"
+                                    href={entry.url}
+                                    rel="noopener noreferrer"
+                                    target="_blank"
+                                    variant="outline"
+                                >
+                                    <IconExternalLink size={15} stroke={3} />
+                                </ActionIcon>
+                            </Tooltip>
+                        )}
+
+                        <Tooltip
+                            label={
+                                entry.starred
+                                    ? 'Remove from favorites'
+                                    : 'Add to favorites'
+                            }
+                        >
+                            <ActionIcon
+                                aria-label={
+                                    entry.starred
+                                        ? 'Remove entry from favorites'
+                                        : 'Add entry to favorites'
+                                }
+                                aria-pressed={entry.starred}
+                                color="gray"
+                                loading={starPending}
+                                onClick={() => onSetStarred(!entry.starred)}
+                                variant="outline"
+                            >
+                                {entry.starred ? (
+                                    <IconStarFilled size={15} stroke={3} />
+                                ) : (
+                                    <IconStar size={15} stroke={3} />
+                                )}
                             </ActionIcon>
                         </Tooltip>
-                    )}
-                    <Tooltip
-                        label={
-                            entry.starred ? 'Remove favorite' : 'Add favorite'
-                        }
-                    >
-                        <ActionIcon
-                            aria-label={
-                                entry.starred
-                                    ? 'Remove entry from favorites'
-                                    : 'Add entry to favorites'
+
+                        <Tooltip
+                            label={
+                                entry.read ? 'Mark as unread' : 'Mark as read'
                             }
-                            aria-pressed={entry.starred}
-                            loading={starPending}
-                            onClick={() => onSetStarred(!entry.starred)}
-                            variant="default"
                         >
-                            {entry.starred ? (
-                                <IconStarFilled aria-hidden="true" size={16} />
-                            ) : (
-                                <IconStar aria-hidden="true" size={16} />
-                            )}
-                        </ActionIcon>
-                    </Tooltip>
-                    <Tooltip label={entry.read ? 'Mark unread' : 'Mark read'}>
-                        <ActionIcon
-                            aria-label={
-                                entry.read
-                                    ? 'Mark entry as unread'
-                                    : 'Mark entry as read'
-                            }
-                            aria-pressed={entry.read}
-                            loading={readPending}
-                            onClick={() => onSetRead(!entry.read)}
-                            variant="default"
-                        >
-                            {entry.read ? (
-                                <IconCircle aria-hidden="true" size={16} />
-                            ) : (
-                                <IconCircleFilled
-                                    aria-hidden="true"
-                                    size={16}
-                                />
-                            )}
-                        </ActionIcon>
-                    </Tooltip>
-                    <Tooltip
-                        label={
-                            entry.archived ? 'Restore entry' : 'Archive entry'
-                        }
-                    >
-                        <ActionIcon
-                            aria-label={
-                                entry.archived
-                                    ? 'Restore archived entry'
-                                    : 'Archive entry'
-                            }
-                            aria-pressed={entry.archived}
-                            loading={archivePending}
-                            onClick={() => onSetArchived(!entry.archived)}
-                            variant="default"
-                        >
-                            {entry.archived ? (
-                                <IconArchiveOff aria-hidden="true" size={16} />
-                            ) : (
-                                <IconArchive aria-hidden="true" size={16} />
-                            )}
-                        </ActionIcon>
-                    </Tooltip>
-                </Group>
-            </Group>
+                            <ActionIcon
+                                aria-label={
+                                    entry.read
+                                        ? 'Mark entry as unread'
+                                        : 'Mark entry as read'
+                                }
+                                aria-pressed={entry.read}
+                                color="gray"
+                                loading={readPending}
+                                onClick={() => onSetRead(!entry.read)}
+                                variant="outline"
+                            >
+                                {entry.read ? (
+                                    <IconCircle size={15} stroke={3} />
+                                ) : (
+                                    <IconCircleFilled size={15} stroke={3} />
+                                )}
+                            </ActionIcon>
+                        </Tooltip>
+
+                        <Menu shadow="md">
+                            <Menu.Target>
+                                <ActionIcon
+                                    aria-label="Archive entry"
+                                    color="gray"
+                                    variant="outline"
+                                >
+                                    <IconDots size={15} stroke={1.5} />
+                                </ActionIcon>
+                            </Menu.Target>
+                            <Menu.Dropdown>
+                                <Menu.Label>Manage entry</Menu.Label>
+                                <Menu.Item
+                                    leftSection={
+                                        entry.archived ? (
+                                            <IconArchiveOff size={14} />
+                                        ) : (
+                                            <IconArchive size={14} />
+                                        )
+                                    }
+                                    disabled={archivePending}
+                                    onClick={() =>
+                                        onSetArchived(!entry.archived)
+                                    }
+                                >
+                                    {entry.archived
+                                        ? 'Restore entry'
+                                        : 'Archive entry'}
+                                </Menu.Item>
+                                <Menu.Divider />
+                                <Menu.Item
+                                    component={Link}
+                                    to="/settings/subscriptions"
+                                >
+                                    Manage feed
+                                </Menu.Item>
+                            </Menu.Dropdown>
+                        </Menu>
+                    </Group>
+                </Flex>
+            </Card>
 
             {mutationError !== null && (
                 <Alert color="red" m="sm" role="alert">
@@ -444,74 +491,82 @@ export function ReaderEntryDetail({
                 </Alert>
             )}
 
-            <Divider />
-
-            <ScrollArea className={classes.detailScroll} offsetScrollbars="y">
-                <Box className={classes.article}>
-                    <Title
-                        ref={heading}
-                        className={classes.articleTitle}
-                        id="entry-detail-title"
-                        order={1}
-                        tabIndex={-1}
-                    >
-                        {entry.title || 'Untitled entry'}
-                    </Title>
-                    <Group gap="xs" justify="space-between" mt="sm">
-                        <Text c="dimmed" size="sm">
-                            {entry.author ?? feedName}
-                        </Text>
-                        <Group gap="xs">
-                            {readingTime !== null && readingTime.words > 0 && (
-                                <Text
-                                    aria-label="Estimated reading time at 300 words per minute"
-                                    c="dimmed"
-                                    size="sm"
-                                >
-                                    {readingTime.minutes} min read
-                                </Text>
-                            )}
+            <Divider mb={20} />
+            <ScrollArea style={{ height: '100%' }} viewportRef={viewport}>
+                <Box pl={20} pr={20}>
+                    <Typography className={classes.articleTypography}>
+                        <Title className={classes.entryTitle}>
+                            {entry.title || 'Untitled entry'}
+                        </Title>
+                        <Flex justify="space-between">
                             <Text
+                                aria-label="Estimated reading time at 300 words per minute"
                                 c="dimmed"
-                                component="time"
-                                dateTime={new Date(
-                                    entry.publishedAt,
-                                ).toISOString()}
                                 size="sm"
                             >
-                                {formatTimestamp(entry.publishedAt)}
+                                {readingTime === null || readingTime.words === 0
+                                    ? ''
+                                    : `${readingTime.minutes} min read`}
                             </Text>
-                        </Group>
-                    </Group>
+                            <Text c="dimmed" size="sm">
+                                {entry.author ? `${entry.author} • ` : ''}
+                                {formatRelativeTime(entry.publishedAt)}
+                            </Text>
+                        </Flex>
 
-                    <Typography hidden={view !== 'content'} mt="xl">
-                        {entry.contentHtml === null ||
-                        entry.contentHtml.trim().length === 0 ? (
-                            <Alert color="gray" title="No article content">
-                                Open the original article to read it on the
-                                publisher’s website.
-                            </Alert>
-                        ) : (
-                            <div
-                                ref={articleContent}
-                                className={classes.articleContent}
-                                // Content is sanitized before persistence by the Worker.
-                                dangerouslySetInnerHTML={{
-                                    __html: entry.contentHtml,
-                                }}
-                            />
-                        )}
+                        <div hidden={view !== 'content'}>
+                            {entry.contentHtml === null ||
+                            entry.contentHtml.trim().length === 0 ? (
+                                <Alert color="gray" title="No article content">
+                                    Open the original article to read it on the
+                                    publisher’s website.
+                                </Alert>
+                            ) : (
+                                <div
+                                    ref={articleContent}
+                                    className={classes.articleContent}
+                                    // Content is sanitized before persistence by the Worker.
+                                    dangerouslySetInnerHTML={{
+                                        __html: entry.contentHtml,
+                                    }}
+                                />
+                            )}
+                        </div>
+                        <Paper
+                            className={classes.entrySummary}
+                            hidden={view !== 'summary'}
+                            pb={0}
+                            style={{
+                                display:
+                                    view === 'summary' ? undefined : 'none',
+                            }}
+                            p="md"
+                            shadow="xs"
+                            withBorder
+                        >
+                            <Flex align="center" gap="xs" mb="sm">
+                                <IconRobot
+                                    color={theme.colors.blue[5]}
+                                    size={16}
+                                />
+                                <Tooltip
+                                    label="Generated with Google Gemini"
+                                    position="right"
+                                >
+                                    <Badge
+                                        color="blue"
+                                        size="sm"
+                                        variant="light"
+                                    >
+                                        AI Summary
+                                    </Badge>
+                                </Tooltip>
+                            </Flex>
+                            <ReaderEntrySummary entryId={entry.id} />
+                        </Paper>
                     </Typography>
-                    <Paper
-                        hidden={view !== 'summary'}
-                        mt="xl"
-                        p="md"
-                        withBorder
-                    >
-                        <ReaderEntrySummary entryId={entry.id} />
-                    </Paper>
                 </Box>
             </ScrollArea>
-        </article>
+        </Flex>
     );
 }

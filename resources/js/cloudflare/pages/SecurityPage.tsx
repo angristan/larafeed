@@ -2,7 +2,6 @@ import {
     Alert,
     Badge,
     Button,
-    Container,
     Divider,
     Group,
     Modal,
@@ -13,12 +12,7 @@ import {
     TextInput,
     Title,
 } from '@mantine/core';
-import {
-    IconCheck,
-    IconPlus,
-    IconShieldLock,
-    IconTrash,
-} from '@tabler/icons-react';
+import { IconCheck, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Effect } from 'effect';
 import { type FormEvent, useRef, useState } from 'react';
@@ -99,87 +93,73 @@ function ProfileSection() {
     };
 
     return (
-        <Paper component="section" withBorder p={{ base: 'lg', sm: 'xl' }}>
-            <Stack gap="md">
-                <Stack gap={3}>
-                    <Title order={2} size="h3">
-                        Profile
-                    </Title>
-                    <Text c="dimmed" size="sm">
-                        Update the name and email attached to your private
-                        account.
-                    </Text>
-                </Stack>
-                {profile.isPending ? (
-                    <Stack gap="sm">
-                        <Skeleton height={62} />
-                        <Skeleton height={62} />
-                    </Stack>
-                ) : profile.isError ? (
-                    <ErrorAlert
-                        error={profile.error}
-                        title="Profile unavailable"
-                    />
-                ) : (
-                    <form onSubmit={submit}>
-                        <Stack gap="md" maw={560}>
-                            <TextInput
-                                label="Username"
-                                disabled
-                                value={profile.data.username}
-                            />
-                            <TextInput
-                                label="Display name"
-                                maxLength={200}
-                                onChange={(event) => {
-                                    setDisplayName(event.currentTarget.value);
-                                    mutation.reset();
-                                }}
-                                required
-                                value={currentDisplayName}
-                            />
-                            <TextInput
-                                label="Email"
-                                maxLength={320}
-                                onChange={(event) => {
-                                    setEmail(event.currentTarget.value);
-                                    mutation.reset();
-                                }}
-                                required
-                                type="email"
-                                value={currentEmail}
-                            />
-                            <ErrorAlert
-                                error={mutation.error}
-                                title="Profile was not updated"
-                            />
-                            {mutation.isSuccess && (
-                                <Alert
-                                    color="green"
-                                    icon={
-                                        <IconCheck
-                                            aria-hidden="true"
-                                            size={17}
-                                        />
-                                    }
-                                    role="status"
-                                >
-                                    Profile saved.
-                                </Alert>
-                            )}
-                            <Group justify="flex-end">
-                                <Button
-                                    loading={mutation.isPending}
-                                    type="submit"
-                                >
-                                    Save profile
-                                </Button>
-                            </Group>
-                        </Stack>
-                    </form>
-                )}
+        <Stack component="section" gap="md" id="profile" maw={520}>
+            <Stack gap={3}>
+                <Title order={2}>Profile settings</Title>
+                <Text c="dimmed" size="sm">
+                    Update the name and email attached to your private account.
+                </Text>
             </Stack>
-        </Paper>
+            {profile.isPending ? (
+                <Stack gap="sm">
+                    <Skeleton height={62} />
+                    <Skeleton height={62} />
+                </Stack>
+            ) : profile.isError ? (
+                <ErrorAlert error={profile.error} title="Profile unavailable" />
+            ) : (
+                <form onSubmit={submit}>
+                    <Stack gap="md" maw={560}>
+                        <TextInput
+                            label="Username"
+                            disabled
+                            value={profile.data.username}
+                        />
+                        <TextInput
+                            label="Display name"
+                            maxLength={200}
+                            onChange={(event) => {
+                                setDisplayName(event.currentTarget.value);
+                                mutation.reset();
+                            }}
+                            required
+                            value={currentDisplayName}
+                        />
+                        <TextInput
+                            label="Email"
+                            maxLength={320}
+                            onChange={(event) => {
+                                setEmail(event.currentTarget.value);
+                                mutation.reset();
+                            }}
+                            required
+                            type="email"
+                            value={currentEmail}
+                        />
+                        <ErrorAlert
+                            error={mutation.error}
+                            title="Profile was not updated"
+                        />
+                        {mutation.isSuccess && (
+                            <Alert
+                                color="green"
+                                icon={
+                                    <IconCheck aria-hidden="true" size={17} />
+                                }
+                                role="status"
+                            >
+                                Profile saved.
+                            </Alert>
+                        )}
+                        <Group justify="flex-end">
+                            <Button loading={mutation.isPending} type="submit">
+                                Save changes
+                            </Button>
+                        </Group>
+                    </Stack>
+                </form>
+            )}
+        </Stack>
     );
 }
 
@@ -332,79 +312,74 @@ function PasskeysSection() {
     };
 
     return (
-        <Paper component="section" withBorder p={{ base: 'lg', sm: 'xl' }}>
-            <Stack gap="md">
-                <Stack gap={3}>
-                    <Title order={2} size="h3">
-                        Passkeys
-                    </Title>
-                    <Text c="dimmed" size="sm">
-                        Keep at least two passkeys on separate devices for safer
-                        recovery.
-                    </Text>
-                </Stack>
-                {config.data !== undefined && (
-                    <Turnstile
-                        ref={turnstile}
-                        siteKey={config.data.turnstileSiteKey}
-                    />
-                )}
-                <form onSubmit={submit}>
-                    <Group align="flex-end" wrap="wrap">
-                        <TextInput
-                            label="New passkey name"
-                            maxLength={100}
-                            onChange={(event) => {
-                                setName(event.currentTarget.value);
-                                mutation.reset();
-                            }}
-                            required
-                            value={name}
-                        />
-                        <Button
-                            disabled={
-                                !supportsPasskeys() || config.data === undefined
-                            }
-                            leftSection={
-                                <IconPlus aria-hidden="true" size={16} />
-                            }
-                            loading={mutation.isPending}
-                            type="submit"
-                        >
-                            Add passkey
-                        </Button>
-                    </Group>
-                </form>
-                <ErrorAlert
-                    error={mutation.error}
-                    title="Passkey could not be added"
-                />
-                {mutation.isSuccess && (
-                    <Alert color="green" role="status">
-                        Passkey added.
-                    </Alert>
-                )}
-                <Divider />
-                {passkeys.isPending ? (
-                    <Skeleton height={90} />
-                ) : passkeys.isError ? (
-                    <ErrorAlert
-                        error={passkeys.error}
-                        title="Passkeys unavailable"
-                    />
-                ) : (
-                    <Stack gap="sm">
-                        {passkeys.data.passkeys.map((passkey) => (
-                            <PasskeyItem
-                                count={passkeys.data.passkeys.length}
-                                key={passkey.id}
-                                passkey={passkey}
-                            />
-                        ))}
-                    </Stack>
-                )}
+        <Stack component="section" gap="md" id="security" maw={520}>
+            <Stack gap={3}>
+                <Title order={2}>Security</Title>
+                <Title order={3}>Passkeys</Title>
+                <Text c="dimmed" size="sm">
+                    Keep at least two passkeys on separate devices for safer
+                    recovery.
+                </Text>
             </Stack>
-        </Paper>
+            {config.data !== undefined && (
+                <Turnstile
+                    ref={turnstile}
+                    siteKey={config.data.turnstileSiteKey}
+                />
+            )}
+            <form onSubmit={submit}>
+                <Group align="flex-end" wrap="wrap">
+                    <TextInput
+                        label="New passkey name"
+                        maxLength={100}
+                        onChange={(event) => {
+                            setName(event.currentTarget.value);
+                            mutation.reset();
+                        }}
+                        required
+                        value={name}
+                    />
+                    <Button
+                        disabled={
+                            !supportsPasskeys() || config.data === undefined
+                        }
+                        leftSection={<IconPlus aria-hidden="true" size={16} />}
+                        loading={mutation.isPending}
+                        type="submit"
+                    >
+                        Add passkey
+                    </Button>
+                </Group>
+            </form>
+            <ErrorAlert
+                error={mutation.error}
+                title="Passkey could not be added"
+            />
+            {mutation.isSuccess && (
+                <Alert color="green" role="status">
+                    Passkey added.
+                </Alert>
+            )}
+            <Divider />
+            {passkeys.isPending ? (
+                <Skeleton height={90} />
+            ) : passkeys.isError ? (
+                <ErrorAlert
+                    error={passkeys.error}
+                    title="Passkeys unavailable"
+                />
+            ) : (
+                <Stack gap="sm">
+                    {passkeys.data.passkeys.map((passkey) => (
+                        <PasskeyItem
+                            count={passkeys.data.passkeys.length}
+                            key={passkey.id}
+                            passkey={passkey}
+                        />
+                    ))}
+                </Stack>
+            )}
+        </Stack>
     );
 }
 
@@ -498,7 +473,7 @@ function DangerSection({
     const pending = wipe.isPending || remove.isPending;
     const error = wipe.error ?? remove.error;
     return (
-        <Paper component="section" withBorder p={{ base: 'lg', sm: 'xl' }}>
+        <Stack component="section" gap="md" maw={520}>
             {config.data !== undefined && (
                 <Turnstile
                     ref={turnstile}
@@ -602,7 +577,7 @@ function DangerSection({
                     </Button>
                 </Group>
             </Stack>
-        </Paper>
+        </Stack>
     );
 }
 
@@ -610,28 +585,23 @@ export function SecurityPage() {
     const profile = useQuery(accountQueryOptions);
     return (
         <ApplicationPage activePage="settings" settingsNavigation>
-            <Container component="div" size="md" py="md">
-                <Stack gap="xl">
-                    <Stack gap="xs" align="flex-start">
-                        <Group gap="sm">
-                            <IconShieldLock aria-hidden="true" size={30} />
-                            <Title order={1}>Account & security</Title>
-                        </Group>
-                        <Text c="dimmed">
-                            Manage your identity, passkeys, and private reader
-                            data.
-                        </Text>
-                    </Stack>
-                    <ProfileSection />
-                    <PasskeysSection />
-                    {profile.data !== undefined && (
-                        <DangerSection
-                            userId={profile.data.id}
-                            username={profile.data.username}
-                        />
-                    )}
+            <Stack gap="xl" maw={720} mx="auto" my="md">
+                <Stack gap={4}>
+                    <Title order={1}>Settings</Title>
+                    <Text c="dimmed" size="sm">
+                        Manage your account, preferences, and data import/export
+                        tools.
+                    </Text>
                 </Stack>
-            </Container>
+                <ProfileSection />
+                <PasskeysSection />
+                {profile.data !== undefined && (
+                    <DangerSection
+                        userId={profile.data.id}
+                        username={profile.data.username}
+                    />
+                )}
+            </Stack>
         </ApplicationPage>
     );
 }

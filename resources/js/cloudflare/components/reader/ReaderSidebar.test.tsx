@@ -1,4 +1,5 @@
-import { MantineProvider } from '@mantine/core';
+import { AppShell, MantineProvider } from '@mantine/core';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
@@ -7,40 +8,57 @@ import { ReaderSidebar } from './ReaderSidebar';
 
 describe('ReaderSidebar', () => {
     it('renders the original filters, categories, and feed hierarchy', () => {
+        const queryClient = new QueryClient({
+            defaultOptions: { queries: { retry: false } },
+        });
         const markup = renderToStaticMarkup(
             <MemoryRouter>
-                <MantineProvider>
-                    <ReaderSidebar
-                        categories={[
-                            { id: 3, name: 'Technology' },
-                            { id: 4, name: 'Newsletters' },
-                        ]}
-                        counts={{ total: 40, unread: 6, read: 34, starred: 2 }}
-                        error={null}
-                        isPending={false}
-                        onRetry={() => undefined}
-                        state={{
-                            feedId: null,
-                            categoryId: null,
-                            filter: 'unread',
-                            orderBy: 'published_at',
-                            page: 1,
-                            entryId: null,
-                        }}
-                        subscriptions={[
-                            {
-                                feedId: 8,
-                                categoryId: 3,
-                                feedName: 'Cloudflare Blog',
-                                customFeedName: null,
-                                faviconUrl: null,
-                                faviconIsDark: false,
-                                totalCount: 20,
-                                unreadCount: 6,
-                            },
-                        ]}
-                    />
-                </MantineProvider>
+                <QueryClientProvider client={queryClient}>
+                    <MantineProvider>
+                        <AppShell
+                            header={{ height: 56 }}
+                            navbar={{ width: 300, breakpoint: 'sm' }}
+                        >
+                            <AppShell.Navbar>
+                                <ReaderSidebar
+                                    categories={[
+                                        { id: 3, name: 'Technology' },
+                                        { id: 4, name: 'Newsletters' },
+                                    ]}
+                                    counts={{
+                                        total: 40,
+                                        unread: 6,
+                                        read: 34,
+                                        starred: 2,
+                                    }}
+                                    error={null}
+                                    isPending={false}
+                                    onRetry={() => undefined}
+                                    state={{
+                                        feedId: null,
+                                        categoryId: null,
+                                        filter: 'unread',
+                                        orderBy: 'published_at',
+                                        page: 1,
+                                        entryId: null,
+                                    }}
+                                    subscriptions={[
+                                        {
+                                            feedId: 8,
+                                            categoryId: 3,
+                                            feedName: 'Cloudflare Blog',
+                                            customFeedName: null,
+                                            faviconUrl: null,
+                                            faviconIsDark: false,
+                                            totalCount: 20,
+                                            unreadCount: 6,
+                                        },
+                                    ]}
+                                />
+                            </AppShell.Navbar>
+                        </AppShell>
+                    </MantineProvider>
+                </QueryClientProvider>
             </MemoryRouter>,
         );
 

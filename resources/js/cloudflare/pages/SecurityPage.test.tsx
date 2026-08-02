@@ -57,12 +57,15 @@ describe('SecurityPage', () => {
             </MemoryRouter>,
         );
 
-        expect(markup).toContain('Account &amp; security');
+        expect(markup).toContain('Settings');
+        expect(markup).toContain('Profile settings');
+        expect(markup).toContain('Security');
         expect(markup).toContain('reader@example.test');
         expect(markup).toContain('Laptop');
         expect(markup).toContain('Add another passkey before deleting');
         expect(markup).toContain('Clear reader data');
         expect(markup).toContain('Delete account');
-        expect(markup).toContain('Administration');
+        expect(markup).toContain('Import &amp; export');
+        expect(markup).not.toContain('Administration');
     });
 });

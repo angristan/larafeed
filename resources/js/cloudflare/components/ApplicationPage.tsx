@@ -2,16 +2,12 @@ import { AppShell, NavLink, ScrollArea, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
     IconFileImport,
-    IconKey,
-    IconList,
     IconShieldLock,
-    IconUserShield,
+    IconUserCircle,
 } from '@tabler/icons-react';
-import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
 
-import { authSessionQueryOptions } from '../queries/auth';
 import {
     type ApplicationPage as ActivePage,
     ApplicationHeader,
@@ -21,6 +17,8 @@ interface ApplicationPageProps {
     readonly activePage: ActivePage;
     readonly children: ReactNode;
     readonly settingsNavigation?: boolean;
+    readonly sidebar?: ReactNode;
+    readonly navbarWidth?: number;
 }
 
 function SettingsNavigation({
@@ -29,44 +27,32 @@ function SettingsNavigation({
     readonly onNavigate: () => void;
 }) {
     const location = useLocation();
-    const session = useQuery(authSessionQueryOptions);
-    const user =
-        session.data?.authenticated === true ? session.data.user : undefined;
     const items = [
         {
-            to: '/settings/security',
-            label: 'Account & security',
-            description: 'Profile and passkeys',
+            to: '/settings/security#profile',
+            active:
+                location.pathname === '/settings/security' &&
+                location.hash !== '#security',
+            label: 'Profile',
+            description: 'Account details & password',
+            icon: IconUserCircle,
+        },
+        {
+            to: '/settings/security#security',
+            active:
+                location.pathname === '/settings/security' &&
+                location.hash === '#security',
+            label: 'Security',
+            description: 'Two-factor authentication',
             icon: IconShieldLock,
         },
         {
-            to: '/settings/subscriptions',
-            label: 'Subscriptions',
-            description: 'Feeds and categories',
-            icon: IconList,
-        },
-        {
             to: '/settings/opml',
+            active: location.pathname === '/settings/opml',
             label: 'Import & export',
             description: 'OPML and data tools',
             icon: IconFileImport,
         },
-        {
-            to: '/settings/app-tokens',
-            label: 'App tokens',
-            description: 'Reader integrations',
-            icon: IconKey,
-        },
-        ...(user?.isAdmin === true
-            ? [
-                  {
-                      to: '/admin/users',
-                      label: 'Administration',
-                      description: 'Users and access',
-                      icon: IconUserShield,
-                  },
-              ]
-            : []),
     ];
 
     return (
@@ -83,12 +69,16 @@ function SettingsNavigation({
                         return (
                             <NavLink
                                 key={item.to}
-                                active={location.pathname === item.to}
+                                active={item.active}
                                 component={Link}
                                 description={item.description}
                                 label={item.label}
                                 leftSection={
-                                    <Icon aria-hidden="true" size={16} />
+                                    <Icon
+                                        aria-hidden="true"
+                                        size={16}
+                                        stroke={1.5}
+                                    />
                                 }
                                 onClick={onNavigate}
                                 to={item.to}
@@ -105,16 +95,19 @@ export function ApplicationPage({
     activePage,
     children,
     settingsNavigation = false,
+    sidebar,
+    navbarWidth = 300,
 }: ApplicationPageProps) {
     const [navbarOpened, navbar] = useDisclosure(false);
+    const hasSidebar = settingsNavigation || sidebar !== undefined;
 
     return (
         <AppShell
             header={{ height: 56 }}
             navbar={
-                settingsNavigation
+                hasSidebar
                     ? {
-                          width: 300,
+                          width: navbarWidth,
                           breakpoint: 'sm',
                           collapsed: { mobile: !navbarOpened },
                       }
@@ -124,13 +117,15 @@ export function ApplicationPage({
         >
             <ApplicationHeader
                 activePage={activePage}
-                hasSidebar={settingsNavigation}
+                hasSidebar={hasSidebar}
                 navbarOpened={navbarOpened}
                 onNavbarToggle={navbar.toggle}
             />
-            {settingsNavigation && (
+            {hasSidebar && (
                 <AppShell.Navbar>
-                    <SettingsNavigation onNavigate={navbar.close} />
+                    {sidebar ?? (
+                        <SettingsNavigation onNavigate={navbar.close} />
+                    )}
                 </AppShell.Navbar>
             )}
             <AppShell.Main>{children}</AppShell.Main>

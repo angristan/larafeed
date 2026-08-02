@@ -1,141 +1,80 @@
 import {
-    Accordion,
     ActionIcon,
     Alert,
     Anchor,
+    Avatar,
     Badge,
     Button,
-    Container,
     Divider,
     Drawer,
     Group,
     Loader,
-    Modal,
-    Paper,
+    ScrollArea,
     Select,
     Stack,
     Table,
     Text,
     TextInput,
     Title,
+    Tooltip,
 } from '@mantine/core';
 import {
-    IconAlertTriangle,
-    IconCheck,
-    IconEdit,
-    IconExternalLink,
-    IconPhoto,
-    IconPlus,
+    IconArrowNarrowDown,
+    IconArrowNarrowUp,
     IconRefresh,
-    IconRss,
     IconSearch,
-    IconSettings,
-    IconTrash,
-    IconX,
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-    type FormEvent,
-    type ReactNode,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-} from 'react';
-import { useSearchParams } from 'react-router';
+import { useMemo, useState } from 'react';
 
-import type {
-    ManagedCategory,
-    ManagedSubscription,
-    SubscriptionFilterRules,
-} from '../api/subscriptions';
+import type { ManagedSubscription } from '../api/subscriptions';
 import { ApplicationPage } from '../components/ApplicationPage';
-import { FeedFavicon } from '../components/reader/FeedFavicon';
 import {
-    createCategoryMutationOptions,
-    createSubscriptionMutationOptions,
-    deleteCategoryMutationOptions,
-    refreshFaviconMutationOptions,
     refreshSubscriptionMutationOptions,
     subscriptionManagementQueryOptions,
-    unsubscribeMutationOptions,
-    updateCategoryMutationOptions,
-    updateSubscriptionMutationOptions,
 } from '../queries/subscriptions';
-import classes from './SubscriptionsPage.module.css';
-
-const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-});
-
-const numberFormatter = new Intl.NumberFormat();
 
 type SubscriptionStatus = 'healthy' | 'failing' | 'never' | 'gone';
-type StatusFilter = SubscriptionStatus | 'all';
-type SortOrder = 'name' | 'entries' | 'recent';
-type FilterField = keyof SubscriptionFilterRules;
+type LegacyStatus = 'success' | 'failed' | 'never';
+type SortField = 'name' | 'entries' | 'lastSuccess' | 'lastFailure';
 
-const statusPresentation: Record<
-    SubscriptionStatus,
-    { readonly label: string; readonly color: string }
-> = {
-    healthy: { label: 'Healthy', color: 'green' },
-    failing: { label: 'Needs attention', color: 'red' },
-    never: { label: 'Never refreshed', color: 'gray' },
-    gone: { label: 'Gone', color: 'orange' },
-};
+const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, {
+    numeric: 'auto',
+});
 
-function formatTimestamp(timestamp: number | null): string {
-    if (timestamp === null) {
-        return 'Never';
+function formatRelative(timestamp: number | null): string {
+    if (timestamp === null) return 'Never';
+    const seconds = Math.round((timestamp - Date.now()) / 1_000);
+    const ranges = [
+        ['year', 31_536_000],
+        ['month', 2_592_000],
+        ['week', 604_800],
+        ['day', 86_400],
+        ['hour', 3_600],
+        ['minute', 60],
+    ] as const;
+    for (const [unit, duration] of ranges) {
+        if (Math.abs(seconds) >= duration) {
+            return relativeTimeFormatter.format(
+                Math.round(seconds / duration),
+                unit,
+            );
+        }
     }
-    const value = new Date(timestamp);
-    return Number.isNaN(value.getTime())
-        ? 'Unknown time'
-        : dateTimeFormatter.format(value);
+    return relativeTimeFormatter.format(seconds, 'second');
 }
 
-export function getSubscriptionStatus(
-    subscription: ManagedSubscription,
-): SubscriptionStatus {
-    if (subscription.isGone) {
-        return 'gone';
-    }
-    if (
-        subscription.consecutiveFailures > 0 ||
-        subscription.refreshes[0]?.successful === false
-    ) {
-        return 'failing';
-    }
-    return subscription.lastSuccessfulRefreshAt === null ? 'never' : 'healthy';
-}
-
-function StatusBadge({ subscription }: { subscription: ManagedSubscription }) {
-    const status = getSubscriptionStatus(subscription);
-    const presentation = statusPresentation[status];
-    return (
-        <Badge color={presentation.color} variant="light">
-            {presentation.label}
-        </Badge>
-    );
-}
-
-function MutationError({
-    error,
-    title,
-}: {
-    readonly error: Error | null;
-    readonly title: string;
-}) {
-    if (error === null) {
-        return null;
-    }
-    return (
-        <Alert color="red" role="alert" title={title}>
-            {error.message}
-        </Alert>
-    );
+function formatAbsolute(timestamp: number | null): string {
+    if (timestamp === null) return '—';
+    return new Intl.DateTimeFormat('sv-SE', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    })
+        .format(new Date(timestamp))
+        .replace(' ', ' ');
 }
 
 export function buildAddFeedBookmarklet(origin: string): string {
@@ -147,1185 +86,289 @@ export function buildAddFeedBookmarklet(origin: string): string {
     ) {
         throw new TypeError('Bookmarklet origin must be an HTTP origin.');
     }
-
     const destination = new URL('/settings/subscriptions?url=', parsedOrigin)
         .href;
     return `javascript:location.href=${JSON.stringify(destination)}+encodeURIComponent(location.href)`;
 }
 
-function BookmarkletHelp() {
-    const bookmarklet = useRef<HTMLAnchorElement>(null);
+export function getSubscriptionStatus(
+    subscription: ManagedSubscription,
+): SubscriptionStatus {
+    if (subscription.isGone) return 'gone';
+    if (
+        subscription.consecutiveFailures > 0 ||
+        subscription.refreshes[0]?.successful === false
+    ) {
+        return 'failing';
+    }
+    return subscription.lastSuccessfulRefreshAt === null ? 'never' : 'healthy';
+}
 
-    useEffect(() => {
-        const link = bookmarklet.current;
-        if (link === null) {
-            return;
-        }
+function legacyStatus(subscription: ManagedSubscription): LegacyStatus {
+    const latest = subscription.refreshes[0];
+    if (latest === undefined) return 'never';
+    return latest.successful ? 'success' : 'failed';
+}
 
-        link.setAttribute(
-            'href',
-            buildAddFeedBookmarklet(window.location.origin),
-        );
-        return () => {
-            link.setAttribute('href', '#bookmarklet-instructions');
-        };
-    }, []);
-
+function StatusBadge({ subscription }: { subscription: ManagedSubscription }) {
+    const status = legacyStatus(subscription);
+    const presentation = {
+        success: { label: 'Success', color: 'green' },
+        failed: { label: 'Failed', color: 'red' },
+        never: { label: 'Never refreshed', color: 'gray' },
+    }[status];
     return (
-        <Stack gap={4} id="bookmarklet-instructions">
-            <Text fw={600} size="sm">
-                Add pages from your bookmarks bar
-            </Text>
-            <Text c="dimmed" size="sm">
-                Drag{' '}
-                <Anchor
-                    ref={bookmarklet}
-                    href="#bookmarklet-instructions"
-                    onClick={(event) => event.preventDefault()}
-                >
-                    Add to Larafeed
-                </Anchor>{' '}
-                to your bookmarks bar. Use it on a website to open this form
-                with that page’s URL filled in.
-            </Text>
-            <Text c="dimmed" size="xs">
-                The bookmarklet never subscribes automatically. Review the URL
-                and choose Add feed yourself.
-            </Text>
-        </Stack>
+        <Badge color={presentation.color} radius="sm" variant="light">
+            {presentation.label}
+        </Badge>
     );
 }
 
-function AddSubscriptionForm({
-    categories,
-    prefilledUrl,
-}: {
-    readonly categories: readonly ManagedCategory[];
-    readonly prefilledUrl: string;
-}) {
-    const queryClient = useQueryClient();
-    const mutation = useMutation(
-        createSubscriptionMutationOptions(queryClient),
-    );
-    const [feedUrl, setFeedUrl] = useState(prefilledUrl);
-    const [categoryId, setCategoryId] = useState<string | null>(
-        categories[0] === undefined ? null : String(categories[0].id),
-    );
-    const [touched, setTouched] = useState(false);
-
-    const normalizedUrl = feedUrl.trim();
-    const feedUrlError =
-        normalizedUrl.length === 0
-            ? 'Enter a feed or website URL.'
-            : normalizedUrl.length > 2_048
-              ? 'Use 2,048 characters or fewer.'
-              : undefined;
-
-    const submit = (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        setTouched(true);
-        const parsedCategoryId = Number(categoryId);
-        if (
-            feedUrlError !== undefined ||
-            !Number.isSafeInteger(parsedCategoryId) ||
-            parsedCategoryId < 1
-        ) {
-            return;
-        }
-
-        mutation.mutate(
-            { feedUrl: normalizedUrl, categoryId: parsedCategoryId },
-            {
-                onSuccess: () => {
-                    setFeedUrl('');
-                    setTouched(false);
-                },
-            },
-        );
-    };
-
-    return (
-        <Paper
-            component="section"
-            aria-labelledby="add-subscription-heading"
-            withBorder
-            p={{ base: 'lg', sm: 'xl' }}
-        >
-            <form onSubmit={submit}>
-                <Stack gap="md">
-                    <Stack gap={4}>
-                        <Title
-                            id="add-subscription-heading"
-                            order={2}
-                            size="h3"
-                        >
-                            Add a feed
-                        </Title>
-                        <Text c="dimmed" size="sm">
-                            Enter a feed URL or a website that advertises a
-                            feed.
-                        </Text>
-                    </Stack>
-                    <TextInput
-                        autoComplete="url"
-                        disabled={mutation.isPending}
-                        error={touched ? feedUrlError : undefined}
-                        label="Feed or website URL"
-                        leftSection={<IconRss aria-hidden="true" size={16} />}
-                        maxLength={2_048}
-                        onBlur={() => setTouched(true)}
-                        onChange={(event) => {
-                            setFeedUrl(event.currentTarget.value);
-                            mutation.reset();
-                        }}
-                        placeholder="https://example.com/feed.xml"
-                        required
-                        value={feedUrl}
-                    />
-                    <Select
-                        allowDeselect={false}
-                        data={categories.map((category) => ({
-                            value: String(category.id),
-                            label: category.name,
-                        }))}
-                        disabled={mutation.isPending || categories.length === 0}
-                        label="Category"
-                        nothingFoundMessage="Create a category first"
-                        onChange={(value) => {
-                            setCategoryId(value);
-                            mutation.reset();
-                        }}
-                        placeholder="Choose a category"
-                        required
-                        searchable
-                        value={categoryId}
-                    />
-                    {categories.length === 0 && (
-                        <Text c="dimmed" size="sm">
-                            Create a category before adding your first feed.
-                        </Text>
-                    )}
-                    <Divider />
-                    <BookmarkletHelp />
-                    <MutationError
-                        error={mutation.error}
-                        title="Feed could not be added"
-                    />
-                    {mutation.isSuccess && (
-                        <Alert
-                            color="green"
-                            icon={<IconCheck aria-hidden="true" size={18} />}
-                            role="status"
-                            title="Feed added"
-                        >
-                            The first refresh has been queued.
-                        </Alert>
-                    )}
-                    <Group justify="flex-end">
-                        <Button
-                            disabled={
-                                categories.length === 0 ||
-                                feedUrlError !== undefined ||
-                                categoryId === null
-                            }
-                            leftSection={
-                                <IconPlus aria-hidden="true" size={17} />
-                            }
-                            loading={mutation.isPending}
-                            type="submit"
-                        >
-                            Add feed
-                        </Button>
-                    </Group>
-                </Stack>
-            </form>
-        </Paper>
-    );
-}
-
-function CategoryManager({
-    categories,
-}: {
-    readonly categories: readonly ManagedCategory[];
-}) {
-    const queryClient = useQueryClient();
-    const createMutation = useMutation(
-        createCategoryMutationOptions(queryClient),
-    );
-    const updateMutation = useMutation(
-        updateCategoryMutationOptions(queryClient),
-    );
-    const deleteMutation = useMutation(
-        deleteCategoryMutationOptions(queryClient),
-    );
-    const [newName, setNewName] = useState('');
-    const [newNameTouched, setNewNameTouched] = useState(false);
-    const [editingId, setEditingId] = useState<number | null>(null);
-    const [editingName, setEditingName] = useState('');
-    const [categoryToDelete, setCategoryToDelete] =
-        useState<ManagedCategory | null>(null);
-
-    const normalizedNewName = newName.trim();
-    const newNameError =
-        normalizedNewName.length === 0
-            ? 'Enter a category name.'
-            : normalizedNewName.length > 64
-              ? 'Use 64 characters or fewer.'
-              : undefined;
-    const normalizedEditingName = editingName.trim();
-    const editingNameError =
-        normalizedEditingName.length === 0
-            ? 'Enter a category name.'
-            : normalizedEditingName.length > 64
-              ? 'Use 64 characters or fewer.'
-              : undefined;
-
-    const submitCreate = (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        setNewNameTouched(true);
-        if (newNameError !== undefined) {
-            return;
-        }
-        createMutation.mutate(
-            { name: normalizedNewName },
-            {
-                onSuccess: () => {
-                    setNewName('');
-                    setNewNameTouched(false);
-                },
-            },
-        );
-    };
-
-    const beginRename = (category: ManagedCategory) => {
-        updateMutation.reset();
-        setEditingId(category.id);
-        setEditingName(category.name);
-    };
-
-    const saveRename = (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        if (editingId === null || editingNameError !== undefined) {
-            return;
-        }
-        updateMutation.mutate(
-            { categoryId: editingId, name: normalizedEditingName },
-            { onSuccess: () => setEditingId(null) },
-        );
-    };
-
-    const confirmDelete = () => {
-        if (categoryToDelete === null) {
-            return;
-        }
-        deleteMutation.mutate(
-            { categoryId: categoryToDelete.id },
-            { onSuccess: () => setCategoryToDelete(null) },
-        );
-    };
-
-    return (
-        <Paper
-            component="section"
-            aria-labelledby="categories-heading"
-            withBorder
-            p={{ base: 'lg', sm: 'xl' }}
-        >
-            <Modal
-                centered
-                closeOnClickOutside={!deleteMutation.isPending}
-                closeOnEscape={!deleteMutation.isPending}
-                onClose={() => {
-                    if (!deleteMutation.isPending) {
-                        setCategoryToDelete(null);
-                        deleteMutation.reset();
-                    }
-                }}
-                opened={categoryToDelete !== null}
-                title="Delete category?"
-            >
-                <Stack gap="md">
-                    <Text size="sm">
-                        Delete <strong>{categoryToDelete?.name}</strong>? This
-                        action cannot be undone.
-                    </Text>
-                    <MutationError
-                        error={deleteMutation.error}
-                        title="Category was not deleted"
-                    />
-                    <Group justify="flex-end">
-                        <Button
-                            disabled={deleteMutation.isPending}
-                            onClick={() => setCategoryToDelete(null)}
-                            variant="default"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            color="red"
-                            loading={deleteMutation.isPending}
-                            onClick={confirmDelete}
-                        >
-                            Delete category
-                        </Button>
-                    </Group>
-                </Stack>
-            </Modal>
-
-            <Stack gap="md">
-                <Stack gap={4}>
-                    <Title id="categories-heading" order={2} size="h3">
-                        Categories
-                    </Title>
-                    <Text c="dimmed" size="sm">
-                        Organize feeds. A category must be empty before
-                        deletion.
-                    </Text>
-                </Stack>
-                <form onSubmit={submitCreate}>
-                    <Group align="flex-start" wrap="nowrap">
-                        <TextInput
-                            aria-label="New category name"
-                            disabled={createMutation.isPending}
-                            error={newNameTouched ? newNameError : undefined}
-                            maxLength={64}
-                            onBlur={() => setNewNameTouched(true)}
-                            onChange={(event) => {
-                                setNewName(event.currentTarget.value);
-                                createMutation.reset();
-                            }}
-                            placeholder="Technology"
-                            style={{ flex: 1 }}
-                            value={newName}
-                        />
-                        <Button
-                            disabled={newNameError !== undefined}
-                            leftSection={
-                                <IconPlus aria-hidden="true" size={16} />
-                            }
-                            loading={createMutation.isPending}
-                            type="submit"
-                        >
-                            Create
-                        </Button>
-                    </Group>
-                </form>
-                <MutationError
-                    error={createMutation.error}
-                    title="Category could not be created"
-                />
-                <Divider />
-                {categories.length === 0 ? (
-                    <Text c="dimmed" size="sm">
-                        No categories yet.
-                    </Text>
-                ) : (
-                    <Stack gap="sm">
-                        {categories.map((category) => {
-                            const explanationId = `category-${category.id}-delete-help`;
-                            const isEditing = editingId === category.id;
-                            return (
-                                <Paper key={category.id} p="sm" withBorder>
-                                    {isEditing ? (
-                                        <form onSubmit={saveRename}>
-                                            <Group
-                                                align="flex-start"
-                                                wrap="nowrap"
-                                            >
-                                                <TextInput
-                                                    aria-label={`Rename ${category.name}`}
-                                                    autoFocus
-                                                    disabled={
-                                                        updateMutation.isPending
-                                                    }
-                                                    error={editingNameError}
-                                                    maxLength={64}
-                                                    onChange={(event) => {
-                                                        setEditingName(
-                                                            event.currentTarget
-                                                                .value,
-                                                        );
-                                                        updateMutation.reset();
-                                                    }}
-                                                    style={{ flex: 1 }}
-                                                    value={editingName}
-                                                />
-                                                <ActionIcon
-                                                    aria-label="Save category name"
-                                                    color="green"
-                                                    loading={
-                                                        updateMutation.isPending
-                                                    }
-                                                    size="lg"
-                                                    type="submit"
-                                                    variant="light"
-                                                >
-                                                    <IconCheck
-                                                        aria-hidden="true"
-                                                        size={17}
-                                                    />
-                                                </ActionIcon>
-                                                <ActionIcon
-                                                    aria-label="Cancel category rename"
-                                                    disabled={
-                                                        updateMutation.isPending
-                                                    }
-                                                    onClick={() =>
-                                                        setEditingId(null)
-                                                    }
-                                                    size="lg"
-                                                    variant="subtle"
-                                                >
-                                                    <IconX
-                                                        aria-hidden="true"
-                                                        size={17}
-                                                    />
-                                                </ActionIcon>
-                                            </Group>
-                                            <MutationError
-                                                error={updateMutation.error}
-                                                title="Category was not renamed"
-                                            />
-                                        </form>
-                                    ) : (
-                                        <div className={classes.categoryRow}>
-                                            <Stack gap={2}>
-                                                <Group gap="xs">
-                                                    <Text fw={600}>
-                                                        {category.name}
-                                                    </Text>
-                                                    <Badge
-                                                        color="gray"
-                                                        variant="light"
-                                                    >
-                                                        {
-                                                            category.subscriptionCount
-                                                        }{' '}
-                                                        {category.subscriptionCount ===
-                                                        1
-                                                            ? 'feed'
-                                                            : 'feeds'}
-                                                    </Badge>
-                                                </Group>
-                                                {category.subscriptionCount >
-                                                    0 && (
-                                                    <Text
-                                                        c="dimmed"
-                                                        id={explanationId}
-                                                        size="xs"
-                                                    >
-                                                        Move or unsubscribe
-                                                        every feed before
-                                                        deleting this category.
-                                                    </Text>
-                                                )}
-                                            </Stack>
-                                            <Group gap="xs" justify="flex-end">
-                                                <ActionIcon
-                                                    aria-label={`Rename ${category.name}`}
-                                                    onClick={() =>
-                                                        beginRename(category)
-                                                    }
-                                                    variant="light"
-                                                >
-                                                    <IconEdit
-                                                        aria-hidden="true"
-                                                        size={16}
-                                                    />
-                                                </ActionIcon>
-                                                <ActionIcon
-                                                    aria-describedby={
-                                                        category.subscriptionCount >
-                                                        0
-                                                            ? explanationId
-                                                            : undefined
-                                                    }
-                                                    aria-label={`Delete ${category.name}`}
-                                                    color="red"
-                                                    disabled={
-                                                        category.subscriptionCount >
-                                                        0
-                                                    }
-                                                    onClick={() => {
-                                                        deleteMutation.reset();
-                                                        setCategoryToDelete(
-                                                            category,
-                                                        );
-                                                    }}
-                                                    variant="light"
-                                                >
-                                                    <IconTrash
-                                                        aria-hidden="true"
-                                                        size={16}
-                                                    />
-                                                </ActionIcon>
-                                            </Group>
-                                        </div>
-                                    )}
-                                </Paper>
-                            );
-                        })}
-                    </Stack>
-                )}
-            </Stack>
-        </Paper>
-    );
-}
-
-function PatternEditor({
-    label,
-    description,
-    values,
-    disabled,
-    onChange,
-}: {
-    readonly label: string;
-    readonly description: string;
-    readonly values: readonly string[];
-    readonly disabled: boolean;
-    readonly onChange: (values: string[]) => void;
-}) {
-    return (
-        <Stack gap="xs">
-            <Stack gap={2}>
-                <Text fw={500} size="sm">
-                    {label}
-                </Text>
-                <Text c="dimmed" size="xs">
-                    {description}
-                </Text>
-            </Stack>
-            {values.map((value, index) => (
-                <div
-                    // biome-ignore lint/suspicious/noArrayIndexKey: filter drafts have no stable identifiers
-                    key={index}
-                    className={classes.patternRow}
-                >
-                    <TextInput
-                        aria-label={`${label} pattern ${index + 1}`}
-                        disabled={disabled}
-                        error={
-                            value.trim().length > 200
-                                ? 'Use 200 characters or fewer.'
-                                : undefined
-                        }
-                        maxLength={201}
-                        onChange={(event) => {
-                            const next = [...values];
-                            next[index] = event.currentTarget.value;
-                            onChange(next);
-                        }}
-                        placeholder="sponsored|advertisement"
-                        value={value}
-                    />
-                    <ActionIcon
-                        aria-label={`Remove ${label.toLowerCase()} pattern ${index + 1}`}
-                        color="red"
-                        disabled={disabled}
-                        onClick={() =>
-                            onChange(values.filter((_, item) => item !== index))
-                        }
-                        size="lg"
-                        variant="subtle"
-                    >
-                        <IconTrash aria-hidden="true" size={16} />
-                    </ActionIcon>
-                </div>
-            ))}
-            <Button
-                disabled={disabled || values.length >= 20}
-                leftSection={<IconPlus aria-hidden="true" size={15} />}
-                onClick={() => onChange([...values, ''])}
-                size="xs"
-                variant="light"
-            >
-                Add pattern
-            </Button>
-            {values.length >= 20 && (
-                <Text c="dimmed" size="xs">
-                    Maximum of 20 patterns reached.
-                </Text>
-            )}
-        </Stack>
-    );
-}
-
-function SubscriptionDetails({
+function SubscriptionDrawer({
     subscription,
-    categories,
     onClose,
 }: {
-    readonly subscription: ManagedSubscription;
-    readonly categories: readonly ManagedCategory[];
+    readonly subscription: ManagedSubscription | null;
     readonly onClose: () => void;
 }) {
     const queryClient = useQueryClient();
-    const updateMutation = useMutation(
-        updateSubscriptionMutationOptions(queryClient),
-    );
-    const refreshMutation = useMutation(
+    const refresh = useMutation(
         refreshSubscriptionMutationOptions(queryClient),
     );
-    const faviconMutation = useMutation(
-        refreshFaviconMutationOptions(queryClient),
-    );
-    const unsubscribeMutation = useMutation(
-        unsubscribeMutationOptions(queryClient),
-    );
-    const [customName, setCustomName] = useState(
-        subscription.customFeedName ?? '',
-    );
-    const [categoryId, setCategoryId] = useState(
-        String(subscription.categoryId),
-    );
-    const [filterRules, setFilterRules] = useState<SubscriptionFilterRules>({
-        excludeTitle: [...subscription.filterRules.excludeTitle],
-        excludeContent: [...subscription.filterRules.excludeContent],
-        excludeAuthor: [...subscription.filterRules.excludeAuthor],
-    });
-    const [confirmUnsubscribe, setConfirmUnsubscribe] = useState(false);
-
-    const normalizedCustomName = customName.trim();
-    const customNameError =
-        normalizedCustomName.length > 255
-            ? 'Use 255 characters or fewer.'
-            : undefined;
-    const patternError = Object.values(filterRules)
-        .flat()
-        .some((pattern) => pattern.trim().length > 200);
-
-    const updateField = (field: FilterField, values: string[]) => {
-        setFilterRules((current) => ({ ...current, [field]: values }));
-        updateMutation.reset();
-    };
-
-    const submit = (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        const parsedCategoryId = Number(categoryId);
-        if (
-            customNameError !== undefined ||
-            patternError ||
-            !Number.isSafeInteger(parsedCategoryId) ||
-            parsedCategoryId < 1
-        ) {
-            return;
-        }
-        const clean = (values: readonly string[]) =>
-            values
-                .map((value) => value.trim())
-                .filter((value) => value.length > 0);
-        updateMutation.mutate({
-            feedId: subscription.feedId,
-            categoryId: parsedCategoryId,
-            customFeedName:
-                normalizedCustomName.length === 0 ? null : normalizedCustomName,
-            filterRules: {
-                excludeTitle: clean(filterRules.excludeTitle),
-                excludeContent: clean(filterRules.excludeContent),
-                excludeAuthor: clean(filterRules.excludeAuthor),
-            },
-        });
-    };
-
-    const unsubscribeFeed = () => {
-        unsubscribeMutation.mutate(
-            { feedId: subscription.feedId },
-            { onSuccess: onClose },
-        );
-    };
 
     return (
-        <>
-            <Modal
-                centered
-                closeOnClickOutside={!unsubscribeMutation.isPending}
-                closeOnEscape={!unsubscribeMutation.isPending}
-                onClose={() => {
-                    if (!unsubscribeMutation.isPending) {
-                        setConfirmUnsubscribe(false);
-                        unsubscribeMutation.reset();
-                    }
-                }}
-                opened={confirmUnsubscribe}
-                title="Unsubscribe from feed?"
-            >
+        <Drawer
+            onClose={onClose}
+            opened={subscription !== null}
+            position="right"
+            size="lg"
+            title={
+                subscription?.customFeedName ??
+                subscription?.feedName ??
+                'Subscription'
+            }
+        >
+            {subscription !== null && (
                 <Stack gap="md">
-                    <Text size="sm">
-                        Remove{' '}
-                        <strong>
-                            {subscription.customFeedName ??
-                                subscription.feedName}
-                        </strong>{' '}
-                        from your reader? Your private read and star state for
-                        this subscription will be removed.
-                    </Text>
-                    <MutationError
-                        error={unsubscribeMutation.error}
-                        title="Feed was not removed"
-                    />
-                    <Group justify="flex-end">
+                    <Group align="flex-start" justify="space-between">
+                        <Stack gap={4}>
+                            <Text c="dimmed" size="sm">
+                                Feed details
+                            </Text>
+                            <Group gap="sm">
+                                <StatusBadge subscription={subscription} />
+                                <Badge color="gray" variant="light">
+                                    {subscription.entryCount.toLocaleString()}{' '}
+                                    entries
+                                </Badge>
+                                <Badge color="blue" variant="light">
+                                    {subscription.categoryName}
+                                </Badge>
+                            </Group>
+                        </Stack>
                         <Button
-                            disabled={unsubscribeMutation.isPending}
-                            onClick={() => setConfirmUnsubscribe(false)}
-                            variant="default"
+                            leftSection={<IconRefresh size={14} />}
+                            loading={refresh.isPending}
+                            onClick={() =>
+                                refresh.mutate({ feedId: subscription.feedId })
+                            }
+                            size="xs"
+                            variant="light"
                         >
-                            Cancel
-                        </Button>
-                        <Button
-                            color="red"
-                            loading={unsubscribeMutation.isPending}
-                            onClick={unsubscribeFeed}
-                        >
-                            Unsubscribe
+                            Refresh feed
                         </Button>
                     </Group>
-                </Stack>
-            </Modal>
 
-            <Stack gap="xl">
-                <Stack gap="sm">
-                    <Group
-                        justify="space-between"
-                        align="flex-start"
-                        wrap="wrap"
-                    >
-                        <Group align="flex-start" wrap="nowrap">
-                            <FeedFavicon
-                                src={subscription.faviconUrl}
-                                isDark={subscription.faviconIsDark}
-                                size={24}
-                            />
-                            <Stack gap={2} className={classes.subscriptionCopy}>
-                                <Title order={2} size="h3">
-                                    {subscription.customFeedName ??
-                                        subscription.feedName}
-                                </Title>
-                                {subscription.customFeedName !== null && (
-                                    <Text c="dimmed" size="sm">
-                                        Original name: {subscription.feedName}
-                                    </Text>
-                                )}
-                            </Stack>
-                        </Group>
-                        <StatusBadge subscription={subscription} />
-                    </Group>
-                    <Group gap="xs" wrap="wrap">
-                        <Badge color="gray" variant="light">
-                            {numberFormatter.format(subscription.entryCount)}{' '}
-                            entries
-                        </Badge>
-                        <Badge color="blue" variant="light">
-                            {numberFormatter.format(subscription.unreadCount)}{' '}
-                            unread
-                        </Badge>
-                        <Badge variant="light">
-                            {subscription.categoryName}
-                        </Badge>
-                    </Group>
-                    <Stack gap={3}>
+                    <Stack gap={4}>
+                        <Text c="dimmed" size="sm">
+                            Links
+                        </Text>
                         {subscription.siteUrl !== null && (
                             <Anchor
-                                className={classes.breakAnywhere}
                                 href={subscription.siteUrl}
                                 rel="noreferrer"
                                 target="_blank"
                             >
-                                Website{' '}
-                                <IconExternalLink
-                                    aria-hidden="true"
-                                    size={13}
-                                />
+                                {subscription.siteUrl}
                             </Anchor>
                         )}
                         <Anchor
-                            className={classes.breakAnywhere}
                             href={subscription.feedUrl}
                             rel="noreferrer"
                             target="_blank"
                         >
-                            {subscription.feedUrl}{' '}
-                            <IconExternalLink aria-hidden="true" size={13} />
+                            {subscription.feedUrl}
                         </Anchor>
                     </Stack>
+
                     {subscription.lastErrorMessage !== null && (
-                        <Alert
-                            color="red"
-                            icon={
-                                <IconAlertTriangle
-                                    aria-hidden="true"
-                                    size={18}
-                                />
-                            }
-                            title={
-                                subscription.lastErrorClass ??
-                                'Latest refresh error'
-                            }
-                        >
-                            {subscription.lastErrorMessage}
-                        </Alert>
-                    )}
-                    <Group>
-                        <Button
-                            leftSection={
-                                <IconRefresh aria-hidden="true" size={16} />
-                            }
-                            loading={refreshMutation.isPending}
-                            onClick={() =>
-                                refreshMutation.mutate({
-                                    feedId: subscription.feedId,
-                                })
-                            }
-                            variant="light"
-                        >
-                            Refresh now
-                        </Button>
-                        <Button
-                            leftSection={
-                                <IconPhoto aria-hidden="true" size={16} />
-                            }
-                            loading={faviconMutation.isPending}
-                            onClick={() =>
-                                faviconMutation.mutate({
-                                    feedId: subscription.feedId,
-                                })
-                            }
-                            variant="light"
-                        >
-                            Refresh icon
-                        </Button>
-                        <Text c="dimmed" size="sm">
-                            Last successful refresh:{' '}
-                            {formatTimestamp(
-                                subscription.lastSuccessfulRefreshAt,
-                            )}
-                        </Text>
-                    </Group>
-                    <MutationError
-                        error={refreshMutation.error}
-                        title="Refresh could not be queued"
-                    />
-                    <MutationError
-                        error={faviconMutation.error}
-                        title="Icon could not be refreshed"
-                    />
-                    {faviconMutation.isSuccess && (
-                        <Alert color="green" role="status">
-                            Feed icon check completed.
-                        </Alert>
-                    )}
-                    {refreshMutation.isSuccess && (
-                        <Alert
-                            color="green"
-                            role="status"
-                            title="Refresh queued"
-                        >
-                            The feed will update in the background.
-                        </Alert>
-                    )}
-                </Stack>
-
-                <Divider />
-
-                <form onSubmit={submit}>
-                    <Stack gap="lg">
                         <Stack gap={4}>
-                            <Title order={3} size="h4">
-                                Subscription settings
-                            </Title>
-                            <Text c="dimmed" size="sm">
-                                Rename or move this feed and hide entries with
-                                case-insensitive regular expressions.
+                            <Text c="red" size="sm">
+                                Latest error
+                            </Text>
+                            <Text size="sm">
+                                {subscription.lastErrorMessage}
                             </Text>
                         </Stack>
-                        <TextInput
-                            description="Leave empty to use the feed's original name."
-                            disabled={updateMutation.isPending}
-                            error={customNameError}
-                            label="Custom feed name"
-                            maxLength={255}
-                            onChange={(event) => {
-                                setCustomName(event.currentTarget.value);
-                                updateMutation.reset();
-                            }}
-                            placeholder={subscription.feedName}
-                            value={customName}
-                        />
-                        <Select
-                            allowDeselect={false}
-                            data={categories.map((category) => ({
-                                value: String(category.id),
-                                label: category.name,
-                            }))}
-                            disabled={updateMutation.isPending}
-                            label="Category"
-                            onChange={(value) => {
-                                if (value !== null) {
-                                    setCategoryId(value);
-                                    updateMutation.reset();
-                                }
-                            }}
-                            searchable
-                            value={categoryId}
-                        />
-                        <PatternEditor
-                            description="Hide entries when their title matches."
-                            disabled={updateMutation.isPending}
-                            label="Title exclusions"
-                            onChange={(values) =>
-                                updateField('excludeTitle', values)
-                            }
-                            values={filterRules.excludeTitle}
-                        />
-                        <PatternEditor
-                            description="Hide entries when their body or summary matches."
-                            disabled={updateMutation.isPending}
-                            label="Content exclusions"
-                            onChange={(values) =>
-                                updateField('excludeContent', values)
-                            }
-                            values={filterRules.excludeContent}
-                        />
-                        <PatternEditor
-                            description="Hide entries when their author matches."
-                            disabled={updateMutation.isPending}
-                            label="Author exclusions"
-                            onChange={(values) =>
-                                updateField('excludeAuthor', values)
-                            }
-                            values={filterRules.excludeAuthor}
-                        />
-                        <MutationError
-                            error={updateMutation.error}
-                            title="Subscription was not updated"
-                        />
-                        {updateMutation.isSuccess && (
-                            <Alert
-                                color="green"
-                                role="status"
-                                title="Settings saved"
-                            >
-                                Reader filters and counts are being updated.
-                            </Alert>
-                        )}
-                        <Group justify="flex-end">
-                            <Button
-                                disabled={
-                                    customNameError !== undefined ||
-                                    patternError
-                                }
-                                leftSection={
-                                    <IconCheck aria-hidden="true" size={16} />
-                                }
-                                loading={updateMutation.isPending}
-                                type="submit"
-                            >
-                                Save settings
-                            </Button>
+                    )}
+
+                    <Stack gap={4}>
+                        <Group align="center" justify="space-between">
+                            <Text fw={600}>Recent refreshes</Text>
+                            <Text c="dimmed" size="sm">
+                                Showing {subscription.refreshes.length} attempts
+                            </Text>
                         </Group>
-                    </Stack>
-                </form>
-
-                <Divider />
-
-                <Stack gap="sm">
-                    <Group justify="space-between" align="baseline">
-                        <Title order={3} size="h4">
-                            Recent refreshes
-                        </Title>
-                        <Text c="dimmed" size="xs">
-                            Latest {subscription.refreshes.length} of 10
-                        </Text>
-                    </Group>
-                    <Table.ScrollContainer minWidth={620}>
-                        <Table
-                            striped
-                            withRowBorders={false}
-                            verticalSpacing="sm"
-                        >
-                            <Table.Thead>
-                                <Table.Tr>
-                                    <Table.Th>Time</Table.Th>
-                                    <Table.Th>Status</Table.Th>
-                                    <Table.Th ta="right">New entries</Table.Th>
-                                    <Table.Th>Result</Table.Th>
-                                </Table.Tr>
-                            </Table.Thead>
-                            <Table.Tbody>
-                                {subscription.refreshes.length === 0 ? (
+                        <ScrollArea h={360} type="auto">
+                            <Table
+                                highlightOnHover
+                                striped
+                                verticalSpacing="sm"
+                                withRowBorders={false}
+                            >
+                                <Table.Thead>
                                     <Table.Tr>
-                                        <Table.Td colSpan={4}>
-                                            <Text c="dimmed" size="sm">
-                                                No refresh attempts recorded
-                                                yet.
-                                            </Text>
-                                        </Table.Td>
+                                        <Table.Th>Refreshed at</Table.Th>
+                                        <Table.Th>Status</Table.Th>
+                                        <Table.Th ta="right">
+                                            New entries
+                                        </Table.Th>
+                                        <Table.Th>Error</Table.Th>
                                     </Table.Tr>
-                                ) : (
-                                    subscription.refreshes.map((refresh) => (
-                                        <Table.Tr key={refresh.id}>
+                                </Table.Thead>
+                                <Table.Tbody>
+                                    {subscription.refreshes.length === 0 && (
+                                        <Table.Tr>
+                                            <Table.Td colSpan={4}>
+                                                <Text c="dimmed" size="sm">
+                                                    No refresh attempts recorded
+                                                    yet.
+                                                </Text>
+                                            </Table.Td>
+                                        </Table.Tr>
+                                    )}
+                                    {subscription.refreshes.map((record) => (
+                                        <Table.Tr key={record.id}>
                                             <Table.Td>
-                                                {formatTimestamp(
-                                                    refresh.refreshedAt,
+                                                {formatAbsolute(
+                                                    record.refreshedAt,
                                                 )}
                                             </Table.Td>
                                             <Table.Td>
                                                 <Badge
                                                     color={
-                                                        refresh.successful
+                                                        record.successful
                                                             ? 'green'
                                                             : 'red'
                                                     }
                                                     variant="light"
                                                 >
-                                                    {refresh.successful
-                                                        ? refresh.notModified
-                                                            ? 'Not modified'
-                                                            : 'Success'
+                                                    {record.successful
+                                                        ? 'Success'
                                                         : 'Failed'}
                                                 </Badge>
                                             </Table.Td>
                                             <Table.Td ta="right">
-                                                {numberFormatter.format(
-                                                    refresh.entriesCreated,
-                                                )}
+                                                {record.entriesCreated}
                                             </Table.Td>
                                             <Table.Td>
-                                                {refresh.errorMessage ??
-                                                    (refresh.httpStatus === null
-                                                        ? '—'
-                                                        : `HTTP ${refresh.httpStatus}`)}
+                                                {record.errorMessage ?? '—'}
                                             </Table.Td>
                                         </Table.Tr>
-                                    ))
-                                )}
-                            </Table.Tbody>
-                        </Table>
-                    </Table.ScrollContainer>
+                                    ))}
+                                </Table.Tbody>
+                            </Table>
+                        </ScrollArea>
+                    </Stack>
                 </Stack>
-
-                <Divider />
-                <Stack gap="xs">
-                    <Title c="red" order={3} size="h4">
-                        Remove subscription
-                    </Title>
-                    <Text c="dimmed" size="sm">
-                        This removes the feed from your reader. The shared feed
-                        is retained when another user still subscribes to it.
-                    </Text>
-                    <Group justify="flex-end">
-                        <Button
-                            color="red"
-                            leftSection={
-                                <IconTrash aria-hidden="true" size={16} />
-                            }
-                            onClick={() => {
-                                unsubscribeMutation.reset();
-                                setConfirmUnsubscribe(true);
-                            }}
-                            variant="light"
-                        >
-                            Unsubscribe
-                        </Button>
-                    </Group>
-                </Stack>
-            </Stack>
-        </>
+            )}
+        </Drawer>
     );
 }
 
-function SubscriptionList({
-    subscriptions,
-    categories,
-}: {
-    readonly subscriptions: readonly ManagedSubscription[];
-    readonly categories: readonly ManagedCategory[];
-}) {
+export function SubscriptionsPage() {
+    const management = useQuery(subscriptionManagementQueryOptions);
+    const data = management.data;
     const [search, setSearch] = useState('');
-    const [categoryFilter, setCategoryFilter] = useState('all');
-    const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-    const [sortOrder, setSortOrder] = useState<SortOrder>('name');
+    const [category, setCategory] = useState('all');
+    const [status, setStatus] = useState<LegacyStatus | 'all'>('all');
+    const [sortField, setSortField] = useState<SortField>('name');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
     const [selectedFeedId, setSelectedFeedId] = useState<number | null>(null);
 
+    const subscriptions = data?.subscriptions ?? [];
+    const categories = data?.categories ?? [];
+    const selected =
+        subscriptions.find((item) => item.feedId === selectedFeedId) ?? null;
+
     const filtered = useMemo(() => {
-        const normalizedSearch = search.trim().toLocaleLowerCase();
+        const normalized = search.trim().toLocaleLowerCase();
+        const direction = sortDirection === 'asc' ? 1 : -1;
         return subscriptions
             .filter((subscription) => {
                 const name =
                     subscription.customFeedName ?? subscription.feedName;
                 const matchesSearch =
-                    normalizedSearch.length === 0 ||
-                    `${name} ${subscription.feedName} ${subscription.feedUrl} ${subscription.siteUrl ?? ''}`
+                    normalized === '' ||
+                    `${name} ${subscription.feedName} ${subscription.siteUrl ?? ''} ${subscription.feedUrl}`
                         .toLocaleLowerCase()
-                        .includes(normalizedSearch);
+                        .includes(normalized);
                 const matchesCategory =
-                    categoryFilter === 'all' ||
-                    String(subscription.categoryId) === categoryFilter;
+                    category === 'all' ||
+                    String(subscription.categoryId) === category;
                 const matchesStatus =
-                    statusFilter === 'all' ||
-                    getSubscriptionStatus(subscription) === statusFilter;
+                    status === 'all' || legacyStatus(subscription) === status;
                 return matchesSearch && matchesCategory && matchesStatus;
             })
             .toSorted((left, right) => {
-                if (sortOrder === 'entries') {
-                    return right.entryCount - left.entryCount;
+                if (sortField === 'entries') {
+                    return direction * (left.entryCount - right.entryCount);
                 }
-                if (sortOrder === 'recent') {
+                if (sortField === 'lastSuccess') {
                     return (
-                        (right.lastAttemptAt ?? 0) - (left.lastAttemptAt ?? 0)
+                        direction *
+                        ((left.lastSuccessfulRefreshAt ?? 0) -
+                            (right.lastSuccessfulRefreshAt ?? 0))
+                    );
+                }
+                if (sortField === 'lastFailure') {
+                    const leftFailure = left.refreshes.find(
+                        (record) => !record.successful,
+                    )?.refreshedAt;
+                    const rightFailure = right.refreshes.find(
+                        (record) => !record.successful,
+                    )?.refreshedAt;
+                    return (
+                        direction * ((leftFailure ?? 0) - (rightFailure ?? 0))
                     );
                 }
                 const leftName = left.customFeedName ?? left.feedName;
                 const rightName = right.customFeedName ?? right.feedName;
-                return leftName.localeCompare(rightName);
+                return direction * leftName.localeCompare(rightName);
             });
-    }, [categoryFilter, search, sortOrder, statusFilter, subscriptions]);
+    }, [category, search, sortDirection, sortField, status, subscriptions]);
 
-    const selected = subscriptions.find(
-        (subscription) => subscription.feedId === selectedFeedId,
-    );
+    const resetFilters = () => {
+        setSearch('');
+        setCategory('all');
+        setStatus('all');
+        setSortField('name');
+        setSortDirection('asc');
+    };
 
-    return (
-        <Stack
-            component="section"
-            gap="md"
-            aria-labelledby="subscriptions-heading"
-        >
-            <Drawer
-                closeOnClickOutside
-                onClose={() => setSelectedFeedId(null)}
-                opened={selected !== undefined}
-                position="right"
-                size="min(40rem, 100vw)"
-                title="Manage subscription"
-            >
-                {selected !== undefined && (
-                    <SubscriptionDetails
-                        key={selected.feedId}
-                        categories={categories}
-                        onClose={() => setSelectedFeedId(null)}
-                        subscription={selected}
-                    />
-                )}
-            </Drawer>
-
-            <Group justify="space-between" align="baseline">
-                <Stack gap={2}>
-                    <Title id="subscriptions-heading" order={2}>
-                        Your subscriptions
-                    </Title>
+    const sidebar = (
+        <ScrollArea h="calc(100vh - 96px)" p="md" type="auto">
+            <Stack gap="lg">
+                <Stack gap={4}>
+                    <Title order={4}>Search &amp; Filter</Title>
                     <Text c="dimmed" size="sm">
-                        {subscriptions.length} total
+                        Refine the subscriptions table in real time.
                     </Text>
                 </Stack>
-            </Group>
-
-            <Paper withBorder p={{ base: 'md', sm: 'lg' }}>
-                <div className={classes.filterGrid}>
+                <Stack gap="sm">
                     <TextInput
-                        aria-label="Search subscriptions"
-                        leftSection={
-                            <IconSearch aria-hidden="true" size={16} />
-                        }
+                        label="Search"
+                        leftSection={<IconSearch size={16} />}
                         onChange={(event) =>
                             setSearch(event.currentTarget.value)
                         }
@@ -1333,347 +376,323 @@ function SubscriptionList({
                         value={search}
                     />
                     <Select
-                        allowDeselect={false}
-                        aria-label="Filter by category"
                         data={[
-                            { value: 'all', label: 'All categories' },
-                            ...categories.map((category) => ({
-                                value: String(category.id),
-                                label: category.name,
+                            { label: 'All categories', value: 'all' },
+                            ...categories.map((item) => ({
+                                label: item.name,
+                                value: String(item.id),
                             })),
                         ]}
-                        onChange={(value) => setCategoryFilter(value ?? 'all')}
-                        value={categoryFilter}
+                        label="Category"
+                        onChange={(value) => setCategory(value ?? 'all')}
+                        value={category}
                     />
                     <Select
-                        allowDeselect={false}
-                        aria-label="Filter by refresh status"
                         data={[
-                            { value: 'all', label: 'All statuses' },
-                            ...Object.entries(statusPresentation).map(
-                                ([value, presentation]) => ({
-                                    value,
-                                    label: presentation.label,
-                                }),
-                            ),
+                            { label: 'All statuses', value: 'all' },
+                            { label: 'Success', value: 'success' },
+                            { label: 'Failed', value: 'failed' },
+                            { label: 'Never refreshed', value: 'never' },
                         ]}
+                        label="Status"
                         onChange={(value) =>
-                            setStatusFilter((value ?? 'all') as StatusFilter)
+                            setStatus((value ?? 'all') as LegacyStatus | 'all')
                         }
-                        value={statusFilter}
+                        value={status}
                     />
+                </Stack>
+                <Divider label="Sorting" labelPosition="center" />
+                <Group align="flex-end" gap="xs">
                     <Select
-                        allowDeselect={false}
-                        aria-label="Sort subscriptions"
                         data={[
-                            { value: 'name', label: 'Name' },
-                            { value: 'recent', label: 'Recent attempt' },
-                            { value: 'entries', label: 'Most entries' },
+                            { label: 'Name', value: 'name' },
+                            { label: 'Entries count', value: 'entries' },
+                            { label: 'Last success', value: 'lastSuccess' },
+                            { label: 'Last failure', value: 'lastFailure' },
                         ]}
+                        label="Sort by"
                         onChange={(value) =>
-                            setSortOrder((value ?? 'name') as SortOrder)
+                            setSortField((value ?? 'name') as SortField)
                         }
-                        value={sortOrder}
+                        style={{ flex: 1 }}
+                        value={sortField}
                     />
-                </div>
-            </Paper>
-
-            {subscriptions.length === 0 ? (
-                <Paper withBorder p="xl">
-                    <Stack align="center" gap="xs" ta="center">
-                        <IconRss aria-hidden="true" size={28} />
-                        <Text fw={600}>No subscriptions yet</Text>
-                        <Text c="dimmed" maw={500} size="sm">
-                            Add a feed above to start building your private
-                            reader.
-                        </Text>
-                    </Stack>
-                </Paper>
-            ) : filtered.length === 0 ? (
-                <Paper withBorder p="xl">
-                    <Stack align="center" gap="xs" ta="center">
-                        <IconSearch aria-hidden="true" size={28} />
-                        <Text fw={600}>No matching subscriptions</Text>
-                        <Text c="dimmed" size="sm">
-                            Change or clear the search and filters.
-                        </Text>
-                        <Button
-                            onClick={() => {
-                                setSearch('');
-                                setCategoryFilter('all');
-                                setStatusFilter('all');
-                            }}
-                            size="xs"
+                    <Tooltip
+                        label={`Sort ${
+                            sortDirection === 'asc' ? 'ascending' : 'descending'
+                        }`}
+                        withArrow
+                    >
+                        <ActionIcon
+                            aria-label="Toggle sort direction"
+                            onClick={() =>
+                                setSortDirection((current) =>
+                                    current === 'asc' ? 'desc' : 'asc',
+                                )
+                            }
+                            size="lg"
                             variant="light"
                         >
-                            Clear filters
-                        </Button>
-                    </Stack>
-                </Paper>
-            ) : (
-                <Table.ScrollContainer minWidth={880}>
-                    <Table highlightOnHover verticalSpacing="sm" withRowBorders>
-                        <Table.Thead>
-                            <Table.Tr>
-                                <Table.Th>Name</Table.Th>
-                                <Table.Th>Category</Table.Th>
-                                <Table.Th ta="right">Entries</Table.Th>
-                                <Table.Th>Status</Table.Th>
-                                <Table.Th>Last attempt</Table.Th>
-                                <Table.Th />
-                            </Table.Tr>
-                        </Table.Thead>
-                        <Table.Tbody>
-                            {filtered.map((subscription) => {
-                                const name =
-                                    subscription.customFeedName ??
-                                    subscription.feedName;
-                                return (
-                                    <Table.Tr
-                                        key={subscription.feedId}
-                                        onClick={() =>
-                                            setSelectedFeedId(
-                                                subscription.feedId,
-                                            )
-                                        }
-                                        style={{ cursor: 'pointer' }}
+                            {sortDirection === 'asc' ? (
+                                <IconArrowNarrowUp size={18} />
+                            ) : (
+                                <IconArrowNarrowDown size={18} />
+                            )}
+                        </ActionIcon>
+                    </Tooltip>
+                </Group>
+                <Divider />
+                <Button color="gray" onClick={resetFilters} variant="light">
+                    Reset filters
+                </Button>
+            </Stack>
+        </ScrollArea>
+    );
+
+    const errorCount = subscriptions.filter(
+        (subscription) => legacyStatus(subscription) === 'failed',
+    ).length;
+    const neverCount = subscriptions.filter(
+        (subscription) => legacyStatus(subscription) === 'never',
+    ).length;
+
+    return (
+        <ApplicationPage
+            activePage="subscriptions"
+            navbarWidth={320}
+            sidebar={sidebar}
+        >
+            <SubscriptionDrawer
+                onClose={() => setSelectedFeedId(null)}
+                subscription={selected}
+            />
+            <Stack gap="lg" px="md" py="md">
+                <Stack gap={4}>
+                    <Title order={1}>Subscriptions</Title>
+                    <Text c="dimmed" size="sm">
+                        Search, filter, and audit refresh activity across all of
+                        your feeds.
+                    </Text>
+                </Stack>
+
+                <Group gap="sm" wrap="wrap">
+                    <Badge color="blue" variant="light">
+                        Total: {subscriptions.length}
+                    </Badge>
+                    <Badge color="red" variant="light">
+                        With errors: {errorCount}
+                    </Badge>
+                    <Badge color="gray" variant="light">
+                        Never refreshed: {neverCount}
+                    </Badge>
+                </Group>
+
+                {management.isPending && data === undefined && (
+                    <Group role="status">
+                        <Loader size="sm" />
+                        <Text size="sm">Loading subscriptions…</Text>
+                    </Group>
+                )}
+                {management.isError && data === undefined && (
+                    <Alert color="red" title="Subscriptions are unavailable">
+                        {management.error.message}
+                    </Alert>
+                )}
+
+                {data !== undefined && (
+                    <Table.ScrollContainer minWidth={900}>
+                        <Table
+                            highlightOnHover
+                            verticalSpacing="sm"
+                            withRowBorders
+                        >
+                            <Table.Thead>
+                                <Table.Tr>
+                                    <Table.Th
+                                        style={{ width: '32%', minWidth: 280 }}
                                     >
-                                        <Table.Td>
-                                            <Group gap="sm" wrap="nowrap">
-                                                <FeedFavicon
-                                                    src={
-                                                        subscription.faviconUrl
-                                                    }
-                                                    isDark={
-                                                        subscription.faviconIsDark
-                                                    }
-                                                    size={22}
-                                                />
-                                                <Stack gap={1}>
-                                                    <Text fw={600}>{name}</Text>
-                                                    <Text
-                                                        c="dimmed"
-                                                        className={
-                                                            classes.breakAnywhere
-                                                        }
-                                                        lineClamp={1}
-                                                        size="xs"
-                                                    >
-                                                        {subscription.feedUrl}
-                                                    </Text>
-                                                </Stack>
-                                            </Group>
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <Badge variant="light">
-                                                {subscription.categoryName}
-                                            </Badge>
-                                        </Table.Td>
-                                        <Table.Td ta="right">
-                                            <Text size="sm">
-                                                {numberFormatter.format(
-                                                    subscription.entryCount,
-                                                )}
-                                            </Text>
-                                            <Text c="dimmed" size="xs">
-                                                {numberFormatter.format(
-                                                    subscription.unreadCount,
-                                                )}{' '}
-                                                unread
+                                        Name
+                                    </Table.Th>
+                                    <Table.Th>Category</Table.Th>
+                                    <Table.Th ta="right">Entries</Table.Th>
+                                    <Table.Th>Status</Table.Th>
+                                    <Table.Th>Last success</Table.Th>
+                                    <Table.Th>Last failure</Table.Th>
+                                </Table.Tr>
+                            </Table.Thead>
+                            <Table.Tbody>
+                                {filtered.length === 0 && (
+                                    <Table.Tr>
+                                        <Table.Td colSpan={6}>
+                                            <Text
+                                                c="dimmed"
+                                                size="sm"
+                                                ta="center"
+                                            >
+                                                No subscriptions match the
+                                                current filters.
                                             </Text>
                                         </Table.Td>
-                                        <Table.Td>
-                                            <StatusBadge
-                                                subscription={subscription}
-                                            />
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <Text size="sm">
-                                                {formatTimestamp(
-                                                    subscription.lastAttemptAt,
-                                                )}
-                                            </Text>
-                                        </Table.Td>
-                                        <Table.Td ta="right">
-                                            <Button
-                                                leftSection={
-                                                    <IconSettings
-                                                        aria-hidden="true"
-                                                        size={15}
-                                                    />
-                                                }
-                                                onClick={(event) => {
-                                                    event.stopPropagation();
+                                    </Table.Tr>
+                                )}
+                                {filtered.map((subscription) => {
+                                    const name =
+                                        subscription.customFeedName ??
+                                        subscription.feedName;
+                                    const lastFailure =
+                                        subscription.refreshes.find(
+                                            (record) => !record.successful,
+                                        )?.refreshedAt ?? null;
+                                    return (
+                                        <Table.Tr
+                                            key={subscription.feedId}
+                                            aria-expanded={
+                                                selectedFeedId ===
+                                                subscription.feedId
+                                            }
+                                            aria-label={`View details for ${name}`}
+                                            onClick={() =>
+                                                setSelectedFeedId(
+                                                    subscription.feedId,
+                                                )
+                                            }
+                                            onKeyDown={(event) => {
+                                                if (
+                                                    event.key === 'Enter' ||
+                                                    event.key === ' '
+                                                ) {
+                                                    event.preventDefault();
                                                     setSelectedFeedId(
                                                         subscription.feedId,
                                                     );
+                                                }
+                                            }}
+                                            role="button"
+                                            style={{ cursor: 'pointer' }}
+                                            tabIndex={0}
+                                        >
+                                            <Table.Td
+                                                style={{
+                                                    width: '32%',
+                                                    minWidth: 280,
                                                 }}
-                                                size="xs"
-                                                variant="subtle"
                                             >
-                                                Manage
-                                            </Button>
-                                        </Table.Td>
-                                    </Table.Tr>
-                                );
-                            })}
-                        </Table.Tbody>
-                    </Table>
-                </Table.ScrollContainer>
-            )}
-        </Stack>
-    );
-}
-
-function PageState({ children }: { readonly children: ReactNode }) {
-    return (
-        <Group justify="center" py="xl" role="status" aria-live="polite">
-            {children}
-        </Group>
-    );
-}
-
-export function SubscriptionsPage() {
-    const [searchParams] = useSearchParams();
-    const managementQuery = useQuery(subscriptionManagementQueryOptions);
-    const data = managementQuery.data;
-    const prefilledUrl = searchParams.get('url') ?? '';
-    const categories = useMemo(
-        () =>
-            [...(data?.categories ?? [])].sort((left, right) =>
-                left.name.localeCompare(right.name),
-            ),
-        [data?.categories],
-    );
-
-    return (
-        <ApplicationPage activePage="subscriptions">
-            <Container component="div" size="xl" py="md">
-                <Stack gap="xl">
-                    <Stack gap={4}>
-                        <Group
-                            justify="space-between"
-                            align="flex-start"
-                            wrap="wrap"
-                        >
-                            <Stack gap={4}>
-                                <Title order={1}>Subscriptions</Title>
-                                <Text c="dimmed" maw={680}>
-                                    Add feeds, organize categories, inspect
-                                    refreshes, and control which entries appear
-                                    in your reader.
-                                </Text>
-                            </Stack>
-                            {managementQuery.isFetching &&
-                                !managementQuery.isPending && (
-                                    <Group
-                                        gap="xs"
-                                        role="status"
-                                        aria-live="polite"
-                                    >
-                                        <Loader size="xs" />
-                                        <Text c="dimmed" size="xs">
-                                            Updating…
-                                        </Text>
-                                    </Group>
-                                )}
-                        </Group>
-                    </Stack>
-
-                    {managementQuery.isPending && (
-                        <PageState>
-                            <Loader size="sm" />
-                            <Text size="sm">Loading subscriptions…</Text>
-                        </PageState>
-                    )}
-
-                    {managementQuery.isError && data === undefined && (
-                        <Alert
-                            color="red"
-                            role="alert"
-                            title="Subscriptions are unavailable"
-                        >
-                            <Stack align="flex-start" gap="sm">
-                                <Text size="sm">
-                                    {managementQuery.error.message}
-                                </Text>
-                                <Button
-                                    leftSection={
-                                        <IconRefresh
-                                            aria-hidden="true"
-                                            size={16}
-                                        />
-                                    }
-                                    onClick={() =>
-                                        void managementQuery.refetch()
-                                    }
-                                    size="xs"
-                                    variant="light"
-                                >
-                                    Try again
-                                </Button>
-                            </Stack>
-                        </Alert>
-                    )}
-
-                    {managementQuery.isError && data !== undefined && (
-                        <Alert color="orange" title="Latest update failed">
-                            Showing saved subscription data.{' '}
-                            <Button
-                                onClick={() => void managementQuery.refetch()}
-                                size="compact-xs"
-                                variant="subtle"
-                            >
-                                Try again
-                            </Button>
-                        </Alert>
-                    )}
-
-                    {data !== undefined && (
-                        <>
-                            <Accordion
-                                defaultValue={
-                                    prefilledUrl.length > 0
-                                        ? 'add-feed'
-                                        : undefined
-                                }
-                                variant="separated"
-                            >
-                                <Accordion.Item value="add-feed">
-                                    <Accordion.Control
-                                        icon={<IconPlus size={16} />}
-                                    >
-                                        Add a feed
-                                    </Accordion.Control>
-                                    <Accordion.Panel>
-                                        <AddSubscriptionForm
-                                            key={prefilledUrl}
-                                            categories={categories}
-                                            prefilledUrl={prefilledUrl}
-                                        />
-                                    </Accordion.Panel>
-                                </Accordion.Item>
-                                <Accordion.Item value="categories">
-                                    <Accordion.Control
-                                        icon={<IconEdit size={16} />}
-                                    >
-                                        Manage categories
-                                    </Accordion.Control>
-                                    <Accordion.Panel>
-                                        <CategoryManager
-                                            categories={categories}
-                                        />
-                                    </Accordion.Panel>
-                                </Accordion.Item>
-                            </Accordion>
-                            <SubscriptionList
-                                categories={categories}
-                                subscriptions={data.subscriptions}
-                            />
-                        </>
-                    )}
-                </Stack>
-            </Container>
+                                                <Group gap="sm" wrap="nowrap">
+                                                    <Avatar
+                                                        radius="sm"
+                                                        size="md"
+                                                        src={
+                                                            subscription.faviconUrl
+                                                        }
+                                                    >
+                                                        {name[0]?.toUpperCase()}
+                                                    </Avatar>
+                                                    <Stack gap={0}>
+                                                        <Group gap={6}>
+                                                            <Text fw={600}>
+                                                                {name}
+                                                            </Text>
+                                                            {subscription.customFeedName !==
+                                                                null && (
+                                                                <Badge
+                                                                    color="gray"
+                                                                    size="xs"
+                                                                    variant="light"
+                                                                >
+                                                                    Renamed
+                                                                </Badge>
+                                                            )}
+                                                        </Group>
+                                                        <Group gap={8}>
+                                                            {subscription.siteUrl !==
+                                                                null && (
+                                                                <Anchor
+                                                                    href={
+                                                                        subscription.siteUrl
+                                                                    }
+                                                                    onClick={(
+                                                                        event,
+                                                                    ) =>
+                                                                        event.stopPropagation()
+                                                                    }
+                                                                    rel="noreferrer"
+                                                                    size="xs"
+                                                                    target="_blank"
+                                                                >
+                                                                    Website
+                                                                </Anchor>
+                                                            )}
+                                                            <Anchor
+                                                                href={
+                                                                    subscription.feedUrl
+                                                                }
+                                                                onClick={(
+                                                                    event,
+                                                                ) =>
+                                                                    event.stopPropagation()
+                                                                }
+                                                                rel="noreferrer"
+                                                                size="xs"
+                                                                target="_blank"
+                                                            >
+                                                                Feed
+                                                            </Anchor>
+                                                        </Group>
+                                                    </Stack>
+                                                </Group>
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <Badge
+                                                    color="blue"
+                                                    variant="light"
+                                                >
+                                                    {subscription.categoryName}
+                                                </Badge>
+                                            </Table.Td>
+                                            <Table.Td ta="right">
+                                                {subscription.entryCount.toLocaleString()}
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <StatusBadge
+                                                    subscription={subscription}
+                                                />
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <Tooltip
+                                                    label={formatAbsolute(
+                                                        subscription.lastSuccessfulRefreshAt,
+                                                    )}
+                                                    withArrow
+                                                >
+                                                    <Text size="sm">
+                                                        {formatRelative(
+                                                            subscription.lastSuccessfulRefreshAt,
+                                                        )}
+                                                    </Text>
+                                                </Tooltip>
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <Tooltip
+                                                    label={formatAbsolute(
+                                                        lastFailure,
+                                                    )}
+                                                    withArrow
+                                                >
+                                                    <Text size="sm">
+                                                        {formatRelative(
+                                                            lastFailure,
+                                                        )}
+                                                    </Text>
+                                                </Tooltip>
+                                            </Table.Td>
+                                        </Table.Tr>
+                                    );
+                                })}
+                            </Table.Tbody>
+                        </Table>
+                    </Table.ScrollContainer>
+                )}
+            </Stack>
         </ApplicationPage>
     );
 }

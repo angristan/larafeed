@@ -96,16 +96,19 @@ describe('ChartsPage', () => {
     it('renders accessible charts with explicit current-state semantics', () => {
         const markup = renderCharts();
 
-        expect(markup.match(/role="img"/gu)).toHaveLength(3);
-        expect(markup).toContain('Entry cohort state');
-        expect(markup).toContain(
-            'Read and saved lines show their current state, not historical actions.',
-        );
-        expect(markup).toContain('Actual state transitions made in Larafeed.');
+        expect(markup).toContain('Filters');
+        expect(markup).toContain('Key Metrics');
+        expect(markup).toContain('Daily Reads Activity');
+        expect(markup).toContain('Daily Subscription Entries');
+        expect(markup).toContain('Daily Saved Entries');
+        expect(markup).toContain('Refresh Activity');
+        expect(markup).toContain('Daily attempts');
+        expect(markup).toContain('Success rate');
+        expect(markup).toContain('Unread Backlog Trend');
+        expect(markup).toContain('Daily Read-through Rate');
         expect(markup).toContain(
             'Reader activity tracking is complete from 2026-07-18.',
         );
-        expect(markup).toContain('66.67%');
-        expect(markup).toContain('Recent daily detail');
+        expect(markup).toContain('66.7%');
     });
 });

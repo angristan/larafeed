@@ -1,5 +1,7 @@
+import '@mantine/charts/styles.css';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
+import '@mantine/spotlight/styles.css';
 
 import '@gfazioli/mantine-split-pane/styles.css';
 
@@ -32,7 +34,7 @@ createRoot(rootElement).render(
         <QueryClientProvider client={queryClient}>
             <MantineProvider
                 colorSchemeManager={colorSchemeManager}
-                defaultColorScheme="auto"
+                defaultColorScheme="light"
                 theme={theme}
             >
                 <ModalsProvider>

@@ -12,7 +12,7 @@
 .main {
     box-sizing: border-box;
     display: flex;
-    width: 100%;
+    width: 100vw;
     height: 100vh;
     overflow: hidden;
 }
@@ -41,7 +41,6 @@
     min-width: 0;
 }
 
-.listPane,
 .detailPane {
     display: flex;
     flex-direction: column;
@@ -51,21 +50,7 @@
     background: var(--mantine-color-body);
 }
 
-.paneHeader {
-    min-height: 2.5rem;
-    padding: 0.15rem 0.625rem 0.625rem;
-    background: transparent;
-}
-
-.headingClamp,
-.entryCopy,
-.entryFeed,
-.entryTitle {
-    min-width: 0;
-}
-
 .sidebarScroll,
-.entryScroll,
 .detailScroll {
     flex: 1;
     min-height: 0;
@@ -76,81 +61,41 @@
     padding: var(--mantine-spacing-xl);
 }
 
-.entryList {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    margin: 0;
-    padding: 0 1rem 0 0;
-    list-style: none;
-    transition: opacity 120ms ease;
-}
-
-.entryList[data-placeholder] {
-    opacity: 0.62;
-    pointer-events: none;
-}
-
-.entryLink {
+.entry {
     display: block;
     margin-top: 0.8rem;
-    padding: 0.625rem 0.75rem;
+    margin-right: 1em;
     color: inherit;
     text-decoration: none;
-    border: 1px solid var(--reader-border);
-    border-radius: var(--mantine-radius-sm);
-    background: var(--mantine-color-body);
-    box-shadow: var(--mantine-shadow-sm);
-    transition: background-color 180ms ease;
 }
 
-.entryLink:hover,
-.entryLink[data-active] {
-    background: var(--reader-muted-surface);
+.entryCard {
+    cursor: pointer;
+    transition: background-color 0.3s;
 }
 
-.entryLink:focus-visible {
-    position: relative;
-    z-index: 1;
-    outline: 2px solid var(--mantine-primary-color-filled);
-    outline-offset: 2px;
+.entryCard:hover,
+.activeEntry {
+    background-color: light-dark(
+        var(--mantine-color-gray-1),
+        var(--mantine-color-dark-7)
+    );
 }
 
-.entryLink[data-read] {
+.readEntry {
     color: light-dark(
         var(--mantine-color-gray-6),
         var(--mantine-color-dark-3)
     );
 }
 
-.unreadDot {
-    flex: 0 0 auto;
-    width: 0.45rem;
-    height: 0.45rem;
-    border-radius: 50%;
-    background: var(--mantine-color-gray-6);
+.entryTitle {
+    word-break: break-word;
 }
 
-.starIcon {
-    flex: 0 0 auto;
-    color: var(--mantine-color-yellow-6);
-}
-
-.pagination {
-    display: flex;
-    justify-content: center;
-    padding: var(--mantine-spacing-sm);
-    border-top: 1px solid var(--reader-border);
-    container-type: inline-size;
-}
-
-.article {
-    width: 100%;
-    padding: 0 1.25rem 2rem;
-}
-
-.articleTitle:focus {
-    outline: none;
+.articleTypography h1 {
+    margin: 0 !important;
+    margin-bottom: 1rem !important;
 }
 
 .articleContent {
@@ -248,6 +193,27 @@
     );
 }
 
+.articleContent :global(tr:nth-child(even)) {
+    background: light-dark(
+        var(--mantine-color-gray-0),
+        var(--mantine-color-dark-7)
+    );
+}
+
+.articleContent :global(hr) {
+    margin: var(--mantine-spacing-lg) 0;
+    border: 0;
+    border-top: 1px solid
+        light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-5));
+}
+
+.entrySummary {
+    background-color: light-dark(
+        var(--mantine-color-gray-1),
+        var(--mantine-color-dark-8)
+    );
+}
+
 [data-mantine-color-scheme='dark'] .articleContent :global(img) {
     filter: brightness(0.92) contrast(1.02);
     transition: filter 200ms ease;
@@ -261,13 +227,13 @@
 .faviconDark {
     display: block;
     flex: 0 0 auto;
-    border-radius: 3px;
+    border-radius: 4px;
     object-fit: contain;
 }
 
 .faviconDark {
-    padding: 1px;
-    background: var(--mantine-color-white);
+    padding: 2px;
+    background-color: light-dark(transparent, #e8e8e8);
 }
 
 .faviconFallback {
@@ -279,60 +245,4 @@
 
 .mobileOnly {
     display: none;
-}
-
-@media (max-width: 61.99em) {
-    .readerGrid {
-        display: block;
-    }
-
-    .readerGrid > :global(button) {
-        display: none;
-    }
-
-    .listPaneContainer,
-    .detailPaneContainer {
-        width: 100% !important;
-        min-width: 0;
-    }
-
-    .readerGrid[data-detail] .listPaneContainer,
-    .readerGrid[data-detail] .listPane {
-        display: none;
-    }
-
-    .readerGrid:not([data-detail]) .detailPaneContainer,
-    .readerGrid:not([data-detail]) .detailPane {
-        display: none;
-    }
-
-    .mobileOnly {
-        display: inline-flex;
-    }
-
-    .article {
-        padding-inline: var(--mantine-spacing-sm);
-    }
-
-    .articleContent :global(iframe) {
-        min-height: 12rem;
-    }
-}
-
-@media (max-width: 35.99em) {
-    .paneHeader {
-        padding-inline: var(--mantine-spacing-xs);
-    }
-
-    .entryList {
-        padding-right: var(--mantine-spacing-xs);
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .entryList,
-    .entryLink,
-    [data-mantine-color-scheme='dark'] .articleContent :global(img) {
-        transition: none;
-    }
 }

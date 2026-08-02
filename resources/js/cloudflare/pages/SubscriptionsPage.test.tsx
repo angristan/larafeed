@@ -83,14 +83,12 @@ describe('SubscriptionsPage', () => {
         expect(renderPage()).toContain('Loading subscriptions');
     });
 
-    it('renders category guidance and an accessible empty state', () => {
+    it('renders the legacy filter sidebar and empty table', () => {
         const markup = renderPage({ categories: [], subscriptions: [] });
 
-        expect(markup).toContain(
-            'Create a category before adding your first feed',
-        );
-        expect(markup).toContain('No subscriptions yet');
-        expect(markup).toContain('Search subscriptions');
+        expect(markup).toContain('Search &amp; Filter');
+        expect(markup).toContain('Refine the subscriptions table in real time');
+        expect(markup).toContain('No subscriptions match the current filters');
     });
 
     it('renders feed metadata and management controls', () => {
@@ -99,19 +97,18 @@ describe('SubscriptionsPage', () => {
             subscriptions: [subscription],
         });
 
-        expect(markup).toContain('Your subscriptions');
+        expect(markup).toContain('Subscriptions');
         expect(markup).toContain('<th');
         expect(markup).toContain('Daily example');
         expect(markup).toContain('Technology');
-        expect(markup).toContain('Healthy');
-        expect(markup).toContain('2 unread');
-        expect(markup).toContain('Manage');
-        expect(markup).toContain(
-            'Move or unsubscribe every feed before deleting this category',
-        );
+        expect(markup).toContain('Success');
+        expect(markup).toContain('Website');
+        expect(markup).toContain('Feed');
+        expect(markup).toContain('Last success');
+        expect(markup).toContain('Last failure');
     });
 
-    it('prefills the add form from canonical url without subscribing', () => {
+    it('keeps add-feed controls out of the legacy audit page', () => {
         const markup = renderPage(
             {
                 categories: [
@@ -122,10 +119,7 @@ describe('SubscriptionsPage', () => {
             '/settings/subscriptions?url=https%3A%2F%2Fexample.com%2Fnews',
         );
 
-        expect(markup).toContain('value="https://example.com/news"');
-        expect(markup).toContain(
-            'The bookmarklet never subscribes automatically',
-        );
+        expect(markup).not.toContain('Add a feed');
         expect(markup).not.toContain('Feed added');
     });
 
