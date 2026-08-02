@@ -164,6 +164,49 @@ const conflictReason = (error: unknown): string | undefined => {
     return typeof reason === 'string' ? reason : undefined;
 };
 
+const safeFeedError = (error: unknown): SafeError => {
+    switch (conflictReason(error)) {
+        case 'invalid_url':
+            return {
+                code: 'validation_error',
+                message: 'Enter a valid public HTTP(S) feed or website URL',
+                status: 400,
+            };
+        case 'unresolvable_host':
+            return {
+                code: 'validation_error',
+                message:
+                    'Could not resolve this hostname. Check the URL and try again',
+                status: 400,
+            };
+        case 'feed_too_large':
+            return {
+                code: 'validation_error',
+                message: 'The feed document is too large',
+                status: 400,
+            };
+        case 'upstream_rate_limited':
+            return {
+                code: 'service_unavailable',
+                message:
+                    'The feed site is rate limiting requests. Try again later',
+                status: 503,
+            };
+        case 'temporarily_unavailable':
+            return {
+                code: 'service_unavailable',
+                message: 'Feed discovery is temporarily unavailable',
+                status: 503,
+            };
+        default:
+            return {
+                code: 'validation_error',
+                message: 'No supported feed was found at this URL',
+                status: 400,
+            };
+    }
+};
+
 const safeError = (error: unknown): SafeError => {
     switch (taggedError(error)) {
         case 'SubscriptionValidationError':
@@ -174,26 +217,7 @@ const safeError = (error: unknown): SafeError => {
                 status: 400,
             };
         case 'SubscriptionFeedError':
-            return {
-                code:
-                    typeof error === 'object' &&
-                    error !== null &&
-                    Reflect.get(error, 'retryable') === true
-                        ? 'service_unavailable'
-                        : 'validation_error',
-                message:
-                    typeof error === 'object' &&
-                    error !== null &&
-                    Reflect.get(error, 'retryable') === true
-                        ? 'Feed discovery is temporarily unavailable'
-                        : 'No supported feed was found at this URL',
-                status:
-                    typeof error === 'object' &&
-                    error !== null &&
-                    Reflect.get(error, 'retryable') === true
-                        ? 503
-                        : 400,
-            };
+            return safeFeedError(error);
         case 'Unauthenticated':
             return {
                 code: 'unauthenticated',

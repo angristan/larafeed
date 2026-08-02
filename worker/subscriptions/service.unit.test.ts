@@ -1,7 +1,16 @@
 import { Effect } from 'effect';
 import { describe, expect, it, vi } from 'vitest';
 
-import { SubscriptionValidationError } from './errors';
+import {
+    FeedHttpError,
+    FeedNetworkError,
+    FeedParseError,
+    FeedPolicyError,
+    type FeedRefreshError,
+    FeedSizeError,
+    FeedTimeoutError,
+} from '../feeds/errors';
+import { SubscriptionFeedError, SubscriptionValidationError } from './errors';
 import type { SubscriptionRepository } from './repository';
 import { makeSubscriptionService } from './service';
 
@@ -190,6 +199,88 @@ describe('subscription management service', () => {
         expect(subscribeDiscovered).toHaveBeenCalledWith(
             expect.objectContaining({ proposedId: 101, categoryId: 11 }),
         );
+    });
+
+    it.each([
+        [
+            'invalid URL policy',
+            new FeedPolicyError({ reason: 'invalid_url' }),
+            'invalid_url',
+        ],
+        [
+            'unsupported document',
+            new FeedParseError({ reason: 'unsupported_feed' }),
+            'unsupported_feed',
+        ],
+        [
+            'oversized document',
+            new FeedSizeError({ limitBytes: 1024 }),
+            'feed_too_large',
+        ],
+        ['network failure', new FeedNetworkError(), 'temporarily_unavailable'],
+        [
+            'timeout',
+            new FeedTimeoutError({ timeoutMs: 15_000 }),
+            'temporarily_unavailable',
+        ],
+        [
+            'unresolvable hostname',
+            new FeedHttpError({ status: 530, retryable: true }),
+            'unresolvable_host',
+        ],
+        [
+            'upstream rate limit',
+            new FeedHttpError({ status: 429, retryable: true }),
+            'upstream_rate_limited',
+        ],
+        [
+            'upstream server failure',
+            new FeedHttpError({ status: 503, retryable: true }),
+            'temporarily_unavailable',
+        ],
+        [
+            'missing upstream feed',
+            new FeedHttpError({ status: 404, retryable: false }),
+            'unsupported_feed',
+        ],
+    ] satisfies readonly (readonly [
+        string,
+        FeedRefreshError,
+        SubscriptionFeedError['reason'],
+    ])[])('maps %s to an actionable subscription failure', async (_label, cause, reason) => {
+        const service = makeSubscriptionService({
+            repository: repository(),
+            discoverFeed: () => Effect.fail(cause),
+            scheduleRefresh: () => Effect.die('unused'),
+        });
+
+        await expect(
+            Effect.runPromise(
+                service.createSubscription(7, {
+                    feedUrl: 'https://example.test/feed.xml',
+                    categoryId: 11,
+                }),
+            ),
+        ).rejects.toEqual(new SubscriptionFeedError({ reason }));
+    });
+
+    it('reports locally invalid feed URLs before discovery', async () => {
+        const discoverFeed = vi.fn(() => Effect.die('unused'));
+        const service = makeSubscriptionService({
+            repository: repository(),
+            discoverFeed,
+            scheduleRefresh: () => Effect.die('unused'),
+        });
+
+        await expect(
+            Effect.runPromise(
+                service.createSubscription(7, {
+                    feedUrl: 'http://127.0.0.1/feed.xml',
+                    categoryId: 11,
+                }),
+            ),
+        ).rejects.toEqual(new SubscriptionFeedError({ reason: 'invalid_url' }));
+        expect(discoverFeed).not.toHaveBeenCalled();
     });
 
     it('rejects ambiguous or missing category choices', async () => {

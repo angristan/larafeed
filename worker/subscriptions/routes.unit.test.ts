@@ -11,7 +11,7 @@ import type { AuthConfig } from '../auth/config';
 import { CsrfInvalid } from '../auth/errors';
 import type { AuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession, AuthService } from '../auth/service';
-import { SubscriptionConflict } from './errors';
+import { SubscriptionConflict, SubscriptionFeedError } from './errors';
 import { registerSubscriptionRoutes } from './routes';
 import type { SubscriptionService } from './service';
 
@@ -220,6 +220,63 @@ describe('subscription management routes', () => {
             }),
         );
         expect(csrfFailure.status).toBe(403);
+    });
+
+    it.each([
+        [
+            'invalid_url',
+            400,
+            'validation_error',
+            'Enter a valid public HTTP(S) feed or website URL',
+        ],
+        [
+            'unresolvable_host',
+            400,
+            'validation_error',
+            'Could not resolve this hostname. Check the URL and try again',
+        ],
+        [
+            'unsupported_feed',
+            400,
+            'validation_error',
+            'No supported feed was found at this URL',
+        ],
+        [
+            'feed_too_large',
+            400,
+            'validation_error',
+            'The feed document is too large',
+        ],
+        [
+            'upstream_rate_limited',
+            503,
+            'service_unavailable',
+            'The feed site is rate limiting requests. Try again later',
+        ],
+        [
+            'temporarily_unavailable',
+            503,
+            'service_unavailable',
+            'Feed discovery is temporarily unavailable',
+        ],
+    ] as const)('maps %s feed failures to a safe actionable response', async (reason, status, code, message) => {
+        const response = await app(
+            subscriptionService({
+                createSubscription: () =>
+                    Effect.fail(new SubscriptionFeedError({ reason })),
+            }),
+        ).request(
+            '/api/subscriptions',
+            request('POST', {
+                feedUrl: 'https://example.test/feed.xml',
+                categoryId: 11,
+            }),
+        );
+
+        expect(response.status).toBe(status);
+        await expect(decode(response, ApiErrorResponse)).resolves.toEqual({
+            error: { code, message },
+        });
     });
 
     it('maps category conflicts without exposing storage details', async () => {

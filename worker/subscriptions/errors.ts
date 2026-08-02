@@ -45,6 +45,13 @@ export class SubscriptionRateLimited extends Schema.TaggedErrorClass<Subscriptio
 export class SubscriptionFeedError extends Schema.TaggedErrorClass<SubscriptionFeedError>()(
     'SubscriptionFeedError',
     {
-        retryable: Schema.Boolean,
+        reason: Schema.Literals([
+            'invalid_url',
+            'unresolvable_host',
+            'unsupported_feed',
+            'feed_too_large',
+            'upstream_rate_limited',
+            'temporarily_unavailable',
+        ]),
     },
 ) {}

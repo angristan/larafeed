@@ -8,6 +8,7 @@ import {
 import { Effect } from 'effect';
 
 import { generateSafeId } from '../auth/crypto';
+import type { FeedRefreshError } from '../feeds/errors';
 import { validateFeedUrl } from '../feeds/policy';
 import type { FeedUpdatedResult } from '../feeds/service';
 import {
@@ -32,7 +33,7 @@ export interface SubscriptionServiceDependencies {
     readonly repository: SubscriptionRepository;
     readonly discoverFeed: (
         url: string,
-    ) => Effect.Effect<FeedUpdatedResult, { readonly retryable: boolean }>;
+    ) => Effect.Effect<FeedUpdatedResult, FeedRefreshError>;
     readonly scheduleRefresh: (
         feedId: number,
     ) => Effect.Effect<
@@ -51,6 +52,39 @@ const sameRules = (
     JSON.stringify(left.excludeContent) ===
         JSON.stringify(right.excludeContent) &&
     JSON.stringify(left.excludeAuthor) === JSON.stringify(right.excludeAuthor);
+
+const feedDiscoveryError = (cause: FeedRefreshError): SubscriptionFeedError => {
+    switch (cause._tag) {
+        case 'FeedPolicyError':
+            return new SubscriptionFeedError({ reason: 'invalid_url' });
+        case 'FeedParseError':
+            return new SubscriptionFeedError({ reason: 'unsupported_feed' });
+        case 'FeedSizeError':
+            return new SubscriptionFeedError({ reason: 'feed_too_large' });
+        case 'FeedTimeoutError':
+        case 'FeedNetworkError':
+            return new SubscriptionFeedError({
+                reason: 'temporarily_unavailable',
+            });
+        case 'FeedHttpError':
+            // Cloudflare uses HTTP 530 when it cannot resolve the origin host.
+            if (cause.status === 530) {
+                return new SubscriptionFeedError({
+                    reason: 'unresolvable_host',
+                });
+            }
+            if (cause.status === 429) {
+                return new SubscriptionFeedError({
+                    reason: 'upstream_rate_limited',
+                });
+            }
+            return new SubscriptionFeedError({
+                reason: cause.retryable
+                    ? 'temporarily_unavailable'
+                    : 'unsupported_feed',
+            });
+    }
+};
 
 export const makeSubscriptionService = (
     dependencies: SubscriptionServiceDependencies,
@@ -175,7 +209,7 @@ export const makeSubscriptionService = (
                     canonicalRequestedUrl = validateFeedUrl(requestedUrl).href;
                 } catch {
                     return yield* Effect.fail(
-                        new SubscriptionFeedError({ retryable: false }),
+                        new SubscriptionFeedError({ reason: 'invalid_url' }),
                     );
                 }
 
@@ -210,14 +244,7 @@ export const makeSubscriptionService = (
                         ? yield* Effect.gen(function* () {
                               const discovered = yield* dependencies
                                   .discoverFeed(canonicalRequestedUrl)
-                                  .pipe(
-                                      Effect.mapError(
-                                          (cause) =>
-                                              new SubscriptionFeedError({
-                                                  retryable: cause.retryable,
-                                              }),
-                                      ),
-                                  );
+                                  .pipe(Effect.mapError(feedDiscoveryError));
                               const feedUrl = discovered.finalUrl;
                               return yield* repository.subscribeDiscovered({
                                   proposedId: yield* nextId(),
