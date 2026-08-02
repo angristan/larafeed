@@ -13,7 +13,6 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router/dom';
 
-import { ColorSchemeControl } from './components/ColorSchemeControl';
 import { queryClient } from './queryClient';
 import { router } from './router';
 import { theme } from './theme';
@@ -39,7 +38,6 @@ createRoot(rootElement).render(
                 <ModalsProvider>
                     <Notifications pauseResetOnHover="notification" />
                     <RouterProvider router={router} />
-                    <ColorSchemeControl />
                 </ModalsProvider>
             </MantineProvider>
         </QueryClientProvider>

@@ -1,4 +1,5 @@
 import {
+    Accordion,
     ActionIcon,
     Alert,
     Anchor,
@@ -20,7 +21,6 @@ import {
 } from '@mantine/core';
 import {
     IconAlertTriangle,
-    IconArrowLeft,
     IconCheck,
     IconEdit,
     IconExternalLink,
@@ -42,13 +42,14 @@ import {
     useRef,
     useState,
 } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 
 import type {
     ManagedCategory,
     ManagedSubscription,
     SubscriptionFilterRules,
 } from '../api/subscriptions';
+import { ApplicationPage } from '../components/ApplicationPage';
 import { FeedFavicon } from '../components/reader/FeedFavicon';
 import {
     createCategoryMutationOptions,
@@ -1410,99 +1411,115 @@ function SubscriptionList({
                     </Stack>
                 </Paper>
             ) : (
-                <Stack component="ul" gap="sm" m={0} p={0}>
-                    {filtered.map((subscription) => {
-                        const name =
-                            subscription.customFeedName ??
-                            subscription.feedName;
-                        return (
-                            <Paper
-                                component="li"
-                                key={subscription.feedId}
-                                p={{ base: 'md', sm: 'lg' }}
-                                style={{ listStyle: 'none' }}
-                                withBorder
-                            >
-                                <div className={classes.subscriptionCard}>
-                                    <Stack
-                                        gap="xs"
-                                        className={classes.subscriptionCopy}
-                                    >
-                                        <Group align="flex-start" wrap="nowrap">
-                                            <FeedFavicon
-                                                src={subscription.faviconUrl}
-                                                isDark={
-                                                    subscription.faviconIsDark
-                                                }
-                                                size={22}
-                                            />
-                                            <Stack
-                                                gap={1}
-                                                className={
-                                                    classes.subscriptionCopy
-                                                }
-                                            >
-                                                <Text fw={650}>{name}</Text>
-                                                <Text
-                                                    c="dimmed"
-                                                    className={
-                                                        classes.breakAnywhere
-                                                    }
-                                                    lineClamp={1}
-                                                    size="xs"
-                                                >
-                                                    {subscription.feedUrl}
-                                                </Text>
-                                            </Stack>
-                                        </Group>
-                                        <div
-                                            className={classes.subscriptionMeta}
-                                        >
-                                            <StatusBadge
-                                                subscription={subscription}
-                                            />
-                                            <Badge variant="light">
-                                                {subscription.categoryName}
-                                            </Badge>
-                                            <Text c="dimmed" size="sm">
-                                                {numberFormatter.format(
-                                                    subscription.unreadCount,
-                                                )}{' '}
-                                                unread ·{' '}
-                                                {numberFormatter.format(
-                                                    subscription.entryCount,
-                                                )}{' '}
-                                                entries
-                                            </Text>
-                                            <Text c="dimmed" size="sm">
-                                                Last attempt:{' '}
-                                                {formatTimestamp(
-                                                    subscription.lastAttemptAt,
-                                                )}
-                                            </Text>
-                                        </div>
-                                    </Stack>
-                                    <Button
-                                        leftSection={
-                                            <IconSettings
-                                                aria-hidden="true"
-                                                size={16}
-                                            />
-                                        }
+                <Table.ScrollContainer minWidth={880}>
+                    <Table highlightOnHover verticalSpacing="sm" withRowBorders>
+                        <Table.Thead>
+                            <Table.Tr>
+                                <Table.Th>Name</Table.Th>
+                                <Table.Th>Category</Table.Th>
+                                <Table.Th ta="right">Entries</Table.Th>
+                                <Table.Th>Status</Table.Th>
+                                <Table.Th>Last attempt</Table.Th>
+                                <Table.Th />
+                            </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                            {filtered.map((subscription) => {
+                                const name =
+                                    subscription.customFeedName ??
+                                    subscription.feedName;
+                                return (
+                                    <Table.Tr
+                                        key={subscription.feedId}
                                         onClick={() =>
                                             setSelectedFeedId(
                                                 subscription.feedId,
                                             )
                                         }
-                                        variant="light"
+                                        style={{ cursor: 'pointer' }}
                                     >
-                                        Manage
-                                    </Button>
-                                </div>
-                            </Paper>
-                        );
-                    })}
-                </Stack>
+                                        <Table.Td>
+                                            <Group gap="sm" wrap="nowrap">
+                                                <FeedFavicon
+                                                    src={
+                                                        subscription.faviconUrl
+                                                    }
+                                                    isDark={
+                                                        subscription.faviconIsDark
+                                                    }
+                                                    size={22}
+                                                />
+                                                <Stack gap={1}>
+                                                    <Text fw={600}>{name}</Text>
+                                                    <Text
+                                                        c="dimmed"
+                                                        className={
+                                                            classes.breakAnywhere
+                                                        }
+                                                        lineClamp={1}
+                                                        size="xs"
+                                                    >
+                                                        {subscription.feedUrl}
+                                                    </Text>
+                                                </Stack>
+                                            </Group>
+                                        </Table.Td>
+                                        <Table.Td>
+                                            <Badge variant="light">
+                                                {subscription.categoryName}
+                                            </Badge>
+                                        </Table.Td>
+                                        <Table.Td ta="right">
+                                            <Text size="sm">
+                                                {numberFormatter.format(
+                                                    subscription.entryCount,
+                                                )}
+                                            </Text>
+                                            <Text c="dimmed" size="xs">
+                                                {numberFormatter.format(
+                                                    subscription.unreadCount,
+                                                )}{' '}
+                                                unread
+                                            </Text>
+                                        </Table.Td>
+                                        <Table.Td>
+                                            <StatusBadge
+                                                subscription={subscription}
+                                            />
+                                        </Table.Td>
+                                        <Table.Td>
+                                            <Text size="sm">
+                                                {formatTimestamp(
+                                                    subscription.lastAttemptAt,
+                                                )}
+                                            </Text>
+                                        </Table.Td>
+                                        <Table.Td ta="right">
+                                            <Button
+                                                leftSection={
+                                                    <IconSettings
+                                                        aria-hidden="true"
+                                                        size={15}
+                                                    />
+                                                }
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    setSelectedFeedId(
+                                                        subscription.feedId,
+                                                    );
+                                                }}
+                                                size="xs"
+                                                variant="subtle"
+                                            >
+                                                Manage
+                                            </Button>
+                                        </Table.Td>
+                                    </Table.Tr>
+                                );
+                            })}
+                        </Table.Tbody>
+                    </Table>
+                </Table.ScrollContainer>
             )}
         </Stack>
     );
@@ -1530,108 +1547,133 @@ export function SubscriptionsPage() {
     );
 
     return (
-        <Container component="main" size="lg" py={{ base: 'lg', sm: 'xl' }}>
-            <Stack gap="xl">
-                <Stack gap={4}>
-                    <Button
-                        component={Link}
-                        leftSection={
-                            <IconArrowLeft aria-hidden="true" size={16} />
-                        }
-                        size="compact-sm"
-                        to="/feeds"
-                        variant="subtle"
-                    >
-                        Back to reader
-                    </Button>
-                    <Group
-                        justify="space-between"
-                        align="flex-start"
-                        wrap="wrap"
-                    >
-                        <Stack gap={4}>
-                            <Title order={1}>Subscriptions</Title>
-                            <Text c="dimmed" maw={680}>
-                                Add feeds, organize categories, inspect
-                                refreshes, and control which entries appear in
-                                your reader.
-                            </Text>
-                        </Stack>
-                        {managementQuery.isFetching &&
-                            !managementQuery.isPending && (
-                                <Group
-                                    gap="xs"
-                                    role="status"
-                                    aria-live="polite"
+        <ApplicationPage activePage="subscriptions">
+            <Container component="div" size="xl" py="md">
+                <Stack gap="xl">
+                    <Stack gap={4}>
+                        <Group
+                            justify="space-between"
+                            align="flex-start"
+                            wrap="wrap"
+                        >
+                            <Stack gap={4}>
+                                <Title order={1}>Subscriptions</Title>
+                                <Text c="dimmed" maw={680}>
+                                    Add feeds, organize categories, inspect
+                                    refreshes, and control which entries appear
+                                    in your reader.
+                                </Text>
+                            </Stack>
+                            {managementQuery.isFetching &&
+                                !managementQuery.isPending && (
+                                    <Group
+                                        gap="xs"
+                                        role="status"
+                                        aria-live="polite"
+                                    >
+                                        <Loader size="xs" />
+                                        <Text c="dimmed" size="xs">
+                                            Updating…
+                                        </Text>
+                                    </Group>
+                                )}
+                        </Group>
+                    </Stack>
+
+                    {managementQuery.isPending && (
+                        <PageState>
+                            <Loader size="sm" />
+                            <Text size="sm">Loading subscriptions…</Text>
+                        </PageState>
+                    )}
+
+                    {managementQuery.isError && data === undefined && (
+                        <Alert
+                            color="red"
+                            role="alert"
+                            title="Subscriptions are unavailable"
+                        >
+                            <Stack align="flex-start" gap="sm">
+                                <Text size="sm">
+                                    {managementQuery.error.message}
+                                </Text>
+                                <Button
+                                    leftSection={
+                                        <IconRefresh
+                                            aria-hidden="true"
+                                            size={16}
+                                        />
+                                    }
+                                    onClick={() =>
+                                        void managementQuery.refetch()
+                                    }
+                                    size="xs"
+                                    variant="light"
                                 >
-                                    <Loader size="xs" />
-                                    <Text c="dimmed" size="xs">
-                                        Updating…
-                                    </Text>
-                                </Group>
-                            )}
-                    </Group>
-                </Stack>
+                                    Try again
+                                </Button>
+                            </Stack>
+                        </Alert>
+                    )}
 
-                {managementQuery.isPending && (
-                    <PageState>
-                        <Loader size="sm" />
-                        <Text size="sm">Loading subscriptions…</Text>
-                    </PageState>
-                )}
-
-                {managementQuery.isError && data === undefined && (
-                    <Alert
-                        color="red"
-                        role="alert"
-                        title="Subscriptions are unavailable"
-                    >
-                        <Stack align="flex-start" gap="sm">
-                            <Text size="sm">
-                                {managementQuery.error.message}
-                            </Text>
+                    {managementQuery.isError && data !== undefined && (
+                        <Alert color="orange" title="Latest update failed">
+                            Showing saved subscription data.{' '}
                             <Button
-                                leftSection={
-                                    <IconRefresh aria-hidden="true" size={16} />
-                                }
                                 onClick={() => void managementQuery.refetch()}
-                                size="xs"
-                                variant="light"
+                                size="compact-xs"
+                                variant="subtle"
                             >
                                 Try again
                             </Button>
-                        </Stack>
-                    </Alert>
-                )}
+                        </Alert>
+                    )}
 
-                {managementQuery.isError && data !== undefined && (
-                    <Alert color="orange" title="Latest update failed">
-                        Showing saved subscription data.{' '}
-                        <Button
-                            onClick={() => void managementQuery.refetch()}
-                            size="compact-xs"
-                            variant="subtle"
-                        >
-                            Try again
-                        </Button>
-                    </Alert>
-                )}
-
-                {data !== undefined && (
-                    <>
-                        <AddSubscriptionForm
-                            key={prefilledUrl}
-                            categories={categories}
-                            prefilledUrl={prefilledUrl}
-                        />
-                        <CategoryManager categories={categories} />
-                        <SubscriptionList
-                            categories={categories}
-                            subscriptions={data.subscriptions}
-                        />
-                    </>
-                )}
-            </Stack>
-        </Container>
+                    {data !== undefined && (
+                        <>
+                            <Accordion
+                                defaultValue={
+                                    prefilledUrl.length > 0
+                                        ? 'add-feed'
+                                        : undefined
+                                }
+                                variant="separated"
+                            >
+                                <Accordion.Item value="add-feed">
+                                    <Accordion.Control
+                                        icon={<IconPlus size={16} />}
+                                    >
+                                        Add a feed
+                                    </Accordion.Control>
+                                    <Accordion.Panel>
+                                        <AddSubscriptionForm
+                                            key={prefilledUrl}
+                                            categories={categories}
+                                            prefilledUrl={prefilledUrl}
+                                        />
+                                    </Accordion.Panel>
+                                </Accordion.Item>
+                                <Accordion.Item value="categories">
+                                    <Accordion.Control
+                                        icon={<IconEdit size={16} />}
+                                    >
+                                        Manage categories
+                                    </Accordion.Control>
+                                    <Accordion.Panel>
+                                        <CategoryManager
+                                            categories={categories}
+                                        />
+                                    </Accordion.Panel>
+                                </Accordion.Item>
+                            </Accordion>
+                            <SubscriptionList
+                                categories={categories}
+                                subscriptions={data.subscriptions}
+                            />
+                        </>
+                    )}
+                </Stack>
+            </Container>
+        </ApplicationPage>
     );
 }

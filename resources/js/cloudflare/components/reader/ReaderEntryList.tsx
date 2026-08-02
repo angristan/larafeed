@@ -7,6 +7,7 @@ import {
     Loader,
     Pagination,
     ScrollArea,
+    Select,
     Skeleton,
     Stack,
     Text,
@@ -36,6 +37,8 @@ interface ReaderEntryListProps {
     readonly onRetry: () => void;
     readonly onPrefetchEntry: (entryId: number) => void;
     readonly onPageChange: (page: number) => void;
+    readonly orderBy: ReaderState['orderBy'];
+    readonly onOrderChange: (orderBy: ReaderState['orderBy']) => void;
     readonly selectedFeedName: string | null;
     readonly onMarkFeedRead: (() => void) | null;
     readonly markFeedReadPending: boolean;
@@ -59,6 +62,8 @@ export function ReaderEntryList({
     onRetry,
     onPrefetchEntry,
     onPageChange,
+    orderBy,
+    onOrderChange,
     selectedFeedName,
     onMarkFeedRead,
     markFeedReadPending,
@@ -98,6 +103,28 @@ export function ReaderEntryList({
                     {isFetching && !isPending && (
                         <Loader aria-label="Refreshing entries" size={16} />
                     )}
+                    <Select
+                        aria-label="Order entries"
+                        allowDeselect={false}
+                        data={[
+                            {
+                                value: 'published_at',
+                                label: 'Newest published',
+                            },
+                            { value: 'created_at', label: 'Recently added' },
+                        ]}
+                        onChange={(value) => {
+                            if (
+                                value === 'published_at' ||
+                                value === 'created_at'
+                            ) {
+                                onOrderChange(value);
+                            }
+                        }}
+                        size="xs"
+                        value={orderBy}
+                        w={150}
+                    />
                     {onMarkFeedRead !== null && (
                         <Button
                             aria-label="Mark all entries in this feed as read"

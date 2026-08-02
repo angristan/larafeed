@@ -14,9 +14,7 @@ import {
     Title,
 } from '@mantine/core';
 import {
-    IconArrowLeft,
     IconCheck,
-    IconKey,
     IconPlus,
     IconShieldLock,
     IconTrash,
@@ -24,7 +22,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Effect } from 'effect';
 import { type FormEvent, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 
 import { deleteAccount, wipeAccount } from '../api/account';
 import {
@@ -42,6 +40,7 @@ import {
     requestRegistration,
     supportsPasskeys,
 } from '../auth/ceremony';
+import { ApplicationPage } from '../components/ApplicationPage';
 import { Turnstile, type TurnstileHandle } from '../components/Turnstile';
 import {
     accountKeys,
@@ -610,60 +609,29 @@ function DangerSection({
 export function SecurityPage() {
     const profile = useQuery(accountQueryOptions);
     return (
-        <Container component="main" size="md" py={{ base: 'lg', sm: 'xl' }}>
-            <Stack gap="xl">
-                <Stack gap="xs" align="flex-start">
-                    <Button
-                        component={Link}
-                        leftSection={
-                            <IconArrowLeft aria-hidden="true" size={16} />
-                        }
-                        size="compact-sm"
-                        to="/feeds"
-                        variant="subtle"
-                    >
-                        Back to reader
-                    </Button>
-                    <Group gap="sm">
-                        <IconShieldLock aria-hidden="true" size={30} />
-                        <Title order={1}>Account & security</Title>
-                    </Group>
-                    <Text c="dimmed">
-                        Manage your identity, passkeys, and private reader data.
-                    </Text>
-                    <Group gap="xs">
-                        <Button
-                            component={Link}
-                            leftSection={
-                                <IconKey aria-hidden="true" size={15} />
-                            }
-                            size="xs"
-                            to="/settings/app-tokens"
-                            variant="light"
-                        >
-                            Reader app tokens
-                        </Button>
-                        {profile.data?.isAdmin && (
-                            <Button
-                                component={Link}
-                                size="xs"
-                                to="/admin/users"
-                                variant="light"
-                            >
-                                Administration
-                            </Button>
-                        )}
-                    </Group>
+        <ApplicationPage activePage="settings" settingsNavigation>
+            <Container component="div" size="md" py="md">
+                <Stack gap="xl">
+                    <Stack gap="xs" align="flex-start">
+                        <Group gap="sm">
+                            <IconShieldLock aria-hidden="true" size={30} />
+                            <Title order={1}>Account & security</Title>
+                        </Group>
+                        <Text c="dimmed">
+                            Manage your identity, passkeys, and private reader
+                            data.
+                        </Text>
+                    </Stack>
+                    <ProfileSection />
+                    <PasskeysSection />
+                    {profile.data !== undefined && (
+                        <DangerSection
+                            userId={profile.data.id}
+                            username={profile.data.username}
+                        />
+                    )}
                 </Stack>
-                <ProfileSection />
-                <PasskeysSection />
-                {profile.data !== undefined && (
-                    <DangerSection
-                        userId={profile.data.id}
-                        username={profile.data.username}
-                    />
-                )}
-            </Stack>
-        </Container>
+            </Container>
+        </ApplicationPage>
     );
 }

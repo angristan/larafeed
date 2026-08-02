@@ -99,6 +99,8 @@ describe('SubscriptionsPage', () => {
             subscriptions: [subscription],
         });
 
+        expect(markup).toContain('Your subscriptions');
+        expect(markup).toContain('<th');
         expect(markup).toContain('Daily example');
         expect(markup).toContain('Technology');
         expect(markup).toContain('Healthy');

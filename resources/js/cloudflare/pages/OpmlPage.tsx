@@ -14,7 +14,6 @@ import {
     Title,
 } from '@mantine/core';
 import {
-    IconArrowLeft,
     IconDownload,
     IconFileImport,
     IconInfoCircle,
@@ -22,9 +21,8 @@ import {
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type FormEvent, useMemo, useState } from 'react';
-import { Link } from 'react-router';
-
 import type { OpmlImport } from '../api/opml';
+import { ApplicationPage } from '../components/ApplicationPage';
 import {
     createOpmlImportMutationOptions,
     isActiveOpmlImport,
@@ -339,194 +337,197 @@ export function OpmlPage() {
     const uploadPending = readingFile || uploadMutation.isPending;
 
     return (
-        <Container component="main" size="md" py={{ base: 'lg', sm: 'xl' }}>
-            <Stack gap="xl">
-                <Group justify="space-between" align="flex-start" wrap="wrap">
-                    <Stack gap={4}>
-                        <Button
-                            component={Link}
-                            leftSection={
-                                <IconArrowLeft aria-hidden="true" size={16} />
-                            }
-                            size="compact-sm"
-                            to="/feeds"
-                            variant="subtle"
-                        >
-                            Back to reader
-                        </Button>
-                        <Title order={1}>OPML settings</Title>
-                        <Text c="dimmed" maw={620}>
-                            Import feed subscriptions from another reader or
-                            download a Larafeed backup.
-                        </Text>
-                    </Stack>
-                    <Button
-                        component="a"
-                        download="larafeed.opml"
-                        href="/api/opml/export"
-                        leftSection={
-                            <IconDownload aria-hidden="true" size={18} />
-                        }
-                        variant="default"
+        <ApplicationPage activePage="settings" settingsNavigation>
+            <Container component="div" size="md" py="md">
+                <Stack gap="xl">
+                    <Group
+                        justify="space-between"
+                        align="flex-start"
+                        wrap="wrap"
                     >
-                        Export OPML
-                    </Button>
-                </Group>
+                        <Stack gap={4}>
+                            <Title order={1}>OPML settings</Title>
+                            <Text c="dimmed" maw={620}>
+                                Import feed subscriptions from another reader or
+                                download a Larafeed backup.
+                            </Text>
+                        </Stack>
+                        <Button
+                            component="a"
+                            download="larafeed.opml"
+                            href="/api/opml/export"
+                            leftSection={
+                                <IconDownload aria-hidden="true" size={18} />
+                            }
+                            variant="default"
+                        >
+                            Export OPML
+                        </Button>
+                    </Group>
 
-                <Paper
-                    component="section"
-                    aria-labelledby="opml-upload-heading"
-                    withBorder
-                    p={{ base: 'lg', sm: 'xl' }}
-                >
-                    <form onSubmit={handleSubmit}>
-                        <Stack gap="md">
-                            <Stack gap={4}>
-                                <Title
-                                    id="opml-upload-heading"
-                                    order={2}
-                                    size="h3"
-                                >
-                                    Import subscriptions
-                                </Title>
-                                <Text c="dimmed" size="sm">
-                                    Nested folders become category paths. The
-                                    first copy of a duplicate feed URL is used.
-                                </Text>
-                            </Stack>
+                    <Paper
+                        component="section"
+                        aria-labelledby="opml-upload-heading"
+                        withBorder
+                        p={{ base: 'lg', sm: 'xl' }}
+                    >
+                        <form onSubmit={handleSubmit}>
+                            <Stack gap="md">
+                                <Stack gap={4}>
+                                    <Title
+                                        id="opml-upload-heading"
+                                        order={2}
+                                        size="h3"
+                                    >
+                                        Import subscriptions
+                                    </Title>
+                                    <Text c="dimmed" size="sm">
+                                        Nested folders become category paths.
+                                        The first copy of a duplicate feed URL
+                                        is used.
+                                    </Text>
+                                </Stack>
 
-                            <FileInput
-                                accept=".opml,.xml,application/xml,text/xml"
-                                clearable
-                                description={`Choose an .opml or .xml file smaller than 2 MB and with no more than ${MAX_OPML_CHARACTERS.toLocaleString()} characters.`}
-                                disabled={uploadPending}
-                                error={fileError ?? undefined}
-                                label="OPML file"
-                                leftSection={
-                                    <IconFileImport
-                                        aria-hidden="true"
-                                        size={18}
-                                    />
-                                }
-                                onChange={handleFileChange}
-                                placeholder="Choose an OPML file"
-                                value={file}
-                            />
-
-                            {uploadMutation.isError && (
-                                <Alert
-                                    color="red"
-                                    title="Import could not be started"
-                                    role="alert"
-                                >
-                                    <Stack gap="xs">
-                                        <Text size="sm">
-                                            {uploadMutation.error.message}
-                                        </Text>
-                                        <Text size="xs">
-                                            Your selected file is still ready.
-                                            Try the import again.
-                                        </Text>
-                                    </Stack>
-                                </Alert>
-                            )}
-
-                            {uploadMutation.isSuccess && (
-                                <Alert
-                                    color="green"
-                                    title="Import started"
-                                    role="status"
-                                >
-                                    Larafeed is processing import #
-                                    {uploadMutation.data.id}. Progress appears
-                                    below.
-                                </Alert>
-                            )}
-
-                            <Group justify="flex-end">
-                                <Button
-                                    disabled={
-                                        file === null || fileError !== null
-                                    }
+                                <FileInput
+                                    accept=".opml,.xml,application/xml,text/xml"
+                                    clearable
+                                    description={`Choose an .opml or .xml file smaller than 2 MB and with no more than ${MAX_OPML_CHARACTERS.toLocaleString()} characters.`}
+                                    disabled={uploadPending}
+                                    error={fileError ?? undefined}
+                                    label="OPML file"
                                     leftSection={
                                         <IconFileImport
                                             aria-hidden="true"
                                             size={18}
                                         />
                                     }
-                                    loading={uploadPending}
-                                    type="submit"
-                                >
-                                    Import feeds
-                                </Button>
-                            </Group>
-                        </Stack>
-                    </form>
-                </Paper>
+                                    onChange={handleFileChange}
+                                    placeholder="Choose an OPML file"
+                                    value={file}
+                                />
 
-                <Stack
-                    component="section"
-                    gap="md"
-                    aria-labelledby="history-heading"
-                >
-                    <Group justify="space-between" align="center">
-                        <Title id="history-heading" order={2} size="h2">
-                            Import progress
-                        </Title>
-                        {importsQuery.isFetching && !importsQuery.isPending && (
-                            <Group gap="xs" role="status" aria-live="polite">
-                                <Loader size="xs" />
-                                <Text c="dimmed" size="xs">
-                                    Updating…
-                                </Text>
+                                {uploadMutation.isError && (
+                                    <Alert
+                                        color="red"
+                                        title="Import could not be started"
+                                        role="alert"
+                                    >
+                                        <Stack gap="xs">
+                                            <Text size="sm">
+                                                {uploadMutation.error.message}
+                                            </Text>
+                                            <Text size="xs">
+                                                Your selected file is still
+                                                ready. Try the import again.
+                                            </Text>
+                                        </Stack>
+                                    </Alert>
+                                )}
+
+                                {uploadMutation.isSuccess && (
+                                    <Alert
+                                        color="green"
+                                        title="Import started"
+                                        role="status"
+                                    >
+                                        Larafeed is processing import #
+                                        {uploadMutation.data.id}. Progress
+                                        appears below.
+                                    </Alert>
+                                )}
+
+                                <Group justify="flex-end">
+                                    <Button
+                                        disabled={
+                                            file === null || fileError !== null
+                                        }
+                                        leftSection={
+                                            <IconFileImport
+                                                aria-hidden="true"
+                                                size={18}
+                                            />
+                                        }
+                                        loading={uploadPending}
+                                        type="submit"
+                                    >
+                                        Import feeds
+                                    </Button>
+                                </Group>
+                            </Stack>
+                        </form>
+                    </Paper>
+
+                    <Stack
+                        component="section"
+                        gap="md"
+                        aria-labelledby="history-heading"
+                    >
+                        <Group justify="space-between" align="center">
+                            <Title id="history-heading" order={2} size="h2">
+                                Import progress
+                            </Title>
+                            {importsQuery.isFetching &&
+                                !importsQuery.isPending && (
+                                    <Group
+                                        gap="xs"
+                                        role="status"
+                                        aria-live="polite"
+                                    >
+                                        <Loader size="xs" />
+                                        <Text c="dimmed" size="xs">
+                                            Updating…
+                                        </Text>
+                                    </Group>
+                                )}
+                        </Group>
+
+                        {importsQuery.isPending && (
+                            <Group
+                                aria-live="polite"
+                                justify="center"
+                                py="xl"
+                                role="status"
+                            >
+                                <Loader size="sm" />
+                                <Text size="sm">Loading OPML imports…</Text>
                             </Group>
                         )}
-                    </Group>
 
-                    {importsQuery.isPending && (
-                        <Group
-                            aria-live="polite"
-                            justify="center"
-                            py="xl"
-                            role="status"
-                        >
-                            <Loader size="sm" />
-                            <Text size="sm">Loading OPML imports…</Text>
-                        </Group>
-                    )}
+                        {importsQuery.isError && (
+                            <Alert
+                                color="red"
+                                title="Import progress is unavailable"
+                                role="alert"
+                            >
+                                <Stack align="flex-start" gap="sm">
+                                    <Text size="sm">
+                                        {importsQuery.error.message}
+                                    </Text>
+                                    <Button
+                                        leftSection={
+                                            <IconRefresh
+                                                aria-hidden="true"
+                                                size={16}
+                                            />
+                                        }
+                                        onClick={() =>
+                                            void importsQuery.refetch()
+                                        }
+                                        size="xs"
+                                        variant="light"
+                                    >
+                                        Try again
+                                    </Button>
+                                </Stack>
+                            </Alert>
+                        )}
 
-                    {importsQuery.isError && (
-                        <Alert
-                            color="red"
-                            title="Import progress is unavailable"
-                            role="alert"
-                        >
-                            <Stack align="flex-start" gap="sm">
-                                <Text size="sm">
-                                    {importsQuery.error.message}
-                                </Text>
-                                <Button
-                                    leftSection={
-                                        <IconRefresh
-                                            aria-hidden="true"
-                                            size={16}
-                                        />
-                                    }
-                                    onClick={() => void importsQuery.refetch()}
-                                    size="xs"
-                                    variant="light"
-                                >
-                                    Try again
-                                </Button>
-                            </Stack>
-                        </Alert>
-                    )}
-
-                    {importsQuery.data !== undefined && (
-                        <ImportHistory imports={sortedImports} />
-                    )}
+                        {importsQuery.data !== undefined && (
+                            <ImportHistory imports={sortedImports} />
+                        )}
+                    </Stack>
                 </Stack>
-            </Stack>
-        </Container>
+            </Container>
+        </ApplicationPage>
     );
 }

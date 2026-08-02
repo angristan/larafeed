@@ -7,7 +7,9 @@ import {
     Divider,
     Group,
     Loader,
+    Paper,
     ScrollArea,
+    SegmentedControl,
     Skeleton,
     Stack,
     Text,
@@ -19,6 +21,8 @@ import {
     IconArchive,
     IconArchiveOff,
     IconArrowLeft,
+    IconBook,
+    IconBrain,
     IconCircle,
     IconCircleFilled,
     IconExternalLink,
@@ -29,7 +33,7 @@ import {
     IconStarFilled,
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ReaderEntry } from '../../api/reader';
 import {
@@ -157,6 +161,7 @@ export function ReaderEntryDetail({
 }: ReaderEntryDetailProps) {
     const articleContent = useRef<HTMLDivElement>(null);
     const heading = useRef<HTMLHeadingElement>(null);
+    const [view, setView] = useState<'content' | 'summary'>('content');
     const readingTime = useMemo(
         () =>
             entry?.contentHtml == null
@@ -312,6 +317,36 @@ export function ReaderEntryDetail({
                 </Group>
 
                 <Group gap={6} wrap="nowrap">
+                    <Tooltip label="Read article or view its AI summary">
+                        <SegmentedControl
+                            aria-label="Entry view"
+                            data={[
+                                {
+                                    value: 'content',
+                                    label: (
+                                        <IconBook
+                                            aria-label="Article content"
+                                            size={16}
+                                        />
+                                    ),
+                                },
+                                {
+                                    value: 'summary',
+                                    label: (
+                                        <IconBrain
+                                            aria-label="AI summary"
+                                            size={15}
+                                        />
+                                    ),
+                                },
+                            ]}
+                            onChange={(value) =>
+                                setView(value as 'content' | 'summary')
+                            }
+                            size="xs"
+                            value={view}
+                        />
+                    </Tooltip>
                     {isFetching && (
                         <Loader aria-label="Refreshing entry" size={15} />
                     )}
@@ -415,6 +450,7 @@ export function ReaderEntryDetail({
                 <Box className={classes.article}>
                     <Title
                         ref={heading}
+                        className={classes.articleTitle}
                         id="entry-detail-title"
                         order={1}
                         tabIndex={-1}
@@ -448,9 +484,7 @@ export function ReaderEntryDetail({
                         </Group>
                     </Group>
 
-                    <ReaderEntrySummary entryId={entry.id} />
-
-                    <Typography mt="xl">
+                    <Typography hidden={view !== 'content'} mt="xl">
                         {entry.contentHtml === null ||
                         entry.contentHtml.trim().length === 0 ? (
                             <Alert color="gray" title="No article content">
@@ -468,6 +502,14 @@ export function ReaderEntryDetail({
                             />
                         )}
                     </Typography>
+                    <Paper
+                        hidden={view !== 'summary'}
+                        mt="xl"
+                        p="md"
+                        withBorder
+                    >
+                        <ReaderEntrySummary entryId={entry.id} />
+                    </Paper>
                 </Box>
             </ScrollArea>
         </article>

@@ -1,7 +1,9 @@
 import {
+    ActionIcon,
     Alert,
     Badge,
     Button,
+    Code,
     Divider,
     Group,
     NavLink,
@@ -10,17 +12,15 @@ import {
     Stack,
     Text,
     TextInput,
+    Tooltip,
 } from '@mantine/core';
 import {
-    IconBook2,
-    IconCategory,
-    IconChartLine,
-    IconFileImport,
-    IconKey,
+    IconBook,
+    IconCheckbox,
+    IconPlus,
     IconRefresh,
+    IconRss,
     IconSearch,
-    IconSettings,
-    IconShieldLock,
     IconStar,
 } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -33,7 +33,7 @@ import type {
 } from '../../api/reader';
 import { type ReaderState, readerHref } from '../../readerState';
 import { FeedFavicon } from './FeedFavicon';
-import classes from './Reader.module.css';
+import classes from './ReaderSidebar.module.css';
 
 interface ReaderSidebarProps {
     readonly state: ReaderState;
@@ -47,9 +47,8 @@ interface ReaderSidebarProps {
 }
 
 const filters = [
-    { value: 'all', label: 'All entries', icon: IconBook2 },
-    { value: 'unread', label: 'Unread', icon: IconBook2 },
-    { value: 'read', label: 'Read', icon: IconBook2 },
+    { value: 'unread', label: 'Unread', icon: IconBook },
+    { value: 'read', label: 'Read', icon: IconCheckbox },
     { value: 'favorites', label: 'Favorites', icon: IconStar },
 ] as const;
 
@@ -57,13 +56,8 @@ function filterCount(
     filter: (typeof filters)[number]['value'],
     counts: ReaderCounts | undefined,
 ): number | undefined {
-    if (counts === undefined) {
-        return undefined;
-    }
-
+    if (counts === undefined) return undefined;
     switch (filter) {
-        case 'all':
-            return counts.total;
         case 'unread':
             return counts.unread;
         case 'read':
@@ -97,7 +91,6 @@ export function ReaderSidebar({
                 searchInput.current?.focus();
             }
         };
-
         window.addEventListener('keydown', focusSearch);
         return () => window.removeEventListener('keydown', focusSearch);
     }, []);
@@ -108,15 +101,13 @@ export function ReaderSidebar({
             ReaderSubscriptionList['subscriptions']
         >();
         for (const subscription of subscriptions ?? []) {
+            const name = `${subscription.customFeedName ?? ''} ${subscription.feedName}`;
             if (
                 normalizedSearch.length > 0 &&
-                !`${subscription.customFeedName ?? ''} ${subscription.feedName}`
-                    .toLocaleLowerCase()
-                    .includes(normalizedSearch)
+                !name.toLocaleLowerCase().includes(normalizedSearch)
             ) {
                 continue;
             }
-
             const current = grouped.get(subscription.categoryId) ?? [];
             grouped.set(subscription.categoryId, [...current, subscription]);
         }
@@ -133,20 +124,13 @@ export function ReaderSidebar({
 
     return (
         <>
-            <Stack gap="sm" p="md">
+            <Stack gap={0} px="md" pt="md">
                 <TextInput
                     ref={searchInput}
                     aria-label="Search feeds"
-                    leftSection={<IconSearch aria-hidden="true" size={15} />}
-                    placeholder="Search feeds"
-                    rightSection={
-                        <Text aria-hidden="true" c="dimmed" size="xs">
-                            ⌘K
-                        </Text>
-                    }
-                    rightSectionWidth={40}
-                    size="sm"
-                    value={search}
+                    classNames={{ input: classes.searchInput }}
+                    leftSection={<IconSearch aria-hidden="true" size={12} />}
+                    mb="sm"
                     onChange={(event) => setSearch(event.currentTarget.value)}
                     onKeyDown={(event) => {
                         if (event.key === 'Escape') {
@@ -154,36 +138,52 @@ export function ReaderSidebar({
                             event.currentTarget.blur();
                         }
                     }}
+                    placeholder="Search"
+                    rightSection={
+                        <Code className={classes.searchCode}>⌘ K</Code>
+                    }
+                    rightSectionWidth={46}
+                    size="xs"
+                    value={search}
                 />
 
-                <Stack gap={2} aria-label="Entry filters">
+                <Stack aria-label="Entry filters" gap={2} pb="md">
                     {filters.map((filter) => {
                         const Icon = filter.icon;
+                        const active = state.filter === filter.value;
                         const count = filterCount(filter.value, counts);
                         return (
                             <NavLink
                                 key={filter.value}
-                                active={state.filter === filter.value}
+                                active={active}
+                                className={classes.mainLink}
                                 component={Link}
                                 label={filter.label}
                                 leftSection={
-                                    <Icon aria-hidden="true" size={17} />
+                                    <Icon aria-hidden="true" size={20} />
                                 }
                                 onClick={onNavigate}
                                 rightSection={
-                                    count === undefined ? null : (
+                                    count !== undefined && count > 0 ? (
                                         <Badge
-                                            aria-label={`${count} entries`}
-                                            color="gray"
+                                            color={
+                                                filter.value === 'unread'
+                                                    ? 'blue'
+                                                    : 'gray'
+                                            }
                                             size="sm"
-                                            variant="light"
+                                            variant={
+                                                filter.value === 'unread'
+                                                    ? 'filled'
+                                                    : 'default'
+                                            }
                                         >
                                             {count}
                                         </Badge>
-                                    )
+                                    ) : null
                                 }
                                 to={readerHref(state, {
-                                    filter: filter.value,
+                                    filter: active ? 'all' : filter.value,
                                 })}
                             />
                         );
@@ -191,30 +191,40 @@ export function ReaderSidebar({
                 </Stack>
             </Stack>
 
-            <Divider />
+            <Divider mb="sm" />
 
-            <Group justify="space-between" px="md" py="sm">
-                <Text c="dimmed" fw={600} size="xs" tt="uppercase">
+            <Group
+                className={classes.collectionsHeader}
+                justify="space-between"
+            >
+                <Text c="dimmed" fw={500} size="xs">
                     Feeds
                 </Text>
-                <Text c="dimmed" size="xs">
-                    {subscriptions?.length ?? 0}
-                </Text>
+                <Tooltip
+                    label="Create feed or category"
+                    position="right"
+                    withArrow
+                >
+                    <ActionIcon
+                        aria-label="Create feed or category"
+                        component={Link}
+                        size={18}
+                        to="/settings/subscriptions"
+                        variant="default"
+                    >
+                        <IconPlus size={12} stroke={1.5} />
+                    </ActionIcon>
+                </Tooltip>
             </Group>
 
             <ScrollArea className={classes.sidebarScroll} offsetScrollbars="y">
-                <Stack gap={2} px="sm" pb="md">
+                <Stack className={classes.collections} gap={2}>
                     {isPending &&
-                        [
-                            'first',
-                            'second',
-                            'third',
-                            'fourth',
-                            'fifth',
-                            'sixth',
-                        ].map((key) => (
-                            <Skeleton key={key} height={34} radius="sm" />
-                        ))}
+                        ['first', 'second', 'third', 'fourth', 'fifth'].map(
+                            (key) => (
+                                <Skeleton key={key} height={32} radius="sm" />
+                            ),
+                        )}
 
                     {error !== null && categories === undefined && (
                         <Alert color="red" title="Feeds unavailable">
@@ -240,7 +250,7 @@ export function ReaderSidebar({
                     {!isPending &&
                         error === null &&
                         subscriptions?.length === 0 && (
-                            <Text c="dimmed" px="xs" py="md" size="sm">
+                            <Text c="dimmed" px="xs" py="md" size="xs">
                                 No feed subscriptions yet.
                             </Text>
                         )}
@@ -255,7 +265,7 @@ export function ReaderSidebar({
                             return null;
                         }
 
-                        const categoryUnread = categorySubscriptions.reduce(
+                        const categoryCount = categorySubscriptions.reduce(
                             (total, subscription) =>
                                 total + subscription.unreadCount,
                             0,
@@ -265,87 +275,83 @@ export function ReaderSidebar({
                             state.feedId === null;
 
                         return (
-                            <div key={category.id}>
-                                <NavLink
-                                    active={categoryActive}
-                                    label={category.name}
-                                    leftSection={
-                                        <IconCategory
-                                            aria-hidden="true"
-                                            size={16}
-                                        />
-                                    }
-                                    component={Link}
-                                    onClick={onNavigate}
-                                    rightSection={
-                                        categoryUnread > 0 ? (
-                                            <Badge
-                                                color="gray"
-                                                size="sm"
-                                                variant="light"
-                                            >
-                                                {categoryUnread}
+                            <NavLink
+                                key={category.id}
+                                active={categoryActive}
+                                childrenOffset={20}
+                                className={classes.categoryLink}
+                                defaultOpened
+                                label={
+                                    <Group
+                                        gap="xs"
+                                        justify="space-between"
+                                        wrap="nowrap"
+                                    >
+                                        <span>{category.name}</span>
+                                        {categoryCount > 0 && (
+                                            <Badge size="sm" variant="default">
+                                                {categoryCount}
                                             </Badge>
-                                        ) : null
-                                    }
-                                    to={readerHref(state, {
-                                        categoryId: categoryActive
-                                            ? null
-                                            : category.id,
-                                    })}
-                                />
-                                <Stack gap={2} pl="lg">
-                                    {categorySubscriptions.map(
-                                        (subscription) => {
-                                            const feedActive =
-                                                state.feedId ===
-                                                subscription.feedId;
-                                            const feedName =
-                                                subscription.customFeedName ??
-                                                subscription.feedName;
-
-                                            return (
-                                                <NavLink
-                                                    key={subscription.feedId}
-                                                    active={feedActive}
-                                                    component={Link}
-                                                    label={feedName}
-                                                    leftSection={
-                                                        <FeedFavicon
-                                                            src={
-                                                                subscription.faviconUrl
-                                                            }
-                                                            isDark={
-                                                                subscription.faviconIsDark
-                                                            }
-                                                        />
+                                        )}
+                                    </Group>
+                                }
+                                leftSection={
+                                    <IconRss aria-hidden="true" size={15} />
+                                }
+                                component={Link}
+                                onClick={onNavigate}
+                                to={readerHref(state, {
+                                    categoryId: categoryActive
+                                        ? null
+                                        : category.id,
+                                })}
+                            >
+                                {categorySubscriptions.map((subscription) => {
+                                    const active =
+                                        state.feedId === subscription.feedId;
+                                    const name =
+                                        subscription.customFeedName ??
+                                        subscription.feedName;
+                                    return (
+                                        <NavLink
+                                            key={subscription.feedId}
+                                            active={active}
+                                            className={classes.feedLink}
+                                            component={Link}
+                                            label={name}
+                                            leftSection={
+                                                <FeedFavicon
+                                                    isDark={
+                                                        subscription.faviconIsDark
                                                     }
-                                                    onClick={onNavigate}
-                                                    rightSection={
-                                                        subscription.unreadCount >
-                                                        0 ? (
-                                                            <Badge
-                                                                color="blue"
-                                                                size="sm"
-                                                                variant="light"
-                                                            >
-                                                                {
-                                                                    subscription.unreadCount
-                                                                }
-                                                            </Badge>
-                                                        ) : null
+                                                    size={18}
+                                                    src={
+                                                        subscription.faviconUrl
                                                     }
-                                                    to={readerHref(state, {
-                                                        feedId: feedActive
-                                                            ? null
-                                                            : subscription.feedId,
-                                                    })}
                                                 />
-                                            );
-                                        },
-                                    )}
-                                </Stack>
-                            </div>
+                                            }
+                                            onClick={onNavigate}
+                                            rightSection={
+                                                subscription.unreadCount > 0 ? (
+                                                    <Badge
+                                                        size="sm"
+                                                        variant="default"
+                                                    >
+                                                        {
+                                                            subscription.unreadCount
+                                                        }
+                                                    </Badge>
+                                                ) : null
+                                            }
+                                            to={readerHref(state, {
+                                                feedId: active
+                                                    ? null
+                                                    : subscription.feedId,
+                                            })}
+                                        />
+                                    );
+                                })}
+                            </NavLink>
                         );
                     })}
 
@@ -354,55 +360,12 @@ export function ReaderSidebar({
                         [...subscriptionsByCategory.values()].every(
                             (items) => items.length === 0,
                         ) && (
-                            <Text c="dimmed" px="xs" py="md" size="sm">
+                            <Text c="dimmed" px="xs" py="md" size="xs">
                                 No feeds match “{search.trim()}”.
                             </Text>
                         )}
                 </Stack>
             </ScrollArea>
-
-            <Divider />
-            <Stack gap={2} p="sm">
-                <NavLink
-                    component={Link}
-                    label="Charts"
-                    leftSection={<IconChartLine aria-hidden="true" size={17} />}
-                    onClick={onNavigate}
-                    to="/charts"
-                />
-                <NavLink
-                    component={Link}
-                    label="Manage subscriptions"
-                    leftSection={<IconSettings aria-hidden="true" size={17} />}
-                    onClick={onNavigate}
-                    to="/settings/subscriptions"
-                />
-                <NavLink
-                    component={Link}
-                    label="Import & export"
-                    leftSection={
-                        <IconFileImport aria-hidden="true" size={17} />
-                    }
-                    onClick={onNavigate}
-                    to="/settings/opml"
-                />
-                <NavLink
-                    component={Link}
-                    label="Account & security"
-                    leftSection={
-                        <IconShieldLock aria-hidden="true" size={17} />
-                    }
-                    onClick={onNavigate}
-                    to="/settings/security"
-                />
-                <NavLink
-                    component={Link}
-                    label="Reader app tokens"
-                    leftSection={<IconKey aria-hidden="true" size={17} />}
-                    onClick={onNavigate}
-                    to="/settings/app-tokens"
-                />
-            </Stack>
         </>
     );
 }

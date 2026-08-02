@@ -72,6 +72,13 @@ describe('ReaderEntryDetail summaries', () => {
                 generatedAt: 1_900_000_000_000,
             },
         });
+        expect(markup).toContain('aria-label="Entry view"');
+        expect(markup).toContain('aria-label="Article content"');
+        expect(markup).toContain('aria-label="AI summary"');
+        expect(markup).toContain(
+            'aria-label="Open original article in a new tab"',
+        );
+        expect(markup).toContain('aria-label="Archive entry"');
         expect(markup).toContain('AI summary');
         expect(markup).toContain('1 min read');
         expect(markup).toContain(

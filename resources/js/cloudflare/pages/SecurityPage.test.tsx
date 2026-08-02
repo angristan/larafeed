@@ -36,6 +36,16 @@ describe('SecurityPage', () => {
         queryClient.setQueryData(authKeys.config(), {
             turnstileSiteKey: 'site-key',
         });
+        queryClient.setQueryData(authKeys.session(), {
+            authenticated: true,
+            user: {
+                id: 7,
+                username: 'reader',
+                displayName: 'Reader',
+                isAdmin: true,
+            },
+            expiresAt: 3_000_000_000_000,
+        });
 
         const markup = renderToStaticMarkup(
             <MemoryRouter>

@@ -1,37 +1,20 @@
 import { Split } from '@gfazioli/mantine-split-pane';
 import {
-    ActionIcon,
     AppShell,
-    Avatar,
-    Burger,
-    Button,
-    Group,
-    Select,
-    Stack,
-    Text,
-    Title,
+    useComputedColorScheme,
+    useMantineTheme,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { notifications } from '@mantine/notifications';
-import { IconKeyboard, IconLogout, IconRss } from '@tabler/icons-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Effect } from 'effect';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
 
-import { AuthClientError, logout, readCsrfToken } from '../api/auth';
+import { ApplicationHeader } from '../components/ApplicationHeader';
 import classes from '../components/reader/Reader.module.css';
 import { ReaderEntryDetail } from '../components/reader/ReaderEntryDetail';
 import { ReaderEntryList } from '../components/reader/ReaderEntryList';
-import { ReaderShortcutHelp } from '../components/reader/ReaderShortcutHelp';
 import { ReaderSidebar } from '../components/reader/ReaderSidebar';
-import { isShortcutHelpKey } from '../components/reader/readerShortcuts';
-import {
-    authKeys,
-    authSessionQueryOptions,
-    clearAuthenticatedCache,
-    isUnauthenticatedError,
-} from '../queries/auth';
+import { authSessionQueryOptions } from '../queries/auth';
 import {
     categoryListQueryOptions,
     entryDetailQueryOptions,
@@ -64,7 +47,8 @@ export function ReaderPage() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [navbarOpened, navbar] = useDisclosure(false);
-    const [shortcutsOpened, shortcuts] = useDisclosure(false);
+    const colorScheme = useComputedColorScheme('light');
+    const theme = useMantineTheme();
 
     const sessionQuery = useQuery(authSessionQueryOptions);
     const categoriesQuery = useQuery(categoryListQueryOptions);
@@ -141,12 +125,6 @@ export function ReaderPage() {
                 return;
             }
 
-            if (isShortcutHelpKey(event)) {
-                event.preventDefault();
-                shortcuts.open();
-                return;
-            }
-
             if (entryPageQuery.isPlaceholderData) {
                 return;
             }
@@ -182,51 +160,13 @@ export function ReaderPage() {
         entryPageQuery.data?.entries,
         entryPageQuery.isPlaceholderData,
         navigate,
-        shortcuts.open,
         state,
     ]);
-
-    const logoutMutation = useMutation({
-        mutationKey: [...authKeys.all, 'logout'],
-        retry: false,
-        mutationFn: () => {
-            const csrfToken = readCsrfToken();
-            if (csrfToken === undefined) {
-                return Effect.runPromise(
-                    Effect.fail(
-                        new AuthClientError(
-                            'status',
-                            'Your session security token is missing. Sign in again.',
-                            401,
-                            'unauthenticated',
-                        ),
-                    ),
-                );
-            }
-            return Effect.runPromise(logout(csrfToken));
-        },
-        onSuccess: () => {
-            clearAuthenticatedCache(queryClient);
-            void navigate('/login', { replace: true });
-        },
-        onError: (error) => {
-            if (isUnauthenticatedError(error)) {
-                void navigate('/login', { replace: true });
-                return;
-            }
-            notifications.show({
-                color: 'red',
-                title: 'Sign-out failed',
-                message: error.message,
-            });
-        },
-    });
 
     if (sessionQuery.data !== undefined && !sessionQuery.data.authenticated) {
         return <Navigate to="/login" replace />;
     }
 
-    const session = sessionQuery.data;
     const subscriptions = subscriptionsQuery.data?.subscriptions;
     const selectedSubscription = subscriptions?.find(
         (subscription) => subscription.feedId === state.feedId,
@@ -264,101 +204,18 @@ export function ReaderPage() {
             className={classes.shell}
             header={{ height: 56 }}
             navbar={{
-                width: 280,
-                breakpoint: 'md',
+                width: 300,
+                breakpoint: 'sm',
                 collapsed: { mobile: !navbarOpened },
             }}
-            padding={0}
+            padding="md"
         >
-            <AppShell.Header className={classes.header}>
-                <Group gap="sm" wrap="nowrap">
-                    <Burger
-                        aria-label="Toggle feed navigation"
-                        hiddenFrom="md"
-                        onClick={navbar.toggle}
-                        opened={navbarOpened}
-                        size="sm"
-                    />
-                    <IconRss aria-hidden="true" size={22} />
-                    <Stack className={classes.brand} gap={0}>
-                        <Title order={1} size="h4">
-                            Larafeed
-                        </Title>
-                        <Text
-                            c="dimmed"
-                            className={classes.hideOnSmall}
-                            size="xs"
-                        >
-                            Private feed reader
-                        </Text>
-                    </Stack>
-                </Group>
-
-                <Group gap="sm" wrap="nowrap">
-                    <Select
-                        aria-label="Order entries"
-                        allowDeselect={false}
-                        className={classes.hideOnSmall}
-                        data={[
-                            {
-                                value: 'published_at',
-                                label: 'Newest published',
-                            },
-                            { value: 'created_at', label: 'Recently added' },
-                        ]}
-                        onChange={(value) => {
-                            if (
-                                value === 'published_at' ||
-                                value === 'created_at'
-                            ) {
-                                void navigate(
-                                    readerHref(state, { orderBy: value }),
-                                );
-                            }
-                        }}
-                        size="xs"
-                        value={state.orderBy}
-                        w={160}
-                    />
-                    <ActionIcon
-                        aria-label="Keyboard shortcuts"
-                        onClick={shortcuts.open}
-                        variant="subtle"
-                    >
-                        <IconKeyboard aria-hidden="true" size={17} />
-                    </ActionIcon>
-                    {session?.authenticated === true && (
-                        <Avatar
-                            aria-label={`Signed in as ${session.user.displayName}`}
-                            color="blue"
-                            name={session.user.displayName}
-                            size="sm"
-                        />
-                    )}
-                    <ActionIcon
-                        aria-label="Sign out"
-                        hiddenFrom="xs"
-                        loading={logoutMutation.isPending}
-                        onClick={() => logoutMutation.mutate()}
-                        variant="subtle"
-                    >
-                        <IconLogout aria-hidden="true" size={16} />
-                    </ActionIcon>
-                    <Button
-                        aria-label="Sign out"
-                        leftSection={
-                            <IconLogout aria-hidden="true" size={16} />
-                        }
-                        loading={logoutMutation.isPending}
-                        onClick={() => logoutMutation.mutate()}
-                        size="xs"
-                        variant="subtle"
-                        visibleFrom="xs"
-                    >
-                        Sign out
-                    </Button>
-                </Group>
-            </AppShell.Header>
+            <ApplicationHeader
+                activePage="reader"
+                hasSidebar
+                navbarOpened={navbarOpened}
+                onNavbarToggle={navbar.toggle}
+            />
 
             <AppShell.Navbar aria-label="Feed navigation">
                 <ReaderSidebar
@@ -384,13 +241,18 @@ export function ReaderPage() {
             <AppShell.Main className={classes.main}>
                 <Split
                     className={classes.readerGrid}
+                    color={
+                        colorScheme === 'dark'
+                            ? theme.colors.dark[5]
+                            : undefined
+                    }
                     data-detail={state.entryId !== null || undefined}
-                    knobAlwaysOn
                     orientation="vertical"
+                    radius="xs"
                     shiftStep={60}
-                    size={6}
+                    size="sm"
+                    spacing="md"
                     step={12}
-                    withKnob
                 >
                     <Split.Pane
                         className={classes.listPaneContainer}
@@ -420,6 +282,10 @@ export function ReaderPage() {
                             }}
                             onRetry={() => void entryPageQuery.refetch()}
                             page={entryPageQuery.data}
+                            onOrderChange={(orderBy) =>
+                                void navigate(readerHref(state, { orderBy }))
+                            }
+                            orderBy={state.orderBy}
                             selectedFeedName={selectedFeedName}
                             state={state}
                         />
@@ -450,11 +316,6 @@ export function ReaderPage() {
                     </Split.Pane>
                 </Split>
             </AppShell.Main>
-
-            <ReaderShortcutHelp
-                onClose={shortcuts.close}
-                opened={shortcutsOpened}
-            />
         </AppShell>
     );
 }

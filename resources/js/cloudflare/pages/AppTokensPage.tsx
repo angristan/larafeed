@@ -18,7 +18,6 @@ import {
 import type { AppTokenScope } from '@shared/schemas/auth';
 import {
     IconAlertTriangle,
-    IconArrowLeft,
     IconCheck,
     IconCopy,
     IconInfoCircle,
@@ -28,9 +27,8 @@ import {
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type FormEvent, useCallback, useMemo, useState } from 'react';
-import { Link } from 'react-router';
-
 import type { AppToken, CreatedAppToken } from '../api/appTokens';
+import { ApplicationPage } from '../components/ApplicationPage';
 import {
     appTokenListQueryOptions,
     createAppTokenMutationOptions,
@@ -270,303 +268,319 @@ export function AppTokensPage() {
     };
 
     return (
-        <Container component="main" size="md" py={{ base: 'lg', sm: 'xl' }}>
-            <Modal
-                centered
-                closeOnClickOutside={!revokeMutation.isPending}
-                closeOnEscape={!revokeMutation.isPending}
-                onClose={closeRevokeConfirmation}
-                opened={tokenToRevoke !== null}
-                title="Revoke app token?"
-            >
-                <Stack gap="md">
-                    <Text size="sm">
-                        {tokenToRevoke === null ? (
-                            'This client will lose access immediately.'
-                        ) : (
-                            <>
-                                <strong>{tokenToRevoke.name}</strong> will stop
-                                working immediately. This action cannot be
-                                undone.
-                            </>
-                        )}
-                    </Text>
-
-                    {revokeMutation.isError && (
-                        <Alert
-                            color="red"
-                            title="Token was not revoked"
-                            role="alert"
-                        >
-                            {revokeMutation.error.message}
-                        </Alert>
-                    )}
-
-                    <Group justify="flex-end">
-                        <Button
-                            disabled={revokeMutation.isPending}
-                            onClick={closeRevokeConfirmation}
-                            variant="default"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            color="red"
-                            leftSection={
-                                <IconTrash aria-hidden="true" size={16} />
-                            }
-                            loading={revokeMutation.isPending}
-                            onClick={confirmRevoke}
-                        >
-                            Revoke token
-                        </Button>
-                    </Group>
-                </Stack>
-            </Modal>
-
-            <Stack gap="xl">
-                <Stack gap={4}>
-                    <Button
-                        component={Link}
-                        leftSection={
-                            <IconArrowLeft aria-hidden="true" size={16} />
-                        }
-                        size="compact-sm"
-                        to="/feeds"
-                        variant="subtle"
-                    >
-                        Back to reader
-                    </Button>
-                    <Title order={1}>App tokens</Title>
-                    <Text c="dimmed" maw={640}>
-                        Give compatible feed reader apps limited, revocable
-                        access without sharing your passkey.
-                    </Text>
-                </Stack>
-
-                {plaintextToken !== null && (
-                    <Alert
-                        color="orange"
-                        icon={
-                            <IconAlertTriangle aria-hidden="true" size={20} />
-                        }
-                        title="Copy this token now"
-                        role="status"
-                    >
-                        <Stack gap="sm">
-                            <Text size="sm">
-                                This is the only time Larafeed will show the
-                                token. It cannot be recovered after you dismiss
-                                this message or leave this page.
-                            </Text>
-                            <Code
-                                block
-                                aria-label="New app token"
-                                style={{
-                                    overflowWrap: 'anywhere',
-                                    whiteSpace: 'pre-wrap',
-                                }}
-                            >
-                                {plaintextToken}
-                            </Code>
-                            <Group gap="sm">
-                                <CopyButton value={plaintextToken}>
-                                    {({ copied, copy }) => (
-                                        <Button
-                                            color={copied ? 'teal' : 'blue'}
-                                            leftSection={
-                                                copied ? (
-                                                    <IconCheck
-                                                        aria-hidden="true"
-                                                        size={16}
-                                                    />
-                                                ) : (
-                                                    <IconCopy
-                                                        aria-hidden="true"
-                                                        size={16}
-                                                    />
-                                                )
-                                            }
-                                            onClick={copy}
-                                            size="xs"
-                                            variant="light"
-                                        >
-                                            {copied ? 'Copied' : 'Copy token'}
-                                        </Button>
-                                    )}
-                                </CopyButton>
-                                <Button
-                                    color="gray"
-                                    onClick={() => setPlaintextToken(null)}
-                                    size="xs"
-                                    variant="subtle"
-                                >
-                                    I saved it
-                                </Button>
-                            </Group>
-                        </Stack>
-                    </Alert>
-                )}
-
-                <Paper
-                    component="section"
-                    aria-labelledby="create-token-heading"
-                    withBorder
-                    p={{ base: 'lg', sm: 'xl' }}
+        <ApplicationPage activePage="settings" settingsNavigation>
+            <Container component="div" size="md" py="md">
+                <Modal
+                    centered
+                    closeOnClickOutside={!revokeMutation.isPending}
+                    closeOnEscape={!revokeMutation.isPending}
+                    onClose={closeRevokeConfirmation}
+                    opened={tokenToRevoke !== null}
+                    title="Revoke app token?"
                 >
-                    <form autoComplete="off" onSubmit={handleSubmit}>
-                        <Stack gap="md">
-                            <Stack gap={4}>
-                                <Title
-                                    id="create-token-heading"
-                                    order={2}
-                                    size="h3"
-                                >
-                                    Create an app token
-                                </Title>
-                                <Text c="dimmed" size="sm">
-                                    Use a separate token for each client so you
-                                    can revoke access independently.
-                                </Text>
-                            </Stack>
-
-                            <TextInput
-                                disabled={createMutation.isPending}
-                                error={nameTouched ? nameError : undefined}
-                                label="Token name"
-                                maxLength={100}
-                                onBlur={() => setNameTouched(true)}
-                                onChange={(event) => {
-                                    setName(event.currentTarget.value);
-                                    createMutation.reset();
-                                }}
-                                placeholder="Phone reader"
-                                required
-                                value={name}
-                            />
-
-                            <Checkbox.Group
-                                error={scopesTouched ? scopesError : undefined}
-                                label="Allowed APIs"
-                                onChange={handleScopeChange}
-                                required
-                                value={[...scopes]}
-                            >
-                                <Stack gap="sm" mt="xs">
-                                    {(
-                                        Object.entries(scopePresentation) as [
-                                            AppTokenScope,
-                                            (typeof scopePresentation)[AppTokenScope],
-                                        ][]
-                                    ).map(([scope, presentation]) => (
-                                        <Checkbox
-                                            description={
-                                                presentation.description
-                                            }
-                                            disabled={createMutation.isPending}
-                                            key={scope}
-                                            label={presentation.label}
-                                            value={scope}
-                                        />
-                                    ))}
-                                </Stack>
-                            </Checkbox.Group>
-
-                            {createMutation.isError && (
-                                <Alert
-                                    color="red"
-                                    title="Token could not be created"
-                                    role="alert"
-                                >
-                                    {createMutation.error.message}
-                                </Alert>
+                    <Stack gap="md">
+                        <Text size="sm">
+                            {tokenToRevoke === null ? (
+                                'This client will lose access immediately.'
+                            ) : (
+                                <>
+                                    <strong>{tokenToRevoke.name}</strong> will
+                                    stop working immediately. This action cannot
+                                    be undone.
+                                </>
                             )}
+                        </Text>
 
-                            <Group justify="flex-end">
-                                <Button
-                                    disabled={
-                                        nameError !== undefined ||
-                                        scopesError !== undefined
-                                    }
-                                    leftSection={
-                                        <IconKey aria-hidden="true" size={18} />
-                                    }
-                                    loading={createMutation.isPending}
-                                    type="submit"
-                                >
-                                    Create token
-                                </Button>
-                            </Group>
-                        </Stack>
-                    </form>
-                </Paper>
-
-                <Stack
-                    component="section"
-                    gap="md"
-                    aria-labelledby="active-tokens-heading"
-                >
-                    <Group justify="space-between" align="center">
-                        <Title id="active-tokens-heading" order={2} size="h2">
-                            Active tokens
-                        </Title>
-                        {tokensQuery.isFetching && !tokensQuery.isPending && (
-                            <Group gap="xs" role="status" aria-live="polite">
-                                <Loader size="xs" />
-                                <Text c="dimmed" size="xs">
-                                    Updating…
-                                </Text>
-                            </Group>
+                        {revokeMutation.isError && (
+                            <Alert
+                                color="red"
+                                title="Token was not revoked"
+                                role="alert"
+                            >
+                                {revokeMutation.error.message}
+                            </Alert>
                         )}
-                    </Group>
 
-                    {tokensQuery.isPending && (
-                        <Group
-                            aria-live="polite"
-                            justify="center"
-                            py="xl"
+                        <Group justify="flex-end">
+                            <Button
+                                disabled={revokeMutation.isPending}
+                                onClick={closeRevokeConfirmation}
+                                variant="default"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                color="red"
+                                leftSection={
+                                    <IconTrash aria-hidden="true" size={16} />
+                                }
+                                loading={revokeMutation.isPending}
+                                onClick={confirmRevoke}
+                            >
+                                Revoke token
+                            </Button>
+                        </Group>
+                    </Stack>
+                </Modal>
+
+                <Stack gap="xl">
+                    <Stack gap={4}>
+                        <Title order={1}>App tokens</Title>
+                        <Text c="dimmed" maw={640}>
+                            Give compatible feed reader apps limited, revocable
+                            access without sharing your passkey.
+                        </Text>
+                    </Stack>
+
+                    {plaintextToken !== null && (
+                        <Alert
+                            color="orange"
+                            icon={
+                                <IconAlertTriangle
+                                    aria-hidden="true"
+                                    size={20}
+                                />
+                            }
+                            title="Copy this token now"
                             role="status"
                         >
-                            <Loader size="sm" />
-                            <Text size="sm">Loading app tokens…</Text>
-                        </Group>
-                    )}
-
-                    {tokensQuery.isError && (
-                        <Alert
-                            color="red"
-                            title="App tokens are unavailable"
-                            role="alert"
-                        >
-                            <Stack align="flex-start" gap="sm">
+                            <Stack gap="sm">
                                 <Text size="sm">
-                                    {tokensQuery.error.message}
+                                    This is the only time Larafeed will show the
+                                    token. It cannot be recovered after you
+                                    dismiss this message or leave this page.
                                 </Text>
-                                <Button
-                                    leftSection={
-                                        <IconRefresh
-                                            aria-hidden="true"
-                                            size={16}
-                                        />
-                                    }
-                                    onClick={() => void tokensQuery.refetch()}
-                                    size="xs"
-                                    variant="light"
+                                <Code
+                                    block
+                                    aria-label="New app token"
+                                    style={{
+                                        overflowWrap: 'anywhere',
+                                        whiteSpace: 'pre-wrap',
+                                    }}
                                 >
-                                    Try again
-                                </Button>
+                                    {plaintextToken}
+                                </Code>
+                                <Group gap="sm">
+                                    <CopyButton value={plaintextToken}>
+                                        {({ copied, copy }) => (
+                                            <Button
+                                                color={copied ? 'teal' : 'blue'}
+                                                leftSection={
+                                                    copied ? (
+                                                        <IconCheck
+                                                            aria-hidden="true"
+                                                            size={16}
+                                                        />
+                                                    ) : (
+                                                        <IconCopy
+                                                            aria-hidden="true"
+                                                            size={16}
+                                                        />
+                                                    )
+                                                }
+                                                onClick={copy}
+                                                size="xs"
+                                                variant="light"
+                                            >
+                                                {copied
+                                                    ? 'Copied'
+                                                    : 'Copy token'}
+                                            </Button>
+                                        )}
+                                    </CopyButton>
+                                    <Button
+                                        color="gray"
+                                        onClick={() => setPlaintextToken(null)}
+                                        size="xs"
+                                        variant="subtle"
+                                    >
+                                        I saved it
+                                    </Button>
+                                </Group>
                             </Stack>
                         </Alert>
                     )}
 
-                    {tokensQuery.data !== undefined && (
-                        <AppTokenList
-                            tokens={sortedTokens}
-                            onRevoke={openRevokeConfirmation}
-                        />
-                    )}
+                    <Paper
+                        component="section"
+                        aria-labelledby="create-token-heading"
+                        withBorder
+                        p={{ base: 'lg', sm: 'xl' }}
+                    >
+                        <form autoComplete="off" onSubmit={handleSubmit}>
+                            <Stack gap="md">
+                                <Stack gap={4}>
+                                    <Title
+                                        id="create-token-heading"
+                                        order={2}
+                                        size="h3"
+                                    >
+                                        Create an app token
+                                    </Title>
+                                    <Text c="dimmed" size="sm">
+                                        Use a separate token for each client so
+                                        you can revoke access independently.
+                                    </Text>
+                                </Stack>
+
+                                <TextInput
+                                    disabled={createMutation.isPending}
+                                    error={nameTouched ? nameError : undefined}
+                                    label="Token name"
+                                    maxLength={100}
+                                    onBlur={() => setNameTouched(true)}
+                                    onChange={(event) => {
+                                        setName(event.currentTarget.value);
+                                        createMutation.reset();
+                                    }}
+                                    placeholder="Phone reader"
+                                    required
+                                    value={name}
+                                />
+
+                                <Checkbox.Group
+                                    error={
+                                        scopesTouched ? scopesError : undefined
+                                    }
+                                    label="Allowed APIs"
+                                    onChange={handleScopeChange}
+                                    required
+                                    value={[...scopes]}
+                                >
+                                    <Stack gap="sm" mt="xs">
+                                        {(
+                                            Object.entries(
+                                                scopePresentation,
+                                            ) as [
+                                                AppTokenScope,
+                                                (typeof scopePresentation)[AppTokenScope],
+                                            ][]
+                                        ).map(([scope, presentation]) => (
+                                            <Checkbox
+                                                description={
+                                                    presentation.description
+                                                }
+                                                disabled={
+                                                    createMutation.isPending
+                                                }
+                                                key={scope}
+                                                label={presentation.label}
+                                                value={scope}
+                                            />
+                                        ))}
+                                    </Stack>
+                                </Checkbox.Group>
+
+                                {createMutation.isError && (
+                                    <Alert
+                                        color="red"
+                                        title="Token could not be created"
+                                        role="alert"
+                                    >
+                                        {createMutation.error.message}
+                                    </Alert>
+                                )}
+
+                                <Group justify="flex-end">
+                                    <Button
+                                        disabled={
+                                            nameError !== undefined ||
+                                            scopesError !== undefined
+                                        }
+                                        leftSection={
+                                            <IconKey
+                                                aria-hidden="true"
+                                                size={18}
+                                            />
+                                        }
+                                        loading={createMutation.isPending}
+                                        type="submit"
+                                    >
+                                        Create token
+                                    </Button>
+                                </Group>
+                            </Stack>
+                        </form>
+                    </Paper>
+
+                    <Stack
+                        component="section"
+                        gap="md"
+                        aria-labelledby="active-tokens-heading"
+                    >
+                        <Group justify="space-between" align="center">
+                            <Title
+                                id="active-tokens-heading"
+                                order={2}
+                                size="h2"
+                            >
+                                Active tokens
+                            </Title>
+                            {tokensQuery.isFetching &&
+                                !tokensQuery.isPending && (
+                                    <Group
+                                        gap="xs"
+                                        role="status"
+                                        aria-live="polite"
+                                    >
+                                        <Loader size="xs" />
+                                        <Text c="dimmed" size="xs">
+                                            Updating…
+                                        </Text>
+                                    </Group>
+                                )}
+                        </Group>
+
+                        {tokensQuery.isPending && (
+                            <Group
+                                aria-live="polite"
+                                justify="center"
+                                py="xl"
+                                role="status"
+                            >
+                                <Loader size="sm" />
+                                <Text size="sm">Loading app tokens…</Text>
+                            </Group>
+                        )}
+
+                        {tokensQuery.isError && (
+                            <Alert
+                                color="red"
+                                title="App tokens are unavailable"
+                                role="alert"
+                            >
+                                <Stack align="flex-start" gap="sm">
+                                    <Text size="sm">
+                                        {tokensQuery.error.message}
+                                    </Text>
+                                    <Button
+                                        leftSection={
+                                            <IconRefresh
+                                                aria-hidden="true"
+                                                size={16}
+                                            />
+                                        }
+                                        onClick={() =>
+                                            void tokensQuery.refetch()
+                                        }
+                                        size="xs"
+                                        variant="light"
+                                    >
+                                        Try again
+                                    </Button>
+                                </Stack>
+                            </Alert>
+                        )}
+
+                        {tokensQuery.data !== undefined && (
+                            <AppTokenList
+                                tokens={sortedTokens}
+                                onRevoke={openRevokeConfirmation}
+                            />
+                        )}
+                    </Stack>
                 </Stack>
-            </Stack>
-        </Container>
+            </Container>
+        </ApplicationPage>
     );
 }

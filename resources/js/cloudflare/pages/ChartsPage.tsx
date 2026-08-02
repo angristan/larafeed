@@ -16,10 +16,10 @@ import {
     TextInput,
     Title,
 } from '@mantine/core';
-import { IconArrowLeft, IconChartLine, IconRefresh } from '@tabler/icons-react';
+import { IconChartLine, IconRefresh } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 
 import type { ChartData, ChartRequest } from '../api/charts';
 import {
@@ -27,6 +27,7 @@ import {
     defaultCustomDates,
     parseChartState,
 } from '../chartState';
+import { ApplicationPage } from '../components/ApplicationPage';
 import { chartQueryOptions } from '../queries/charts';
 import { subscriptionManagementQueryOptions } from '../queries/subscriptions';
 import classes from './ChartsPage.module.css';
@@ -440,155 +441,165 @@ export function ChartsPage() {
     };
 
     return (
-        <Container component="main" size="xl" py={{ base: 'lg', sm: 'xl' }}>
-            <Stack gap="xl">
-                <Group justify="space-between" align="flex-start" wrap="wrap">
-                    <Stack gap="xs">
-                        <Button
-                            component={Link}
-                            leftSection={
-                                <IconArrowLeft aria-hidden="true" size={16} />
-                            }
-                            size="compact-sm"
-                            to="/feeds"
-                            variant="subtle"
-                        >
-                            Back to reader
-                        </Button>
-                        <Group gap="sm">
-                            <IconChartLine aria-hidden="true" size={30} />
-                            <Title order={1}>Charts</Title>
-                        </Group>
-                        <Text c="dimmed">
-                            Current reader state, actual actions, and feed
-                            refresh health.
-                        </Text>
-                    </Stack>
-                    {charts.isFetching && charts.data !== undefined && (
-                        <Loader aria-label="Refreshing charts" size="sm" />
-                    )}
-                </Group>
-
-                <Paper
-                    component="section"
-                    aria-label="Chart filters"
-                    withBorder
-                    p={{ base: 'md', sm: 'lg' }}
-                >
-                    <Stack gap="md">
-                        <SegmentedControl
-                            aria-label="Chart date range"
-                            data={[
-                                { label: '30 days', value: '30' },
-                                { label: '90 days', value: '90' },
-                                { label: '1 year', value: '365' },
-                                { label: 'Custom', value: 'custom' },
-                            ]}
-                            fullWidth
-                            onChange={(value) => {
-                                const range = value as ChartRequest['range'];
-                                const custom = defaultCustomDates(Date.now());
-                                update({
-                                    ...state,
-                                    range,
-                                    startDate:
-                                        range === 'custom'
-                                            ? custom.startDate
-                                            : null,
-                                    endDate:
-                                        range === 'custom'
-                                            ? custom.endDate
-                                            : null,
-                                });
-                            }}
-                            value={state.range}
-                        />
-                        <Select
-                            allowDeselect={false}
-                            data={scopeOptions}
-                            disabled={subscriptions.isPending}
-                            label="Subscription scope"
-                            onChange={(value) => {
-                                if (value === null) return;
-                                const [type, rawId] = value.split(':');
-                                const id = Number(rawId);
-                                update({
-                                    ...state,
-                                    feedId: type === 'feed' ? id : null,
-                                    categoryId: type === 'category' ? id : null,
-                                });
-                            }}
-                            searchable
-                            value={scopeValue}
-                        />
-                        {state.range === 'custom' && (
-                            <form onSubmit={applyDates}>
-                                <Group align="flex-end" wrap="wrap">
-                                    <TextInput
-                                        label="Start date"
-                                        max={endDate}
-                                        onChange={(event) =>
-                                            setStartDate(
-                                                event.currentTarget.value,
-                                            )
-                                        }
-                                        required
-                                        type="date"
-                                        value={startDate}
-                                    />
-                                    <TextInput
-                                        label="End date"
-                                        max={
-                                            defaultCustomDates(Date.now())
-                                                .endDate
-                                        }
-                                        min={startDate}
-                                        onChange={(event) =>
-                                            setEndDate(
-                                                event.currentTarget.value,
-                                            )
-                                        }
-                                        required
-                                        type="date"
-                                        value={endDate}
-                                    />
-                                    <Button type="submit">Apply dates</Button>
-                                </Group>
-                            </form>
-                        )}
-                    </Stack>
-                </Paper>
-
-                {charts.isPending && (
-                    <Stack gap="lg" aria-label="Loading charts">
-                        <SimpleGrid cols={{ base: 2, md: 4 }}>
-                            {['one', 'two', 'three', 'four'].map((key) => (
-                                <Skeleton key={key} height={112} />
-                            ))}
-                        </SimpleGrid>
-                        <Skeleton height={340} />
-                        <Skeleton height={340} />
-                    </Stack>
-                )}
-                {charts.isError && (
-                    <Alert color="red" role="alert" title="Charts unavailable">
-                        <Stack gap="sm" align="flex-start">
-                            <Text size="sm">{charts.error.message}</Text>
-                            <Button
-                                leftSection={
-                                    <IconRefresh aria-hidden="true" size={16} />
-                                }
-                                onClick={() => void charts.refetch()}
-                                size="xs"
-                                variant="light"
-                            >
-                                Retry
-                            </Button>
+        <ApplicationPage activePage="charts">
+            <Container component="div" size="xl" py="md">
+                <Stack gap="xl">
+                    <Group
+                        justify="space-between"
+                        align="flex-start"
+                        wrap="wrap"
+                    >
+                        <Stack gap="xs">
+                            <Group gap="sm">
+                                <IconChartLine aria-hidden="true" size={30} />
+                                <Title order={1}>Charts</Title>
+                            </Group>
+                            <Text c="dimmed">
+                                Current reader state, actual actions, and feed
+                                refresh health.
+                            </Text>
                         </Stack>
-                    </Alert>
-                )}
-                {charts.data !== undefined && <Dashboard data={charts.data} />}
-            </Stack>
-        </Container>
+                        {charts.isFetching && charts.data !== undefined && (
+                            <Loader aria-label="Refreshing charts" size="sm" />
+                        )}
+                    </Group>
+
+                    <Paper
+                        component="section"
+                        aria-label="Chart filters"
+                        withBorder
+                        p={{ base: 'md', sm: 'lg' }}
+                    >
+                        <Stack gap="md">
+                            <SegmentedControl
+                                aria-label="Chart date range"
+                                data={[
+                                    { label: '30 days', value: '30' },
+                                    { label: '90 days', value: '90' },
+                                    { label: '1 year', value: '365' },
+                                    { label: 'Custom', value: 'custom' },
+                                ]}
+                                fullWidth
+                                onChange={(value) => {
+                                    const range =
+                                        value as ChartRequest['range'];
+                                    const custom = defaultCustomDates(
+                                        Date.now(),
+                                    );
+                                    update({
+                                        ...state,
+                                        range,
+                                        startDate:
+                                            range === 'custom'
+                                                ? custom.startDate
+                                                : null,
+                                        endDate:
+                                            range === 'custom'
+                                                ? custom.endDate
+                                                : null,
+                                    });
+                                }}
+                                value={state.range}
+                            />
+                            <Select
+                                allowDeselect={false}
+                                data={scopeOptions}
+                                disabled={subscriptions.isPending}
+                                label="Subscription scope"
+                                onChange={(value) => {
+                                    if (value === null) return;
+                                    const [type, rawId] = value.split(':');
+                                    const id = Number(rawId);
+                                    update({
+                                        ...state,
+                                        feedId: type === 'feed' ? id : null,
+                                        categoryId:
+                                            type === 'category' ? id : null,
+                                    });
+                                }}
+                                searchable
+                                value={scopeValue}
+                            />
+                            {state.range === 'custom' && (
+                                <form onSubmit={applyDates}>
+                                    <Group align="flex-end" wrap="wrap">
+                                        <TextInput
+                                            label="Start date"
+                                            max={endDate}
+                                            onChange={(event) =>
+                                                setStartDate(
+                                                    event.currentTarget.value,
+                                                )
+                                            }
+                                            required
+                                            type="date"
+                                            value={startDate}
+                                        />
+                                        <TextInput
+                                            label="End date"
+                                            max={
+                                                defaultCustomDates(Date.now())
+                                                    .endDate
+                                            }
+                                            min={startDate}
+                                            onChange={(event) =>
+                                                setEndDate(
+                                                    event.currentTarget.value,
+                                                )
+                                            }
+                                            required
+                                            type="date"
+                                            value={endDate}
+                                        />
+                                        <Button type="submit">
+                                            Apply dates
+                                        </Button>
+                                    </Group>
+                                </form>
+                            )}
+                        </Stack>
+                    </Paper>
+
+                    {charts.isPending && (
+                        <Stack gap="lg" aria-label="Loading charts">
+                            <SimpleGrid cols={{ base: 2, md: 4 }}>
+                                {['one', 'two', 'three', 'four'].map((key) => (
+                                    <Skeleton key={key} height={112} />
+                                ))}
+                            </SimpleGrid>
+                            <Skeleton height={340} />
+                            <Skeleton height={340} />
+                        </Stack>
+                    )}
+                    {charts.isError && (
+                        <Alert
+                            color="red"
+                            role="alert"
+                            title="Charts unavailable"
+                        >
+                            <Stack gap="sm" align="flex-start">
+                                <Text size="sm">{charts.error.message}</Text>
+                                <Button
+                                    leftSection={
+                                        <IconRefresh
+                                            aria-hidden="true"
+                                            size={16}
+                                        />
+                                    }
+                                    onClick={() => void charts.refetch()}
+                                    size="xs"
+                                    variant="light"
+                                >
+                                    Retry
+                                </Button>
+                            </Stack>
+                        </Alert>
+                    )}
+                    {charts.data !== undefined && (
+                        <Dashboard data={charts.data} />
+                    )}
+                </Stack>
+            </Container>
+        </ApplicationPage>
     );
 }

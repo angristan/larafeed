@@ -7,7 +7,7 @@ This inventory is the cutover contract. “Implemented” means the Cloudflare a
 | Legacy surface | Cloudflare disposition |
 | --- | --- |
 | Reader sidebar, feed/category scopes, unread/read/favorites filters | Implemented with D1-backed typed APIs and React Router URL state. |
-| Reader interface conveniences | Implemented with persistent system/light/dark themes, keyboard-accessible resizable desktop panes, J/K and search shortcuts, Shift+? help, Unicode-aware reading-time estimates, and friendly route/error recovery pages. |
+| Original product interface and reader conveniences | Preserved with the original Larafeed logo, 56px icon navigation, compact feed hierarchy, card-based entry list, article toolbar, shared settings shell, subscriptions table, persistent system/light/dark themes, keyboard-accessible resizable desktop panes, J/K and search shortcuts, Shift+? help, Unicode-aware reading-time estimates, and friendly route/error recovery pages. |
 | Entry list/detail, numbered pagination, read/unread, star/unstar, archive state | Implemented with sparse interactions and ingestion-ID read watermarks. Detail prefetch is side-effect-free. |
 | Mark feed as read | Implemented as an atomic read-through watermark update without user-by-entry writes. |
 | RSS, Atom, RDF, and JSON Feed refresh | Implemented with bounded secure fetch, parsing, sanitization, conditional requests, JSON Feed 1.0/1.1 discovery, Queues, Cron, durable jobs, outbox, retries, and DLQs. |
