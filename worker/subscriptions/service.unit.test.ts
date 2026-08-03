@@ -10,7 +10,11 @@ import {
     FeedSizeError,
     FeedTimeoutError,
 } from '../feeds/errors';
-import { SubscriptionFeedError, SubscriptionValidationError } from './errors';
+import {
+    SubscriptionFeedError,
+    SubscriptionInvariantError,
+    SubscriptionValidationError,
+} from './errors';
 import type { SubscriptionRepository } from './repository';
 import { makeSubscriptionService } from './service';
 
@@ -62,8 +66,7 @@ const repository = (
             }),
         updateSubscription: () => Effect.void,
         unsubscribe: () => Effect.void,
-        filterEntryCount: () => Effect.succeed(2),
-        filterHighWatermark: () => Effect.succeed(32),
+        filterEntryWindow: () => Effect.succeed({ total: 2, throughId: 32 }),
         listFilterCandidates: () =>
             Effect.succeed([
                 {
@@ -79,7 +82,7 @@ const repository = (
                     contentHtml: null,
                 },
             ]),
-        replaceFilteredEntries: () => Effect.void,
+        updateSubscriptionWithFilterRebuild: () => Effect.void,
         ...overrides,
     }) as SubscriptionRepository;
 
@@ -367,13 +370,13 @@ describe('subscription management service', () => {
         );
     });
 
-    it('rebuilds only sparse matching entries when filter rules change', async () => {
+    it('atomically stores rules with rebuilt sparse interactions', async () => {
         const updateSubscription = vi.fn(() => Effect.void);
-        const replaceFilteredEntries = vi.fn(() => Effect.void);
+        const updateSubscriptionWithFilterRebuild = vi.fn(() => Effect.void);
         const service = makeSubscriptionService({
             repository: repository({
                 updateSubscription,
-                replaceFilteredEntries,
+                updateSubscriptionWithFilterRebuild,
                 findSubscription: () =>
                     Effect.succeed({
                         ...baseSubscription,
@@ -402,21 +405,129 @@ describe('subscription management service', () => {
             }),
         );
 
-        expect(updateSubscription).toHaveBeenCalledWith(
+        expect(updateSubscription).not.toHaveBeenCalled();
+        expect(updateSubscriptionWithFilterRebuild).toHaveBeenCalledWith(
             7,
             21,
             11,
             'My feed',
             rules,
-            2_000,
-        );
-        expect(replaceFilteredEntries).toHaveBeenCalledWith(
-            7,
-            21,
             32,
             [31],
             2_000,
         );
+    });
+
+    it('does not persist rules after an interrupted scan and rebuilds on retry', async () => {
+        const updateSubscription = vi.fn(() => Effect.void);
+        const updateSubscriptionWithFilterRebuild = vi.fn(() => Effect.void);
+        const listFilterCandidates = vi
+            .fn()
+            .mockReturnValueOnce(
+                Effect.fail(
+                    new SubscriptionInvariantError({
+                        operation: 'test.interrupted',
+                    }),
+                ),
+            )
+            .mockReturnValue(
+                Effect.succeed([
+                    {
+                        id: 32,
+                        title: 'Sponsored post',
+                        author: null,
+                        contentHtml: null,
+                    },
+                ]),
+            );
+        const service = makeSubscriptionService({
+            repository: repository({
+                updateSubscription,
+                updateSubscriptionWithFilterRebuild,
+                listFilterCandidates,
+            }),
+            discoverFeed: () => Effect.die('unused'),
+            scheduleRefresh: () => Effect.die('unused'),
+            now: () => 2_000,
+        });
+        const input = {
+            categoryId: 11,
+            customFeedName: null,
+            filterRules: {
+                excludeTitle: ['sponsor'],
+                excludeContent: [],
+                excludeAuthor: [],
+            },
+        };
+
+        await expect(
+            Effect.runPromise(service.updateSubscription(7, 21, input)),
+        ).rejects.toBeInstanceOf(SubscriptionInvariantError);
+        expect(updateSubscription).not.toHaveBeenCalled();
+        expect(updateSubscriptionWithFilterRebuild).not.toHaveBeenCalled();
+
+        await expect(
+            Effect.runPromise(service.updateSubscription(7, 21, input)),
+        ).resolves.toMatchObject({ subscription: { feedId: 21 } });
+        expect(listFilterCandidates).toHaveBeenCalledTimes(2);
+        expect(updateSubscriptionWithFilterRebuild).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps maximum content rebuilds within 500 candidate queries', async () => {
+        const listFilterCandidates = vi.fn(
+            (
+                _userId: number,
+                _feedId: number,
+                afterId: number,
+                throughId: number,
+                limit: number,
+            ) =>
+                Effect.succeed(
+                    Array.from(
+                        { length: Math.min(limit, throughId - afterId) },
+                        (_, index) => ({
+                            id: afterId + index + 1,
+                            title: 'Ordinary post',
+                            author: null,
+                            contentHtml: 'Body',
+                        }),
+                    ),
+                ),
+        );
+        const updateSubscriptionWithFilterRebuild = vi.fn(() => Effect.void);
+        const service = makeSubscriptionService({
+            repository: repository({
+                filterEntryWindow: () =>
+                    Effect.succeed({ total: 10_000, throughId: 10_000 }),
+                listFilterCandidates,
+                updateSubscriptionWithFilterRebuild,
+            }),
+            discoverFeed: () => Effect.die('unused'),
+            scheduleRefresh: () => Effect.die('unused'),
+        });
+
+        await Effect.runPromise(
+            service.updateSubscription(7, 21, {
+                categoryId: 11,
+                customFeedName: null,
+                filterRules: {
+                    excludeTitle: [],
+                    excludeContent: ['sponsor'],
+                    excludeAuthor: [],
+                },
+            }),
+        );
+
+        expect(listFilterCandidates).toHaveBeenCalledTimes(500);
+        expect(listFilterCandidates).toHaveBeenLastCalledWith(
+            7,
+            21,
+            9_980,
+            10_000,
+            20,
+            true,
+        );
+        expect(updateSubscriptionWithFilterRebuild).toHaveBeenCalledTimes(1);
     });
 
     it('rejects out-of-bounds filters before changing subscription state', async () => {

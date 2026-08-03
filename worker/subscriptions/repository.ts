@@ -65,13 +65,15 @@ const FilterCandidateRow = Schema.Struct({
     author: Schema.NullOr(Schema.String),
     content_html: Schema.NullOr(Schema.String),
 });
-const TotalRow = Schema.Struct({
+const FilterWindowRow = Schema.Struct({
     total: Count,
-    subscription_exists: BooleanInt,
-});
-const MaxIdRow = Schema.Struct({
     max_id: Schema.NullOr(SafeId),
     subscription_exists: BooleanInt,
+});
+const FilterCommitStatusRow = Schema.Struct({
+    subscription_exists: BooleanInt,
+    category_exists: BooleanInt,
+    has_newer_entries: BooleanInt,
 });
 const FeedIdRow = Schema.Struct({ id: SafeId });
 
@@ -205,20 +207,11 @@ export interface SubscriptionRepository {
         | SubscriptionStorageError
         | SubscriptionInvariantError
     >;
-    readonly filterEntryCount: (
+    readonly filterEntryWindow: (
         userId: number,
         feedId: number,
     ) => Effect.Effect<
-        number,
-        | SubscriptionNotFound
-        | SubscriptionStorageError
-        | SubscriptionInvariantError
-    >;
-    readonly filterHighWatermark: (
-        userId: number,
-        feedId: number,
-    ) => Effect.Effect<
-        number | null,
+        { readonly total: number; readonly throughId: number | null },
         | SubscriptionNotFound
         | SubscriptionStorageError
         | SubscriptionInvariantError
@@ -234,15 +227,21 @@ export interface SubscriptionRepository {
         readonly SubscriptionFilterCandidate[],
         SubscriptionStorageError | SubscriptionInvariantError
     >;
-    readonly replaceFilteredEntries: (
+    readonly updateSubscriptionWithFilterRebuild: (
         userId: number,
         feedId: number,
+        categoryId: number,
+        customFeedName: string | null,
+        rules: SubscriptionFilterRules,
         throughId: number,
         matchedEntryIds: readonly number[],
         now: number,
     ) => Effect.Effect<
         void,
-        SubscriptionStorageError | SubscriptionInvariantError
+        | SubscriptionNotFound
+        | SubscriptionConflict
+        | SubscriptionStorageError
+        | SubscriptionInvariantError
     >;
 }
 
@@ -827,54 +826,31 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                     return yield* Effect.fail(invariant(operation));
             }),
 
-        filterEntryCount: (userId, feedId) =>
+        filterEntryWindow: (userId, feedId) =>
             Effect.gen(function* () {
-                const operation = 'subscriptions.filter.count';
+                const operation = 'subscriptions.filter.window';
                 const row = yield* mapStorage(
                     operation,
                     d1.first({
                         sql: `SELECT
                             (SELECT COUNT(*) FROM entries e
                                 WHERE e.feed_id = ?) AS total,
-                            CASE WHEN EXISTS (
-                                SELECT 1 FROM feed_subscriptions fs
-                                WHERE fs.user_id = ? AND fs.feed_id = ?
-                            ) THEN 1 ELSE 0 END AS subscription_exists`,
-                        bindings: [feedId, userId, feedId],
-                    }),
-                );
-                if (row === null)
-                    return yield* Effect.fail(invariant(operation));
-                const decoded = yield* decode(operation, TotalRow, row);
-                if (decoded.subscription_exists === 0) {
-                    return yield* Effect.fail(new SubscriptionNotFound());
-                }
-                return decoded.total;
-            }),
-
-        filterHighWatermark: (userId, feedId) =>
-            Effect.gen(function* () {
-                const operation = 'subscriptions.filter.highWatermark';
-                const row = yield* mapStorage(
-                    operation,
-                    d1.first({
-                        sql: `SELECT
                             (SELECT MAX(e.id) FROM entries e
                                 WHERE e.feed_id = ?) AS max_id,
                             CASE WHEN EXISTS (
                                 SELECT 1 FROM feed_subscriptions fs
                                 WHERE fs.user_id = ? AND fs.feed_id = ?
                             ) THEN 1 ELSE 0 END AS subscription_exists`,
-                        bindings: [feedId, userId, feedId],
+                        bindings: [feedId, feedId, userId, feedId],
                     }),
                 );
                 if (row === null)
                     return yield* Effect.fail(invariant(operation));
-                const decoded = yield* decode(operation, MaxIdRow, row);
+                const decoded = yield* decode(operation, FilterWindowRow, row);
                 if (decoded.subscription_exists === 0) {
                     return yield* Effect.fail(new SubscriptionNotFound());
                 }
-                return decoded.max_id;
+                return { total: decoded.total, throughId: decoded.max_id };
             }),
 
         listFilterCandidates: (
@@ -919,33 +895,91 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                 }));
             }),
 
-        replaceFilteredEntries: (
+        updateSubscriptionWithFilterRebuild: (
             userId,
             feedId,
+            categoryId,
+            customFeedName,
+            rules,
             throughId,
             matchedEntryIds,
             now,
         ) =>
             Effect.gen(function* () {
-                const operation = 'subscriptions.filter.replace';
+                const operation = 'subscriptions.filter.commit';
                 const idsJson = JSON.stringify(matchedEntryIds);
+                const noNewerEntries = `NOT EXISTS (
+                    SELECT 1 FROM entries newer
+                    WHERE newer.feed_id = ? AND newer.id > ?
+                )`;
+                const ownedSubscription = `EXISTS (
+                    SELECT 1 FROM feed_subscriptions fs
+                    JOIN subscription_categories c
+                      ON c.user_id = fs.user_id AND c.id = ?
+                    WHERE fs.user_id = ? AND fs.feed_id = ?
+                      AND ${noNewerEntries}
+                )`;
                 const results = yield* mapStorage(
                     operation,
                     d1.batch([
+                        {
+                            sql: `UPDATE feed_subscriptions
+                                SET category_id = ?, custom_feed_name = ?,
+                                    filter_rules_json = ?, updated_at = ?
+                                WHERE user_id = ? AND feed_id = ?
+                                  AND EXISTS (
+                                    SELECT 1 FROM subscription_categories c
+                                    WHERE c.user_id = ? AND c.id = ?
+                                  )
+                                  AND ${noNewerEntries}`,
+                            bindings: [
+                                categoryId,
+                                customFeedName,
+                                serializeFilterRules(rules),
+                                now,
+                                userId,
+                                feedId,
+                                userId,
+                                categoryId,
+                                feedId,
+                                throughId,
+                            ],
+                        },
                         {
                             sql: `DELETE FROM entry_interactions
                                 WHERE user_id = ? AND feed_id = ?
                                   AND entry_id <= ? AND filtered_at IS NOT NULL
                                   AND read_override IS NULL
-                                  AND starred_at IS NULL AND archived_at IS NULL`,
-                            bindings: [userId, feedId, throughId],
+                                  AND starred_at IS NULL AND archived_at IS NULL
+                                  AND ${ownedSubscription}`,
+                            bindings: [
+                                userId,
+                                feedId,
+                                throughId,
+                                categoryId,
+                                userId,
+                                feedId,
+                                feedId,
+                                throughId,
+                            ],
                         },
                         {
                             sql: `UPDATE entry_interactions
                                 SET filtered_at = NULL, updated_at = ?
                                 WHERE user_id = ? AND feed_id = ?
-                                  AND entry_id <= ? AND filtered_at IS NOT NULL`,
-                            bindings: [now, userId, feedId, throughId],
+                                  AND entry_id <= ? AND filtered_at IS NOT NULL
+                                  AND ${ownedSubscription}`,
+                            bindings: [
+                                now,
+                                userId,
+                                feedId,
+                                throughId,
+                                categoryId,
+                                userId,
+                                feedId,
+                                feedId,
+                                throughId,
+                            ],
                         },
                         {
                             sql: `INSERT INTO entry_interactions
@@ -958,7 +992,7 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                                 JOIN entries e
                                     ON e.id = CAST(ids.value AS INTEGER)
                                    AND e.feed_id = ?
-                                WHERE 1
+                                WHERE ${ownedSubscription}
                                 ON CONFLICT(user_id, entry_id) DO UPDATE SET
                                     filtered_at = excluded.filtered_at,
                                     updated_at = excluded.updated_at`,
@@ -970,13 +1004,79 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                                 now,
                                 idsJson,
                                 feedId,
+                                categoryId,
+                                userId,
+                                feedId,
+                                feedId,
+                                throughId,
                             ],
                         },
                     ]),
                 );
-                for (const result of results) {
-                    yield* changeCount(operation, result);
+                const subscriptionChanges = yield* changeCount(
+                    operation,
+                    results[0],
+                );
+                const interactionChanges = yield* Effect.forEach(
+                    results.slice(1),
+                    (result) => changeCount(operation, result),
+                );
+                if (subscriptionChanges === 1) return;
+                if (
+                    subscriptionChanges > 1 ||
+                    interactionChanges.some((changes) => changes !== 0)
+                ) {
+                    return yield* Effect.fail(invariant(operation));
                 }
+
+                const statusRow = yield* mapStorage(
+                    operation,
+                    d1.first({
+                        sql: `SELECT
+                            CASE WHEN EXISTS (
+                                SELECT 1 FROM feed_subscriptions
+                                WHERE user_id = ? AND feed_id = ?
+                            ) THEN 1 ELSE 0 END AS subscription_exists,
+                            CASE WHEN EXISTS (
+                                SELECT 1 FROM subscription_categories
+                                WHERE user_id = ? AND id = ?
+                            ) THEN 1 ELSE 0 END AS category_exists,
+                            CASE WHEN EXISTS (
+                                SELECT 1 FROM entries
+                                WHERE feed_id = ? AND id > ?
+                            ) THEN 1 ELSE 0 END AS has_newer_entries`,
+                        bindings: [
+                            userId,
+                            feedId,
+                            userId,
+                            categoryId,
+                            feedId,
+                            throughId,
+                        ],
+                    }),
+                );
+                if (statusRow === null) {
+                    return yield* Effect.fail(invariant(operation));
+                }
+                const status = yield* decode(
+                    operation,
+                    FilterCommitStatusRow,
+                    statusRow,
+                );
+                if (
+                    status.subscription_exists === 0 ||
+                    status.category_exists === 0
+                ) {
+                    return yield* Effect.fail(new SubscriptionNotFound());
+                }
+                if (status.has_newer_entries === 1) {
+                    return yield* Effect.fail(
+                        new SubscriptionConflict({
+                            reason: 'filter_rebuild_stale',
+                        }),
+                    );
+                }
+                return yield* Effect.fail(invariant(operation));
             }),
     };
 };

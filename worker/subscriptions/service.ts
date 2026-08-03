@@ -26,7 +26,9 @@ import {
 import type { SubscriptionRepository } from './repository';
 
 export const MAX_FILTER_REAPPLY_ENTRIES = 10_000;
-const FILTER_PAGE_SIZE_WITH_CONTENT = 10;
+// At the 10,000-entry cap, content rebuilds use at most 500 reads.
+// This leaves ample room below D1's 1,000-query paid invocation limit.
+const FILTER_PAGE_SIZE_WITH_CONTENT = 20;
 const FILTER_PAGE_SIZE_WITHOUT_CONTENT = 100;
 
 export interface SubscriptionServiceDependencies {
@@ -106,23 +108,20 @@ export const makeSubscriptionService = (
     const rebuildFilters = (
         userId: number,
         feedId: number,
+        categoryId: number,
+        customFeedName: string | null,
         rules: SubscriptionFilterRules,
     ) =>
         Effect.gen(function* () {
-            const total = yield* repository.filterEntryCount(userId, feedId);
-            if (total > MAX_FILTER_REAPPLY_ENTRIES) {
+            const window = yield* repository.filterEntryWindow(userId, feedId);
+            if (window.total > MAX_FILTER_REAPPLY_ENTRIES) {
                 return yield* Effect.fail(
                     new SubscriptionConflict({
                         reason: 'filter_rebuild_too_large',
                     }),
                 );
             }
-            const throughId = yield* repository.filterHighWatermark(
-                userId,
-                feedId,
-            );
-            if (throughId === null) return;
-
+            const throughId = window.throughId ?? 0;
             const compiled = compileFilterRules(rules);
             const includeContent = rules.excludeContent.length > 0;
             const pageSize = includeContent
@@ -147,9 +146,12 @@ export const makeSubscriptionService = (
                 }
                 cursor = candidates.at(-1)?.id ?? throughId;
             }
-            yield* repository.replaceFilteredEntries(
+            yield* repository.updateSubscriptionWithFilterRebuild(
                 userId,
                 feedId,
+                categoryId,
+                customFeedName,
+                rules,
                 throughId,
                 matched,
                 now(),
@@ -306,29 +308,24 @@ export const makeSubscriptionService = (
                     current.filterRules,
                     input.filterRules,
                 );
+                const customFeedName = input.customFeedName?.trim() || null;
                 if (rulesChanged) {
-                    const total = yield* repository.filterEntryCount(
+                    yield* rebuildFilters(
                         userId,
                         feedId,
+                        input.categoryId,
+                        customFeedName,
+                        input.filterRules,
                     );
-                    if (total > MAX_FILTER_REAPPLY_ENTRIES) {
-                        return yield* Effect.fail(
-                            new SubscriptionConflict({
-                                reason: 'filter_rebuild_too_large',
-                            }),
-                        );
-                    }
-                }
-                yield* repository.updateSubscription(
-                    userId,
-                    feedId,
-                    input.categoryId,
-                    input.customFeedName?.trim() || null,
-                    input.filterRules,
-                    now(),
-                );
-                if (rulesChanged) {
-                    yield* rebuildFilters(userId, feedId, input.filterRules);
+                } else {
+                    yield* repository.updateSubscription(
+                        userId,
+                        feedId,
+                        input.categoryId,
+                        customFeedName,
+                        input.filterRules,
+                        now(),
+                    );
                 }
                 const subscription = yield* repository.findSubscription(
                     userId,

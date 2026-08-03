@@ -3,7 +3,7 @@ import { Effect } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import { makeD1 } from '../infrastructure/d1';
-import { SubscriptionNotFound } from './errors';
+import { SubscriptionConflict, SubscriptionNotFound } from './errors';
 import { makeSubscriptionRepository } from './repository';
 
 const d1 = makeD1(env.DB);
@@ -232,9 +232,16 @@ describe('subscription management D1 repository', () => {
         );
 
         await Effect.runPromise(
-            repository.replaceFilteredEntries(
+            repository.updateSubscriptionWithFilterRebuild(
                 owner,
                 feedId,
+                categoryId,
+                null,
+                {
+                    excludeTitle: ['Sponsored'],
+                    excludeContent: [],
+                    excludeAuthor: [],
+                },
                 823_002,
                 [823_001, 823_002],
                 now + 1,
@@ -255,10 +262,59 @@ describe('subscription management D1 repository', () => {
             { entry_id: 823_002, starred_at: null },
         ]);
 
+        await expect(
+            Effect.runPromise(
+                repository.updateSubscriptionWithFilterRebuild(
+                    owner,
+                    feedId,
+                    999_999,
+                    'Must not persist',
+                    {
+                        excludeTitle: [],
+                        excludeContent: [],
+                        excludeAuthor: [],
+                    },
+                    823_002,
+                    [],
+                    now + 2,
+                ),
+            ),
+        ).rejects.toBeInstanceOf(SubscriptionNotFound);
+        await expect(
+            Effect.runPromise(repository.findSubscription(owner, feedId)),
+        ).resolves.toMatchObject({
+            customFeedName: null,
+            filterRules: {
+                excludeTitle: ['Sponsored'],
+                excludeContent: [],
+                excludeAuthor: [],
+            },
+        });
+        await expect(
+            Effect.runPromise(
+                d1.first<number>(
+                    {
+                        sql: `SELECT COUNT(*) AS total
+                            FROM entry_interactions
+                            WHERE user_id = ? AND filtered_at IS NOT NULL`,
+                        bindings: [owner],
+                    },
+                    'total',
+                ),
+            ),
+        ).resolves.toBe(2);
+
         await Effect.runPromise(
-            repository.replaceFilteredEntries(
+            repository.updateSubscriptionWithFilterRebuild(
                 owner,
                 feedId,
+                categoryId,
+                'Renamed filter feed',
+                {
+                    excludeTitle: [],
+                    excludeContent: [],
+                    excludeAuthor: [],
+                },
                 823_002,
                 [],
                 now + 2,
@@ -279,6 +335,48 @@ describe('subscription management D1 repository', () => {
         ).resolves.toEqual([
             { entry_id: 823_001, starred_at: now, filtered_at: null },
         ]);
+        await expect(
+            Effect.runPromise(repository.findSubscription(owner, feedId)),
+        ).resolves.toMatchObject({
+            customFeedName: 'Renamed filter feed',
+            filterRules: {
+                excludeTitle: [],
+                excludeContent: [],
+                excludeAuthor: [],
+            },
+        });
+
+        await insertEntry(823_003, feedId, 'Late entry');
+        await expect(
+            Effect.runPromise(
+                repository.updateSubscriptionWithFilterRebuild(
+                    owner,
+                    feedId,
+                    categoryId,
+                    'Stale rebuild',
+                    {
+                        excludeTitle: ['Late'],
+                        excludeContent: [],
+                        excludeAuthor: [],
+                    },
+                    823_002,
+                    [],
+                    now + 3,
+                ),
+            ),
+        ).rejects.toEqual(
+            new SubscriptionConflict({ reason: 'filter_rebuild_stale' }),
+        );
+        await expect(
+            Effect.runPromise(repository.findSubscription(owner, feedId)),
+        ).resolves.toMatchObject({
+            customFeedName: 'Renamed filter feed',
+            filterRules: {
+                excludeTitle: [],
+                excludeContent: [],
+                excludeAuthor: [],
+            },
+        });
 
         await expect(
             Effect.runPromise(

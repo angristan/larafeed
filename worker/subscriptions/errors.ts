@@ -18,6 +18,7 @@ export class SubscriptionConflict extends Schema.TaggedErrorClass<SubscriptionCo
             'category_in_use',
             'already_subscribed',
             'filter_rebuild_too_large',
+            'filter_rebuild_stale',
         ]),
     },
 ) {}
