@@ -25,6 +25,15 @@ export class OpmlRateLimitedError extends Error {
     }
 }
 
+export class OpmlFeatureDisabled extends Error {
+    readonly _tag = 'OpmlFeatureDisabled';
+
+    constructor() {
+        super('OPML imports are disabled');
+        this.name = 'OpmlFeatureDisabled';
+    }
+}
+
 export class OpmlStorageError extends Error {
     readonly _tag = 'OpmlStorageError';
 

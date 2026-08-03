@@ -5,6 +5,8 @@ import {
 } from '@shared/schemas/reader';
 import { Effect } from 'effect';
 
+import { rewriteArticleImageUrls } from '../images/article';
+import { ReaderInvariantError } from './errors';
 import type { ReaderEntryQuery, ReaderRepository } from './repository';
 
 export interface ReaderServiceDependencies {
@@ -52,7 +54,26 @@ export const makeReaderService = (dependencies: ReaderServiceDependencies) => {
                 ),
             ),
         findEntry: (userId: number, entryId: number) =>
-            repository.findEntry(userId, entryId),
+            repository.findEntry(userId, entryId).pipe(
+                Effect.flatMap((entry) =>
+                    entry.contentHtml === null
+                        ? Effect.succeed(entry)
+                        : Effect.tryPromise({
+                              try: async () => ({
+                                  ...entry,
+                                  contentHtml: await rewriteArticleImageUrls(
+                                      entry.id,
+                                      entry.contentHtml ?? '',
+                                      entry.url,
+                                  ),
+                              }),
+                              catch: () =>
+                                  new ReaderInvariantError({
+                                      operation: 'reader.entry.images',
+                                  }),
+                          }),
+                ),
+            ),
         setRead: (userId: number, entryId: number, desired: boolean) =>
             repository.setRead(userId, entryId, desired, currentTime()),
         setStarred: (userId: number, entryId: number, desired: boolean) =>

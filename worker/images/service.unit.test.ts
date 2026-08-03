@@ -65,6 +65,10 @@ describe('feed image service', () => {
             preset: 'medium',
             accept: 'image/webp,*/*',
         });
+        await service.transformArticleImage({
+            sourceUrl: 'https://images.example.test/article.png',
+            accept: 'image/webp,*/*',
+        });
 
         expect(binding.transformer.transform).toHaveBeenNthCalledWith(1, {
             width: 32,
@@ -76,6 +80,10 @@ describe('feed image service', () => {
             height: 64,
             fit: 'cover',
         });
+        expect(binding.transformer.transform).toHaveBeenNthCalledWith(3, {
+            width: 1_600,
+            fit: 'scale-down',
+        });
         expect(binding.output).toHaveBeenNthCalledWith(1, {
             format: 'image/avif',
             quality: 80,
@@ -84,6 +92,11 @@ describe('feed image service', () => {
         expect(binding.output).toHaveBeenNthCalledWith(2, {
             format: 'image/webp',
             quality: 80,
+            anim: false,
+        });
+        expect(binding.output).toHaveBeenNthCalledWith(3, {
+            format: 'image/webp',
+            quality: 85,
             anim: false,
         });
         expect(fetch).toHaveBeenCalledWith(

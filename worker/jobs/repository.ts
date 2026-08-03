@@ -12,12 +12,14 @@ import {
     type ClaimRefreshJobResult,
     type CommitRefreshInput,
     type CreateRefreshJobInput,
+    DEFAULT_REFRESH_INTERVAL_MS,
     type DueFeed,
     FEED_REFRESH_JOB_KIND,
     FEED_REFRESH_TOPIC,
     type FeedRefreshInput,
     type JobState,
     type LeasedOutboxMessage,
+    MAX_BACKOFF_MS,
     MAX_CONTENT_BYTES,
     MAX_DUE_FEEDS,
     MAX_ERROR_CLASS_LENGTH,
@@ -844,8 +846,10 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             sql: `UPDATE feeds
                 SET name = COALESCE(?, name),
                     site_url = CASE WHEN ? = 1 THEN ? ELSE site_url END,
+                    favicon_updated_at = CASE
+                        WHEN ? = 1 AND favicon_url IS NOT ? THEN NULL
+                        ELSE favicon_updated_at END,
                     favicon_url = CASE WHEN ? = 1 THEN ? ELSE favicon_url END,
-                    favicon_updated_at = CASE WHEN ? = 1 THEN ? ELSE favicon_updated_at END,
                     etag = ?, last_modified = ?, consecutive_failures = 0,
                     is_gone = 0,
                     last_attempt_at = ?, last_successful_refresh_at = ?,
@@ -865,7 +869,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 input.faviconUrl === undefined ? 0 : 1,
                 input.faviconUrl ?? null,
                 input.faviconUrl === undefined ? 0 : 1,
-                input.completedAt,
+                input.faviconUrl ?? null,
                 input.etag,
                 input.lastModified,
                 input.completedAt,
@@ -883,6 +887,37 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
 
         for (const entry of input.entries) {
             const contentStatus = entry.content.type;
+            if (entry.legacyUrlDeduplicationKey !== undefined) {
+                // Migrated entries used url:<article URL> and had no source ID.
+                // Promote that exact row to the parser's canonical ID identity so
+                // its primary key and user interactions survive the first refresh.
+                statements.push({
+                    sql: `UPDATE entries
+                        SET deduplication_key = ?, source_id = ?, updated_at = ?
+                        WHERE feed_id = ? AND deduplication_key = ?
+                          AND source_id IS NULL AND url = ?
+                          AND NOT EXISTS (
+                            SELECT 1 FROM entries canonical
+                            WHERE canonical.feed_id = ?
+                              AND canonical.deduplication_key = ?
+                          )
+                          AND EXISTS (
+                            SELECT 1 FROM jobs j WHERE ${leasePredicate}
+                          )`,
+                    bindings: [
+                        entry.deduplicationKey,
+                        entry.sourceId,
+                        input.completedAt,
+                        input.claim.feedId,
+                        entry.legacyUrlDeduplicationKey,
+                        entry.url,
+                        input.claim.feedId,
+                        entry.deduplicationKey,
+                        ...conditionBindings,
+                    ],
+                });
+                mutationKinds.push('atMostOne');
+            }
             statements.push({
                 sql: `INSERT INTO entries (
                         id, feed_id, deduplication_key, source_id, title, url,
@@ -1128,6 +1163,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             !input.retryable ||
             input.claim.attemptCount >= input.claim.maxAttempts;
         const state = terminal ? 'dead_lettered' : 'failed';
+        const nextRefreshAt = Math.max(input.failedAt, input.retryAt);
         const klass = errorClass(input.errorClass);
         const message = errorMessage(input.errorMessage);
         const conditionBindings = [
@@ -1141,8 +1177,16 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     SET consecutive_failures = consecutive_failures + 1,
                         is_gone = CASE WHEN ? = 1 THEN 1 ELSE is_gone END,
                         last_attempt_at = ?, last_failed_refresh_at = ?,
-                        next_refresh_at = ?, last_error_class = ?,
-                        last_error_message = ?,
+                        next_refresh_at = CASE WHEN ? = 1 THEN
+                            MAX(?, ? + CASE
+                                WHEN consecutive_failures <= 0 THEN ?
+                                WHEN consecutive_failures = 1 THEN ?
+                                WHEN consecutive_failures = 2 THEN ?
+                                WHEN consecutive_failures = 3 THEN ?
+                                WHEN consecutive_failures = 4 THEN ?
+                                ELSE ? END)
+                            ELSE ? END,
+                        last_error_class = ?, last_error_message = ?,
                         updated_at = ?
                     WHERE id = ? AND EXISTS (
                         SELECT 1 FROM jobs j WHERE ${leasePredicate}
@@ -1151,7 +1195,16 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     input.markGone === true ? 1 : 0,
                     input.failedAt,
                     input.failedAt,
-                    Math.max(input.failedAt, input.retryAt),
+                    terminal ? 1 : 0,
+                    input.retryAt,
+                    input.failedAt,
+                    DEFAULT_REFRESH_INTERVAL_MS,
+                    DEFAULT_REFRESH_INTERVAL_MS * 2,
+                    DEFAULT_REFRESH_INTERVAL_MS * 4,
+                    DEFAULT_REFRESH_INTERVAL_MS * 8,
+                    DEFAULT_REFRESH_INTERVAL_MS * 16,
+                    MAX_BACKOFF_MS,
+                    nextRefreshAt,
                     klass,
                     message,
                     input.failedAt,
@@ -1191,9 +1244,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 WHERE ${directLeasePredicate}`,
             bindings: [
                 state,
-                terminal
-                    ? input.failedAt
-                    : Math.max(input.failedAt, input.retryAt),
+                terminal ? input.failedAt : nextRefreshAt,
                 terminal ? input.failedAt : null,
                 klass,
                 message,

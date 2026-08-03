@@ -65,7 +65,8 @@ func TestEntryAndContentTransformUnicodeQuotesAndOversize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stored == nil || stored.Values[3].Int != int64(len([]byte(content))) || len(stored.Values[2].Hex) != 64 {
+	sanitizedContent := sanitizeEntryContent(content)
+	if stored == nil || stored.Values[1].Text != sanitizedContent || stored.Values[3].Int != int64(len([]byte(sanitizedContent))) || len(stored.Values[2].Hex) != 64 {
 		t.Fatalf("stored content = %#v", stored)
 	}
 
@@ -84,6 +85,97 @@ func TestEntryAndContentTransformUnicodeQuotesAndOversize(t *testing.T) {
 	}
 	if stored != nil {
 		t.Fatal("oversized content must not produce entry_contents row")
+	}
+}
+
+func TestEntryContentClassificationUsesSanitizedSize(t *testing.T) {
+	t.Parallel()
+
+	t.Run("active content removed before classification", func(t *testing.T) {
+		content := `<p>kept</p><script>` + strings.Repeat("x", maxContentBytes) + `</script>`
+		row := sourceRow{
+			"id": int64(8), "feed_id": int64(3), "title": "Entry", "url": "https://example.test/entry",
+			"content": content,
+		}
+
+		entry, err := entryRecord(row)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if entry.Values[9].Text != "stored" {
+			t.Fatalf("status = %q, want stored after removing oversized script", entry.Values[9].Text)
+		}
+		stored, err := entryContentRecord(row)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if stored == nil || stored.Values[1].Text != "<p>kept</p>" || stored.Values[3].Int != int64(len("<p>kept</p>")) {
+			t.Fatalf("stored sanitized content = %#v", stored)
+		}
+	})
+
+	t.Run("safe attributes added before classification", func(t *testing.T) {
+		prefix := `<a href="https://example.test/article">`
+		suffix := `</a>`
+		content := prefix + strings.Repeat("a", maxContentBytes-len(prefix)-len(suffix)) + suffix
+		if len(content) != maxContentBytes {
+			t.Fatalf("test fixture size = %d, want %d", len(content), maxContentBytes)
+		}
+		row := sourceRow{
+			"id": int64(9), "feed_id": int64(3), "title": "Entry", "url": "https://example.test/entry-2",
+			"content": content,
+		}
+
+		entry, err := entryRecord(row)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if entry.Values[9].Text != "oversized" {
+			t.Fatalf("status = %q, want oversized after adding safe link attributes", entry.Values[9].Text)
+		}
+		stored, err := entryContentRecord(row)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if stored != nil {
+			t.Fatal("sanitized oversized content must not produce entry_contents row")
+		}
+	})
+}
+
+func TestEntryContentSanitizationAndHashAreDeterministic(t *testing.T) {
+	t.Parallel()
+
+	row := sourceRow{
+		"id": int64(10), "feed_id": int64(3), "title": "Résumé", "url": "https://example.test/deterministic",
+		"content": `<p>Hello <strong>世界</strong> &amp; café.</p><script>alert(1)</script>` +
+			`<a href="https://example.test/x">Lire</a>`,
+	}
+	first, err := entryContentRecord(row)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := entryContentRecord(row)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == nil || second == nil {
+		t.Fatal("sanitized content was unexpectedly omitted")
+	}
+
+	const expectedContent = `<p>Hello <strong>世界</strong> &amp; café.</p><a href="https://example.test/x" rel="nofollow noopener noreferrer" target="_blank">Lire</a>`
+	const expectedHash = "39dd8b68c18e1ed9ef785cd55b845d8cad0603253770a4d3fd22d7400a8f3454"
+	if first.Values[1].Text != expectedContent {
+		t.Fatalf("content = %q, want %q", first.Values[1].Text, expectedContent)
+	}
+	if first.Values[2].Hex != expectedHash {
+		t.Fatalf("content hash = %q, want %q", first.Values[2].Hex, expectedHash)
+	}
+	if !bytes.Equal(mustJSON(t, first), mustJSON(t, second)) {
+		t.Fatal("sanitized content transform or hash is not deterministic")
+	}
+	if first.Values[3].Int != int64(len([]byte(expectedContent))) {
+		t.Fatalf("encoded size = %d, want sanitized byte size %d", first.Values[3].Int, len([]byte(expectedContent)))
 	}
 }
 
@@ -148,6 +240,35 @@ func TestCredentialsHashSecretsAndNormalizeScopes(t *testing.T) {
 	serialized := string(mustJSON(t, fever))
 	if strings.Contains(serialized, "0123456789abcdef0123456789abcdef") || len(fever.Values[10].Hex) != 64 {
 		t.Fatal("raw Fever verifier leaked or was not SHA-256 hashed")
+	}
+}
+
+func TestSubscriptionFilterCompatibility(t *testing.T) {
+	t.Parallel()
+	base := sourceRow{
+		"user_id": int64(1), "feed_id": int64(2), "category_id": int64(3),
+		"filter_rules": `{"exclude_title":["", " paid "],"exclude_content":[],"exclude_author":[]}`,
+	}
+	if _, err := subscriptionRecord(base); err != nil {
+		t.Fatalf("compatible legacy filters: %v", err)
+	}
+
+	tooMany := make([]string, maxFilterPatternsPerField+1)
+	for index := range tooMany {
+		tooMany[index] = "pattern"
+	}
+	encoded, err := json.Marshal(map[string]any{"exclude_title": tooMany})
+	if err != nil {
+		t.Fatal(err)
+	}
+	base["filter_rules"] = encoded
+	if _, err = subscriptionRecord(base); err == nil || !strings.Contains(err.Error(), "target limit") {
+		t.Fatalf("too-many-pattern error = %v", err)
+	}
+
+	base["filter_rules"] = `{"exclude_content":["` + strings.Repeat("x", maxFilterPatternLength+1) + `"]}`
+	if _, err = subscriptionRecord(base); err == nil || !strings.Contains(err.Error(), "UTF-16") {
+		t.Fatalf("oversized-pattern error = %v", err)
 	}
 }
 

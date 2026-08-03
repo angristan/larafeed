@@ -145,13 +145,24 @@ func (e *exporter) exportEntries(ctx context.Context) error {
 		EXISTS (SELECT 1 FROM entries prior WHERE prior.feed_id = e.feed_id
 			AND prior.url = e.url AND prior.id < e.id) AS has_earlier_url_duplicate
 		FROM entries e WHERE e.id > $1 ORDER BY e.id LIMIT $2`
-	return e.keyset(ctx, "entries", query, func(row sourceRow) error {
+	var oversizedContents int64
+	err := e.keyset(ctx, "entries", query, func(row sourceRow) error {
 		record, err := entryRecord(row)
 		if err != nil {
 			return fmt.Errorf("transform entry: %w", err)
 		}
+		if record.Values[9].Text == "oversized" {
+			oversizedContents++
+		}
 		return e.writer.append("entries", record, nullableInt(row["id"]))
 	})
+	if err != nil {
+		return err
+	}
+	if oversizedContents > 0 {
+		e.warnings = append(e.warnings, fmt.Sprintf("%d rows: sanitized entry contents exceed the target limit and are omitted.", oversizedContents))
+	}
+	return nil
 }
 
 func (e *exporter) exportEntryContents(ctx context.Context) error {
@@ -525,13 +536,12 @@ func inspectMetadata(ctx context.Context, tx pgx.Tx, columns map[string]map[stri
 		"Users must enroll passkeys after cutover; deterministic WebAuthn handles are identifiers, not credentials.",
 		"Legacy interaction rows are compressed into per-subscription ingestion-ID watermarks plus sparse overrides.",
 	}
-	var oversized, duplicateURLs, unsupportedTokens, emailCollisions int64
+	var duplicateURLs, unsupportedTokens, emailCollisions int64
 	checks := []struct {
 		query   string
 		target  *int64
 		message string
 	}{
-		{`SELECT COUNT(*) FROM entries WHERE content IS NOT NULL AND octet_length(content) > 1800000`, &oversized, "oversized entry contents are classified and omitted"},
 		{`SELECT COALESCE(SUM(rows - 1), 0) FROM (SELECT COUNT(*) AS rows FROM entries GROUP BY feed_id, url HAVING COUNT(*) > 1) grouped`, &duplicateURLs, "duplicate feed URLs use legacy-ID deduplication fallbacks after the first row"},
 		{`SELECT COUNT(*) FROM personal_access_tokens WHERE tokenable_type <> 'App\Models\User'
 			OR abilities IS NULL OR NOT (abilities::jsonb ?| ARRAY['reader-api', '*'])`, &unsupportedTokens, "unsupported personal access tokens are omitted"},

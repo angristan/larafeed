@@ -196,7 +196,7 @@ export function ReaderEntryList({
                 })}
             </ScrollArea>
 
-            {page !== undefined && page.pagination.totalPages > 1 && (
+            {page !== undefined && (
                 <>
                     <Divider />
                     <div style={{ display: 'flex', justifyContent: 'center' }}>

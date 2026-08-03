@@ -16,11 +16,14 @@
         "AI_MODEL": "gemini-2.5-flash",
         "REFRESH_SCHEDULER_ENABLED": "true",
         "REFRESH_DISPATCH_ENABLED": "true",
-        "REFRESH_DUE_LIMIT": "10"
+        "REFRESH_DUE_LIMIT": "10",
+        "OPML_IMPORT_ENABLED": "true",
+        "FAVICON_REFRESH_ENABLED": "true",
+        "IMAGES_ENABLED": "true"
     },
     "assets": {
         "not_found_handling": "single-page-application",
-        "run_worker_first": ["/api/*"]
+        "run_worker_first": ["/api/*", "/export"]
     },
     "images": { "binding": "IMAGES" },
     "d1_databases": [
@@ -99,7 +102,10 @@
                 "AI_MODEL": "gemini-2.5-flash",
                 "REFRESH_SCHEDULER_ENABLED": "false",
                 "REFRESH_DISPATCH_ENABLED": "false",
-                "REFRESH_DUE_LIMIT": "5"
+                "REFRESH_DUE_LIMIT": "5",
+                "OPML_IMPORT_ENABLED": "false",
+                "FAVICON_REFRESH_ENABLED": "false",
+                "IMAGES_ENABLED": "true"
             },
             "routes": [
                 {

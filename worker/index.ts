@@ -6,6 +6,7 @@ import {
     handleOpmlDeadLetterQueue,
     handleOpmlQueue,
     makeDefaultOpmlOrchestrator,
+    opmlImportEnabled,
 } from './opml';
 import { handleRefreshCron, handleRefreshQueue } from './refresh/handlers';
 
@@ -29,7 +30,9 @@ export default {
     },
     scheduled: async (controller, env) => {
         await handleRefreshCron(controller, env);
-        await handleOpmlCron(makeDefaultOpmlOrchestrator(env));
+        await handleOpmlCron(makeDefaultOpmlOrchestrator(env), {
+            dispatchEnabled: opmlImportEnabled(env),
+        });
         await handleFaviconCron(env);
     },
 } satisfies ExportedHandler<Env, RefreshQueueMessage>;

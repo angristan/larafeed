@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { OpmlValidationError } from './errors';
 import { parseOpml } from './parser';
+import { flattenCategoryPath } from './repository';
 
 describe('parseOpml', () => {
     it('flattens nested categories and keeps the first duplicate URL', () => {
@@ -34,6 +35,17 @@ describe('parseOpml', () => {
                 categoryPath: [],
             },
         ]);
+    });
+
+    it('bounds deeply nested category names to the wire limit', () => {
+        const flattened = flattenCategoryPath([
+            'a'.repeat(120),
+            'b'.repeat(120),
+            'c'.repeat(120),
+        ]);
+
+        expect(flattened).toHaveLength(255);
+        expect(flattened).toContain(' / ');
     });
 
     it.each([

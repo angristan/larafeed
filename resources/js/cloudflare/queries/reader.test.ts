@@ -1,5 +1,5 @@
-import { QueryClient } from '@tanstack/react-query';
-import { describe, expect, it } from 'vitest';
+import { QueryClient, QueryObserver } from '@tanstack/react-query';
+import { describe, expect, it, vi } from 'vitest';
 
 import type {
     ReaderEntry,
@@ -164,9 +164,17 @@ describe('reader query contracts', () => {
         });
     });
 
-    it('invalidates list, counts, and subscriptions without categories', async () => {
-        const queryClient = new QueryClient();
-        queryClient.setQueryData(entryKeys.list(listInput), page);
+    it('keeps retained lists stable while invalidating counts', async () => {
+        const queryClient = new QueryClient({
+            defaultOptions: { queries: { retry: false } },
+        });
+        const queryFn = vi.fn(() => Promise.resolve(page));
+        const observer = new QueryObserver(queryClient, {
+            queryKey: entryKeys.list(listInput),
+            queryFn,
+        });
+        const unsubscribe = observer.subscribe(() => undefined);
+        await observer.refetch();
         queryClient.setQueryData(readerKeys.counts(), { total: 1 });
         queryClient.setQueryData(subscriptionKeys.list(), {
             subscriptions: [],
@@ -175,9 +183,11 @@ describe('reader query contracts', () => {
 
         await invalidateReaderAfterInteraction(queryClient);
 
+        expect(queryFn).toHaveBeenCalledTimes(1);
+        expect(observer.getCurrentResult().data).toEqual(page);
         expect(
             queryClient.getQueryState(entryKeys.list(listInput))?.isInvalidated,
-        ).toBe(true);
+        ).toBe(false);
         expect(
             queryClient.getQueryState(readerKeys.counts())?.isInvalidated,
         ).toBe(true);
@@ -187,6 +197,7 @@ describe('reader query contracts', () => {
         expect(
             queryClient.getQueryState(categoryKeys.list())?.isInvalidated,
         ).toBe(false);
+        unsubscribe();
     });
 
     it('serializes all interaction kinds for the same entry', () => {

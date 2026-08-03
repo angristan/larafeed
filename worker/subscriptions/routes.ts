@@ -18,7 +18,7 @@ import { type AuthRuntime, defaultAuthRuntimeFactory } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
 import { makeFeedRefreshService } from '../feeds';
 import { makeD1 } from '../infrastructure/d1';
-import { makeRefreshRuntime } from '../refresh/runtime';
+import { makeRefreshRuntime, type RefreshRuntime } from '../refresh/runtime';
 import {
     SubscriptionRateLimited,
     SubscriptionStorageError,
@@ -51,6 +51,25 @@ export type SubscriptionRuntimeFactory = (
 export interface SubscriptionRouteDependencies {
     readonly runtimeFactory?: SubscriptionRuntimeFactory;
 }
+
+interface SubscriptionRefreshRuntime {
+    readonly config: Pick<RefreshRuntime['config'], 'dispatchEnabled'>;
+    readonly orchestrator: Pick<
+        RefreshRuntime['orchestrator'],
+        'createManualRefresh' | 'dispatchOutbox'
+    >;
+}
+
+export const scheduleSubscriptionRefresh = async (
+    refresh: SubscriptionRefreshRuntime,
+    feedId: number,
+): Promise<{ readonly operationId: string }> => {
+    const created = await refresh.orchestrator.createManualRefresh(feedId);
+    if (refresh.config.dispatchEnabled) {
+        await refresh.orchestrator.dispatchOutbox(1);
+    }
+    return { operationId: created.operationId };
+};
 
 const logFeedDiscoveryFailure = (rawUrl: string, error: unknown) =>
     Effect.sync(() => {
@@ -98,16 +117,8 @@ export const defaultSubscriptionRuntimeFactory: SubscriptionRuntimeFactory = (
                             ),
                     scheduleRefresh: (feedId) =>
                         Effect.tryPromise({
-                            try: async () => {
-                                const created =
-                                    await refresh.orchestrator.createManualRefresh(
-                                        feedId,
-                                    );
-                                await refresh.orchestrator.dispatchOutbox(1);
-                                return {
-                                    operationId: created.operationId,
-                                };
-                            },
+                            try: () =>
+                                scheduleSubscriptionRefresh(refresh, feedId),
                             catch: (cause) =>
                                 new SubscriptionStorageError({
                                     operation: 'subscriptions.scheduleRefresh',

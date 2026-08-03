@@ -52,6 +52,10 @@ const dateTime = new Intl.DateTimeFormat(undefined, {
     dateStyle: 'medium',
     timeStyle: 'short',
 });
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
+const DISPLAY_NAME_ERROR = 'Display name must be between 1 and 255 characters';
+const EMAIL_ERROR = 'Enter a valid email address';
+const EMAIL_CONFLICT_ERROR = 'Email address is already in use';
 
 function ErrorAlert({
     error,
@@ -73,20 +77,68 @@ function ProfileSection() {
     const mutation = useMutation(updateAccountMutationOptions(queryClient));
     const [displayName, setDisplayName] = useState<string | null>(null);
     const [email, setEmail] = useState<string | null>(null);
+    const [displayNameTouched, setDisplayNameTouched] = useState(false);
+    const [emailTouched, setEmailTouched] = useState(false);
+    const displayNameInput = useRef<HTMLInputElement>(null);
+    const emailInput = useRef<HTMLInputElement>(null);
 
     const currentDisplayName = displayName ?? profile.data?.displayName ?? '';
     const currentEmail = email ?? profile.data?.email ?? '';
+    const normalizedDisplayName = currentDisplayName.trim();
+    const normalizedEmail = currentEmail.trim();
+    const displayNameError =
+        normalizedDisplayName.length < 1 || normalizedDisplayName.length > 255
+            ? DISPLAY_NAME_ERROR
+            : undefined;
+    const emailError =
+        normalizedEmail.length > 320 || !EMAIL_PATTERN.test(normalizedEmail)
+            ? EMAIL_ERROR
+            : undefined;
+    const serverDisplayNameError =
+        mutation.error?.message === DISPLAY_NAME_ERROR
+            ? DISPLAY_NAME_ERROR
+            : undefined;
+    const serverEmailError =
+        mutation.error?.message === EMAIL_ERROR
+            ? EMAIL_ERROR
+            : mutation.error?.message === EMAIL_CONFLICT_ERROR
+              ? EMAIL_CONFLICT_ERROR
+              : undefined;
+    const hasFieldServerError =
+        serverDisplayNameError !== undefined || serverEmailError !== undefined;
     const submit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        setDisplayNameTouched(true);
+        setEmailTouched(true);
+        if (displayNameError !== undefined) {
+            displayNameInput.current?.focus();
+            return;
+        }
+        if (emailError !== undefined) {
+            emailInput.current?.focus();
+            return;
+        }
         mutation.mutate(
             {
-                displayName: currentDisplayName.trim(),
-                email: currentEmail.trim(),
+                displayName: normalizedDisplayName,
+                email: normalizedEmail,
             },
             {
                 onSuccess: () => {
                     setDisplayName(null);
                     setEmail(null);
+                    setDisplayNameTouched(false);
+                    setEmailTouched(false);
+                },
+                onError: (error) => {
+                    if (error.message === DISPLAY_NAME_ERROR) {
+                        displayNameInput.current?.focus();
+                    } else if (
+                        error.message === EMAIL_ERROR ||
+                        error.message === EMAIL_CONFLICT_ERROR
+                    ) {
+                        emailInput.current?.focus();
+                    }
                 },
             },
         );
@@ -116,28 +168,42 @@ function ProfileSection() {
                             value={profile.data.username}
                         />
                         <TextInput
+                            error={
+                                serverDisplayNameError ??
+                                (displayNameTouched
+                                    ? displayNameError
+                                    : undefined)
+                            }
                             label="Display name"
-                            maxLength={200}
+                            maxLength={255}
+                            onBlur={() => setDisplayNameTouched(true)}
                             onChange={(event) => {
                                 setDisplayName(event.currentTarget.value);
                                 mutation.reset();
                             }}
+                            ref={displayNameInput}
                             required
                             value={currentDisplayName}
                         />
                         <TextInput
+                            error={
+                                serverEmailError ??
+                                (emailTouched ? emailError : undefined)
+                            }
                             label="Email"
                             maxLength={320}
+                            onBlur={() => setEmailTouched(true)}
                             onChange={(event) => {
                                 setEmail(event.currentTarget.value);
                                 mutation.reset();
                             }}
+                            ref={emailInput}
                             required
                             type="email"
                             value={currentEmail}
                         />
                         <ErrorAlert
-                            error={mutation.error}
+                            error={hasFieldServerError ? null : mutation.error}
                             title="Profile was not updated"
                         />
                         {mutation.isSuccess && (

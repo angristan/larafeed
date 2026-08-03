@@ -55,20 +55,45 @@ export const defaultAccountRuntimeFactory: AccountRuntimeFactory = (env) =>
 const decodeJson = <S extends Schema.ConstraintDecoder<unknown>>(
     request: Request,
     schema: S,
+    validationError: (value: unknown) => AccountValidationError = () =>
+        new AccountValidationError({}),
 ): Effect.Effect<S['Type'], AccountValidationError> =>
     Effect.tryPromise({
         try: async () => {
             const value: unknown = await request.json();
             return value;
         },
-        catch: () => new AccountValidationError(),
+        catch: () => new AccountValidationError({}),
     }).pipe(
         Effect.flatMap((value) =>
             Schema.decodeUnknownEffect(schema, { onExcessProperty: 'error' })(
                 value,
-            ).pipe(Effect.mapError(() => new AccountValidationError())),
+            ).pipe(Effect.mapError(() => validationError(value))),
         ),
     );
+
+const profileValidationError = (value: unknown): AccountValidationError => {
+    if (typeof value !== 'object' || value === null) {
+        return new AccountValidationError({});
+    }
+    const displayName = Reflect.get(value, 'displayName');
+    if (
+        typeof displayName !== 'string' ||
+        displayName.trim().length === 0 ||
+        displayName.trim().length > 255
+    ) {
+        return new AccountValidationError({ field: 'displayName' });
+    }
+    const email = Reflect.get(value, 'email');
+    if (
+        typeof email !== 'string' ||
+        email.trim().length === 0 ||
+        email.trim().length > 320
+    ) {
+        return new AccountValidationError({ field: 'email' });
+    }
+    return new AccountValidationError({});
+};
 const decodeId = (value: string) =>
     Schema.decodeUnknownEffect(SafePathId)(value).pipe(
         Effect.mapError(() => new AccountValidationError()),
@@ -111,9 +136,10 @@ const bodyMutation = <S extends Schema.ConstraintDecoder<unknown>, A, E>(
         session: AuthenticatedSession,
         body: S['Type'],
     ) => Effect.Effect<A, E>,
+    validationError?: (value: unknown) => AccountValidationError,
 ) =>
     mutation(context, runtime, (session) =>
-        decodeJson(context.req.raw, schema).pipe(
+        decodeJson(context.req.raw, schema, validationError).pipe(
             Effect.flatMap((body) => operation(session, body)),
         ),
     );
@@ -143,9 +169,27 @@ const tag = (error: unknown): string | undefined =>
             ? (Reflect.get(error, '_tag') as string)
             : undefined
         : undefined;
+const validationMessage = (error: unknown): string => {
+    if (typeof error !== 'object' || error === null) return 'Invalid request';
+    switch (Reflect.get(error, 'field')) {
+        case 'displayName':
+            return 'Display name must be between 1 and 255 characters';
+        case 'email':
+            return 'Enter a valid email address';
+        case 'confirmation':
+            return 'The confirmation does not match your username';
+        default:
+            return 'Invalid request';
+    }
+};
 const safeError = (error: unknown): SafeError => {
     switch (tag(error)) {
         case 'AccountValidationError':
+            return {
+                code: 'validation_error',
+                message: validationMessage(error),
+                status: 400,
+            };
         case 'AuthValidationError':
             return {
                 code: 'validation_error',
@@ -170,7 +214,16 @@ const safeError = (error: unknown): SafeError => {
         case 'AccountNotFound':
             return { code: 'not_found', message: 'Not found', status: 404 };
         case 'AccountConflict':
-            return { code: 'conflict', message: 'Conflict', status: 409 };
+            return {
+                code: 'conflict',
+                message:
+                    typeof error === 'object' &&
+                    error !== null &&
+                    Reflect.get(error, 'field') === 'email'
+                        ? 'Email address is already in use'
+                        : 'Conflict',
+                status: 409,
+            };
         case 'AccountStorageError':
         case 'AuthStorageError':
             return {
@@ -245,6 +298,7 @@ export const registerAccountRoutes = (
                         value.auth,
                         UpdateAccountProfileRequest,
                         value.service.updateProfile,
+                        profileValidationError,
                     ),
                 ),
                 Effect.flatMap((value) => json(AccountProfile, value)),

@@ -15,3 +15,15 @@
     text-decoration: none;
     cursor: pointer;
 }
+
+@media (max-width: 47.99em) {
+    .brandTitle,
+    .githubButton,
+    .keyboardButton {
+        display: none;
+    }
+
+    .headerActions {
+        gap: var(--mantine-spacing-xs);
+    }
+}

@@ -113,6 +113,31 @@ async function subscriptionsLoader(args: LoaderFunctionArgs) {
     return null;
 }
 
+const legacySettingsPaths = {
+    '/subscriptions': '/settings/subscriptions',
+    '/profile': '/settings/security',
+    '/import': '/settings/opml',
+} as const;
+
+export function legacySettingsRedirectTarget(url: URL): string | null {
+    const pathname =
+        url.pathname.length > 1 && url.pathname.endsWith('/')
+            ? url.pathname.slice(0, -1)
+            : url.pathname;
+    const target =
+        legacySettingsPaths[pathname as keyof typeof legacySettingsPaths];
+    if (target === undefined) return null;
+    const hash = pathname === '/profile' ? '#profile' : url.hash;
+    return `${target}${url.search}${hash}`;
+}
+
+async function legacySettingsLoader(args: LoaderFunctionArgs) {
+    await protectedLoader(args);
+    const target = legacySettingsRedirectTarget(args.url);
+    if (target !== null) throw redirect(target);
+    return null;
+}
+
 async function chartsLoader(args: LoaderFunctionArgs) {
     await protectedLoader(args);
     const state = parseChartState(args.url.searchParams);
@@ -264,6 +289,18 @@ export const router = createBrowserRouter([
                     );
                     return { Component: AppTokensPage };
                 },
+            },
+            {
+                path: '/subscriptions',
+                loader: legacySettingsLoader,
+            },
+            {
+                path: '/profile',
+                loader: legacySettingsLoader,
+            },
+            {
+                path: '/import',
+                loader: legacySettingsLoader,
             },
             {
                 path: '*',

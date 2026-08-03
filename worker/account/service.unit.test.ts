@@ -69,11 +69,33 @@ describe('account service', () => {
         await expect(
             Effect.runPromise(
                 service.updateProfile(session(), {
+                    email: 'valid@example.test',
+                    displayName: 'x'.repeat(255),
+                }),
+            ),
+        ).resolves.toMatchObject({ displayName: 'x'.repeat(255) });
+        await expect(
+            Effect.runPromise(
+                service.updateProfile(session(), {
                     email: 'invalid',
                     displayName: 'Reader',
                 }),
             ),
-        ).rejects.toBeInstanceOf(AccountValidationError);
+        ).rejects.toMatchObject({
+            _tag: 'AccountValidationError',
+            field: 'email',
+        });
+        await expect(
+            Effect.runPromise(
+                service.updateProfile(session(), {
+                    email: 'reader@example.test',
+                    displayName: 'x'.repeat(256),
+                }),
+            ),
+        ).rejects.toMatchObject({
+            _tag: 'AccountValidationError',
+            field: 'displayName',
+        });
     });
 
     it('requires the exact username before destructive actions', async () => {

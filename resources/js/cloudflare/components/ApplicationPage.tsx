@@ -2,6 +2,7 @@ import { AppShell, NavLink, ScrollArea, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
     IconFileImport,
+    IconKey,
     IconShieldLock,
     IconUserCircle,
 } from '@tabler/icons-react';
@@ -46,6 +47,13 @@ function SettingsNavigation({
             label: 'Security',
             description: 'Passkeys and account recovery',
             icon: IconShieldLock,
+        },
+        {
+            to: '/settings/app-tokens',
+            active: location.pathname === '/settings/app-tokens',
+            label: 'App tokens',
+            description: 'Reader client credentials',
+            icon: IconKey,
         },
         {
             to: '/settings/opml',

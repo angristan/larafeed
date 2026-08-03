@@ -37,7 +37,7 @@ import {
     IconStarFilled,
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import type { ReaderEntry } from '../../api/reader';
 import { subscriptionManagementQueryOptions } from '../../queries/subscriptions';
@@ -48,7 +48,11 @@ import {
 import { FeedFavicon } from './FeedFavicon';
 import classes from './Reader.module.css';
 import { FeedActions } from './ReaderSidebar';
-import { estimateReadingTime, textFromSanitizedHtml } from './readingTime';
+import {
+    estimateReadingTime,
+    readingTimeLabel,
+    textFromSanitizedHtml,
+} from './readingTime';
 
 interface ReaderEntryDetailProps {
     readonly entry: ReaderEntry | undefined;
@@ -60,8 +64,10 @@ interface ReaderEntryDetailProps {
     readonly readPending: boolean;
     readonly starPending: boolean;
     readonly archivePending: boolean;
+    readonly summarize: boolean;
     readonly onRetry: () => void;
     readonly onBack: () => void;
+    readonly onSetSummarize: (summarize: boolean) => void;
     readonly onSetRead: (read: boolean) => void;
     readonly onSetStarred: (starred: boolean) => void;
     readonly onSetArchived: (archived: boolean) => void;
@@ -120,10 +126,17 @@ function ReaderEntrySummary({ entryId }: { readonly entryId: number }) {
         generateEntrySummaryMutationOptions(queryClient, entryId),
     );
     const summary = summaryQuery.data?.summary ?? null;
+    const generate = generateMutation.mutate;
 
-    if (summaryQuery.isPending || generateMutation.isPending) {
-        return <SummarySkeleton />;
-    }
+    useEffect(() => {
+        if (
+            summaryQuery.isSuccess &&
+            summary === null &&
+            generateMutation.isIdle
+        ) {
+            generate();
+        }
+    }, [generate, generateMutation.isIdle, summary, summaryQuery.isSuccess]);
 
     if (summaryQuery.error !== null) {
         return (
@@ -142,27 +155,25 @@ function ReaderEntrySummary({ entryId }: { readonly entryId: number }) {
         );
     }
 
-    if (summary === null) {
+    if (generateMutation.error !== null) {
         return (
-            <Stack align="flex-start" gap="sm">
-                <Text c="dimmed" size="sm">
-                    Generate a concise AI summary of this article.
-                </Text>
-                {generateMutation.error !== null && (
-                    <Alert color="red" role="alert">
-                        {generateMutation.error.message}
-                    </Alert>
-                )}
-                <Button
-                    loading={generateMutation.isPending}
-                    onClick={() => generateMutation.mutate()}
-                    size="xs"
-                    variant="light"
-                >
-                    Generate summary
-                </Button>
-            </Stack>
+            <Alert color="red" role="alert" title="Summary unavailable">
+                <Stack gap="sm">
+                    <Text size="sm">{generateMutation.error.message}</Text>
+                    <Button
+                        onClick={() => generateMutation.mutate()}
+                        size="xs"
+                        variant="light"
+                    >
+                        Retry
+                    </Button>
+                </Stack>
+            </Alert>
         );
+    }
+
+    if (summary === null || generateMutation.isPending) {
+        return <SummarySkeleton />;
     }
 
     return (
@@ -187,8 +198,10 @@ export function ReaderEntryDetail({
     readPending,
     starPending,
     archivePending,
+    summarize,
     onRetry,
     onBack,
+    onSetSummarize,
     onSetRead,
     onSetStarred,
     onSetArchived,
@@ -200,7 +213,6 @@ export function ReaderEntryDetail({
     );
     const articleContent = useRef<HTMLDivElement>(null);
     const viewport = useRef<HTMLDivElement>(null);
-    const [view, setView] = useState<'content' | 'summary'>('content');
     const readingTime = useMemo(
         () =>
             entry?.contentHtml == null
@@ -306,7 +318,12 @@ export function ReaderEntryDetail({
             w="100%"
         >
             <Card bg="transparent" pb={10} pl={10} pr={10} pt={0}>
-                <Flex align="center" direction="row" justify="space-between">
+                <Flex
+                    align="center"
+                    className={classes.detailHeader}
+                    direction="row"
+                    justify="space-between"
+                >
                     <Button
                         aria-label="Back to entry list"
                         className={classes.mobileOnly}
@@ -352,7 +369,7 @@ export function ReaderEntryDetail({
                                 />
                             )}
                     </Group>
-                    <Group>
+                    <Group className={classes.entryActions}>
                         <Tooltip
                             label="Summarize content with AI or switch back to content"
                             openDelay={500}
@@ -386,7 +403,7 @@ export function ReaderEntryDetail({
                                     },
                                 ]}
                                 onChange={(value) =>
-                                    setView(value as 'content' | 'summary')
+                                    onSetSummarize(value === 'summary')
                                 }
                                 size="xs"
                                 styles={{
@@ -395,7 +412,7 @@ export function ReaderEntryDetail({
                                         paddingBlock: '3px',
                                     },
                                 }}
-                                value={view}
+                                value={summarize ? 'summary' : 'content'}
                             />
                         </Tooltip>
 
@@ -527,9 +544,9 @@ export function ReaderEntryDetail({
                                 c="dimmed"
                                 size="sm"
                             >
-                                {readingTime === null || readingTime.words === 0
+                                {readingTime === null
                                     ? ''
-                                    : `${readingTime.minutes} min read`}
+                                    : readingTimeLabel(readingTime)}
                             </Text>
                             <Text c="dimmed" size="sm">
                                 {entry.author ? `${entry.author} • ` : ''}
@@ -537,7 +554,7 @@ export function ReaderEntryDetail({
                             </Text>
                         </Flex>
 
-                        <div hidden={view !== 'content'}>
+                        <div hidden={summarize}>
                             {entry.contentHtml === null ||
                             entry.contentHtml.trim().length === 0 ? (
                                 <Alert color="gray" title="No article content">
@@ -557,11 +574,10 @@ export function ReaderEntryDetail({
                         </div>
                         <Paper
                             className={classes.entrySummary}
-                            hidden={view !== 'summary'}
+                            hidden={!summarize}
                             pb={0}
                             style={{
-                                display:
-                                    view === 'summary' ? undefined : 'none',
+                                display: summarize ? undefined : 'none',
                             }}
                             p="md"
                             shadow="xs"
@@ -585,7 +601,9 @@ export function ReaderEntryDetail({
                                     </Badge>
                                 </Tooltip>
                             </Flex>
-                            <ReaderEntrySummary entryId={entry.id} />
+                            {summarize && (
+                                <ReaderEntrySummary entryId={entry.id} />
+                            )}
                         </Paper>
                     </Typography>
                 </Box>

@@ -64,8 +64,17 @@ describe('Gemini AI Gateway provider', () => {
                 responseMimeType: 'text/plain',
             },
         });
+        expect(SUMMARY_MAX_OUTPUT_TOKENS).toBe(512);
         expect(JSON.stringify(body)).toContain('Private title');
         expect(JSON.stringify(body)).toContain('Private article text');
+        expect(JSON.stringify(body)).toContain(
+            'Summarize the following article in 3-4 sentences.',
+        );
+        expect(JSON.stringify(body)).toContain(
+            'short paragraphs using HTML <p> tags',
+        );
+        expect(JSON.stringify(body)).toContain('aggregator post or excerpt');
+        expect(JSON.stringify(body)).toContain('Use passive voice.');
         expect(JSON.stringify(body)).not.toContain('userId');
     });
 

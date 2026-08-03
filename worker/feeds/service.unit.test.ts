@@ -9,6 +9,7 @@ import {
     FeedTimeoutError,
 } from './errors';
 import {
+    COMMON_FEED_DISCOVERY_PATHS,
     FEED_FETCH_TIMEOUT_MS,
     FEED_USER_AGENT,
     MAX_FEED_REDIRECTS,
@@ -310,28 +311,22 @@ describe('feed refresh service', () => {
         );
     });
 
-    it('finds JSON Feed at the bounded common feed.json path', async () => {
+    it('probes every bounded common path through feed.json', async () => {
         const html = '<html><head><title>No links</title></head></html>';
-        const fetchMock = vi
-            .fn()
-            .mockResolvedValueOnce(
-                new Response(html, {
+        const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+            const url = String(input);
+            if (url === 'https://example.com/') {
+                return new Response(html, {
                     headers: { 'content-type': 'text/html' },
-                }),
-            )
-            .mockResolvedValueOnce(
-                new Response(html, {
-                    headers: { 'content-type': 'text/html' },
-                }),
-            )
-            .mockResolvedValueOnce(new Response('missing', { status: 404 }))
-            .mockResolvedValueOnce(new Response('missing', { status: 404 }))
-            .mockResolvedValueOnce(new Response('missing', { status: 404 }))
-            .mockResolvedValueOnce(
-                new Response(jsonFeed, {
+                });
+            }
+            if (url === 'https://example.com/feed.json') {
+                return new Response(jsonFeed, {
                     headers: { 'content-type': 'application/feed+json' },
-                }),
-            );
+                });
+            }
+            return new Response('missing', { status: 404 });
+        });
         const service = makeFeedRefreshService({ fetch: fetchMock });
 
         const result = await Effect.runPromise(
@@ -339,7 +334,11 @@ describe('feed refresh service', () => {
         );
 
         expect(result.finalUrl).toBe('https://example.com/feed.json');
-        expect(fetchMock).toHaveBeenCalledTimes(6);
+        expect(
+            fetchMock.mock.calls
+                .slice(2)
+                .map(([input]) => new URL(String(input)).pathname),
+        ).toEqual(COMMON_FEED_DISCOVERY_PATHS);
     });
 
     it('classifies HTTP status and transport failures without retaining causes', async () => {

@@ -5,12 +5,19 @@ import { describe, expect, it } from 'vitest';
 import { makeD1 } from '../infrastructure/d1';
 import { makeJobOrchestrator } from './orchestration';
 import { makeJobRepository } from './repository';
-import type { RefreshJobClaim } from './types';
+import { DEFAULT_REFRESH_INTERVAL_MS, type RefreshJobClaim } from './types';
 
 const d1 = makeD1(env.DB);
 const repository = makeJobRepository(d1);
 const bytes = (value: number, length = 32) =>
     new Uint8Array(length).fill(value % 255 || 1);
+const identityKey = async (identity: string) =>
+    new Uint8Array(
+        await crypto.subtle.digest(
+            'SHA-256',
+            new TextEncoder().encode(identity),
+        ),
+    );
 
 const run = <A>(effect: Effect.Effect<A, unknown>) => Effect.runPromise(effect);
 
@@ -378,7 +385,7 @@ describe('durable feed refresh jobs', () => {
             name: 'Updated feed name',
             site_url: 'https://jobs.example.test/',
             favicon_url: 'https://jobs.example.test/favicon.ico',
-            favicon_updated_at: now + 1,
+            favicon_updated_at: null,
         });
         await expect(
             scalar(
@@ -414,6 +421,129 @@ describe('durable feed refresh jobs', () => {
             { source_id: 'stored', content_status: 'stored' },
             { source_id: 'oversized', content_status: 'oversized' },
         ]);
+    });
+
+    it('promotes a migrated URL identity without replacing interactions', async () => {
+        const now = 2_100_005_250_000;
+        const userId = 364_001;
+        const categoryId = 364_002;
+        const feedId = 364_003;
+        const migratedEntryId = 364_004;
+        const generatedEntryId = 364_005;
+        const articleUrl = 'https://jobs.example.test/articles/1';
+        const legacyUrlKey = await identityKey(`url:${articleUrl}`);
+        const canonicalIdKey = await identityKey('id:guid-1');
+        await insertFeed(feedId, now);
+        await run(
+            d1.batch([
+                {
+                    sql: `INSERT INTO users (
+                            id, webauthn_user_handle, username, email,
+                            display_name, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    bindings: [
+                        userId,
+                        bytes(64),
+                        'migration-reader',
+                        'migration-reader@example.test',
+                        'Migration Reader',
+                        now,
+                        now,
+                    ],
+                },
+                {
+                    sql: `INSERT INTO subscription_categories (
+                            id, user_id, name, created_at, updated_at
+                        ) VALUES (?, ?, 'Migrated', ?, ?)`,
+                    bindings: [categoryId, userId, now, now],
+                },
+                {
+                    sql: `INSERT INTO feed_subscriptions (
+                            user_id, feed_id, category_id, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?)`,
+                    bindings: [userId, feedId, categoryId, now, now],
+                },
+                {
+                    sql: `INSERT INTO entries (
+                            id, feed_id, deduplication_key, source_id, title,
+                            url, published_at, content_status, created_at,
+                            updated_at
+                        ) VALUES (?, ?, ?, NULL, 'Migrated', ?, ?, 'empty', ?, ?)`,
+                    bindings: [
+                        migratedEntryId,
+                        feedId,
+                        legacyUrlKey,
+                        articleUrl,
+                        now - 1_000,
+                        now - 1_000,
+                        now - 1_000,
+                    ],
+                },
+                {
+                    sql: `INSERT INTO entry_interactions (
+                            user_id, feed_id, entry_id, starred_at,
+                            created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?)`,
+                    bindings: [userId, feedId, migratedEntryId, now, now, now],
+                },
+            ]),
+        );
+        await createJob(feedId, 364_101, now + 1);
+        const jobClaim = await claim('operation-364101', now + 1);
+
+        await repository.commitRefresh({
+            claim: jobClaim,
+            historyId: 364_102,
+            completedAt: now + 2,
+            etag: null,
+            lastModified: null,
+            nextRefreshAt: now + 60_000,
+            httpStatus: 200,
+            durationMs: 5,
+            notModified: false,
+            entries: [
+                {
+                    id: generatedEntryId,
+                    deduplicationKey: canonicalIdKey,
+                    legacyUrlDeduplicationKey: legacyUrlKey,
+                    sourceId: 'guid-1',
+                    title: 'Refreshed',
+                    url: articleUrl,
+                    author: null,
+                    publishedAt: now - 1_000,
+                    sourceUpdatedAt: null,
+                    filteredUserIds: [],
+                    content: { type: 'empty' },
+                },
+            ],
+        });
+
+        await expect(
+            run(
+                d1.all<{
+                    id: number;
+                    source_id: string | null;
+                    deduplication_key: readonly number[];
+                }>({
+                    sql: `SELECT id, source_id, deduplication_key
+                          FROM entries WHERE feed_id = ?`,
+                    bindings: [feedId],
+                }),
+            ).then((result) => result.results),
+        ).resolves.toEqual([
+            {
+                id: migratedEntryId,
+                source_id: 'guid-1',
+                deduplication_key: [...canonicalIdKey],
+            },
+        ]);
+        await expect(
+            first<{ entry_id: number; starred_at: number | null }>(
+                `SELECT entry_id, starred_at FROM entry_interactions
+                 WHERE user_id = ? AND entry_id = ?`,
+                [userId, migratedEntryId],
+            ),
+        ).resolves.toEqual({ entry_id: migratedEntryId, starred_at: now });
     });
 
     it('updates sparse filter matches without clearing starred state', async () => {
@@ -631,6 +761,73 @@ describe('durable feed refresh jobs', () => {
             message_length: 14,
             is_gone: 1,
             last_failed_refresh_at: retryAt + 1,
+        });
+    });
+
+    it('defers a terminal non-gone feed until the normal refresh interval', async () => {
+        const now = 2_100_006_500_000;
+        const failedAt = now + 1;
+        const feedId = 375_001;
+        await insertFeed(feedId, now);
+        await createJob(feedId, 375_101, now);
+        const jobClaim = await claim('operation-375101', now);
+
+        await expect(
+            repository.recordRefreshFailure({
+                claim: jobClaim,
+                historyId: 375_102,
+                failedAt,
+                retryable: false,
+                errorClass: 'FeedParseError',
+                errorMessage: 'Unsupported feed',
+                httpStatus: 200,
+                durationMs: 5,
+                retryAt: failedAt + 30_000,
+            }),
+        ).resolves.toEqual({ terminal: true, availableAt: null });
+
+        const nextRefreshAt = failedAt + DEFAULT_REFRESH_INTERVAL_MS;
+        await expect(
+            first<{ is_gone: number; next_refresh_at: number }>(
+                'SELECT is_gone, next_refresh_at FROM feeds WHERE id = ?',
+                [feedId],
+            ),
+        ).resolves.toEqual({ is_gone: 0, next_refresh_at: nextRefreshAt });
+        await expect(
+            repository.listDueFeeds(failedAt + 30_000, 100),
+        ).resolves.not.toContainEqual({ id: feedId, nextRefreshAt });
+        await expect(
+            repository.listDueFeeds(nextRefreshAt, 100),
+        ).resolves.toContainEqual({ id: feedId, nextRefreshAt });
+
+        await createJob(feedId, 375_201, nextRefreshAt);
+        const secondClaim = await claim('operation-375201', nextRefreshAt);
+        const secondFailedAt = nextRefreshAt + 1;
+        await expect(
+            repository.recordRefreshFailure({
+                claim: secondClaim,
+                historyId: 375_202,
+                failedAt: secondFailedAt,
+                retryable: false,
+                errorClass: 'FeedParseError',
+                errorMessage: 'Still unsupported',
+                httpStatus: 200,
+                durationMs: 5,
+                retryAt: secondFailedAt + 30_000,
+            }),
+        ).resolves.toEqual({ terminal: true, availableAt: null });
+
+        const secondNextRefreshAt =
+            secondFailedAt + DEFAULT_REFRESH_INTERVAL_MS * 2;
+        await expect(
+            first<{ consecutive_failures: number; next_refresh_at: number }>(
+                `SELECT consecutive_failures, next_refresh_at
+                 FROM feeds WHERE id = ?`,
+                [feedId],
+            ),
+        ).resolves.toEqual({
+            consecutive_failures: 2,
+            next_refresh_at: secondNextRefreshAt,
         });
     });
 

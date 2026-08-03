@@ -183,7 +183,9 @@ export async function invalidateReaderAfterInteraction(
     queryClient: QueryClient,
 ): Promise<void> {
     await Promise.all([
-        queryClient.invalidateQueries({ queryKey: entryKeys.finiteLists() }),
+        // The authoritative interaction response already patches all retained
+        // pages. Keeping them fresh avoids removing the selected unread or
+        // favorite entry while the user reads through the current page.
         queryClient.invalidateQueries({ queryKey: readerKeys.counts() }),
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.lists() }),
     ]);

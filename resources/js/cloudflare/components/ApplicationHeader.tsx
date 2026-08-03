@@ -32,6 +32,7 @@ import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import { AuthClientError, logout, readCsrfToken } from '../api/auth';
+import { accountQueryOptions } from '../queries/account';
 import {
     authKeys,
     authSessionQueryOptions,
@@ -81,6 +82,7 @@ export function ApplicationHeader({
     onNavbarToggle,
 }: ApplicationHeaderProps) {
     const session = useQuery(authSessionQueryOptions);
+    const profile = useQuery(accountQueryOptions);
     const subscriptions = useQuery(subscriptionListQueryOptions);
     const queryClient = useQueryClient();
     const navigate = useNavigate();
@@ -186,8 +188,8 @@ export function ApplicationHeader({
                 />
             )}
             <AppShell.Header>
-                <Group h="100%" px="md" justify="space-between">
-                    <Group gap="sm">
+                <Group h="100%" px="md" justify="space-between" wrap="nowrap">
+                    <Group gap="sm" wrap="nowrap">
                         {hasSidebar && (
                             <Burger
                                 aria-label="Toggle navigation"
@@ -200,7 +202,11 @@ export function ApplicationHeader({
                         <Link className={classes.logoLink} to="/feeds">
                             <Group gap="xs">
                                 <ApplicationLogo width={36} />
-                                <Title order={3} style={{ margin: 0 }}>
+                                <Title
+                                    className={classes.brandTitle}
+                                    order={3}
+                                    style={{ margin: 0 }}
+                                >
                                     Larafeed
                                 </Title>
                             </Group>
@@ -235,9 +241,14 @@ export function ApplicationHeader({
                         </Group>
                     </Group>
 
-                    <Group>
+                    <Group
+                        className={classes.headerActions}
+                        gap="sm"
+                        wrap="nowrap"
+                    >
                         <ActionIcon
                             aria-label="Open Larafeed GitHub repository"
+                            className={classes.githubButton}
                             component="a"
                             href="https://github.com/angristan/larafeed"
                             rel="noopener noreferrer"
@@ -250,6 +261,7 @@ export function ApplicationHeader({
 
                         <ActionIcon
                             aria-label="Keyboard shortcuts"
+                            className={classes.keyboardButton}
                             mt={1}
                             onClick={shortcuts.open}
                             size="lg"
@@ -290,7 +302,10 @@ export function ApplicationHeader({
                                     </Avatar>
                                 </Menu.Target>
                                 <Menu.Dropdown>
-                                    <Menu.Label>@{user.username}</Menu.Label>
+                                    <Menu.Label>
+                                        {profile.data?.email ??
+                                            `@${user.username}`}
+                                    </Menu.Label>
                                     {user.isAdmin && (
                                         <Menu.Item
                                             component={Link}

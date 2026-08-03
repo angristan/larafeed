@@ -141,12 +141,14 @@ Users use `/settings/security` to edit profile fields, add or remove passkeys, c
 | Control | Safe response |
 | --- | --- |
 | `REFRESH_SCHEDULER_ENABLED=false` | Stop creating scheduled refresh commands. Existing durable work remains. |
-| `REFRESH_DISPATCH_ENABLED=false` | Stop new Queue sends while retaining outbox commands. |
+| `REFRESH_DISPATCH_ENABLED=false` | Stop every feed-refresh Queue send, including new subscriptions and OPML-created feeds, while retaining outbox commands. |
+| `OPML_IMPORT_ENABLED=false` | Reject new OPML imports before creating durable jobs. Existing jobs remain inspectable. |
+| `FAVICON_REFRESH_ENABLED=false` | Stop both stale-favicon Cron reservation and manual favicon refresh. |
+| `IMAGES_ENABLED=false` | Reject feed-favicon and ownership-bound article image transforms before using Images. |
 | Lower `REFRESH_DUE_LIMIT` | Reduce each Cron reservation burst. |
 | Queue consumer pause/concurrency | Stop or reduce feed/OPML consumers without losing D1 state. |
 | `AI_SUMMARY_ENABLED=false` | Reject new summary generation without deleting cached summaries. |
 | AI Gateway budget/rate limit | Bound provider spend independently of application limits. |
-| Images route rate limit / binding disable | Bound transforms; the UI falls back safely. |
 
 There is no telemetry SDK kill switch because the application relies on native Workers logs and traces. Sampling is configured at the Cloudflare environment level.
 
@@ -196,7 +198,7 @@ Confirm exact hostname, RP ID, origin, Turnstile hostname/action, and environmen
 
 ### AI or Images cost incident
 
-Disable AI generation immediately or enforce a Gateway budget. Pause/limit image transformations at the binding/account layer. Cached summaries and stored favicon sources remain intact.
+Set `AI_SUMMARY_ENABLED=false` immediately or enforce a Gateway budget. Set `IMAGES_ENABLED=false` to stop all application image transformations. Cached summaries and stored favicon/article sources remain intact.
 
 ## Acceptance checklist
 

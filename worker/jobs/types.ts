@@ -118,6 +118,8 @@ export type RefreshEntryContent =
 
 export interface ProcessedRefreshEntry {
     readonly deduplicationKey: Uint8Array;
+    /** URL identity emitted by the legacy exporter, when canonical identity uses a source ID. */
+    readonly legacyUrlDeduplicationKey?: Uint8Array;
     readonly sourceId: string | null;
     readonly title: string;
     readonly url: string | null;

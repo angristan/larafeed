@@ -31,7 +31,9 @@ export const makeAccountService = (
     const confirm = (session: AuthenticatedSession, confirmation: string) =>
         confirmation.trim() === session.user.username
             ? Effect.void
-            : Effect.fail(new AccountValidationError());
+            : Effect.fail(
+                  new AccountValidationError({ field: 'confirmation' }),
+              );
 
     return {
         getProfile: (session: AuthenticatedSession) =>
@@ -46,13 +48,15 @@ export const makeAccountService = (
             Effect.gen(function* () {
                 const email = input.email.trim().toLocaleLowerCase();
                 const displayName = input.displayName.trim();
-                if (
-                    !EMAIL_PATTERN.test(email) ||
-                    email.length > 320 ||
-                    displayName.length < 1 ||
-                    displayName.length > 200
-                ) {
-                    return yield* Effect.fail(new AccountValidationError());
+                if (!EMAIL_PATTERN.test(email) || email.length > 320) {
+                    return yield* Effect.fail(
+                        new AccountValidationError({ field: 'email' }),
+                    );
+                }
+                if (displayName.length < 1 || displayName.length > 255) {
+                    return yield* Effect.fail(
+                        new AccountValidationError({ field: 'displayName' }),
+                    );
                 }
                 const updated = yield* dependencies.repository.updateProfile({
                     userId: session.user.id,

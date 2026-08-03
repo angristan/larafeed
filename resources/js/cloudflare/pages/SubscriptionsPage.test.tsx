@@ -9,6 +9,7 @@ import { subscriptionManagementKeys } from '../queries/subscriptions';
 import {
     buildAddFeedBookmarklet,
     getSubscriptionStatus,
+    nextSubscriptionSortDirection,
     SubscriptionsPage,
 } from './SubscriptionsPage';
 
@@ -107,6 +108,7 @@ describe('SubscriptionsPage', () => {
         expect(markup).toContain('Feed');
         expect(markup).toContain('Last success');
         expect(markup).toContain('Last failure');
+        expect(markup).toContain('Sorted ascending');
     });
 
     it('keeps add-feed controls out of the legacy audit page', () => {
@@ -130,6 +132,21 @@ describe('SubscriptionsPage', () => {
         );
         expect(() => buildAddFeedBookmarklet('javascript:alert(1)')).toThrow(
             TypeError,
+        );
+    });
+
+    it('defaults metric sorts descending and name sorts ascending', () => {
+        expect(nextSubscriptionSortDirection('name', 'asc', 'entries')).toBe(
+            'desc',
+        );
+        expect(
+            nextSubscriptionSortDirection('entries', 'desc', 'lastSuccess'),
+        ).toBe('desc');
+        expect(nextSubscriptionSortDirection('entries', 'desc', 'name')).toBe(
+            'asc',
+        );
+        expect(nextSubscriptionSortDirection('name', 'desc', 'name')).toBe(
+            'desc',
         );
     });
 

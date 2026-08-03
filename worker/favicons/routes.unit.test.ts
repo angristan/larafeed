@@ -1,7 +1,7 @@
 import { ApiErrorResponse, FaviconRefreshResponse } from '@shared/http';
 import { Effect, Schema } from 'effect';
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { AuthConfig } from '../auth/config';
 import type { AuthRuntime } from '../auth/routes';
@@ -40,7 +40,7 @@ const session: AuthenticatedSession = {
     expiresAt: 2_000_000_000_000,
     csrfTokenHash: new Uint8Array(32),
 };
-const app = (rateSuccess = true) => {
+const app = (rateSuccess = true, enabled = true) => {
     const hono = new Hono<{ Bindings: Env }>();
     const auth: AuthRuntime = {
         config,
@@ -49,14 +49,17 @@ const app = (rateSuccess = true) => {
             authorizeMutation: () => Effect.void,
         } as unknown as AuthService,
     };
+    const refreshOwned = vi.fn((_userId: number, feedId: number) =>
+        Effect.succeed({
+            feedId,
+            faviconUrl: 'https://publisher.example/icon.png',
+        }),
+    );
     const service = {
-        refreshOwned: (_userId: number, feedId: number) =>
-            Effect.succeed({
-                feedId,
-                faviconUrl: 'https://publisher.example/icon.png',
-            }),
+        refreshOwned,
     } as unknown as FaviconService;
     registerFaviconRoutes(hono, {
+        enabled: () => enabled,
         runtimeFactory: () =>
             Effect.succeed({
                 auth,
@@ -64,7 +67,7 @@ const app = (rateSuccess = true) => {
                 rateLimit: () => Promise.resolve({ success: rateSuccess }),
             }),
     });
-    return hono;
+    return { hono, refreshOwned };
 };
 const decode = async <S extends Schema.ConstraintDecoder<unknown>>(
     response: Response,
@@ -83,7 +86,7 @@ const request = () => ({
 
 describe('favicon routes', () => {
     it('returns only the opaque owned favicon URL', async () => {
-        const response = await app().request(
+        const response = await app().hono.request(
             '/api/feeds/12/favicon/refresh',
             request(),
         );
@@ -100,13 +103,13 @@ describe('favicon routes', () => {
     });
 
     it('rejects invalid ids and rate-limited refreshes safely', async () => {
-        const invalid = await app().request(
+        const invalid = await app().hono.request(
             '/api/feeds/not-an-id/favicon/refresh',
             request(),
         );
         expect(invalid.status).toBe(404);
 
-        const limited = await app(false).request(
+        const limited = await app(false).hono.request(
             '/api/feeds/12/favicon/refresh',
             request(),
         );
@@ -114,5 +117,24 @@ describe('favicon routes', () => {
         await expect(decode(limited, ApiErrorResponse)).resolves.toMatchObject({
             error: { code: 'rate_limited' },
         });
+    });
+
+    it('rejects manual refresh before lookup when maintenance is disabled', async () => {
+        const disabled = app(true, false);
+        const response = await disabled.hono.request(
+            '/api/feeds/12/favicon/refresh',
+            request(),
+        );
+
+        expect(response.status).toBe(503);
+        await expect(decode(response, ApiErrorResponse)).resolves.toMatchObject(
+            {
+                error: {
+                    code: 'service_unavailable',
+                    message: 'Favicon refresh is disabled',
+                },
+            },
+        );
+        expect(disabled.refreshOwned).not.toHaveBeenCalled();
     });
 });

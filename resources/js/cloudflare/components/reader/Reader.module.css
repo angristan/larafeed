@@ -246,3 +246,46 @@
 .mobileOnly {
     display: none;
 }
+
+@media (max-width: 47.99em) {
+    .main {
+        width: 100%;
+    }
+
+    .readerGrid {
+        display: block;
+        width: 100%;
+    }
+
+    .listPaneContainer,
+    .detailPaneContainer {
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        flex-basis: 100% !important;
+    }
+
+    .readerGrid[data-detail='true'] .listPaneContainer,
+    .readerGrid:not([data-detail]) .detailPaneContainer,
+    .readerGrid :global(button[aria-label='Resize']) {
+        display: none;
+    }
+
+    .mobileOnly {
+        display: inline-flex;
+    }
+
+    .detailHeader {
+        flex-wrap: wrap;
+        gap: var(--mantine-spacing-xs);
+    }
+
+    .entryActions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .entry {
+        margin-right: var(--mantine-spacing-xs);
+    }
+}

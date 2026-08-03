@@ -19,6 +19,10 @@ cloudflare-env/.env*
 artifacts/
 /cloudflare-export
 
+# Browser test artifacts
+test-results/
+playwright-report/
+
 # IDE
 .idea/
 .vscode/

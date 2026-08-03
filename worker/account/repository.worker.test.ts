@@ -170,7 +170,10 @@ describe('account D1 repository', () => {
                     now: now + 2,
                 }),
             ),
-        ).rejects.toBeInstanceOf(AccountConflict);
+        ).rejects.toMatchObject({
+            _tag: 'AccountConflict',
+            field: 'email',
+        });
 
         await expect(
             Effect.runPromise(

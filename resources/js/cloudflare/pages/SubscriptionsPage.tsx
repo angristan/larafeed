@@ -39,6 +39,16 @@ export { buildAddFeedBookmarklet } from '../bookmarklet';
 type SubscriptionStatus = 'healthy' | 'failing' | 'never' | 'gone';
 type LegacyStatus = 'success' | 'failed' | 'never';
 type SortField = 'name' | 'entries' | 'lastSuccess' | 'lastFailure';
+type SortDirection = 'asc' | 'desc';
+
+export function nextSubscriptionSortDirection(
+    currentField: SortField,
+    currentDirection: SortDirection,
+    nextField: SortField,
+): SortDirection {
+    if (nextField === currentField) return currentDirection;
+    return nextField === 'name' ? 'asc' : 'desc';
+}
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, {
     numeric: 'auto',
@@ -281,7 +291,7 @@ export function SubscriptionsPage() {
     const [category, setCategory] = useState('all');
     const [status, setStatus] = useState<LegacyStatus | 'all'>('all');
     const [sortField, setSortField] = useState<SortField>('name');
-    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
     const [selectedFeedId, setSelectedFeedId] = useState<number | null>(null);
 
     const subscriptions = data?.subscriptions ?? [];
@@ -331,6 +341,28 @@ export function SubscriptionsPage() {
                 return direction * leftName.localeCompare(rightName);
             });
     }, [category, search, sortDirection, sortField, status, subscriptions]);
+
+    const handleSortFieldChange = (value: string | null) => {
+        if (value === null) return;
+        const nextField = value as SortField;
+        setSortField(nextField);
+        setSortDirection((currentDirection) =>
+            nextSubscriptionSortDirection(
+                sortField,
+                currentDirection,
+                nextField,
+            ),
+        );
+    };
+
+    const renderSortIndicator = (field: SortField) => {
+        if (sortField !== field) return null;
+        return sortDirection === 'asc' ? (
+            <IconArrowNarrowUp aria-label="Sorted ascending" size={14} />
+        ) : (
+            <IconArrowNarrowDown aria-label="Sorted descending" size={14} />
+        );
+    };
 
     const resetFilters = () => {
         setSearch('');
@@ -395,9 +427,7 @@ export function SubscriptionsPage() {
                             { label: 'Last failure', value: 'lastFailure' },
                         ]}
                         label="Sort by"
-                        onChange={(value) =>
-                            setSortField((value ?? 'name') as SortField)
-                        }
+                        onChange={handleSortFieldChange}
                         style={{ flex: 1 }}
                         value={sortField}
                     />
@@ -495,13 +525,35 @@ export function SubscriptionsPage() {
                                     <Table.Th
                                         style={{ width: '32%', minWidth: 280 }}
                                     >
-                                        Name
+                                        <Group align="center" gap={4}>
+                                            Name
+                                            {renderSortIndicator('name')}
+                                        </Group>
                                     </Table.Th>
                                     <Table.Th>Category</Table.Th>
-                                    <Table.Th ta="right">Entries</Table.Th>
+                                    <Table.Th ta="right">
+                                        <Group
+                                            align="center"
+                                            gap={4}
+                                            justify="flex-end"
+                                        >
+                                            Entries
+                                            {renderSortIndicator('entries')}
+                                        </Group>
+                                    </Table.Th>
                                     <Table.Th>Status</Table.Th>
-                                    <Table.Th>Last success</Table.Th>
-                                    <Table.Th>Last failure</Table.Th>
+                                    <Table.Th>
+                                        <Group align="center" gap={4}>
+                                            Last success
+                                            {renderSortIndicator('lastSuccess')}
+                                        </Group>
+                                    </Table.Th>
+                                    <Table.Th>
+                                        <Group align="center" gap={4}>
+                                            Last failure
+                                            {renderSortIndicator('lastFailure')}
+                                        </Group>
+                                    </Table.Th>
                                 </Table.Tr>
                             </Table.Thead>
                             <Table.Tbody>

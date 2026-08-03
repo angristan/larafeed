@@ -12,7 +12,10 @@ import { CsrfInvalid } from '../auth/errors';
 import type { AuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession, AuthService } from '../auth/service';
 import { SubscriptionConflict, SubscriptionFeedError } from './errors';
-import { registerSubscriptionRoutes } from './routes';
+import {
+    registerSubscriptionRoutes,
+    scheduleSubscriptionRefresh,
+} from './routes';
 import type { SubscriptionService } from './service';
 
 const origin = 'https://larafeed-test.stanislas.cloud';
@@ -143,6 +146,50 @@ const decode = async <S extends Schema.ConstraintDecoder<unknown>>(
     Schema.decodeUnknownSync(schema)(await response.json());
 
 describe('subscription management routes', () => {
+    it.each([
+        [false, 0],
+        [true, 1],
+    ] as const)('retains the refresh command and dispatches only when enabled=%s', async (dispatchEnabled, dispatchCalls) => {
+        const createManualRefresh = vi.fn(async () => ({
+            operationId: 'subscription-refresh',
+            created: true,
+            job: {
+                id: 1,
+                operationId: 'subscription-refresh',
+                feedId: 21,
+                trigger: 'manual' as const,
+                state: 'pending' as const,
+                attemptCount: 0,
+                maxAttempts: 8,
+                availableAt: 1,
+            },
+        }));
+        const dispatchOutbox = vi.fn(async () => ({
+            leased: 1,
+            sent: 1,
+            released: 0,
+            ambiguous: 0,
+        }));
+
+        await expect(
+            scheduleSubscriptionRefresh(
+                {
+                    config: { dispatchEnabled },
+                    orchestrator: {
+                        createManualRefresh,
+                        dispatchOutbox,
+                    },
+                },
+                21,
+            ),
+        ).resolves.toEqual({ operationId: 'subscription-refresh' });
+        expect(createManualRefresh).toHaveBeenCalledWith(21);
+        expect(dispatchOutbox).toHaveBeenCalledTimes(dispatchCalls);
+        if (dispatchEnabled) {
+            expect(dispatchOutbox).toHaveBeenCalledWith(1);
+        }
+    });
+
     it('authenticates and schema-encodes the management response', async () => {
         const response = await app().request('/api/subscriptions/manage', {
             headers: { Cookie: cookie },

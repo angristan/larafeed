@@ -100,7 +100,7 @@ func entryRecord(row sourceRow) (Record, error) {
 		identity = fmt.Sprintf("legacy-entry:%d", id)
 	}
 	deduplicationKey := sha256.Sum256([]byte(identity))
-	content := textFrom(row["content"])
+	content := sanitizedEntryContentFrom(row["content"])
 	status := "empty"
 	if content != nil {
 		if len([]byte(*content)) > maxContentBytes {
@@ -120,7 +120,7 @@ func entryRecord(row sourceRow) (Record, error) {
 }
 
 func entryContentRecord(row sourceRow) (*Record, error) {
-	content := textFrom(row["content"])
+	content := sanitizedEntryContentFrom(row["content"])
 	if content == nil || *content == "" || len([]byte(*content)) > maxContentBytes {
 		return nil, nil
 	}
@@ -168,6 +168,10 @@ func subscriptionRecord(row sourceRow) (Record, error) {
 	categoryID, err := requiredInt(row, "category_id")
 	if err != nil {
 		return Record{}, err
+	}
+	err = validateFilterRuleCompatibility(row["filter_rules"])
+	if err != nil {
+		return Record{}, fmt.Errorf("subscription %d/%d filter_rules: %w", userID, feedID, err)
 	}
 	filterRules, err := canonicalJSONValue(row["filter_rules"])
 	if err != nil {
@@ -428,6 +432,15 @@ func textFrom(value any) *string {
 	}
 }
 
+func sanitizedEntryContentFrom(value any) *string {
+	content := textFrom(value)
+	if content == nil {
+		return nil
+	}
+	sanitized := sanitizeEntryContent(*content)
+	return &sanitized
+}
+
 func timestampOr(value any, fallback int64) int64 {
 	if timestamp := nullableTimestamp(value); timestamp != nil {
 		return *timestamp
@@ -500,6 +513,72 @@ func nonNegativeIntValue(value any) Value {
 		return IntValue(0)
 	}
 	return IntValue(*number)
+}
+
+const (
+	maxFilterPatternsPerField = 20
+	maxFilterPatternLength    = 200
+)
+
+func validateFilterRuleCompatibility(value any) error {
+	if value == nil {
+		return nil
+	}
+	var raw []byte
+	switch typed := value.(type) {
+	case []byte:
+		raw = typed
+	case string:
+		raw = []byte(typed)
+	default:
+		encoded, err := json.Marshal(typed)
+		if err != nil {
+			return err
+		}
+		raw = encoded
+	}
+	var rules struct {
+		ExcludeTitle   []string `json:"exclude_title"`
+		ExcludeContent []string `json:"exclude_content"`
+		ExcludeAuthor  []string `json:"exclude_author"`
+	}
+	err := json.Unmarshal(raw, &rules)
+	if err != nil {
+		return err
+	}
+	fields := []struct {
+		name     string
+		patterns []string
+	}{
+		{name: "exclude_title", patterns: rules.ExcludeTitle},
+		{name: "exclude_content", patterns: rules.ExcludeContent},
+		{name: "exclude_author", patterns: rules.ExcludeAuthor},
+	}
+	for _, field := range fields {
+		name, patterns := field.name, field.patterns
+		effectiveCount := 0
+		for index, pattern := range patterns {
+			if pattern == "" {
+				continue
+			}
+			effectiveCount++
+			if effectiveCount > maxFilterPatternsPerField {
+				return fmt.Errorf("%s has %d effective patterns; target limit is %d", name, effectiveCount, maxFilterPatternsPerField)
+			}
+			length := 0
+			for _, character := range pattern {
+				if character > 0xffff {
+					length += 2
+				} else {
+					length++
+				}
+			}
+			if length > maxFilterPatternLength {
+				return fmt.Errorf("%s pattern %d has %d UTF-16 code units; target limit is %d", name, index+1, length, maxFilterPatternLength)
+			}
+		}
+	}
+	return nil
 }
 
 func canonicalJSONValue(value any) (Value, error) {

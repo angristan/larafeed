@@ -21,6 +21,15 @@ export const FEED_FETCH_TIMEOUT_MS = 15_000;
 export const MAX_FEED_RESPONSE_BYTES = 5 * 1024 * 1024;
 export const MAX_FEED_REDIRECTS = 5;
 export const MAX_FEED_DISCOVERY_CANDIDATES = 4;
+export const COMMON_FEED_DISCOVERY_PATHS = [
+    '/feed',
+    '/feed.xml',
+    '/rss',
+    '/rss.xml',
+    '/atom.xml',
+    '/index.xml',
+    '/feed.json',
+] as const;
 export const FEED_USER_AGENT =
     'Larafeed/1.0 (+https://larafeed.stanislas.cloud)';
 
@@ -513,12 +522,7 @@ export const makeFeedRefreshService = (
                         const candidates =
                             page.links.length > 0
                                 ? page.links
-                                : [
-                                      '/feed',
-                                      '/rss',
-                                      '/atom.xml',
-                                      '/feed.json',
-                                  ].map((path) =>
+                                : COMMON_FEED_DISCOVERY_PATHS.map((path) =>
                                       validateFeedUrl(
                                           new URL(path, page.finalUrl.origin),
                                       ),

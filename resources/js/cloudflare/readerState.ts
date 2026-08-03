@@ -9,6 +9,7 @@ export interface ReaderState {
     readonly orderBy: ReaderOrder;
     readonly page: number;
     readonly entryId: number | null;
+    readonly summarize: boolean;
 }
 
 export type ReaderStatePatch = Partial<ReaderState>;
@@ -48,6 +49,7 @@ export function parseReaderState(search: URLSearchParams): ReaderState {
                 : 'published_at',
         page: positiveSafeInteger(search.get('page'), 10_000) ?? 1,
         entryId: positiveSafeInteger(search.get('entry')),
+        summarize: search.get('summarize') === 'true',
     };
 }
 
@@ -66,6 +68,9 @@ export function readerStateSearch(state: ReaderState): URLSearchParams {
 
     if (state.entryId !== null) {
         search.set('entry', state.entryId.toString());
+    }
+    if (state.summarize) {
+        search.set('summarize', 'true');
     }
 
     return search;
@@ -94,6 +99,8 @@ export function patchReaderState(
         'filter' in patch ||
         'orderBy' in patch ||
         'page' in patch;
+    const changesEntry =
+        'entryId' in patch && patch.entryId !== current.entryId;
 
     let feedId = 'feedId' in patch ? (patch.feedId ?? null) : current.feedId;
     let categoryId =
@@ -111,12 +118,13 @@ export function patchReaderState(
         filter: patch.filter ?? current.filter,
         orderBy: patch.orderBy ?? current.orderBy,
         page: patch.page ?? (changesList ? 1 : current.page),
-        entryId:
-            'entryId' in patch
-                ? (patch.entryId ?? null)
-                : changesList
-                  ? null
-                  : current.entryId,
+        entryId: 'entryId' in patch ? (patch.entryId ?? null) : current.entryId,
+        summarize:
+            'summarize' in patch
+                ? (patch.summarize ?? false)
+                : changesEntry
+                  ? false
+                  : current.summarize,
     };
 }
 

@@ -22,7 +22,7 @@ export class UpdateAccountProfileRequest extends Schema.Class<UpdateAccountProfi
     'UpdateAccountProfileRequest',
 )({
     email: Email,
-    displayName: NonEmpty.check(Schema.isMaxLength(200)),
+    displayName: NonEmpty.check(Schema.isMaxLength(255)),
 }) {}
 
 export class AccountConfirmationRequest extends Schema.Class<AccountConfirmationRequest>(

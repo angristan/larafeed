@@ -27,7 +27,7 @@ This inventory is the cutover contract. “Implemented” means the Cloudflare a
 | API token settings | Implemented with one-time plaintext display and revocation. |
 | Favicons and article image privacy | Replaced by ownership-bound opaque routes and fixed Cloudflare Images transforms. Manual and bounded monthly stale refreshes discover ranked HTML icons, probe safe same-origin fallbacks, and validate every redirect/MIME/size before storing a source URL. The application is not an arbitrary image proxy. |
 | Gemini summaries | Replaced by bounded, cached AI Gateway requests with a kill switch and application rate limits. |
-| Existing users, feeds, entries, categories, subscriptions, interactions, compatible tokens, and refresh history | Migrated by the deterministic PostgreSQL exporter. Existing users enroll new passkeys after cutover. |
+| Existing users, feeds, entries, categories, subscriptions, interactions, compatible tokens, and refresh history | Migrated by the deterministic PostgreSQL exporter. Legacy article HTML is sanitized before size/hash classification, and the first Worker refresh promotes URL identities without replacing entry IDs or interactions. Existing users enroll new passkeys after cutover. |
 
 ## Intentionally removed
 

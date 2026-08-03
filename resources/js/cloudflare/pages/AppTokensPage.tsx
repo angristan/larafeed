@@ -34,6 +34,7 @@ import {
     createAppTokenMutationOptions,
     revokeAppTokenMutationOptions,
 } from '../queries/appTokens';
+import { authSessionQueryOptions } from '../queries/auth';
 
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
     dateStyle: 'medium',
@@ -181,6 +182,7 @@ function AppTokenList({
 export function AppTokensPage() {
     const queryClient = useQueryClient();
     const tokensQuery = useQuery(appTokenListQueryOptions);
+    const sessionQuery = useQuery(authSessionQueryOptions);
     const [name, setName] = useState('');
     const [nameTouched, setNameTouched] = useState(false);
     const [scopes, setScopes] = useState<readonly AppTokenScope[]>([]);
@@ -207,6 +209,13 @@ export function AppTokensPage() {
               : undefined;
     const scopesError =
         scopes.length === 0 ? 'Select at least one API.' : undefined;
+
+    const username =
+        sessionQuery.data?.authenticated === true
+            ? sessionQuery.data.user.username
+            : 'your exact Larafeed username';
+    const apiOrigin =
+        typeof window === 'undefined' ? '' : window.location.origin;
 
     const sortedTokens = useMemo(
         () =>
@@ -335,6 +344,64 @@ export function AppTokensPage() {
                             access without sharing your passkey.
                         </Text>
                     </Stack>
+
+                    <Paper
+                        component="section"
+                        aria-labelledby="connection-details-heading"
+                        withBorder
+                        p={{ base: 'lg', sm: 'xl' }}
+                    >
+                        <Stack gap="md">
+                            <Stack gap={4}>
+                                <Title
+                                    id="connection-details-heading"
+                                    order={2}
+                                    size="h3"
+                                >
+                                    Connect a reader app
+                                </Title>
+                                <Text c="dimmed" size="sm">
+                                    Create a token with the API your client
+                                    uses, then enter these details in the
+                                    client. Use the token as the password. Do
+                                    not use your passkey.
+                                </Text>
+                            </Stack>
+
+                            <Stack gap={4}>
+                                <Text fw={600}>Google Reader</Text>
+                                <Text component="div" size="sm">
+                                    Endpoint base:{' '}
+                                    <Code>{apiOrigin}/api/reader</Code>
+                                </Text>
+                                <Text component="div" size="sm">
+                                    Username: <Code>{username}</Code>
+                                </Text>
+                                <Text component="div" size="sm">
+                                    Password: <Code>the app token</Code>
+                                </Text>
+                            </Stack>
+
+                            <Stack gap={4}>
+                                <Text fw={600}>Fever</Text>
+                                <Text component="div" size="sm">
+                                    Endpoint:{' '}
+                                    <Code>{apiOrigin}/api/fever/</Code>
+                                </Text>
+                                <Text component="div" size="sm">
+                                    Username: <Code>{username}</Code>
+                                </Text>
+                                <Text component="div" size="sm">
+                                    Password: <Code>the app token</Code>
+                                </Text>
+                                <Text c="dimmed" size="xs">
+                                    A standard Fever client calculates its API
+                                    key from the username and token. Do not hash
+                                    the token yourself.
+                                </Text>
+                            </Stack>
+                        </Stack>
+                    </Paper>
 
                     {plaintextToken !== null && (
                         <Alert

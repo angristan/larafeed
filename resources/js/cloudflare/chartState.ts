@@ -41,15 +41,21 @@ export function parseChartState(
     const range = ranges.has(rangeValue)
         ? (rangeValue as ChartRequest['range'])
         : '30';
-    const feedId = safeId(parameters.get('feed'));
+    const feedId = safeId(parameters.get('feed') ?? parameters.get('feedId'));
     const categoryId =
-        feedId === null ? safeId(parameters.get('category')) : null;
+        feedId === null
+            ? safeId(parameters.get('category') ?? parameters.get('categoryId'))
+            : null;
     const defaults = defaultCustomDates(now);
     let startDate: string | null = null;
     let endDate: string | null = null;
     if (range === 'custom') {
-        const start = dateTimestamp(parameters.get('start'));
-        const end = dateTimestamp(parameters.get('end'));
+        const start = dateTimestamp(
+            parameters.get('start') ?? parameters.get('startDate'),
+        );
+        const end = dateTimestamp(
+            parameters.get('end') ?? parameters.get('endDate'),
+        );
         const today = utcToday(now);
         if (
             start !== null &&

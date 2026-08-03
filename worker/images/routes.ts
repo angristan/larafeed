@@ -5,7 +5,9 @@ import { getCookie } from 'hono/cookie';
 import { type AuthRuntime, defaultAuthRuntimeFactory } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
 import { makeD1 } from '../infrastructure/d1';
+import { findArticleImageSource, MAX_ARTICLE_IMAGES } from './article';
 import {
+    type ArticleImageSource,
     type FeedImageSource,
     type ImageRepository,
     makeImageRepository,
@@ -49,11 +51,17 @@ export interface ImageRouteDependencies {
     readonly runtimeFactory?: ImageRuntimeFactory;
 }
 
+export const imagesEnabled = (env: Pick<Env, 'IMAGES_ENABLED'>): boolean =>
+    env.IMAGES_ENABLED === 'true';
+
 export const defaultImageRuntimeFactory: ImageRuntimeFactory = (env) =>
     defaultAuthRuntimeFactory(env).pipe(
         Effect.flatMap((auth) =>
             Effect.try({
                 try: () => {
+                    if (!imagesEnabled(env)) {
+                        throw new Error('Images are disabled');
+                    }
                     const images = (env as Env & ImageBindingEnv).IMAGES;
                     if (images === undefined) {
                         throw new Error('IMAGES binding is unavailable');
@@ -103,11 +111,12 @@ const runtimeErrorResponse = (error: unknown): Response => {
     return jsonError(503, 'service_unavailable', 'Service unavailable');
 };
 
-const parseFeedId = (value: string): number | null => {
+const parsePositiveId = (value: string, maximum = Number.MAX_SAFE_INTEGER) => {
     if (!/^[1-9]\d*$/u.test(value)) return null;
     const id = Number(value);
-    return Number.isSafeInteger(id) ? id : null;
+    return Number.isSafeInteger(id) && id <= maximum ? id : null;
 };
+const parseFeedId = (value: string): number | null => parsePositiveId(value);
 
 const parsePreset = (value: string): FeedImagePreset | null =>
     value === 'small' || value === 'medium' ? value : null;
@@ -201,6 +210,88 @@ export const registerImageRoutes = (
                 await runtime.service.transformFeedImage({
                     sourceUrl: source.faviconUrl,
                     preset,
+                    accept: context.req.header('Accept') ?? null,
+                }),
+            );
+        } catch {
+            return placeholderResponse();
+        }
+    });
+
+    app.get('/api/images/entries/:entryId/:imageIndex', async (context) => {
+        const entryId = parsePositiveId(context.req.param('entryId'));
+        const imageIndex = parsePositiveId(
+            context.req.param('imageIndex'),
+            MAX_ARTICLE_IMAGES,
+        );
+        if (
+            entryId === null ||
+            imageIndex === null ||
+            new URL(context.req.url).search !== ''
+        ) {
+            return jsonError(404, 'not_found', 'Not found');
+        }
+
+        let runtime: ImageRuntime;
+        try {
+            runtime = await Effect.runPromise(runtimeFactory(context.env), {
+                signal: context.req.raw.signal,
+            });
+        } catch (error) {
+            return runtimeErrorResponse(error);
+        }
+
+        let session: AuthenticatedSession;
+        try {
+            session = await Effect.runPromise(
+                runtime.auth.service.authenticateSession(
+                    getCookie(context, runtime.auth.config.sessionCookie.name),
+                ),
+                { signal: context.req.raw.signal },
+            );
+        } catch (error) {
+            return runtimeErrorResponse(error);
+        }
+
+        let rateLimit: { readonly success: boolean };
+        try {
+            rateLimit = await runtime.rateLimit(
+                `article-image:${session.user.id}:${entryId}:${imageIndex}`,
+            );
+        } catch {
+            return jsonError(503, 'service_unavailable', 'Service unavailable');
+        }
+        if (!rateLimit.success) {
+            return jsonError(429, 'rate_limited', 'Too many requests');
+        }
+
+        let article: ArticleImageSource | null;
+        try {
+            article = await Effect.runPromise(
+                runtime.repository.findOwnedArticleSource(
+                    session.user.id,
+                    entryId,
+                ),
+                { signal: context.req.raw.signal },
+            );
+        } catch (error) {
+            return runtimeErrorResponse(error);
+        }
+        if (article === null) {
+            return jsonError(404, 'not_found', 'Not found');
+        }
+
+        try {
+            const sourceUrl = await findArticleImageSource(
+                article.contentHtml,
+                article.entryUrl,
+                imageIndex,
+            );
+            if (sourceUrl === null) return placeholderResponse();
+
+            return transformedResponse(
+                await runtime.service.transformArticleImage({
+                    sourceUrl,
                     accept: context.req.header('Accept') ?? null,
                 }),
             );

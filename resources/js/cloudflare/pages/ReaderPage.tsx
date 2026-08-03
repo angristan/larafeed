@@ -5,6 +5,7 @@ import {
     useMantineTheme,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { notifications } from '@mantine/notifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
@@ -83,7 +84,15 @@ export function ReaderPage() {
         }
 
         openedReadAttempt.current = entry.id;
-        entryMutations.read.mutate(true);
+        entryMutations.read.mutate(true, {
+            onError: (mutationError) =>
+                notifications.show({
+                    title: 'Failed to mark entry as read',
+                    message: mutationError.message,
+                    color: 'red',
+                    withBorder: true,
+                }),
+        });
     }, [entryDetailQuery.data, entryMutations.read, state.entryId]);
 
     useEffect(() => {
@@ -146,7 +155,10 @@ export function ReaderPage() {
 
             event.preventDefault();
             void navigate(
-                readerHref(state, { entryId: entries[nextIndex].id }),
+                readerHref(state, {
+                    entryId: entries[nextIndex].id,
+                    summarize: state.summarize,
+                }),
             );
         };
 
@@ -177,6 +189,7 @@ export function ReaderPage() {
 
     const backToList = () => {
         const previousEntryId = state.entryId;
+        openedReadAttempt.current = null;
         void navigate(readerHref(state, { entryId: null }));
         if (previousEntryId !== null) {
             window.setTimeout(() => {
@@ -273,17 +286,82 @@ export function ReaderPage() {
                             onBack={backToList}
                             onRetry={() => void entryDetailQuery.refetch()}
                             onSetArchived={(archived) =>
-                                entryMutations.archive.mutate(archived)
+                                entryMutations.archive.mutate(archived, {
+                                    onSuccess: () =>
+                                        notifications.show({
+                                            title: archived
+                                                ? 'Entry archived'
+                                                : 'Entry restored',
+                                            message: archived
+                                                ? 'Entry archived'
+                                                : 'Entry restored',
+                                            color: 'blue',
+                                            withBorder: true,
+                                        }),
+                                    onError: (mutationError) =>
+                                        notifications.show({
+                                            title: archived
+                                                ? 'Failed to archive entry'
+                                                : 'Failed to restore entry',
+                                            message: mutationError.message,
+                                            color: 'red',
+                                            withBorder: true,
+                                        }),
+                                })
                             }
                             onSetRead={(read) =>
-                                entryMutations.read.mutate(read)
+                                entryMutations.read.mutate(read, {
+                                    onSuccess: () =>
+                                        notifications.show({
+                                            title: read
+                                                ? 'Marked as read'
+                                                : 'Marked as unread',
+                                            message: read
+                                                ? 'Entry marked as read'
+                                                : 'Entry marked as unread',
+                                            color: 'blue',
+                                            withBorder: true,
+                                        }),
+                                    onError: (mutationError) =>
+                                        notifications.show({
+                                            title: read
+                                                ? 'Failed to mark entry as read'
+                                                : 'Failed to mark entry as unread',
+                                            message: mutationError.message,
+                                            color: 'red',
+                                            withBorder: true,
+                                        }),
+                                })
                             }
                             onSetStarred={(starred) =>
-                                entryMutations.star.mutate(starred)
+                                entryMutations.star.mutate(starred, {
+                                    onSuccess: () =>
+                                        notifications.show({
+                                            title: starred
+                                                ? 'Starred!'
+                                                : 'Not that good...',
+                                            message: starred
+                                                ? 'Entry added to favorites'
+                                                : 'Entry removed from favorites',
+                                            color: 'blue',
+                                            withBorder: true,
+                                        }),
+                                    onError: (mutationError) =>
+                                        notifications.show({
+                                            title: 'Failed to star entry',
+                                            message: mutationError.message,
+                                            color: 'red',
+                                            withBorder: true,
+                                        }),
+                                })
+                            }
+                            onSetSummarize={(summarize) =>
+                                void navigate(readerHref(state, { summarize }))
                             }
                             readPending={entryMutations.read.isPending}
                             selected={state.entryId !== null}
                             starPending={entryMutations.star.isPending}
+                            summarize={state.summarize}
                         />
                     </Split.Pane>
                 </Split>

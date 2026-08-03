@@ -9,7 +9,7 @@ const NonEmptyString = Schema.String.check(
     Schema.isTrimmed(),
     Schema.isMinLength(1),
 );
-const CategoryName = NonEmptyString.check(Schema.isMaxLength(64));
+const CategoryName = NonEmptyString.check(Schema.isMaxLength(255));
 const CustomFeedName = Schema.String.check(
     Schema.isTrimmed(),
     Schema.isMaxLength(255),

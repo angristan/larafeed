@@ -425,7 +425,7 @@ export function OpmlPage() {
                         </Text>
                         <Button
                             component="a"
-                            download="larafeed.opml"
+                            download="feeds.opml"
                             href="/api/opml/export"
                             leftSection={
                                 <IconDownload aria-hidden="true" size={18} />

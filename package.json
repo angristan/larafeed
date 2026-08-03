@@ -23,6 +23,7 @@
         "deploy:test": "npm run build:test && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy",
         "deploy:check:cloudflare": "npm run deploy:check",
         "test": "vitest run --config vitest.config.ts && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vitest run --config vitest.worker.config.ts",
+        "test:browser": "playwright test",
         "test:cloudflare": "npm test"
     },
     "devDependencies": {
@@ -35,6 +36,7 @@
         "@mantine/hooks": "^9.0.2",
         "@mantine/modals": "^9.0.2",
         "@mantine/notifications": "^9.0.2",
+        "@playwright/test": "1.62.1",
         "@tabler/icons-react": "^3.44.0",
         "@types/node": "^25.9.2",
         "@types/react": "^19.2.14",

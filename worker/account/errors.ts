@@ -2,7 +2,11 @@ import { Schema } from 'effect';
 
 export class AccountValidationError extends Schema.TaggedErrorClass<AccountValidationError>()(
     'AccountValidationError',
-    {},
+    {
+        field: Schema.optionalKey(
+            Schema.Literals(['email', 'displayName', 'confirmation']),
+        ),
+    },
 ) {}
 
 export class AccountNotFound extends Schema.TaggedErrorClass<AccountNotFound>()(
@@ -12,7 +16,7 @@ export class AccountNotFound extends Schema.TaggedErrorClass<AccountNotFound>()(
 
 export class AccountConflict extends Schema.TaggedErrorClass<AccountConflict>()(
     'AccountConflict',
-    {},
+    { field: Schema.optionalKey(Schema.Literal('email')) },
 ) {}
 
 export class AccountForbidden extends Schema.TaggedErrorClass<AccountForbidden>()(

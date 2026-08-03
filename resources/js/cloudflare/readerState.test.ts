@@ -21,6 +21,7 @@ describe('reader URL state', () => {
             orderBy: 'published_at',
             page: 1,
             entryId: null,
+            summarize: false,
         });
         expect(canonicalReaderSearch(search)).toBe(
             'filter=all&order_by=published_at&page=1',
@@ -57,10 +58,10 @@ describe('reader URL state', () => {
         ).toBe('feed=7&filter=all&order_by=published_at&page=1');
     });
 
-    it('resets page and entry when list inputs change', () => {
+    it('resets the page but preserves the selected entry when list inputs change', () => {
         const current = parseReaderState(
             new URLSearchParams(
-                'category=4&filter=unread&order_by=published_at&page=5&entry=11',
+                'category=4&filter=unread&order_by=published_at&page=5&entry=11&summarize=true',
             ),
         );
 
@@ -70,27 +71,44 @@ describe('reader URL state', () => {
             filter: 'unread',
             orderBy: 'published_at',
             page: 1,
-            entryId: null,
+            entryId: 11,
+            summarize: true,
         });
         expect(readerHref(current, { filter: 'favorites' })).toBe(
-            '/feeds?category=4&filter=favorites&order_by=published_at&page=1',
+            '/feeds?category=4&filter=favorites&order_by=published_at&page=1&entry=11&summarize=true',
         );
     });
 
-    it('keeps list inputs when only the selected entry changes', () => {
+    it('keeps list inputs and resets summary mode when the entry changes', () => {
         const current = parseReaderState(
             new URLSearchParams(
-                'feed=7&filter=read&order_by=created_at&page=3&entry=11',
+                'feed=7&filter=read&order_by=created_at&page=3&entry=11&summarize=true',
             ),
         );
 
         expect(patchReaderState(current, { entryId: 12 })).toEqual({
             ...current,
             entryId: 12,
+            summarize: false,
         });
         expect(patchReaderState(current, { entryId: null })).toEqual({
             ...current,
             entryId: null,
+            summarize: false,
         });
+    });
+
+    it('canonicalizes summary mode as summarize=true', () => {
+        expect(
+            canonicalReaderSearch(
+                new URLSearchParams('entry=11&summarize=true'),
+            ),
+        ).toBe(
+            'filter=all&order_by=published_at&page=1&entry=11&summarize=true',
+        );
+        expect(
+            parseReaderState(new URLSearchParams('entry=11&summarize=false'))
+                .summarize,
+        ).toBe(false);
     });
 });

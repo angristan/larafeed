@@ -42,6 +42,31 @@ describe('chart URL state', () => {
         });
     });
 
+    it('accepts legacy parameter names and emits one canonical form', () => {
+        const legacy = new URLSearchParams(
+            'range=custom&feedId=12&categoryId=13&startDate=2026-07-01&endDate=2026-07-18',
+        );
+        const canonical = canonicalChartSearch(parseChartState(legacy, now));
+
+        expect(canonical).toBe(
+            'range=custom&feed=12&start=2026-07-01&end=2026-07-18',
+        );
+        expect(
+            canonicalChartSearch(
+                parseChartState(new URLSearchParams(canonical), now),
+            ),
+        ).toBe(canonical);
+    });
+
+    it('prefers canonical names when legacy aliases are also present', () => {
+        expect(
+            parseChartState(
+                new URLSearchParams('feed=4&feedId=9&categoryId=8'),
+                now,
+            ),
+        ).toMatchObject({ feedId: 4, categoryId: null });
+    });
+
     it('omits default range and all-subscription scope', () => {
         expect(
             canonicalChartSearch(

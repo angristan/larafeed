@@ -26,6 +26,18 @@ Each fetch validates the source and every redirect with the feed SSRF policy. It
 
 Wrangler declares the `IMAGES` binding. It stores no images in Cloudflare Images and creates no variants or hosted assets.
 
+## Article images
+
+Reader entry responses rewrite at most 100 safe article `<img>` sources to ownership-bound paths:
+
+```text
+/api/images/entries/{ownedEntryId}/{imageIndex}
+```
+
+The source URL remains server-side. Each image request authenticates the session, verifies that the entry is visible through an active subscription, resolves only the indexed source from the stored sanitized article, and applies one fixed 1600 px scale-down transform. Source fetches reuse the redirect, timeout, MIME, SVG, credential, private-network, and 2 MiB protections used for favicons. The application CSP permits only same-origin and data images, so a missed remote URL cannot contact a publisher from the browser.
+
+`IMAGES_ENABLED` is the fail-closed rollout control for both feed and article transformations.
+
 ## AI summaries
 
 `GET /api/entries/{id}/summary` is side-effect-free. `POST` requires the web session, exact CSRF checks, and per-user rate limiting.
@@ -43,6 +55,8 @@ The Worker:
 The request disables AI Gateway response caching because D1 owns the semantic cache key. It also disables prompt/response log collection so article content is not stored in Gateway logs. Gateway request counts and provider metrics remain available.
 
 ### Configuration
+
+Selecting the summary view keeps `summarize=true` in reader URL state. A cache miss automatically submits the CSRF-protected generation command once and shows the legacy loading skeleton; there is no second generate step.
 
 AI summaries are disabled by default:
 

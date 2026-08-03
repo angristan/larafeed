@@ -1,9 +1,7 @@
 const WORDS_PER_MINUTE = 300;
 
-const wordSegmenter =
-    typeof Intl.Segmenter === 'function'
-        ? new Intl.Segmenter(undefined, { granularity: 'word' })
-        : null;
+const readingTimeTokenPattern =
+    /\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}|[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu;
 
 export interface ReadingTimeEstimate {
     readonly minutes: number;
@@ -18,18 +16,18 @@ export function estimateReadingTime(
         throw new RangeError('Words per minute must be a positive number.');
     }
 
-    const words =
-        wordSegmenter === null
-            ? (text.match(/[\p{L}\p{M}\p{N}]+/gu)?.length ?? 0)
-            : [...wordSegmenter.segment(text)].filter(
-                  (segment) => segment.isWordLike,
-              ).length;
+    const words = text.match(readingTimeTokenPattern)?.length ?? 0;
 
     return {
         words,
-        minutes:
-            words === 0 ? 0 : Math.max(1, Math.ceil(words / wordsPerMinute)),
+        minutes: Math.round(words / wordsPerMinute),
     };
+}
+
+export function readingTimeLabel(estimate: ReadingTimeEstimate): string {
+    return estimate.minutes < 1
+        ? 'less than a minute read'
+        : `${estimate.minutes} min read`;
 }
 
 /**

@@ -11,6 +11,10 @@ const parse = (xml: string): Promise<ParsedFeed> =>
     parseFeedDocument(bytes(xml), { finalUrl, fetchedAt });
 const hex = (value: Uint8Array) =>
     Array.from(value, (byte) => byte.toString(16).padStart(2, '0')).join('');
+const digest = async (value: string) =>
+    new Uint8Array(
+        await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)),
+    );
 
 describe('feed parser', () => {
     it('normalizes RSS 2 namespaces, arrays, relative links, and content', async () => {
@@ -274,6 +278,31 @@ describe('feed parser', () => {
                     ?.deduplicationKey ?? new Uint8Array(),
             ),
         );
+    });
+
+    it('keeps source IDs canonical while carrying the migrated URL identity', async () => {
+        const feed = await parse(`<rss><channel><title>x</title>
+            <item><guid>guid-1</guid><link>/posts/1</link><title>Linked</title></item>
+            <item><guid>guid-only</guid><title>ID only</title></item>
+        </channel></rss>`);
+        const linked = feed.entries.find(
+            (entry) => entry.sourceId === 'guid-1',
+        );
+        const idOnly = feed.entries.find(
+            (entry) => entry.sourceId === 'guid-only',
+        );
+
+        expect(linked?.sourceIdentity).toBe('id:guid-1');
+        expect(hex(linked?.deduplicationKey ?? new Uint8Array())).toBe(
+            hex(await digest('id:guid-1')),
+        );
+        expect(hex(linked?.legacyUrlDeduplicationKey ?? new Uint8Array())).toBe(
+            hex(await digest('url:https://feeds.example.com/posts/1')),
+        );
+        expect(linked?.legacyUrlDeduplicationKey).not.toEqual(
+            linked?.deduplicationKey,
+        );
+        expect(idOnly?.legacyUrlDeduplicationKey).toBeNull();
     });
 
     it('keeps at most the 50 newest entries with source order tie-breaking', async () => {

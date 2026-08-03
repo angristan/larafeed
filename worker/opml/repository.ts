@@ -882,13 +882,12 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                 },
                 {
                     sql: `INSERT INTO feed_subscriptions (user_id, feed_id, category_id, custom_feed_name, created_at, updated_at)
-                    SELECT ?, f.id, c.id, ?, ?, ? FROM feeds f, subscription_categories c
+                    SELECT ?, f.id, c.id, NULL, ?, ? FROM feeds f, subscription_categories c
                     WHERE f.feed_url = ? AND c.user_id = ? AND c.name = ? COLLATE NOCASE
                         AND EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})
                     ON CONFLICT(user_id, feed_id) DO NOTHING`,
                     bindings: [
                         input.claim.userId,
-                        input.claim.title,
                         input.completedAt,
                         input.completedAt,
                         input.feedUrl,

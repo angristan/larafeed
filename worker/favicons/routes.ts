@@ -6,6 +6,7 @@ import { getCookie } from 'hono/cookie';
 import { type AuthRuntime, defaultAuthRuntimeFactory } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
 import { makeD1 } from '../infrastructure/d1';
+import { faviconRefreshEnabled } from './cron';
 import { makeFaviconRepository } from './repository';
 import { type FaviconService, makeFaviconService } from './service';
 
@@ -24,6 +25,7 @@ export type FaviconRuntimeFactory = (
 ) => Effect.Effect<FaviconRuntime, unknown>;
 export interface FaviconRouteDependencies {
     readonly runtimeFactory?: FaviconRuntimeFactory;
+    readonly enabled?: (env: Env) => boolean;
 }
 export const defaultFaviconRuntimeFactory: FaviconRuntimeFactory = (env) =>
     defaultAuthRuntimeFactory(env).pipe(
@@ -102,6 +104,12 @@ const errorResponse = (error: unknown): Response => {
                     message: 'Too many requests',
                     status: 429,
                 };
+            case 'FaviconRefreshDisabled':
+                return {
+                    code: 'service_unavailable' as const,
+                    message: 'Favicon refresh is disabled',
+                    status: 503,
+                };
             case 'FaviconStorageError':
             case 'AuthStorageError':
                 return {
@@ -153,7 +161,11 @@ export const registerFaviconRoutes = (
     dependencies: FaviconRouteDependencies = {},
 ): Hono<{ Bindings: Env }> => {
     const factory = dependencies.runtimeFactory ?? defaultFaviconRuntimeFactory;
+    const enabled = dependencies.enabled ?? faviconRefreshEnabled;
     app.post('/api/feeds/:feedId/favicon/refresh', (context) => {
+        if (!enabled(context.env)) {
+            return errorResponse({ _tag: 'FaviconRefreshDisabled' });
+        }
         const feedId = id(context.req.param('feedId'));
         if (feedId === null || new URL(context.req.url).search !== '') {
             return errorResponse({ _tag: 'FaviconNotFound' });

@@ -28,7 +28,7 @@ const entry: ReaderEntry = {
     archivedAt: null,
 };
 
-const renderDetail = (summary?: unknown): string => {
+const renderDetail = (summary?: unknown, summarize = false): string => {
     const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false } },
     });
@@ -51,9 +51,11 @@ const renderDetail = (summary?: unknown): string => {
                     onSetArchived={() => undefined}
                     onSetRead={() => undefined}
                     onSetStarred={() => undefined}
+                    onSetSummarize={() => undefined}
                     readPending={false}
                     selected
                     starPending={false}
+                    summarize={summarize}
                 />
             </MantineProvider>
         </QueryClientProvider>,
@@ -62,16 +64,19 @@ const renderDetail = (summary?: unknown): string => {
 
 describe('ReaderEntryDetail summaries', () => {
     it('renders cached sanitized summary HTML without regeneration', () => {
-        const markup = renderDetail({
-            summary: {
-                id: 41,
-                entryId: entry.id,
-                html: '<p><strong>Cached summary.</strong></p>',
-                model: 'gemini-2.5-flash',
-                promptVersion: 'entry-summary-v1',
-                generatedAt: 1_900_000_000_000,
+        const markup = renderDetail(
+            {
+                summary: {
+                    id: 41,
+                    entryId: entry.id,
+                    html: '<p><strong>Cached summary.</strong></p>',
+                    model: 'gemini-2.5-flash',
+                    promptVersion: 'entry-summary-v1',
+                    generatedAt: 1_900_000_000_000,
+                },
             },
-        });
+            true,
+        );
         expect(markup).toContain('aria-label="Entry view"');
         expect(markup).toContain('aria-label="Article content"');
         expect(markup).toContain('aria-label="AI summary"');
@@ -80,7 +85,7 @@ describe('ReaderEntryDetail summaries', () => {
         );
         expect(markup).toContain('aria-label="Archive entry"');
         expect(markup).toContain('AI summary');
-        expect(markup).toContain('1 min read');
+        expect(markup).toContain('less than a minute read');
         expect(markup).toContain(
             'Estimated reading time at 300 words per minute',
         );
@@ -88,15 +93,30 @@ describe('ReaderEntryDetail summaries', () => {
         expect(markup).not.toContain('Generate summary');
     });
 
-    it('renders loading state before the side-effect-free GET completes', () => {
-        const markup = renderDetail();
-        expect(markup).toContain('Loading summary');
-        expect(markup).not.toContain('Generate summary');
+    it('does not mount summary content while article mode is active', () => {
+        const markup = renderDetail({
+            summary: {
+                id: 41,
+                entryId: entry.id,
+                html: '<p>Must stay inactive.</p>',
+                model: 'gemini-2.5-flash',
+                promptVersion: 'entry-summary-v1',
+                generatedAt: 1_900_000_000_000,
+            },
+        });
+        expect(markup).toContain('Article content.');
+        expect(markup).not.toContain('Must stay inactive.');
+        expect(markup).not.toContain('Loading summary');
     });
 
-    it('renders generation action for a cached null response', () => {
-        const markup = renderDetail({ summary: null });
-        expect(markup).toContain('Generate summary');
-        expect(markup).toContain('Generate a concise AI summary');
+    it('shows a skeleton immediately while loading or starting generation', () => {
+        expect(renderDetail(undefined, true)).toContain('Loading summary');
+        const missing = renderDetail({ summary: null }, true);
+        expect(missing).toContain('Loading summary');
+        expect(missing).not.toContain('Generate summary');
+    });
+
+    it('keeps the mobile back action in the detail pane', () => {
+        expect(renderDetail()).toContain('aria-label="Back to entry list"');
     });
 });

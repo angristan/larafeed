@@ -19,6 +19,7 @@ Cron/manual command
 - Queue batches contain at most 5 messages. Production consumer concurrency is capped at 3.
 - A feed fetch has one 15-second deadline, at most 5 manually validated redirects, and a 5 MiB response limit.
 - A refresh keeps at most 50 entries. Sanitized article HTML is stored only below 1.8 MB.
+- Parser source IDs remain canonical. On the first post-migration refresh, an exact source-less legacy URL identity is promoted in place so entry IDs and interactions remain stable.
 - Jobs use leased, conditional state transitions and at most 8 processing attempts.
 - Queue messages contain only an operation ID. Retries reload feed and job state from D1.
 - Detailed refresh history older than 90 days is deleted in bounded batches, and the newest row for each feed is always retained. Daily refresh aggregates preserve complete 365-day charts without retaining every attempt row.
@@ -27,7 +28,7 @@ Cron/manual command
 
 Queue sends and D1 writes do not share a transaction. The dispatcher therefore leaves ambiguous sends leased. Lease expiry can send the same operation again; consumer claims and unique constraints make that safe.
 
-Retryable network, timeout, HTTP 408/425/429, and 5xx failures use bounded exponential backoff. Valid `Retry-After` guidance can extend that delay within the persisted six-hour cap. Terminal policy, parse, size, and other 4xx failures end the job. HTTP 404 and 410 also mark the feed gone. The DLQ consumer records terminal D1 state before acknowledging.
+Retryable network, timeout, HTTP 408/425/429, and 5xx failures use bounded exponential backoff. Valid `Retry-After` guidance can extend that delay within the persisted six-hour cap. Terminal policy, parse, size, and other 4xx failures end the job. A terminal feed that is not gone is reconsidered no sooner than the normal refresh interval, rather than the short queue-retry delay. HTTP 404 and 410 also mark the feed gone. The DLQ consumer records terminal D1 state before acknowledging.
 
 Feed URLs and every redirect must use standard-port HTTP or HTTPS. Credentials, fragments, local names, private/special IP literals, and obvious binary responses are rejected. Worker fetch cannot DNS-pin arbitrary hostnames, so URL validation is defense in depth alongside the Workers network boundary.
 
@@ -39,7 +40,7 @@ These non-secret Worker variables bound or stop new work:
 - `REFRESH_DISPATCH_ENABLED` — send leased outbox messages.
 - `REFRESH_DUE_LIMIT` — maximum due feeds reserved per run, from 1 to 100.
 
-Disabling scheduling stops new scheduled jobs. Disabling dispatch keeps commands durable in the outbox. Existing Queue deliveries continue so already accepted work can reach an authoritative terminal state.
+Disabling scheduling stops new scheduled jobs. Disabling dispatch keeps commands durable in the outbox. Subscription creation still creates its refresh command but does not send it to the Queue. Existing Queue deliveries continue so already accepted work can reach an authoritative terminal state.
 
 ## Provisioning
 

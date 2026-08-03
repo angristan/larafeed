@@ -64,6 +64,8 @@ describe('SecurityPage', () => {
         expect(profileMarkup).toContain('reader@example.test');
         expect(profileMarkup).toContain('Clear reader data');
         expect(profileMarkup).toContain('Delete account');
+        expect(profileMarkup).toContain('App tokens');
+        expect(profileMarkup).toContain('maxLength="255"');
         expect(profileMarkup).not.toContain('Laptop');
 
         const securityMarkup = render('/settings/security#security');

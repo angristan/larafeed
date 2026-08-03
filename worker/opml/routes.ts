@@ -12,6 +12,7 @@ import { type AuthRuntime, defaultAuthRuntimeFactory } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
 import { makeD1 } from '../infrastructure/d1';
 import {
+    OpmlFeatureDisabled,
     OpmlNotFoundError,
     OpmlRateLimitedError,
     OpmlValidationError,
@@ -28,6 +29,7 @@ const NO_STORE_HEADERS = {
 export interface OpmlRouteRuntime {
     readonly auth: AuthRuntime;
     readonly orchestrator: OpmlOrchestrator;
+    readonly importEnabled: boolean;
 }
 
 export type OpmlRouteRuntimeFactory = (
@@ -61,11 +63,16 @@ export const makeDefaultOpmlOrchestrator = (env: Env): OpmlOrchestrator =>
         queue: queueFromEnv(env),
     });
 
+export const opmlImportEnabled = (
+    env: Pick<Env, 'OPML_IMPORT_ENABLED'>,
+): boolean => env.OPML_IMPORT_ENABLED === 'true';
+
 export const defaultOpmlRouteRuntimeFactory: OpmlRouteRuntimeFactory = (env) =>
     defaultAuthRuntimeFactory(env).pipe(
         Effect.map((auth) => ({
             auth,
             orchestrator: makeDefaultOpmlOrchestrator(env),
+            importEnabled: opmlImportEnabled(env),
         })),
     );
 
@@ -99,6 +106,12 @@ const errorResponse = (error: unknown): Response => {
                 return ['not_found', 'Not found', 404] as const;
             case 'OpmlRateLimitedError':
                 return ['rate_limited', 'Too many requests', 429] as const;
+            case 'OpmlFeatureDisabled':
+                return [
+                    'service_unavailable',
+                    'OPML imports are disabled',
+                    503,
+                ] as const;
             case 'OpmlStorageError':
             case 'AuthStorageError':
                 return [
@@ -266,6 +279,11 @@ export const registerOpmlRoutes = (
                 Effect.tap(({ runtime: value, session }) =>
                     authorizeMutation(context, value, session),
                 ),
+                Effect.tap(({ runtime: value }) =>
+                    value.importEnabled
+                        ? Effect.void
+                        : Effect.fail(new OpmlFeatureDisabled()),
+                ),
                 Effect.tap(({ session }) =>
                     rateLimit(context.env, session.user.id, 'create'),
                 ),
@@ -370,40 +388,42 @@ export const registerOpmlRoutes = (
         ),
     );
 
-    app.get('/api/opml/export', (context) =>
-        runRoute(
-            context.req.raw,
-            runtime(context.env).pipe(
-                Effect.bindTo('runtime'),
-                Effect.bind('session', ({ runtime: value }) =>
-                    authenticate(context, value),
-                ),
-                Effect.tap(({ session }) =>
-                    rateLimit(context.env, session.user.id, 'export'),
-                ),
-                Effect.bind('document', ({ runtime: value, session }) =>
-                    Effect.tryPromise({
-                        try: () =>
-                            value.orchestrator.exportOpml(session.user.id),
-                        catch: (cause) => cause,
-                    }),
-                ),
-                Effect.map(
-                    ({ document }) =>
-                        new Response(document, {
-                            status: 200,
-                            headers: {
-                                'cache-control': 'no-store',
-                                'content-disposition':
-                                    'attachment; filename="larafeed.opml"',
-                                'content-type':
-                                    'application/xml; charset=UTF-8',
-                            },
+    for (const path of ['/api/opml/export', '/export'] as const) {
+        app.get(path, (context) =>
+            runRoute(
+                context.req.raw,
+                runtime(context.env).pipe(
+                    Effect.bindTo('runtime'),
+                    Effect.bind('session', ({ runtime: value }) =>
+                        authenticate(context, value),
+                    ),
+                    Effect.tap(({ session }) =>
+                        rateLimit(context.env, session.user.id, 'export'),
+                    ),
+                    Effect.bind('document', ({ runtime: value, session }) =>
+                        Effect.tryPromise({
+                            try: () =>
+                                value.orchestrator.exportOpml(session.user.id),
+                            catch: (cause) => cause,
                         }),
+                    ),
+                    Effect.map(
+                        ({ document }) =>
+                            new Response(document, {
+                                status: 200,
+                                headers: {
+                                    'cache-control': 'no-store',
+                                    'content-disposition':
+                                        'attachment; filename="feeds.opml"',
+                                    'content-type':
+                                        'application/xml; charset=UTF-8',
+                                },
+                            }),
+                    ),
                 ),
             ),
-        ),
-    );
+        );
+    }
 
     return app;
 };

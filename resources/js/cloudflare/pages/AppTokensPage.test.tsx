@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
 import { appTokenKeys } from '../queries/appTokens';
+import { authKeys } from '../queries/auth';
 import { AppTokensPage } from './AppTokensPage';
 
 type TokenMetadata = {
@@ -28,6 +29,16 @@ function renderPage(tokens?: readonly TokenMetadata[]): string {
     if (tokens !== undefined) {
         queryClient.setQueryData(appTokenKeys.list(), { tokens });
     }
+    queryClient.setQueryData(authKeys.session(), {
+        authenticated: true,
+        user: {
+            id: 7,
+            username: 'reader',
+            displayName: 'Reader',
+            isAdmin: false,
+        },
+        expiresAt: 3_000_000_000_000,
+    });
 
     return renderToStaticMarkup(
         <QueryClientProvider client={queryClient}>
@@ -49,6 +60,13 @@ describe('AppTokensPage', () => {
         expect(markup).toContain('Allowed APIs');
         expect(markup).toContain('Google Reader');
         expect(markup).toContain('Fever');
+        expect(markup).toContain('Connect a reader app');
+        expect(markup).toContain('/api/reader');
+        expect(markup).toContain('/api/fever/');
+        expect(markup).toContain('reader');
+        expect(markup).toContain('the app token');
+        expect(markup).toContain('Do not use your passkey');
+        expect(markup).toContain('Do not hash');
     });
 
     it('renders token metadata without inventing or exposing plaintext', () => {

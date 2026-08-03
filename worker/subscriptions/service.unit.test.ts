@@ -419,7 +419,7 @@ describe('subscription management service', () => {
         );
     });
 
-    it('rejects unsafe regex before changing subscription state', async () => {
+    it('rejects out-of-bounds filters before changing subscription state', async () => {
         const updateSubscription = vi.fn(() => Effect.void);
         const service = makeSubscriptionService({
             repository: repository({ updateSubscription }),
@@ -433,7 +433,7 @@ describe('subscription management service', () => {
                     categoryId: 11,
                     customFeedName: null,
                     filterRules: {
-                        excludeTitle: ['(a+)+'],
+                        excludeTitle: ['a'.repeat(201)],
                         excludeContent: [],
                         excludeAuthor: [],
                     },

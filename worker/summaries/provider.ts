@@ -4,7 +4,7 @@ import type { SummaryConfig } from './config';
 import { SummaryProviderError } from './errors';
 
 export const SUMMARY_PROVIDER_DEADLINE_MS = 15_000;
-export const SUMMARY_MAX_OUTPUT_TOKENS = 8_192;
+export const SUMMARY_MAX_OUTPUT_TOKENS = 512;
 export const SUMMARY_MAX_PROVIDER_BODY_BYTES = 64_000;
 
 const GeminiResponse = Schema.Struct({
@@ -66,15 +66,10 @@ const gatewayUrl = (config: SummaryConfig): string =>
 
 const prompt = (
     input: GenerateSummaryInput,
-): string => `Summarize this article in concise, neutral HTML.
-Use only <p>, <ul>, <ol>, <li>, <strong>, and <em> elements.
-Do not include links, images, headings, code fences, or facts that are not in the article.
-Return only the HTML summary.
+): string => `Summarize the following article in 3-4 sentences. Break your summary into short paragraphs using HTML <p> tags. If the article appears to be an aggregator post or excerpt, mention that. Use passive voice. Return HTML only, no markdown.
 
 Title: ${input.title}
-
-Article:
-${input.articleText}`;
+Content: ${input.articleText}`;
 
 const readBoundedText = async (
     response: Response,

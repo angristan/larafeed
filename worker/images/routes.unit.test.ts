@@ -7,7 +7,11 @@ import { Unauthenticated } from '../auth/errors';
 import type { AuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession, AuthService } from '../auth/service';
 import type { ImageRepository } from './repository';
-import { type ImageRuntime, registerImageRoutes } from './routes';
+import {
+    type ImageRuntime,
+    imagesEnabled,
+    registerImageRoutes,
+} from './routes';
 import type { ImageService } from './service';
 
 const config: AuthConfig = {
@@ -70,9 +74,19 @@ const makeRuntime = (overrides: Partial<ImageRuntime> = {}) =>
                 Effect.succeed({
                     faviconUrl: 'https://images.example.test/icon.png',
                 }),
+            findOwnedArticleSource: () =>
+                Effect.succeed({
+                    contentHtml:
+                        '<img src="https://images.example.test/article.png">',
+                    entryUrl: 'https://publisher.example.test/article',
+                }),
         } as ImageRepository,
         service: {
             transformFeedImage: async () =>
+                new Response(new Uint8Array([1, 2, 3]).buffer, {
+                    headers: { 'content-type': 'image/webp' },
+                }),
+            transformArticleImage: async () =>
                 new Response(new Uint8Array([1, 2, 3]).buffer, {
                     headers: { 'content-type': 'image/webp' },
                 }),
@@ -89,6 +103,12 @@ const get = {
 };
 
 describe('feed image routes', () => {
+    it('enables transforms only for the exact rollout value', () => {
+        expect(imagesEnabled({ IMAGES_ENABLED: 'true' })).toBe(true);
+        expect(imagesEnabled({ IMAGES_ENABLED: 'false' })).toBe(false);
+        expect(imagesEnabled({ IMAGES_ENABLED: 'TRUE' })).toBe(false);
+    });
+
     it('requires a web session before ownership or source lookup', async () => {
         const findOwnedFeedSource = vi.fn(() =>
             Effect.succeed({
@@ -98,8 +118,14 @@ describe('feed image routes', () => {
         const transformFeedImage = vi.fn();
         const runtime = makeRuntime({
             auth: makeAuth(() => Effect.fail(new Unauthenticated())),
-            repository: { findOwnedFeedSource } as ImageRepository,
-            service: { transformFeedImage } as unknown as ImageService,
+            repository: {
+                ...makeRuntime().repository,
+                findOwnedFeedSource,
+            },
+            service: {
+                ...makeRuntime().service,
+                transformFeedImage,
+            },
         });
 
         const response = await makeApp(runtime).request(
@@ -116,8 +142,14 @@ describe('feed image routes', () => {
         const findOwnedFeedSource = vi.fn(() => Effect.succeed(null));
         const transformFeedImage = vi.fn();
         const runtime = makeRuntime({
-            repository: { findOwnedFeedSource } as ImageRepository,
-            service: { transformFeedImage } as unknown as ImageService,
+            repository: {
+                ...makeRuntime().repository,
+                findOwnedFeedSource,
+            },
+            service: {
+                ...makeRuntime().service,
+                transformFeedImage,
+            },
         });
 
         const response = await makeApp(runtime).request(
@@ -139,7 +171,10 @@ describe('feed image routes', () => {
         );
         const rateLimit = vi.fn(async () => ({ success: true }));
         const runtime = makeRuntime({
-            service: { transformFeedImage } as ImageService,
+            service: {
+                ...makeRuntime().service,
+                transformFeedImage,
+            },
             rateLimit,
         });
 
@@ -162,7 +197,10 @@ describe('feed image routes', () => {
     it('cannot become an open proxy through query or preset input', async () => {
         const transformFeedImage = vi.fn();
         const runtime = makeRuntime({
-            service: { transformFeedImage } as unknown as ImageService,
+            service: {
+                ...makeRuntime().service,
+                transformFeedImage,
+            },
         });
         const app = makeApp(runtime);
 
@@ -181,24 +219,27 @@ describe('feed image routes', () => {
         const cases: ImageRuntime[] = [
             makeRuntime({
                 repository: {
+                    ...makeRuntime().repository,
                     findOwnedFeedSource: () =>
                         Effect.succeed({ faviconUrl: null }),
                 },
             }),
             makeRuntime({
                 service: {
+                    ...makeRuntime().service,
                     transformFeedImage: async () => {
                         throw new Error('private upstream failure');
                     },
-                } as ImageService,
+                },
             }),
             makeRuntime({
                 service: {
+                    ...makeRuntime().service,
                     transformFeedImage: async () =>
                         new Response(new Uint8Array([1]).buffer, {
                             headers: { 'content-type': 'image/svg+xml' },
                         }),
-                } as ImageService,
+                },
             }),
         ];
 
@@ -221,7 +262,10 @@ describe('feed image routes', () => {
             Effect.succeed({ faviconUrl: 'https://images.example.test/a.png' }),
         );
         const runtime = makeRuntime({
-            repository: { findOwnedFeedSource } as ImageRepository,
+            repository: {
+                ...makeRuntime().repository,
+                findOwnedFeedSource,
+            },
             rateLimit: async () => ({ success: false }),
         });
 

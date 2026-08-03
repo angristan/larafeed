@@ -140,6 +140,13 @@ describe('OPML D1 repository', () => {
             ),
         ).resolves.toBe(1);
         await expect(
+            first<{ custom_feed_name: string | null }>(
+                `SELECT custom_feed_name FROM feed_subscriptions
+                 WHERE user_id = ? AND feed_id = ?`,
+                [userId, 715_001],
+            ),
+        ).resolves.toEqual({ custom_feed_name: null });
+        await expect(
             repository.claimJob({
                 operationId: 'opml-workerd-operation',
                 owner: 'duplicate',

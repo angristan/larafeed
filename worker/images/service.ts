@@ -25,6 +25,10 @@ export const IMAGE_PRESETS: Readonly<
         quality: 80,
     },
 };
+export const ARTICLE_IMAGE_PRESET: FixedImagePreset = {
+    transform: { width: 1_600, fit: 'scale-down' },
+    quality: 85,
+};
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const ALLOWED_IMAGE_MIME = /^image\/[a-z0-9.+-]+$/u;
@@ -40,6 +44,11 @@ export interface ImageServiceDependencies {
 export interface TransformFeedImageInput {
     readonly sourceUrl: string;
     readonly preset: FeedImagePreset;
+    readonly accept: string | null;
+}
+
+export interface TransformArticleImageInput {
+    readonly sourceUrl: string;
     readonly accept: string | null;
 }
 
@@ -180,36 +189,44 @@ export const fetchImageBytes = async (
     }
 };
 
-export const makeImageService = (dependencies: ImageServiceDependencies) => ({
-    transformFeedImage: async (
-        input: TransformFeedImageInput,
-    ): Promise<Response> => {
-        try {
-            const source = await fetchImageBytes(
-                input.sourceUrl,
-                dependencies.fetch ?? globalThis.fetch.bind(globalThis),
-            );
-            const sourceBuffer = new ArrayBuffer(source.byteLength);
-            new Uint8Array(sourceBuffer).set(source);
-            const sourceStream = new Response(sourceBuffer).body;
-            if (sourceStream === null) throw unavailable();
+const transformImage = async (
+    dependencies: ImageServiceDependencies,
+    input: TransformArticleImageInput,
+    preset: FixedImagePreset,
+): Promise<Response> => {
+    try {
+        const source = await fetchImageBytes(
+            input.sourceUrl,
+            dependencies.fetch ?? globalThis.fetch.bind(globalThis),
+        );
+        const sourceBuffer = new ArrayBuffer(source.byteLength);
+        new Uint8Array(sourceBuffer).set(source);
+        const sourceStream = new Response(sourceBuffer).body;
+        if (sourceStream === null) throw unavailable();
 
-            const preset = IMAGE_PRESETS[input.preset];
-            const output = await dependencies.images
-                .input(sourceStream)
-                .transform(preset.transform)
-                .output({
-                    format: autoFormat(input.accept),
-                    quality: preset.quality,
-                    anim: false,
-                });
-            const response = output.response();
-            if (response.body === null) throw unavailable();
-            return response;
-        } catch (cause) {
-            throw cause instanceof FeedImageUnavailable ? cause : unavailable();
-        }
-    },
+        const output = await dependencies.images
+            .input(sourceStream)
+            .transform(preset.transform)
+            .output({
+                format: autoFormat(input.accept),
+                quality: preset.quality,
+                anim: false,
+            });
+        const response = output.response();
+        if (response.body === null) throw unavailable();
+        return response;
+    } catch (cause) {
+        throw cause instanceof FeedImageUnavailable ? cause : unavailable();
+    }
+};
+
+export const makeImageService = (dependencies: ImageServiceDependencies) => ({
+    transformFeedImage: (input: TransformFeedImageInput): Promise<Response> =>
+        transformImage(dependencies, input, IMAGE_PRESETS[input.preset]),
+    transformArticleImage: (
+        input: TransformArticleImageInput,
+    ): Promise<Response> =>
+        transformImage(dependencies, input, ARTICLE_IMAGE_PRESET),
 });
 
 export type ImageService = ReturnType<typeof makeImageService>;

@@ -242,9 +242,13 @@ export const makeAccountRepository = (d1: D1): AccountRepository => ({
             );
             if (
                 updated.email.toLocaleLowerCase() !==
-                    input.email.toLocaleLowerCase() ||
-                updated.displayName !== input.displayName
+                input.email.toLocaleLowerCase()
             ) {
+                return yield* Effect.fail(
+                    new AccountConflict({ field: 'email' }),
+                );
+            }
+            if (updated.displayName !== input.displayName) {
                 return yield* Effect.fail(new AccountConflict());
             }
             return updated;
