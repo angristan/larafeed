@@ -29,7 +29,7 @@ export function FeedFavicon({ src, isDark, size = 18 }: FeedFaviconProps) {
         <img
             alt=""
             aria-hidden="true"
-            className={isDark === false ? classes.favicon : classes.faviconDark}
+            className={isDark === true ? classes.faviconDark : classes.favicon}
             height={size}
             loading="lazy"
             onError={() => setFailedSrc(src)}

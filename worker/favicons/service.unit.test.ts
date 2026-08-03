@@ -15,6 +15,7 @@ const target = {
 const repository = () =>
     ({
         findOwnedTarget: () => Effect.succeed(target),
+        findStaleTarget: () => Effect.succeed(target),
         listStaleTargets: () => Effect.succeed([target]),
         update: () => Effect.void,
     }) satisfies FaviconRepository;
@@ -81,6 +82,24 @@ describe('favicon service', () => {
         );
     });
 
+    it('skips a scoped favicon that is already fresh', async () => {
+        const accountRepository: FaviconRepository = {
+            ...repository(),
+            findStaleTarget: () => Effect.succeed(null),
+        };
+        const fetchMock = vi.fn();
+        const service = makeFaviconService({
+            repository: accountRepository,
+            fetch: fetchMock,
+            now: () => 1_900_000_000_000,
+        });
+
+        await expect(
+            Effect.runPromise(service.refreshIfStale(target.feedId)),
+        ).resolves.toBeNull();
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
     it('preserves the current icon when every probe is inconclusive', async () => {
         const current = {
             ...target,
@@ -89,6 +108,7 @@ describe('favicon service', () => {
         };
         const accountRepository: FaviconRepository = {
             findOwnedTarget: () => Effect.succeed(current),
+            findStaleTarget: () => Effect.succeed(current),
             listStaleTargets: () => Effect.succeed([current]),
             update: () => Effect.void,
         };
@@ -133,6 +153,7 @@ describe('favicon service', () => {
             };
             const accountRepository: FaviconRepository = {
                 findOwnedTarget: () => Effect.succeed(current),
+                findStaleTarget: () => Effect.succeed(current),
                 listStaleTargets: () => Effect.succeed([current]),
                 update: () => Effect.void,
             };
@@ -175,6 +196,7 @@ describe('favicon service', () => {
         };
         const accountRepository: FaviconRepository = {
             findOwnedTarget: () => Effect.succeed(current),
+            findStaleTarget: () => Effect.succeed(current),
             listStaleTargets: () => Effect.succeed([current]),
             update: () => Effect.void,
         };

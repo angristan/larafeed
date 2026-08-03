@@ -39,6 +39,13 @@ export interface FaviconRepository {
         FaviconTarget,
         FaviconNotFound | FaviconStorageError | FaviconInvariantError
     >;
+    readonly findStaleTarget: (
+        feedId: number,
+        cutoff: number,
+    ) => Effect.Effect<
+        FaviconTarget | null,
+        FaviconStorageError | FaviconInvariantError
+    >;
     readonly listStaleTargets: (
         cutoff: number,
         limit: number,
@@ -103,6 +110,30 @@ export const makeFaviconRepository = (d1: D1): FaviconRepository => ({
                     new FaviconInvariantError({ operation }),
                 );
             return rows[0] as FaviconTarget;
+        }),
+    findStaleTarget: (feedId, cutoff) =>
+        Effect.gen(function* () {
+            const operation = 'favicon.findStale';
+            const result = yield* d1
+                .all({
+                    sql: `SELECT id AS feed_id, feed_url, site_url, favicon_url,
+                            favicon_is_dark
+                        FROM feeds
+                        WHERE id = ?
+                          AND (favicon_updated_at IS NULL OR favicon_updated_at < ?)
+                          AND EXISTS (
+                            SELECT 1 FROM feed_subscriptions fs
+                            WHERE fs.feed_id = feeds.id
+                          )`,
+                    bindings: [feedId, cutoff],
+                })
+                .pipe(Effect.mapError((cause) => storage(operation, cause)));
+            const rows = yield* decodeRows(operation, result.results);
+            if (rows.length > 1)
+                return yield* Effect.fail(
+                    new FaviconInvariantError({ operation }),
+                );
+            return rows[0] ?? null;
         }),
     listStaleTargets: (cutoff, limit) =>
         d1

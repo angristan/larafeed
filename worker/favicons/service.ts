@@ -273,6 +273,16 @@ export const makeFaviconService = (
             dependencies.repository
                 .findOwnedTarget(userId, feedId)
                 .pipe(Effect.flatMap(refreshTarget)),
+        refreshIfStale: (feedId: number) =>
+            dependencies.repository
+                .findStaleTarget(feedId, now() - STALE_AFTER_MS)
+                .pipe(
+                    Effect.flatMap((target) =>
+                        target === null
+                            ? Effect.succeed(null)
+                            : refreshTarget(target),
+                    ),
+                ),
         refreshStale: (limit = 1) =>
             dependencies.repository
                 .listStaleTargets(

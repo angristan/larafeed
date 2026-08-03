@@ -1360,6 +1360,9 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     favicon_updated_at = CASE
                         WHEN ? = 1 AND favicon_url IS NOT ? THEN NULL
                         ELSE favicon_updated_at END,
+                    favicon_is_dark = CASE
+                        WHEN ? = 1 AND favicon_url IS NOT ? THEN NULL
+                        ELSE favicon_is_dark END,
                     favicon_url = CASE WHEN ? = 1 THEN ? ELSE favicon_url END,
                     etag = ?, last_modified = ?, consecutive_failures = 0,
                     consecutive_not_found_failures = 0, is_gone = 0,
@@ -1377,6 +1380,8 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 input.feedName ?? null,
                 input.siteUrl === undefined ? 0 : 1,
                 input.siteUrl ?? null,
+                input.faviconUrl === undefined ? 0 : 1,
+                input.faviconUrl ?? null,
                 input.faviconUrl === undefined ? 0 : 1,
                 input.faviconUrl ?? null,
                 input.faviconUrl === undefined ? 0 : 1,

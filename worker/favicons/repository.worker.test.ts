@@ -71,6 +71,9 @@ describe('favicon D1 repository', () => {
             Effect.runPromise(repository.findOwnedTarget(otherId, feedId)),
         ).rejects.toBeInstanceOf(FaviconNotFound);
         await expect(
+            Effect.runPromise(repository.findStaleTarget(feedId, now)),
+        ).resolves.toMatchObject({ feedId, faviconIsDark: null });
+        await expect(
             Effect.runPromise(repository.listStaleTargets(now, 5)),
         ).resolves.toEqual([
             {
@@ -96,6 +99,9 @@ describe('favicon D1 repository', () => {
             faviconUrl: 'https://favicon.example.test/icon.png',
             faviconIsDark: true,
         });
+        await expect(
+            Effect.runPromise(repository.findStaleTarget(feedId, now)),
+        ).resolves.toBeNull();
         await expect(
             Effect.runPromise(
                 d1.first({

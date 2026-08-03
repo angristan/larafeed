@@ -164,7 +164,7 @@ describe('subscription management routes', () => {
                 availableAt: 1,
             },
         }));
-        const dispatchOutbox = vi.fn(async () => ({
+        const dispatchOperation = vi.fn(async () => ({
             leased: 1,
             sent: 1,
             released: 0,
@@ -177,16 +177,18 @@ describe('subscription management routes', () => {
                     config: { dispatchEnabled },
                     orchestrator: {
                         createManualRefresh,
-                        dispatchOutbox,
+                        dispatchOperation,
                     },
                 },
                 21,
             ),
         ).resolves.toEqual({ operationId: 'subscription-refresh' });
         expect(createManualRefresh).toHaveBeenCalledWith(21);
-        expect(dispatchOutbox).toHaveBeenCalledTimes(dispatchCalls);
+        expect(dispatchOperation).toHaveBeenCalledTimes(dispatchCalls);
         if (dispatchEnabled) {
-            expect(dispatchOutbox).toHaveBeenCalledWith(1);
+            expect(dispatchOperation).toHaveBeenCalledWith(
+                'subscription-refresh',
+            );
         }
     });
 

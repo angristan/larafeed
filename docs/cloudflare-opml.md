@@ -12,6 +12,7 @@ Authenticated JSON upload
   -> atomically create initial feed-refresh job + outbox work when needed
   -> immediately hand that operation to the feed-refresh Queue
   -> fetch and persist posts through the standard refresh consumer
+  -> discover and analyze the favicon after post persistence
   -> exact D1 progress counters
 ```
 
@@ -35,7 +36,7 @@ The settings page polls every five seconds only while an import is pending or pr
 - Feed URLs use the same SSRF-oriented URL policy as feed refreshes. Invalid or private targets become terminal, visible item failures.
 - Site metadata URLs reject credentials, fragments, nonstandard ports, and non-HTTP protocols.
 
-An OPML consumer does not ingest discovered entries from memory. In the same D1 transaction that completes the item, it creates a standard feed-refresh job and outbox row when the canonical feed has never refreshed and has no active refresh job. After that commit, it immediately leases and sends that exact operation to the feed-refresh Queue when refresh dispatch is enabled. The operation identity is stable for the OPML item. Fresh and shared empty feeds therefore begin populating without waiting for Cron, even if refresh reservation is disabled. Populated feeds and feeds with active refresh work do not get duplicate jobs. Existing subscriptions are counted as skipped.
+An OPML consumer does not ingest discovered entries from memory. In the same D1 transaction that completes the item, it creates a standard feed-refresh job and outbox row unless that canonical feed already has active refresh work. This applies to new and previously populated shared feeds, so every accepted import refreshes available posts. After the commit, the consumer immediately leases and sends that exact operation to the feed-refresh Queue when refresh dispatch is enabled. The operation identity is stable for the OPML item. Successful refreshes persist posts before discovering and analyzing a stale or unknown favicon. Active refresh work remains deduplicated. Existing subscriptions are counted as skipped.
 
 ## Delivery and recovery
 

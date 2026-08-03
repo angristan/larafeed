@@ -60,7 +60,7 @@ interface SubscriptionRefreshRuntime {
     readonly config: Pick<RefreshRuntime['config'], 'dispatchEnabled'>;
     readonly orchestrator: Pick<
         RefreshRuntime['orchestrator'],
-        'createManualRefresh' | 'dispatchOutbox'
+        'createManualRefresh' | 'dispatchOperation'
     >;
 }
 
@@ -70,7 +70,7 @@ export const scheduleSubscriptionRefresh = async (
 ): Promise<{ readonly operationId: string }> => {
     const created = await refresh.orchestrator.createManualRefresh(feedId);
     if (refresh.config.dispatchEnabled) {
-        await refresh.orchestrator.dispatchOutbox(1);
+        await refresh.orchestrator.dispatchOperation(created.operationId);
     }
     return { operationId: created.operationId };
 };

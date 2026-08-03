@@ -8,6 +8,8 @@ import {
 import { makeFaviconRepository } from './repository';
 import { makeFaviconService } from './service';
 
+export const FAVICON_CRON_LIMIT = 5;
+
 export const faviconRefreshEnabled = (
     env: Pick<Env, 'FAVICON_REFRESH_ENABLED'>,
 ): boolean => env.FAVICON_REFRESH_ENABLED === 'true';
@@ -22,7 +24,7 @@ export const handleFaviconCron = async (env: Env): Promise<void> => {
             : undefined,
     });
     await Effect.runPromise(
-        service.refreshStale(1).pipe(
+        service.refreshStale(FAVICON_CRON_LIMIT).pipe(
             // Favicon maintenance is best-effort and must not block feed/OPML Cron.
             Effect.catchCause(() => Effect.succeed([])),
         ),

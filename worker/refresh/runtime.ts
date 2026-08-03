@@ -1,6 +1,13 @@
 import { Effect } from 'effect';
 
 import { sha256Bytes } from '../auth/crypto';
+import { faviconRefreshEnabled } from '../favicons/cron';
+import {
+    faviconDarknessEnabled,
+    makeFaviconDarknessAnalyzer,
+} from '../favicons/darkness';
+import { makeFaviconRepository } from '../favicons/repository';
+import { makeFaviconService } from '../favicons/service';
 import {
     FeedHttpError,
     isFeedRefreshError,
@@ -227,7 +234,17 @@ export const makeRefreshRuntime = (
     options: RefreshRuntimeOptions = {},
 ): RefreshRuntime => {
     const config = parseRefreshRuntimeConfig(env);
-    const repository = makeJobRepository(makeD1(env.DB));
+    const d1 = makeD1(env.DB);
+    const repository = makeJobRepository(d1);
+    const favicon = faviconRefreshEnabled(env)
+        ? makeFaviconService({
+              repository: makeFaviconRepository(d1),
+              analyzeDarkness: faviconDarknessEnabled(env)
+                  ? makeFaviconDarknessAnalyzer(env.IMAGES)
+                  : undefined,
+              ...(options.now === undefined ? {} : { now: options.now }),
+          })
+        : null;
     const orchestrator = makeJobOrchestrator({
         repository,
         queue: {
@@ -238,6 +255,12 @@ export const makeRefreshRuntime = (
             },
         },
         processor: makeRefreshProcessor(options),
+        ...(favicon === null
+            ? {}
+            : {
+                  refreshFavicon: (feedId: number) =>
+                      Effect.runPromise(favicon.refreshIfStale(feedId)),
+              }),
         ...(options.now === undefined ? {} : { now: options.now }),
     });
 

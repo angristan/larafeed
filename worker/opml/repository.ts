@@ -1095,7 +1095,6 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                             ?, ?, ?, ?
                         FROM feeds f
                         WHERE f.feed_url = ?
-                            AND f.last_successful_refresh_at IS NULL
                             AND EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})
                             AND NOT EXISTS (
                                 SELECT 1 FROM jobs active

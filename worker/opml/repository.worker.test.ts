@@ -594,7 +594,7 @@ describe('OPML D1 repository', () => {
             ),
         ).resolves.toEqual({
             state: 'succeeded',
-            refreshOperationId: null,
+            refreshOperationId: 'feed-refresh:opml:opml-existing-populated',
         });
         await expect(
             scalar(
@@ -602,7 +602,7 @@ describe('OPML D1 repository', () => {
                  WHERE kind = ? AND json_extract(payload_json, '$.feedId') = ?`,
                 [FEED_REFRESH_JOB_KIND, emptyFeedId],
             ),
-        ).resolves.toBe(1);
+        ).resolves.toBe(2);
     });
 
     it('never leases another topic and hides imports from other users', async () => {

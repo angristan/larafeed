@@ -169,7 +169,7 @@ Authentication maintenance removes expired or revoked sessions after 30 days, co
 | `REFRESH_SCHEDULER_ENABLED=false` | Stop creating scheduled refresh commands. Existing durable work remains. |
 | `REFRESH_DISPATCH_ENABLED=false` | Stop every feed-refresh Queue send, including new subscriptions and OPML-created feeds, while retaining outbox commands. |
 | `OPML_IMPORT_ENABLED=false` | Reject new OPML imports before creating durable jobs. Existing jobs remain inspectable. |
-| `FAVICON_REFRESH_ENABLED=false` | Stop both stale-favicon Cron reservation and manual favicon refresh. |
+| `FAVICON_REFRESH_ENABLED=false` | Stop post-refresh favicon analysis, stale-favicon Cron maintenance, and manual favicon refresh. |
 | `IMAGES_ENABLED=false` | Reject feed-favicon and ownership-bound article image transforms before using Images. |
 | Lower `REFRESH_DUE_LIMIT` | Reduce each Cron reservation burst. |
 | Queue consumer pause/concurrency | Stop or reduce feed/OPML consumers without losing D1 state. |
@@ -281,8 +281,8 @@ Set `AI_SUMMARY_ENABLED=false` immediately or enforce a Gateway budget. Set `IMA
 - Security headers and SPA deep links work.
 - Passkey login/logout/recovery, user passkey management, fresh-auth account deletion, admin enrollment/recovery, and CSRF rejection work.
 - Reader lists, detail, state mutations, and read-through work on migrated data.
-- Manual/Cron feed refresh, manual/stale favicon refresh, Queue retry, outbox recovery, and DLQ state work.
-- OPML import/progress/export work.
+- Manual/Cron feed refresh, automatic post-refresh favicon analysis, manual/stale favicon refresh, Queue retry, outbox recovery, and DLQ state work.
+- Normal subscription add and OPML import both immediately fetch posts and analyze an unknown or stale favicon; OPML progress/export work.
 - Google Reader and Fever token auth, scope, and revocation work.
 - Opaque Images routes enforce ownership and fixed presets.
 - AI summaries respect cache, limits, privacy, and kill switch.

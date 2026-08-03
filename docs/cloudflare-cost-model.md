@@ -32,7 +32,7 @@ Rollback: set both refresh controls to `false`, then pause consumers if in-fligh
 
 ## Favicons and Images
 
-Favicon maintenance refreshes at most one stale feed per Cron invocation. Darkness analysis performs one fixed 10×10 Images transformation for a selected favicon only when both favicon refresh and Images are enabled. Scheduled maintenance contributes at most `12 × 24 × 30 = 8,640` analysis attempts in a 30-day month.
+Favicon maintenance refreshes at most five stale feeds per Cron invocation. A successful feed refresh also analyzes that exact feed when its favicon check is missing or older than 30 days; this covers normal adds and OPML imports without waiting for Cron. Both paths share `favicon_updated_at`, so they converge instead of repeating work. Darkness analysis performs one fixed 10×10 Images transformation for a selected favicon only when both favicon refresh and Images are enabled. The theoretical production Cron ceiling is `5 × 12 × 24 × 30 = 43,200` attempts in a 30-day month, while a stable set of `F` subscribed feeds normally contributes at most about `F` automatic or scheduled checks per 30 days.
 
 Manual favicon refresh uses the shared 20-per-minute limiter with a key per user and feed. For `U` users and `F` feeds, its application-side ceiling is `20 × 60 × 24 × 30 × U × F = 864,000 × U × F` attempts per month. This deliberately conservative maximum is too high to treat the switch as a budget control. Keep both favicon and Images switches disabled until account-level Images limits/alerts are approved; unique-transform caching can reduce billed units but is not a safety boundary.
 

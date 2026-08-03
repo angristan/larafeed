@@ -34,6 +34,7 @@ export interface JobOrchestratorDependencies {
     readonly repository: JobRepository;
     readonly queue: QueueSender;
     readonly processor: RefreshProcessor;
+    readonly refreshFavicon?: (feedId: number) => Promise<unknown>;
     readonly now?: () => number;
     readonly generateId?: () => Promise<number>;
     readonly generateToken?: () => Promise<string>;
@@ -429,6 +430,14 @@ export const makeJobOrchestrator = (
                     : {}),
                 entries,
             });
+            if (dependencies.refreshFavicon !== undefined) {
+                try {
+                    await dependencies.refreshFavicon(claimed.claim.feedId);
+                } catch {
+                    // Post persistence is authoritative. A stale or unknown
+                    // favicon remains eligible for scheduled recovery.
+                }
+            }
             return {
                 action: 'ack',
                 reason:
