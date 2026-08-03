@@ -125,6 +125,27 @@ describe('subscription management D1 repository', () => {
             ],
         });
 
+        const hash = 'd'.repeat(64);
+        await Effect.runPromise(
+            d1.run({
+                sql: `UPDATE feeds SET favicon_url = ?,
+                        favicon_asset_hash = ? WHERE id = ?`,
+                bindings: [
+                    'https://publisher.example.test/favicon.ico',
+                    hash,
+                    812_001,
+                ],
+            }),
+        );
+        const assetRepository = makeSubscriptionRepository(d1);
+        await expect(
+            Effect.runPromise(
+                assetRepository.findSubscription(firstUser, 812_001),
+            ),
+        ).resolves.toMatchObject({
+            faviconUrl: `/api/public/favicons/v1/${hash}.png`,
+        });
+
         await Effect.runPromise(repository.unsubscribe(firstUser, 812_001));
         await expect(
             Effect.runPromise(

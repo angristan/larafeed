@@ -10,7 +10,9 @@ const target = {
     feedUrl: 'https://example.test/feed.xml',
     siteUrl: 'https://example.test/articles',
     faviconUrl: null,
+    faviconAssetHash: null,
     faviconIsDark: null,
+    faviconUpdatedAt: null,
 };
 const repository = () =>
     ({
@@ -67,12 +69,16 @@ describe('favicon service', () => {
         ).resolves.toEqual({
             feedId: target.feedId,
             faviconUrl: 'https://example.test/icon.png',
+            faviconAssetHash: null,
         });
         expect(update).toHaveBeenCalledWith(
             target.feedId,
             'https://example.test/icon.png',
+            null,
             true,
             1_900_000_000_000,
+            target.faviconUrl,
+            target.faviconUpdatedAt,
         );
         expect(analyzeDarkness).toHaveBeenCalledWith(new Uint8Array([1, 2, 3]));
         expect(fetchMock).toHaveBeenNthCalledWith(
@@ -80,6 +86,97 @@ describe('favicon service', () => {
             new URL('https://example.test/articles'),
             expect.objectContaining({ redirect: 'manual' }),
         );
+    });
+
+    it('persists the normalized D1 asset before switching the feed reference', async () => {
+        const accountRepository = repository();
+        const update = vi.spyOn(accountRepository, 'update');
+        const persist = vi.fn().mockResolvedValue({
+            hash: 'a'.repeat(64),
+            isDark: false,
+        });
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                new Response('<link rel="icon" href="/icon.png">', {
+                    headers: { 'content-type': 'text/html' },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(new Uint8Array([1, 2, 3]), {
+                    headers: { 'content-type': 'image/png' },
+                }),
+            );
+        const service = makeFaviconService({
+            repository: accountRepository,
+            fetch: fetchMock,
+            assetStore: { persist },
+            now: () => 77,
+        });
+
+        await expect(
+            Effect.runPromise(service.refreshOwned(1, target.feedId)),
+        ).resolves.toEqual({
+            feedId: target.feedId,
+            faviconUrl: 'https://example.test/icon.png',
+            faviconAssetHash: 'a'.repeat(64),
+        });
+        expect(persist).toHaveBeenCalledWith(new Uint8Array([1, 2, 3]));
+        expect(update).toHaveBeenCalledWith(
+            target.feedId,
+            'https://example.test/icon.png',
+            'a'.repeat(64),
+            false,
+            77,
+            target.faviconUrl,
+            target.faviconUpdatedAt,
+        );
+        expect(persist.mock.invocationCallOrder[0]).toBeLessThan(
+            update.mock.invocationCallOrder[0] ?? 0,
+        );
+    });
+
+    it('keeps the previous feed reference when asset persistence fails', async () => {
+        const current = {
+            ...target,
+            faviconUrl: 'https://example.test/current.png',
+            faviconAssetHash: 'b'.repeat(64),
+            faviconIsDark: true,
+        };
+        const accountRepository: FaviconRepository = {
+            findOwnedTarget: () => Effect.succeed(current),
+            findStaleTarget: () => Effect.succeed(current),
+            listStaleTargets: () => Effect.succeed([current]),
+            update: () => Effect.void,
+        };
+        const update = vi.spyOn(accountRepository, 'update');
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                new Response('<link rel="icon" href="/replacement.png">', {
+                    headers: { 'content-type': 'text/html' },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(new Uint8Array([4, 5, 6]), {
+                    headers: { 'content-type': 'image/png' },
+                }),
+            );
+        const service = makeFaviconService({
+            repository: accountRepository,
+            fetch: fetchMock,
+            assetStore: {
+                persist: vi
+                    .fn()
+                    .mockRejectedValue(new Error('asset storage unavailable')),
+            },
+            now: () => 88,
+        });
+
+        await expect(
+            Effect.runPromise(service.refreshOwned(1, target.feedId)),
+        ).rejects.toMatchObject({ _tag: 'FaviconDiscoveryError' });
+        expect(update).not.toHaveBeenCalled();
     });
 
     it('skips a scoped favicon that is already fresh', async () => {
@@ -132,12 +229,16 @@ describe('favicon service', () => {
         ).resolves.toEqual({
             feedId: target.feedId,
             faviconUrl: current.faviconUrl,
+            faviconAssetHash: null,
         });
         expect(update).toHaveBeenCalledWith(
             target.feedId,
             current.faviconUrl,
+            null,
             true,
             99,
+            current.faviconUrl,
+            current.faviconUpdatedAt,
         );
     });
 
@@ -182,8 +283,11 @@ describe('favicon service', () => {
             expect(update).toHaveBeenCalledWith(
                 target.feedId,
                 'https://example.test/replacement.png',
+                null,
                 expected,
                 101,
+                current.faviconUrl,
+                current.faviconUpdatedAt,
             );
         }
     });
@@ -225,8 +329,11 @@ describe('favicon service', () => {
         expect(update).toHaveBeenCalledWith(
             target.feedId,
             current.faviconUrl,
+            null,
             true,
             102,
+            current.faviconUrl,
+            current.faviconUpdatedAt,
         );
     });
 
@@ -249,8 +356,22 @@ describe('favicon service', () => {
 
         await expect(
             Effect.runPromise(service.refreshStale(1)),
-        ).resolves.toEqual([{ feedId: target.feedId, faviconUrl: null }]);
-        expect(update).toHaveBeenCalledWith(target.feedId, null, null, 100);
+        ).resolves.toEqual([
+            {
+                feedId: target.feedId,
+                faviconUrl: null,
+                faviconAssetHash: null,
+            },
+        ]);
+        expect(update).toHaveBeenCalledWith(
+            target.feedId,
+            null,
+            null,
+            null,
+            100,
+            target.faviconUrl,
+            target.faviconUpdatedAt,
+        );
         expect(fetchMock).toHaveBeenCalledTimes(4);
     });
 });

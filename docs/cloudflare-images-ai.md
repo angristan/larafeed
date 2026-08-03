@@ -2,33 +2,23 @@
 
 ## Feed images
 
-Larafeed does not expose an arbitrary-origin image proxy. Reader payloads contain only opaque application URLs:
+Larafeed stores normalized favicon PNGs in D1 by their SHA-256 content hash. Reader payloads contain a same-origin public URL and never expose the publisher URL:
 
 ```text
-/api/images/feeds/{ownedFeedId}/small
-/api/images/feeds/{ownedFeedId}/medium
+/api/public/favicons/v1/{sha256}.png
 ```
 
-The route authenticates the web session, checks subscription ownership, and loads the source from the feed row. Feed refresh stores explicit feed icon metadata when valid. Otherwise it derives only the stored site origin's `/favicon.ico` URL.
+Users can request an ownership-checked refresh with `POST /api/feeds/{ownedFeedId}/favicon/refresh`. The command is CSRF- and rate-limit-protected. It fetches at most 1 MiB of site HTML, ranks at most four non-SVG icon links, probes three same-origin fallback paths, and validates every URL and redirect with the feed SSRF policy. Image probes allow at most three redirects, five seconds, and 2 MiB, require a non-SVG image MIME type, and reject empty bodies.
 
-Users can request an ownership-checked refresh with `POST /api/feeds/{ownedFeedId}/favicon/refresh`. The command is CSRF- and rate-limit-protected. It fetches at most 1 MiB of site HTML, ranks at most four non-SVG icon links, probes three same-origin fallback paths, and validates every URL and redirect with the feed SSRF policy. Image probes allow at most three redirects, five seconds, and 2 MiB, require a non-SVG image MIME type, and reject empty bodies. The API returns only the opaque Larafeed image URL.
+A selected image is transformed once through the Images binding to a fixed 32 × 32 PNG with animation disabled. Larafeed analyzes darkness from those normalized bytes, hashes them with SHA-256, and inserts at most 64 KiB into D1. Identical normalized bytes reuse one row. The asset insert completes before D1 switches the feed's `favicon_asset_hash`; a fetch, transform, or persistence failure leaves the previous asset and darkness intact. A feed-update race can leave a harmless content-addressed orphan.
 
-Cron checks one actively subscribed stale or missing favicon per tick. A successful check, including a bounded no-icon result, advances `favicon_updated_at`; the same feed is not retried until its 30-day refresh interval passes. Favicon maintenance failures do not block feed refresh or OPML Cron work.
+The public route requires no session, rate limit, ownership query, upstream fetch, or Images transform. It checks the per-colo Worker Cache API first and reads D1 only on a cold or evicted cache entry. Successful responses use `Content-Type: image/png`, a hash ETag, and `Cache-Control: public, max-age=31536000, immutable`. Errors use `no-store`. The immutable browser cache normally avoids every repeat request. D1 remains authoritative because Cache API entries are non-durable and may be evicted.
 
-Two fixed Cloudflare Images presets exist:
+Cron checks at most five actively subscribed stale or missing favicons per tick. A successful check, including a bounded no-icon result, advances `favicon_updated_at`; the same feed is not retried until its 30-day refresh interval passes. Successful feed refreshes also check that exact feed when needed, so normal adds and OPML imports do not wait for Cron. Each Cron deletes at most 100 unreferenced favicon rows older than 30 days. Migration `0015` marks existing favicon sources stale for bounded D1 backfill.
 
-| Preset | Transform |
-| --- | --- |
-| `small` | 32 × 32, cover, quality 80 |
-| `medium` | 64 × 64, cover, quality 80 |
+The old authenticated `/api/images/feeds/{feedId}/small` route remains only as a migration fallback while a feed has an upstream source but no normalized asset hash.
 
-Each fetch validates the source and every redirect with the feed SSRF policy. It permits at most three redirects, five seconds, and 2 MiB. It rejects non-image responses and SVG. Missing or failed sources return a fixed transparent PNG without source details.
-
-Every image request authenticates first. Feed and article routes then share one `image:{userId}` rate-limit key, so changing feed IDs, presets, entry IDs, or image indexes cannot multiply the user's transformation budget. Ownership is still checked for the requested feed or entry before any cached bytes or origin source are used.
-
-Successful transforms use Cloudflare's Cache API for six hours. The internal key contains only the application origin, fixed preset and output format, and a SHA-256 digest of the server-owned source URL. It never contains the source origin, path, query, or credentials. Cache lookup happens only after authentication, ownership, and server-side source resolution. Client responses remain `private, no-store`, and internal cache headers are not forwarded, so authenticated images do not enter a public browser or shared HTTP cache. A source URL or preset change selects a new internal entry; expiration bounds staleness when bytes change at the same URL.
-
-Wrangler declares the `IMAGES` binding. It stores no images in Cloudflare Images and creates no variants or hosted assets.
+Wrangler declares only the `IMAGES` transformation binding for this flow. It does not require R2 or hosted Cloudflare Images storage.
 
 ## Article images
 
@@ -38,9 +28,11 @@ Reader entry responses rewrite at most 100 safe article `<img>` sources to owner
 /api/images/entries/{ownedEntryId}/{imageIndex}
 ```
 
-The source URL remains server-side. Each image request authenticates the session, verifies that the entry is visible through an active subscription, resolves only the indexed source from the stored sanitized article, and applies one fixed 1600 px scale-down transform. Source fetches reuse the redirect, timeout, MIME, SVG, credential, private-network, and 2 MiB protections used for favicons. The application CSP permits only same-origin and data images, so a missed remote URL cannot contact a publisher from the browser.
+The source URL remains server-side. Each image request authenticates the session, verifies that the entry is visible through an active subscription, resolves only the indexed source from the stored sanitized article, and applies one fixed 1600 px scale-down transform. Source fetches reuse the redirect, timeout, MIME, SVG, credential, private-network, and 2 MiB protections used for favicons. The application CSP permits only controlled image origins, so a missed remote URL cannot contact a publisher from the browser.
 
-`IMAGES_ENABLED` is the fail-closed rollout control for both feed and article transformations.
+Successful article images use `Cache-Control: private, max-age=86400` to prevent repeated requests during rerenders or a short revisit. Authentication, ownership, rate-limit, missing-source, and transformation failures remain `private, no-store`. The Worker Cache API still retains successful transformed article bytes for six hours under an opaque source digest. Article images are not persisted in R2 because most posts are read once.
+
+`IMAGES_ENABLED` is the fail-closed rollout control for favicon normalization and article transformations.
 
 ## AI summaries
 

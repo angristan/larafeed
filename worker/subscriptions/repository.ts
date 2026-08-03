@@ -6,6 +6,7 @@ import type {
 } from '@shared/schemas/subscriptions';
 import { Effect, Schema } from 'effect';
 
+import { feedFaviconUrl } from '../favicons/assets';
 import type { D1, D1OperationError } from '../infrastructure/d1';
 import {
     SubscriptionConflict,
@@ -36,6 +37,10 @@ const SubscriptionRow = Schema.Struct({
     custom_feed_name: Schema.NullOr(Schema.String),
     feed_url: Schema.String,
     site_url: Schema.NullOr(Schema.String),
+    favicon_url: Schema.NullOr(Schema.String),
+    favicon_asset_hash: Schema.NullOr(
+        Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/u)),
+    ),
     favicon_is_dark: Schema.NullOr(BooleanInt),
     entry_count: Count,
     unread_count: Count,
@@ -258,7 +263,7 @@ const effectiveRead = `CASE
 const subscriptionSelect = `SELECT
     fs.feed_id, fs.category_id, c.name AS category_name,
     f.name AS feed_name, fs.custom_feed_name, f.feed_url, f.site_url,
-    f.favicon_is_dark,
+    f.favicon_url, f.favicon_asset_hash, f.favicon_is_dark,
     (SELECT COUNT(*) FROM entries counted
         LEFT JOIN entry_interactions counted_i
             ON counted_i.user_id = fs.user_id AND counted_i.entry_id = counted.id
@@ -368,7 +373,11 @@ const subscriptionFromRow = (
             customFeedName: row.custom_feed_name,
             feedUrl: row.feed_url,
             siteUrl: row.site_url,
-            faviconUrl: `/api/images/feeds/${row.feed_id}/small`,
+            faviconUrl: feedFaviconUrl({
+                feedId: row.feed_id,
+                upstreamUrl: row.favicon_url,
+                assetHash: row.favicon_asset_hash,
+            }),
             faviconIsDark:
                 row.favicon_is_dark === null ? null : row.favicon_is_dark === 1,
             entryCount: row.entry_count,

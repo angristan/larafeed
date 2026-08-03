@@ -23,6 +23,7 @@ const PRIVATE_IMAGE_HEADERS = {
     'content-security-policy': "default-src 'none'; sandbox",
     'x-content-type-options': 'nosniff',
 } as const;
+const ARTICLE_IMAGE_CACHE_CONTROL = 'private, max-age=86400';
 
 // Fixed transparent PNG. Upstream failures never disclose source details.
 const PLACEHOLDER_BYTES = Uint8Array.from(
@@ -131,7 +132,10 @@ const parseFeedId = (value: string): number | null => parsePositiveId(value);
 const parsePreset = (value: string): FeedImagePreset | null =>
     value === 'small' || value === 'medium' ? value : null;
 
-const transformedResponse = (source: Response): Response => {
+const transformedResponse = (
+    source: Response,
+    cacheControl: string = PRIVATE_IMAGE_HEADERS['cache-control'],
+): Response => {
     const contentType = source.headers.get('content-type');
     if (
         source.body === null ||
@@ -144,6 +148,7 @@ const transformedResponse = (source: Response): Response => {
         status: 200,
         headers: {
             ...PRIVATE_IMAGE_HEADERS,
+            'cache-control': cacheControl,
             'content-type': contentType,
             vary: 'Accept',
         },
@@ -304,6 +309,7 @@ export const registerImageRoutes = (
                     sourceUrl,
                     accept: context.req.header('Accept') ?? null,
                 }),
+                ARTICLE_IMAGE_CACHE_CONTROL,
             );
         } catch {
             return placeholderResponse();

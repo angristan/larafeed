@@ -12,7 +12,7 @@ Authenticated JSON upload
   -> atomically create initial feed-refresh job + outbox work when needed
   -> immediately hand that operation to the feed-refresh Queue
   -> fetch and persist posts through the standard refresh consumer
-  -> discover and analyze the favicon after post persistence
+  -> normalize, analyze, and store the favicon in D1 after post persistence
   -> exact D1 progress counters
 ```
 

@@ -3,7 +3,11 @@ import { Effect } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import { makeD1 } from '../infrastructure/d1';
-import { FaviconNotFound, makeFaviconRepository } from './repository';
+import {
+    FaviconConflict,
+    FaviconNotFound,
+    makeFaviconRepository,
+} from './repository';
 
 const d1 = makeD1(env.DB);
 const repository = makeFaviconRepository(d1);
@@ -65,7 +69,9 @@ describe('favicon D1 repository', () => {
             feedId,
             siteUrl: 'https://favicon.example.test/articles',
             faviconUrl: null,
+            faviconAssetHash: null,
             faviconIsDark: null,
+            faviconUpdatedAt: null,
         });
         await expect(
             Effect.runPromise(repository.findOwnedTarget(otherId, feedId)),
@@ -81,7 +87,9 @@ describe('favicon D1 repository', () => {
                 feedUrl: 'https://favicon.example.test/feed.xml',
                 siteUrl: 'https://favicon.example.test/articles',
                 faviconUrl: null,
+                faviconAssetHash: null,
                 faviconIsDark: null,
+                faviconUpdatedAt: null,
             },
         ]);
 
@@ -89,29 +97,49 @@ describe('favicon D1 repository', () => {
             repository.update(
                 feedId,
                 'https://favicon.example.test/icon.png',
+                'a'.repeat(64),
                 true,
                 now + 1,
+                null,
+                null,
             ),
         );
         await expect(
             Effect.runPromise(repository.findOwnedTarget(userId, feedId)),
         ).resolves.toMatchObject({
             faviconUrl: 'https://favicon.example.test/icon.png',
+            faviconAssetHash: 'a'.repeat(64),
             faviconIsDark: true,
+            faviconUpdatedAt: now + 1,
         });
         await expect(
             Effect.runPromise(repository.findStaleTarget(feedId, now)),
         ).resolves.toBeNull();
         await expect(
             Effect.runPromise(
+                repository.update(
+                    feedId,
+                    'https://favicon.example.test/stale.png',
+                    'b'.repeat(64),
+                    false,
+                    now + 2,
+                    null,
+                    null,
+                ),
+            ),
+        ).rejects.toBeInstanceOf(FaviconConflict);
+        await expect(
+            Effect.runPromise(
                 d1.first({
-                    sql: `SELECT favicon_url, favicon_is_dark, favicon_updated_at
+                    sql: `SELECT favicon_url, favicon_asset_hash,
+                            favicon_is_dark, favicon_updated_at
                         FROM feeds WHERE id = ?`,
                     bindings: [feedId],
                 }),
             ),
         ).resolves.toEqual({
             favicon_url: 'https://favicon.example.test/icon.png',
+            favicon_asset_hash: 'a'.repeat(64),
             favicon_is_dark: 1,
             favicon_updated_at: now + 1,
         });

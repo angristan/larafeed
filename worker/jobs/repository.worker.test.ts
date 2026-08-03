@@ -1213,9 +1213,11 @@ describe('durable feed refresh jobs', () => {
         await run(
             d1.run({
                 sql: `UPDATE feeds SET favicon_url = ?, favicon_is_dark = 1,
-                        favicon_updated_at = ? WHERE id = ?`,
+                        favicon_asset_hash = ?, favicon_updated_at = ?
+                        WHERE id = ?`,
                 bindings: [
                     'https://jobs.example.test/old-icon.png',
+                    'e'.repeat(64),
                     now,
                     feedId,
                 ],
@@ -1275,11 +1277,12 @@ describe('durable feed refresh jobs', () => {
                 name: string;
                 site_url: string | null;
                 favicon_url: string | null;
+                favicon_asset_hash: string | null;
                 favicon_is_dark: number | null;
                 favicon_updated_at: number | null;
             }>(
-                `SELECT name, site_url, favicon_url, favicon_is_dark,
-                    favicon_updated_at
+                `SELECT name, site_url, favicon_url, favicon_asset_hash,
+                    favicon_is_dark, favicon_updated_at
                  FROM feeds WHERE id = ?`,
                 [feedId],
             ),
@@ -1287,7 +1290,8 @@ describe('durable feed refresh jobs', () => {
             name: 'Updated feed name',
             site_url: 'https://jobs.example.test/',
             favicon_url: 'https://jobs.example.test/favicon.ico',
-            favicon_is_dark: null,
+            favicon_asset_hash: 'e'.repeat(64),
+            favicon_is_dark: 1,
             favicon_updated_at: null,
         });
         await expect(

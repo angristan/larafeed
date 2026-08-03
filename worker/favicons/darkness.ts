@@ -1,4 +1,5 @@
 const SAMPLE_SIZE = 10;
+const MAX_ANALYSIS_DIMENSION = 32;
 const BRIGHTNESS_THRESHOLD = 80;
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 const MAX_TRANSFORMED_BYTES = 16 * 1024;
@@ -66,6 +67,8 @@ const transformedBytes = async (response: Response): Promise<Uint8Array> => {
 };
 
 interface PngImage {
+    readonly width: number;
+    readonly height: number;
     readonly colorType: number;
     readonly scanlines: Uint8Array;
     readonly palette: Uint8Array | null;
@@ -126,6 +129,8 @@ const parsePng = async (bytes: Uint8Array): Promise<PngImage> => {
     const idat: Uint8Array[] = [];
     let palette: Uint8Array | null = null;
     let transparency: Uint8Array | null = null;
+    let width: number | null = null;
+    let height: number | null = null;
     let colorType: number | null = null;
     let sawEnd = false;
     let offset = PNG_SIGNATURE.byteLength;
@@ -145,9 +150,13 @@ const parsePng = async (bytes: Uint8Array): Promise<PngImage> => {
         if (type === 'IHDR') {
             if (colorType !== null || length !== 13)
                 throw new Error('Invalid PNG header');
+            width = view.getUint32(dataStart);
+            height = view.getUint32(dataStart + 4);
             if (
-                view.getUint32(dataStart) !== SAMPLE_SIZE ||
-                view.getUint32(dataStart + 4) !== SAMPLE_SIZE ||
+                width < 1 ||
+                width > MAX_ANALYSIS_DIMENSION ||
+                height < 1 ||
+                height > MAX_ANALYSIS_DIMENSION ||
                 data[8] !== 8 ||
                 data[10] !== 0 ||
                 data[11] !== 0 ||
@@ -176,13 +185,19 @@ const parsePng = async (bytes: Uint8Array): Promise<PngImage> => {
         offset = chunkEnd;
     }
 
-    if (colorType === null || idat.length === 0 || !sawEnd)
+    if (
+        width === null ||
+        height === null ||
+        colorType === null ||
+        idat.length === 0 ||
+        !sawEnd
+    )
         throw new Error('Incomplete PNG');
     if (colorType === 3 && palette === null)
         throw new Error('Missing PNG palette');
 
     const channels = channelsFor(colorType);
-    const expected = SAMPLE_SIZE * (1 + SAMPLE_SIZE * channels);
+    const expected = height * (1 + width * channels);
     const compressed = concatenate(idat);
     if (compressed.byteLength > MAX_TRANSFORMED_BYTES)
         throw new Error('Compressed PNG is too large');
@@ -195,7 +210,7 @@ const parsePng = async (bytes: Uint8Array): Promise<PngImage> => {
     if (scanlines.byteLength !== expected)
         throw new Error('Unexpected PNG data length');
 
-    return { colorType, scanlines, palette, transparency };
+    return { width, height, colorType, scanlines, palette, transparency };
 };
 
 const paeth = (left: number, above: number, upperLeft: number): number => {
@@ -210,9 +225,9 @@ const paeth = (left: number, above: number, upperLeft: number): number => {
 
 const unfilter = (image: PngImage): Uint8Array => {
     const channels = channelsFor(image.colorType);
-    const stride = SAMPLE_SIZE * channels;
-    const pixels = new Uint8Array(SAMPLE_SIZE * stride);
-    for (let row = 0; row < SAMPLE_SIZE; row += 1) {
+    const stride = image.width * channels;
+    const pixels = new Uint8Array(image.height * stride);
+    for (let row = 0; row < image.height; row += 1) {
         const sourceStart = row * (stride + 1);
         const targetStart = row * stride;
         const filter = image.scanlines[sourceStart];
@@ -305,7 +320,7 @@ const darkness = async (bytes: Uint8Array): Promise<boolean | null> => {
     const pixels = unfilter(image);
     let weightedBrightness = 0;
     let opacityTotal = 0;
-    for (let index = 0; index < SAMPLE_SIZE * SAMPLE_SIZE; index += 1) {
+    for (let index = 0; index < image.width * image.height; index += 1) {
         const [red, green, blue, alpha] = pixel(image, pixels, index);
         const opacity = alpha / 255;
         weightedBrightness +=
@@ -314,6 +329,16 @@ const darkness = async (bytes: Uint8Array): Promise<boolean | null> => {
     }
     if (opacityTotal < 0.001) return null;
     return weightedBrightness / opacityTotal < BRIGHTNESS_THRESHOLD;
+};
+
+export const analyzeNormalizedFavicon = async (
+    bytes: Uint8Array,
+): Promise<boolean | null> => {
+    try {
+        return await darkness(bytes);
+    } catch {
+        return null;
+    }
 };
 
 export const faviconDarknessEnabled = (
@@ -336,7 +361,9 @@ export const makeFaviconDarknessAnalyzer =
                     fit: 'squeeze',
                 })
                 .output({ format: 'image/png', anim: false });
-            return await darkness(await transformedBytes(result.response()));
+            return await analyzeNormalizedFavicon(
+                await transformedBytes(result.response()),
+            );
         } catch {
             return null;
         }

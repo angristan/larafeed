@@ -79,6 +79,11 @@ describe('article image route', () => {
         );
 
         expect(response.status).toBe(200);
+        expect(response.headers.get('content-type')).toBe('image/webp');
+        expect(response.headers.get('cache-control')).toBe(
+            'private, max-age=86400',
+        );
+        expect(response.headers.get('vary')).toBe('Accept');
         expect(findOwnedArticleSource).toHaveBeenCalledWith(7, 41);
         expect(transformArticleImage).toHaveBeenCalledWith({
             sourceUrl: 'https://publisher.example.test/second.png',
@@ -109,6 +114,9 @@ describe('article image route', () => {
         ]) {
             const response = await app(runtime).request(path, request);
             expect(response.status).toBe(404);
+            expect(response.headers.get('cache-control')).toBe(
+                'private, no-store',
+            );
         }
         expect(transformArticleImage).not.toHaveBeenCalled();
     });

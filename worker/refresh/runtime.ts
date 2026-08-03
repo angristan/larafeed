@@ -1,11 +1,12 @@
 import { Effect } from 'effect';
 
 import { sha256Bytes } from '../auth/crypto';
-import { faviconRefreshEnabled } from '../favicons/cron';
 import {
-    faviconDarknessEnabled,
-    makeFaviconDarknessAnalyzer,
-} from '../favicons/darkness';
+    makeD1FaviconAssetRepository,
+    makeFaviconAssetStore,
+} from '../favicons/assets';
+import { faviconRefreshEnabled } from '../favicons/cron';
+import { faviconDarknessEnabled } from '../favicons/darkness';
 import { makeFaviconRepository } from '../favicons/repository';
 import { makeFaviconService } from '../favicons/service';
 import {
@@ -239,8 +240,11 @@ export const makeRefreshRuntime = (
     const favicon = faviconRefreshEnabled(env)
         ? makeFaviconService({
               repository: makeFaviconRepository(d1),
-              analyzeDarkness: faviconDarknessEnabled(env)
-                  ? makeFaviconDarknessAnalyzer(env.IMAGES)
+              assetStore: faviconDarknessEnabled(env)
+                  ? makeFaviconAssetStore({
+                        repository: makeD1FaviconAssetRepository(d1),
+                        images: env.IMAGES,
+                    })
                   : undefined,
               ...(options.now === undefined ? {} : { now: options.now }),
           })

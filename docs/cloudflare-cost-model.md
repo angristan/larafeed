@@ -32,13 +32,17 @@ Rollback: set both refresh controls to `false`, then pause consumers if in-fligh
 
 ## Favicons and Images
 
-Favicon maintenance refreshes at most five stale feeds per Cron invocation. A successful feed refresh also analyzes that exact feed when its favicon check is missing or older than 30 days; this covers normal adds and OPML imports without waiting for Cron. Both paths share `favicon_updated_at`, so they converge instead of repeating work. Darkness analysis performs one fixed 10×10 Images transformation for a selected favicon only when both favicon refresh and Images are enabled. The theoretical production Cron ceiling is `5 × 12 × 24 × 30 = 43,200` attempts in a 30-day month, while a stable set of `F` subscribed feeds normally contributes at most about `F` automatic or scheduled checks per 30 days.
+Favicon maintenance refreshes at most five stale feeds per Cron invocation. A successful feed refresh also processes that exact feed when its favicon check is missing or older than 30 days; this covers normal adds and OPML imports without waiting for Cron. Both paths share `favicon_updated_at`, so they converge instead of repeating work. A selected favicon performs one fixed 32 × 32 PNG Images transformation. Darkness analysis, hashing, and D1 persistence reuse that output. The theoretical production Cron ceiling is `5 × 12 × 24 × 30 = 43,200` attempts in a 30-day month, while a stable set of `F` subscribed feeds normally contributes at most about `F` checks and transformations per 30 days.
 
-Manual favicon refresh uses the shared 20-per-minute limiter with a key per user and feed. For `U` users and `F` feeds, its application-side ceiling is `20 × 60 × 24 × 30 × U × F = 864,000 × U × F` attempts per month. This deliberately conservative maximum is too high to treat the switch as a budget control. Keep both favicon and Images switches disabled until account-level Images limits/alerts are approved; unique-transform caching can reduce billed units but is not a safety boundary.
+Each unique normalized icon inserts one content-addressed D1 row. With the hard 64 KiB output cap and `F=200`, one unique current asset per feed is bounded by 12.5 MiB before shared-content deduplication. Real 32 × 32 PNGs should be much smaller, but monitoring uses measured D1 bytes. Cron removes at most 100 unreferenced rows older than 30 days per invocation.
 
-Reader image routes use only two fixed feed presets and one fixed article preset with ownership checks. They cannot accept arbitrary source URLs or transform parameters. If `Fi` unique favicon sources and `Ar` unique article-image sources are requested in a month, the format-independent source/preset ceiling is `2 × Fi + Ar`; negotiated output formats and cache misses can multiply actual transformations, so confirm the Images dashboard during the bounded test.
+The public asset route performs one Worker invocation. It reads D1 only when the per-colo Cache API entry is cold or evicted. Successful responses allow immutable one-year browser caching, so repeat rendering normally creates no request. Cache API is an optimization rather than a durability or budget boundary.
 
-Rollback: set `FAVICON_REFRESH_ENABLED=false` to stop discovery and `IMAGES_ENABLED=false` to stop every transformation.
+Manual favicon refresh uses the shared 20-per-minute limiter with a key per user and feed. For `U` users and `F` feeds, its application-side ceiling is `20 × 60 × 24 × 30 × U × F = 864,000 × U × F` attempts per month. This deliberately conservative maximum is too high to treat the switch as a budget control. Keep favicon and Images switches disabled until D1 and Images usage alerts are approved.
+
+Article image routes keep one fixed preset with ownership checks. They cannot accept arbitrary source URLs or transform parameters. If `Ar` unique article-image sources are requested in a month, the source/preset ceiling is `Ar`; negotiated output formats and edge misses can multiply actual transformations. A six-hour Worker Cache API entry and a one-day private browser cache reduce duplicate requests, but neither is a budget boundary.
+
+Rollback: set `FAVICON_REFRESH_ENABLED=false` to stop favicon discovery and new D1 assets. Set `IMAGES_ENABLED=false` to stop favicon normalization and article transformations. Existing immutable D1 favicon assets remain readable.
 
 ## AI summaries
 

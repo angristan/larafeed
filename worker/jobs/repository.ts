@@ -1361,7 +1361,8 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         WHEN ? = 1 AND favicon_url IS NOT ? THEN NULL
                         ELSE favicon_updated_at END,
                     favicon_is_dark = CASE
-                        WHEN ? = 1 AND favicon_url IS NOT ? THEN NULL
+                        WHEN ? = 1 AND favicon_url IS NOT ?
+                            AND favicon_asset_hash IS NULL THEN NULL
                         ELSE favicon_is_dark END,
                     favicon_url = CASE WHEN ? = 1 THEN ? ELSE favicon_url END,
                     etag = ?, last_modified = ?, consecutive_failures = 0,

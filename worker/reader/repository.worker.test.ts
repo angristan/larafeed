@@ -220,7 +220,7 @@ describe('reader D1 repository', () => {
             Effect.runPromise(repository.listSubscriptions(ownerId)),
         ).resolves.toMatchObject([
             {
-                faviconUrl: `/api/images/feeds/${feedId}/small`,
+                faviconUrl: null,
                 totalCount: 0,
                 unreadCount: 0,
             },
@@ -313,11 +313,52 @@ describe('reader D1 repository', () => {
             Effect.runPromise(repository.findEntry(userId, entryId)),
         ).resolves.toMatchObject({
             id: entryId,
-            faviconUrl: `/api/images/feeds/${feedId}/small`,
+            faviconUrl: null,
             contentHtml: content,
             read: false,
         });
         expect(await interactionCount(userId)).toBe(0);
+    });
+
+    it('returns the immutable asset URL for subscriptions and entries', async () => {
+        const userId = 45_001;
+        const feedId = 46_001;
+        const entryId = 48_001;
+        const hash = 'c'.repeat(64);
+        await Effect.runPromise(
+            Effect.gen(function* () {
+                yield* insertUser(userId);
+                yield* insertFeed(feedId);
+                yield* subscribe(userId, feedId, 47_001);
+                yield* insertEntry(entryId, feedId, 500);
+                yield* d1.run({
+                    sql: `UPDATE feeds SET favicon_url = ?,
+                            favicon_asset_hash = ? WHERE id = ?`,
+                    bindings: [
+                        'https://publisher.example.test/favicon.ico',
+                        hash,
+                        feedId,
+                    ],
+                });
+            }),
+        );
+        const assets = makeReaderRepository(d1);
+        const expected = `/api/public/favicons/v1/${hash}.png`;
+
+        await expect(
+            Effect.runPromise(assets.listSubscriptions(userId)),
+        ).resolves.toMatchObject([{ faviconUrl: expected }]);
+        await expect(
+            Effect.runPromise(
+                assets.listEntries(userId, {
+                    scope: { type: 'all' },
+                    filter: 'all',
+                    orderBy: 'published_at',
+                    page: 1,
+                    pageSize: 20,
+                }),
+            ),
+        ).resolves.toMatchObject({ entries: [{ faviconUrl: expected }] });
     });
 
     it('cleans sparse desired states and preserves non-read state through one watermark write', async () => {

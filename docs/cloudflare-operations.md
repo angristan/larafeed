@@ -19,7 +19,7 @@ Worker + Static Assets
   +---- AI Gateway ---- Gemini
 ```
 
-D1 is authoritative for users, sessions, reader data, durable jobs, outbox commands, imports, and summaries. Queue messages contain operation identifiers only. Production and test use separate D1 databases, queues, rate-limit namespaces, origins, RP IDs, Turnstile keys, and passkeys.
+D1 is authoritative for users, sessions, reader data, normalized favicon assets, durable jobs, outbox commands, imports, and summaries. Queue messages contain operation identifiers only. Production and test use separate D1 databases, queues, rate-limit namespaces, origins, RP IDs, Turnstile keys, and passkeys.
 
 ### Perimeter decision
 
@@ -32,6 +32,7 @@ Cloudflare Access is not placed in front of the whole hostname. Whole-host Acces
 - Worker names and exact authentication origins/RP IDs.
 - Static Assets with SPA fallback and Worker-first `/api/*` routing.
 - `DB`, `IMAGES`, and `AUTH_RATE_LIMITER` bindings.
+- Same-origin public content-addressed favicon delivery backed by D1 and Cache API.
 - Feed refresh and OPML import queues, consumers, bounded batches, concurrency, retries, and DLQs.
 - Five-minute production Cron and ten-minute test Cron.
 - Exact production and test custom domains with `workers_dev=false`.
@@ -98,7 +99,7 @@ Do not run these actions until the operator approves production writes.
 2. Replace the production placeholder D1 ID in `wrangler.jsonc`.
 3. Create the production feed refresh, feed DLQ, OPML import, and OPML DLQ queues.
 4. Replace the production placeholder rate-limit namespace ID.
-5. Declare the exact production custom domain in Wrangler.
+5. Declare the exact production Worker custom domain in Wrangler.
 6. Configure the production Turnstile widget.
 7. Configure the AI Gateway and provider budget/rate limits.
 8. Set production Worker secrets.
@@ -169,8 +170,8 @@ Authentication maintenance removes expired or revoked sessions after 30 days, co
 | `REFRESH_SCHEDULER_ENABLED=false` | Stop creating scheduled refresh commands. Existing durable work remains. |
 | `REFRESH_DISPATCH_ENABLED=false` | Stop every feed-refresh Queue send, including new subscriptions and OPML-created feeds, while retaining outbox commands. |
 | `OPML_IMPORT_ENABLED=false` | Reject new OPML imports before creating durable jobs. Existing jobs remain inspectable. |
-| `FAVICON_REFRESH_ENABLED=false` | Stop post-refresh favicon analysis, stale-favicon Cron maintenance, and manual favicon refresh. |
-| `IMAGES_ENABLED=false` | Reject feed-favicon and ownership-bound article image transforms before using Images. |
+| `FAVICON_REFRESH_ENABLED=false` | Stop post-refresh favicon normalization/D1 writes, stale-favicon Cron maintenance, orphan cleanup, and manual favicon refresh. Existing D1 assets remain readable. |
+| `IMAGES_ENABLED=false` | Stop favicon normalization and reject ownership-bound article image transforms before using Images. |
 | Lower `REFRESH_DUE_LIMIT` | Reduce each Cron reservation burst. |
 | Queue consumer pause/concurrency | Stop or reduce feed/OPML consumers without losing D1 state. |
 | `AI_SUMMARY_ENABLED=false` | Reject new summary generation without deleting cached summaries. |
@@ -196,13 +197,14 @@ Monitor:
 - OPML active age, failed items, stalled imports, and DLQ growth.
 - External feed/image failure classes, timeouts, redirect/policy rejection, and response-size rejection.
 - Images transformations and unique-transform growth.
+- D1 favicon row count and bytes, public favicon route errors, and Cache API cold-miss behavior.
 - AI Gateway requests, errors, latency, token/cost budget, rate limiting, and cache hit behavior.
 
 Initial alert policy:
 
 - Page on sustained Worker 5xx/errors, D1 overload, authentication outage, or a growing Queue backlog with no successful consumers.
 - Urgent notification on any DLQ growth, outbox age above 15 minutes, oldest due feed above 60 minutes, or stalled OPML import above 30 minutes.
-- Budget alert at 50%, 80%, and 100% for AI Gateway and Images usage.
+- Budget alert at 50%, 80%, and 100% for AI Gateway and Images usage; alert on unexpected D1 growth.
 - Review security-event spikes and repeated Turnstile failures without logging submitted credentials.
 
 Tune thresholds with real private-deployment traffic. Do not use local Workerd elapsed times as production SLO evidence.
@@ -250,7 +252,7 @@ An in-place restore is destructive and requires explicit approval:
 5. Reapply only migrations newer than the restored point, deploy a schema-compatible Worker version, and verify `/up`, `/api/health`, migration state, foreign keys, account access, and sampled reader data.
 6. Reconcile D1 jobs/outbox with Queue and DLQ state before resuming dispatch. Resume low-concurrency dispatch before scheduling.
 
-Time Travel does not undo external feed requests, Queue deliveries, Images transformations, or AI provider calls. If recovery cannot meet the target without losing accepted user mutations, keep traffic disabled and escalate instead of guessing.
+Time Travel does not undo external feed requests, Queue deliveries, Images transformations, Cache API entries, or AI provider calls. If recovery cannot meet the target without losing accepted user mutations, keep traffic disabled and escalate instead of guessing.
 
 ## Incident procedures
 
@@ -273,7 +275,7 @@ Confirm exact hostname, RP ID, origin, Turnstile hostname/action, and environmen
 
 ### AI or Images cost incident
 
-Set `AI_SUMMARY_ENABLED=false` immediately or enforce a Gateway budget. Set `IMAGES_ENABLED=false` to stop all application image transformations. Cached summaries and stored favicon/article sources remain intact.
+Set `AI_SUMMARY_ENABLED=false` immediately or enforce a Gateway budget. Set `FAVICON_REFRESH_ENABLED=false` to stop new D1 favicon writes, and set `IMAGES_ENABLED=false` to stop all application image transformations. Cached summaries, immutable D1 favicon rows, and stored upstream sources remain intact.
 
 ## Acceptance checklist
 
@@ -284,7 +286,8 @@ Set `AI_SUMMARY_ENABLED=false` immediately or enforce a Gateway budget. Set `IMA
 - Manual/Cron feed refresh, automatic post-refresh favicon analysis, manual/stale favicon refresh, Queue retry, outbox recovery, and DLQ state work.
 - Normal subscription add and OPML import both immediately fetch posts and analyze an unknown or stale favicon; OPML progress/export work.
 - Google Reader and Fever token auth, scope, and revocation work.
-- Opaque Images routes enforce ownership and fixed presets.
+- Content-addressed D1 favicons use the public same-origin route, Cache API, immutable browser headers, and no-store errors; the legacy feed-image route is used only during backfill.
+- Ownership-bound article Images routes enforce fixed presets, one-day private success caching, and no-store failures.
 - AI summaries respect cache, limits, privacy, and kill switch.
 - Migration counts, sampled content, and foreign keys match.
 - Dashboards, alerts, budgets, and rollout controls are active before traffic cutover.

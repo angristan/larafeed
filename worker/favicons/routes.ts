@@ -6,11 +6,15 @@ import { getCookie } from 'hono/cookie';
 import { type AuthRuntime, defaultAuthRuntimeFactory } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
 import { makeD1 } from '../infrastructure/d1';
-import { faviconRefreshEnabled } from './cron';
 import {
-    faviconDarknessEnabled,
-    makeFaviconDarknessAnalyzer,
-} from './darkness';
+    FAVICON_ASSET_CACHE_CONTROL,
+    type FaviconAssetRepository,
+    feedFaviconUrl,
+    makeD1FaviconAssetRepository,
+    makeFaviconAssetStore,
+} from './assets';
+import { faviconRefreshEnabled } from './cron';
+import { faviconDarknessEnabled } from './darkness';
 import { makeFaviconRepository } from './repository';
 import { type FaviconService, makeFaviconService } from './service';
 
@@ -30,19 +34,28 @@ export type FaviconRuntimeFactory = (
 export interface FaviconRouteDependencies {
     readonly runtimeFactory?: FaviconRuntimeFactory;
     readonly enabled?: (env: Env) => boolean;
+    readonly assetRepository?: FaviconAssetRepository;
+    readonly cache?: Pick<Cache, 'match' | 'put'>;
 }
 export const defaultFaviconRuntimeFactory: FaviconRuntimeFactory = (env) =>
     defaultAuthRuntimeFactory(env).pipe(
-        Effect.map((auth) => ({
-            auth,
-            service: makeFaviconService({
-                repository: makeFaviconRepository(makeD1(env.DB)),
-                analyzeDarkness: faviconDarknessEnabled(env)
-                    ? makeFaviconDarknessAnalyzer(env.IMAGES)
-                    : undefined,
-            }),
-            rateLimit: (key: string) => env.AUTH_RATE_LIMITER.limit({ key }),
-        })),
+        Effect.map((auth) => {
+            const d1 = makeD1(env.DB);
+            return {
+                auth,
+                service: makeFaviconService({
+                    repository: makeFaviconRepository(d1),
+                    assetStore: faviconDarknessEnabled(env)
+                        ? makeFaviconAssetStore({
+                              repository: makeD1FaviconAssetRepository(d1),
+                              images: env.IMAGES,
+                          })
+                        : undefined,
+                }),
+                rateLimit: (key: string) =>
+                    env.AUTH_RATE_LIMITER.limit({ key }),
+            };
+        }),
     );
 
 const id = (value: string): number | null => {
@@ -105,6 +118,12 @@ const errorResponse = (error: unknown): Response => {
                     message: 'Not found',
                     status: 404,
                 };
+            case 'FaviconConflict':
+                return {
+                    code: 'conflict' as const,
+                    message: 'Favicon changed; retry the request',
+                    status: 409,
+                };
             case 'FaviconRateLimited':
                 return {
                     code: 'rate_limited' as const,
@@ -117,6 +136,7 @@ const errorResponse = (error: unknown): Response => {
                     message: 'Favicon refresh is disabled',
                     status: 503,
                 };
+            case 'FaviconAssetStorageError':
             case 'FaviconStorageError':
             case 'AuthStorageError':
                 return {
@@ -169,6 +189,70 @@ export const registerFaviconRoutes = (
 ): Hono<{ Bindings: Env }> => {
     const factory = dependencies.runtimeFactory ?? defaultFaviconRuntimeFactory;
     const enabled = dependencies.enabled ?? faviconRefreshEnabled;
+
+    app.get('/api/public/favicons/v1/:filename', async (context) => {
+        const match = /^([a-f0-9]{64})\.png$/u.exec(
+            context.req.param('filename') ?? '',
+        );
+        const hash = match?.[1];
+        if (hash === undefined || new URL(context.req.url).search) {
+            return new Response(null, {
+                status: 404,
+                headers: { 'cache-control': 'no-store' },
+            });
+        }
+
+        const cache =
+            dependencies.cache ??
+            (
+                caches as CacheStorage & {
+                    readonly default: Cache;
+                }
+            ).default;
+        const cacheKey = new Request(context.req.url, { method: 'GET' });
+        try {
+            const cached = await cache.match(cacheKey);
+            if (cached !== undefined) return cached;
+        } catch {
+            // A cache outage must not hide a durable D1 asset.
+        }
+
+        try {
+            const repository =
+                dependencies.assetRepository ??
+                makeD1FaviconAssetRepository(makeD1(context.env.DB));
+            const png = await repository.find(hash);
+            if (png === null) {
+                return new Response(null, {
+                    status: 404,
+                    headers: { 'cache-control': 'no-store' },
+                });
+            }
+            const body = new ArrayBuffer(png.byteLength);
+            new Uint8Array(body).set(png);
+            const response = new Response(body, {
+                status: 200,
+                headers: {
+                    'cache-control': FAVICON_ASSET_CACHE_CONTROL,
+                    'content-type': 'image/png',
+                    etag: `"${hash}"`,
+                    'x-content-type-options': 'nosniff',
+                },
+            });
+            try {
+                await cache.put(cacheKey, response.clone());
+            } catch {
+                // The browser can still cache this durable response.
+            }
+            return response;
+        } catch {
+            return new Response(null, {
+                status: 503,
+                headers: { 'cache-control': 'no-store' },
+            });
+        }
+    });
+
     app.post('/api/feeds/:feedId/favicon/refresh', (context) => {
         if (!enabled(context.env)) {
             return errorResponse({ _tag: 'FaviconRefreshDisabled' });
@@ -204,10 +288,11 @@ export const registerFaviconRoutes = (
                     Schema.encodeUnknownEffect(FaviconRefreshResponse)(
                         FaviconRefreshResponse.make({
                             feedId: result.feedId,
-                            faviconUrl:
-                                result.faviconUrl === null
-                                    ? null
-                                    : `/api/images/feeds/${result.feedId}/small`,
+                            faviconUrl: feedFaviconUrl({
+                                feedId: result.feedId,
+                                upstreamUrl: result.faviconUrl,
+                                assetHash: result.faviconAssetHash,
+                            }),
                         }),
                     ),
                 ),

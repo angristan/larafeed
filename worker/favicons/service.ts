@@ -2,6 +2,7 @@ import { Effect, Schema } from 'effect';
 
 import { validateFeedUrl } from '../feeds/policy';
 import { FeedImageUnavailable, fetchImageBytes } from '../images/service';
+import type { FaviconAssetStore } from './assets';
 import type { FaviconDarknessAnalyzer } from './darkness';
 import type { FaviconRepository, FaviconTarget } from './repository';
 
@@ -20,6 +21,7 @@ export class FaviconDiscoveryError extends Schema.TaggedErrorClass<FaviconDiscov
 export interface FaviconServiceDependencies {
     readonly repository: FaviconRepository;
     readonly fetch?: typeof globalThis.fetch;
+    readonly assetStore?: FaviconAssetStore;
     readonly analyzeDarkness?: FaviconDarknessAnalyzer;
     readonly now?: () => number;
 }
@@ -240,27 +242,47 @@ export const makeFaviconService = (
                     }
                 }
                 const faviconUrl = selected?.url ?? target.faviconUrl;
+                let faviconAssetHash = target.faviconAssetHash;
                 let faviconIsDark = target.faviconIsDark;
                 if (selected !== null) {
-                    const analyzed =
-                        dependencies.analyzeDarkness === undefined
-                            ? null
-                            : await dependencies
-                                  .analyzeDarkness(selected.bytes)
-                                  .catch(() => null);
-                    if (analyzed !== null) faviconIsDark = analyzed;
-                    else if (selected.url !== target.faviconUrl)
-                        faviconIsDark = null;
+                    if (dependencies.assetStore !== undefined) {
+                        const asset = await dependencies.assetStore.persist(
+                            selected.bytes,
+                        );
+                        faviconAssetHash = asset.hash;
+                        if (asset.isDark !== null) faviconIsDark = asset.isDark;
+                        else if (selected.url !== target.faviconUrl)
+                            faviconIsDark = null;
+                    } else {
+                        const analyzed =
+                            dependencies.analyzeDarkness === undefined
+                                ? null
+                                : await dependencies
+                                      .analyzeDarkness(selected.bytes)
+                                      .catch(() => null);
+                        if (analyzed !== null) faviconIsDark = analyzed;
+                        else if (selected.url !== target.faviconUrl)
+                            faviconIsDark = null;
+                        if (selected.url !== target.faviconUrl)
+                            faviconAssetHash = null;
+                    }
                 }
                 await Effect.runPromise(
                     dependencies.repository.update(
                         target.feedId,
                         faviconUrl,
+                        faviconAssetHash,
                         faviconIsDark,
                         now(),
+                        target.faviconUrl,
+                        target.faviconUpdatedAt,
                     ),
                 );
-                return { feedId: target.feedId, faviconUrl };
+                return {
+                    feedId: target.feedId,
+                    faviconUrl,
+                    faviconAssetHash,
+                };
             },
             catch: (cause) =>
                 cause instanceof FaviconDiscoveryError ||

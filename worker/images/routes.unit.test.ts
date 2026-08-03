@@ -278,3 +278,34 @@ describe('feed image routes', () => {
         expect(findOwnedFeedSource).not.toHaveBeenCalled();
     });
 });
+
+describe('article image routes', () => {
+    it('keeps missing and failed article images out of browser caches', async () => {
+        const cases: ImageRuntime[] = [
+            makeRuntime({
+                repository: {
+                    ...makeRuntime().repository,
+                    findOwnedArticleSource: () => Effect.succeed(null),
+                },
+            }),
+            makeRuntime({
+                service: {
+                    ...makeRuntime().service,
+                    transformArticleImage: async () => {
+                        throw new Error('upstream unavailable');
+                    },
+                },
+            }),
+        ];
+
+        for (const runtime of cases) {
+            const response = await makeApp(runtime).request(
+                '/api/images/entries/31/1',
+                get,
+            );
+            expect(response.headers.get('cache-control')).toBe(
+                'private, no-store',
+            );
+        }
+    });
+});
