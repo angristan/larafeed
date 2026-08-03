@@ -124,8 +124,17 @@ describe('OPML orchestration', () => {
         );
     });
 
-    it('verifies and persists discovered feed metadata before success', async () => {
-        const completeItem = vi.fn(() => Promise.resolve('succeeded' as const));
+    it('persists discovery and immediately hands off the initial refresh', async () => {
+        const refreshOperationId = 'feed-refresh:opml:verified-feed';
+        const completeItem = vi.fn(() =>
+            Promise.resolve({
+                state: 'succeeded' as const,
+                refreshOperationId,
+            }),
+        );
+        const dispatchRefresh = vi.fn(() =>
+            Promise.reject(new Error('Queue temporarily unavailable')),
+        );
         const repository = repositoryStub({
             claimJob: vi.fn(() =>
                 Promise.resolve({
@@ -157,6 +166,7 @@ describe('OPML orchestration', () => {
             queue: { sendBatch: async () => undefined },
             now: () => 1_000,
             generateId: async () => generatedIds.shift() ?? Number.NaN,
+            dispatchRefresh,
             discoverFeed: async () => ({
                 kind: 'updated',
                 finalUrl: 'https://site.example.test/feed.xml',
@@ -193,6 +203,7 @@ describe('OPML orchestration', () => {
                 faviconUrl: 'https://site.example.test/favicon.ico',
             }),
         );
+        expect(dispatchRefresh).toHaveBeenCalledWith(refreshOperationId);
     });
 
     it('does not mark an unparseable OPML URL as added', async () => {

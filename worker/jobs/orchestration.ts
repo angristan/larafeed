@@ -81,6 +81,9 @@ export interface JobOrchestrator {
         readonly operations: readonly string[];
     }>;
     readonly dispatchOutbox: (limit?: number) => Promise<DispatchResult>;
+    readonly dispatchOperation: (
+        operationId: string,
+    ) => Promise<DispatchResult>;
     readonly processQueueMessage: (
         body: unknown,
         owner?: string,
@@ -261,6 +264,7 @@ export const makeJobOrchestrator = (
 
     const dispatchOutbox = async (
         requestedLimit = MAX_OUTBOX_MESSAGES,
+        operationId?: string,
     ): Promise<DispatchResult> => {
         const currentTime = now();
         const owner = `outbox:${await generateToken()}`;
@@ -269,6 +273,7 @@ export const makeJobOrchestrator = (
             now: currentTime,
             leaseMs: outboxLeaseMs,
             limit: limit(requestedLimit, MAX_OUTBOX_MESSAGES),
+            ...(operationId === undefined ? {} : { operationId }),
         });
         let sent = 0;
         let released = 0;
@@ -307,6 +312,9 @@ export const makeJobOrchestrator = (
         }
         return { leased: leased.length, sent, released, ambiguous };
     };
+
+    const dispatchOperation = (operationId: string) =>
+        dispatchOutbox(1, operationId);
 
     const processQueueMessage = async (
         body: unknown,
@@ -535,6 +543,7 @@ export const makeJobOrchestrator = (
         requestManualRefresh,
         reserveDueRefreshes,
         dispatchOutbox,
+        dispatchOperation,
         processQueueMessage,
         recordDeadLetter,
         runCron,

@@ -137,6 +137,7 @@ export interface OpmlOrchestratorDependencies {
     readonly generateId?: () => Promise<number>;
     readonly generateToken?: () => Promise<string>;
     readonly discoverFeed?: (url: string) => Promise<FeedUpdatedResult>;
+    readonly dispatchRefresh?: (operationId: string) => Promise<unknown>;
     readonly maxAttempts?: number;
     readonly jobLeaseMs?: number;
     readonly outboxLeaseMs?: number;
@@ -354,7 +355,7 @@ export const makeOpmlOrchestrator = (
                         generateId(),
                         generateId(),
                     ]);
-                const outcome = await repository.completeItem({
+                const completion = await repository.completeItem({
                     claim,
                     feedId,
                     categoryId,
@@ -372,7 +373,20 @@ export const makeOpmlOrchestrator = (
                     faviconUrl: safeSiteUrl(discovered.feed.faviconUrl),
                     completedAt,
                 });
-                return { action: 'ack', reason: outcome };
+                if (
+                    completion.refreshOperationId !== null &&
+                    dependencies.dispatchRefresh !== undefined
+                ) {
+                    try {
+                        await dependencies.dispatchRefresh(
+                            completion.refreshOperationId,
+                        );
+                    } catch {
+                        // The committed refresh outbox row remains authoritative.
+                        // Cron safely retries failed or ambiguous handoffs.
+                    }
+                }
+                return { action: 'ack', reason: completion.state };
             } catch (cause) {
                 const failure = classifyFailure(cause);
                 const failedAt = now();

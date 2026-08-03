@@ -10,6 +10,8 @@ Authenticated JSON upload
   -> one OPML Queue consumer processes feeds sequentially
   -> create or reuse feed/category/subscription
   -> atomically create initial feed-refresh job + outbox work when needed
+  -> immediately hand that operation to the feed-refresh Queue
+  -> fetch and persist posts through the standard refresh consumer
   -> exact D1 progress counters
 ```
 
@@ -33,7 +35,7 @@ The settings page polls every five seconds only while an import is pending or pr
 - Feed URLs use the same SSRF-oriented URL policy as feed refreshes. Invalid or private targets become terminal, visible item failures.
 - Site metadata URLs reject credentials, fragments, nonstandard ports, and non-HTTP protocols.
 
-An OPML consumer does not ingest discovered entries from memory. In the same D1 transaction that completes the item, it creates a standard feed-refresh job and outbox row when the canonical feed has never refreshed and has no active refresh job. The operation identity is stable for the OPML item. Fresh and shared empty feeds therefore populate when refresh dispatch is enabled, even if refresh reservation is disabled. Populated feeds and feeds with active refresh work do not get duplicate jobs. Existing subscriptions are counted as skipped.
+An OPML consumer does not ingest discovered entries from memory. In the same D1 transaction that completes the item, it creates a standard feed-refresh job and outbox row when the canonical feed has never refreshed and has no active refresh job. After that commit, it immediately leases and sends that exact operation to the feed-refresh Queue when refresh dispatch is enabled. The operation identity is stable for the OPML item. Fresh and shared empty feeds therefore begin populating without waiting for Cron, even if refresh reservation is disabled. Populated feeds and feeds with active refresh work do not get duplicate jobs. Existing subscriptions are counted as skipped.
 
 ## Delivery and recovery
 
@@ -45,7 +47,8 @@ Each feed has one D1 job and one outbox row with topic `opml_import_feed`. Queue
 - Item jobs have five attempts, conditional leases, exponential backoff, and a six-hour delay cap.
 - Outbox dispatch has ten attempts. Ambiguous sends remain leased and can safely produce duplicate delivery after expiry.
 - The DLQ records authoritative item and import terminal state before acknowledging.
-- OPML cron recovers stale leases, incomplete import creation, and accepted import commands whose Queue delivery was lost. Standard refresh cron performs bounded recovery for initial feed-refresh work.
+- A failed or ambiguous immediate refresh handoff leaves recoverable D1 outbox state. Duplicate delivery is safe because the refresh operation ID is stable.
+- OPML cron recovers stale leases, incomplete import creation, and accepted import commands whose Queue delivery was lost. Standard refresh cron remains bounded recovery for initial feed-refresh work; normal imports do not wait for it.
 - Partial import creation stays in `pending` and cannot dispatch. Cron eventually marks it failed.
 
 Production queue names are `larafeed-opml-import` and `larafeed-opml-import-dlq`. Test names use the `larafeed-test-` prefix. The isolated test queues are provisioned and attached to the test Worker. Production queues remain unprovisioned.

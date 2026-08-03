@@ -98,6 +98,7 @@ export interface JobRepository {
         readonly now: number;
         readonly leaseMs: number;
         readonly limit: number;
+        readonly operationId?: string;
     }) => Promise<readonly LeasedOutboxMessage[]>;
     readonly markDispatched: (
         message: LeasedOutboxMessage,
@@ -536,6 +537,10 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
     async leaseOutbox(input) {
         const operation = 'leaseOutbox';
         const leaseExpiresAt = input.now + Math.max(1, input.leaseMs);
+        const operationScope =
+            input.operationId === undefined ? '' : ' AND j.operation_id = ?';
+        const operationBindings =
+            input.operationId === undefined ? [] : [input.operationId];
         const results = await run(
             operation,
             d1.batch<OutboxRow>([
@@ -547,7 +552,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         WHERE id IN (
                             SELECT o.id FROM outbox_messages o
                             JOIN jobs j ON j.id = o.job_id
-                            WHERE o.topic = ? AND j.kind = ?
+                            WHERE o.topic = ? AND j.kind = ?${operationScope}
                               AND o.state = 'leased'
                               AND o.lease_expires_at <= ?
                             ORDER BY o.lease_expires_at, o.id LIMIT ?
@@ -557,6 +562,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         input.now,
                         FEED_REFRESH_TOPIC,
                         FEED_REFRESH_JOB_KIND,
+                        ...operationBindings,
                         input.now,
                         boundedLimit(input.limit, MAX_OUTBOX_MESSAGES),
                     ],
@@ -568,7 +574,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         WHERE id IN (
                             SELECT o.id FROM outbox_messages o
                             JOIN jobs j ON j.id = o.job_id
-                            WHERE o.topic = ? AND j.kind = ?
+                            WHERE o.topic = ? AND j.kind = ?${operationScope}
                               AND o.state = 'pending' AND o.available_at <= ?
                             ORDER BY o.available_at, o.id LIMIT ?
                         )
@@ -580,6 +586,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         input.now,
                         FEED_REFRESH_TOPIC,
                         FEED_REFRESH_JOB_KIND,
+                        ...operationBindings,
                         input.now,
                         boundedLimit(input.limit, MAX_OUTBOX_MESSAGES),
                     ],

@@ -74,6 +74,38 @@ describe('job orchestration', () => {
         expect(JSON.stringify(sent)).not.toContain('content');
     });
 
+    it('dispatches only the requested refresh operation immediately', async () => {
+        const leaseOutbox = vi.fn(async () => [leasedMessage]);
+        const sent: RefreshQueueMessage[] = [];
+        const service = makeJobOrchestrator({
+            repository: repository({
+                leaseOutbox,
+                markDispatched: async () => undefined,
+            }),
+            queue: { send: async (message) => void sent.push(message) },
+            processor: unusedProcessor,
+            now: () => 1_000,
+            generateToken: async () => 'owner-token',
+        });
+
+        await expect(
+            service.dispatchOperation('refresh-operation'),
+        ).resolves.toEqual({
+            leased: 1,
+            sent: 1,
+            released: 0,
+            ambiguous: 0,
+        });
+        expect(leaseOutbox).toHaveBeenCalledWith({
+            owner: 'outbox:owner-token',
+            now: 1_000,
+            leaseMs: 60_000,
+            limit: 1,
+            operationId: 'refresh-operation',
+        });
+        expect(sent).toEqual([{ operationId: 'refresh-operation' }]);
+    });
+
     it('releases failed sends with exponential bounded backoff', async () => {
         let releasedAt = 0;
         const service = makeJobOrchestrator({

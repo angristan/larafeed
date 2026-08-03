@@ -125,7 +125,10 @@ describe('OPML D1 repository', () => {
                 faviconUrl: 'https://opml-workerd.example.test/favicon.ico',
                 completedAt: now + 1,
             }),
-        ).resolves.toBe('succeeded');
+        ).resolves.toEqual({
+            state: 'succeeded',
+            refreshOperationId: 'feed-refresh:opml:opml-workerd-operation',
+        });
 
         await expect(
             repository.getImport(userId, importId),
@@ -433,7 +436,10 @@ describe('OPML D1 repository', () => {
                 faviconUrl: null,
                 completedAt: now + 5,
             }),
-        ).resolves.toBe('succeeded');
+        ).resolves.toEqual({
+            state: 'succeeded',
+            refreshOperationId: null,
+        });
 
         await expect(
             scalar(
@@ -547,7 +553,10 @@ describe('OPML D1 repository', () => {
                 727_110,
                 now + 1,
             ),
-        ).resolves.toBe('succeeded');
+        ).resolves.toEqual({
+            state: 'succeeded',
+            refreshOperationId: 'feed-refresh:opml:opml-existing-empty',
+        });
         await expect(
             first<{ payload_json: string }>(
                 `SELECT payload_json FROM jobs WHERE id = ? AND kind = ?`,
@@ -583,7 +592,10 @@ describe('OPML D1 repository', () => {
                 727_210,
                 now + 3,
             ),
-        ).resolves.toBe('succeeded');
+        ).resolves.toEqual({
+            state: 'succeeded',
+            refreshOperationId: null,
+        });
         await expect(
             scalar(
                 `SELECT COUNT(*) AS value FROM jobs

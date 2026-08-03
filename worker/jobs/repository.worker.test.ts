@@ -391,6 +391,42 @@ describe('durable feed refresh jobs', () => {
         });
     });
 
+    it('leases only the requested refresh operation', async () => {
+        const now = 2_100_001_050_000;
+        await settlePendingOutbox(now);
+        await insertFeed(321_101, now);
+        await insertFeed(321_201, now);
+        await createJob(321_101, 321_110, now, {
+            operationId: 'refresh-scope-one',
+        });
+        await createJob(321_201, 321_210, now, {
+            operationId: 'refresh-scope-two',
+        });
+
+        await expect(
+            repository.leaseOutbox({
+                owner: 'scoped-dispatcher',
+                now,
+                leaseMs: 1_000,
+                limit: 1,
+                operationId: 'refresh-scope-two',
+            }),
+        ).resolves.toMatchObject([
+            {
+                operationId: 'refresh-scope-two',
+                leaseOwner: 'scoped-dispatcher',
+            },
+        ]);
+        await expect(
+            first<{ state: string }>(
+                `SELECT o.state FROM outbox_messages o
+                 JOIN jobs j ON j.id = o.job_id
+                 WHERE j.operation_id = ?`,
+                ['refresh-scope-one'],
+            ),
+        ).resolves.toEqual({ state: 'pending' });
+    });
+
     it('dispatches only refresh outbox rows and rejects OPML transitions', async () => {
         const now = 2_100_001_100_000;
         const feedId = 322_001;

@@ -283,7 +283,10 @@ export interface OpmlRepository {
         readonly siteUrl: string | null;
         readonly faviconUrl: string | null;
         readonly completedAt: number;
-    }) => Promise<'succeeded' | 'skipped'>;
+    }) => Promise<{
+        readonly state: 'succeeded' | 'skipped';
+        readonly refreshOperationId: string | null;
+    }>;
     readonly recordFailure: (input: {
         readonly claim: OpmlItemClaim;
         readonly failedAt: number;
@@ -1212,7 +1215,11 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                 operation,
                 'invalid terminal item state',
             );
-        return state;
+        return {
+            state,
+            refreshOperationId:
+                bootstrappedJobs === 1 ? refreshOperationId : null,
+        };
     },
 
     async recordFailure(input) {

@@ -11,6 +11,7 @@ import { getCookie } from 'hono/cookie';
 import { type AuthRuntime, defaultAuthRuntimeFactory } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
 import { makeD1 } from '../infrastructure/d1';
+import { makeRefreshRuntime } from '../refresh/runtime';
 import {
     OpmlFeatureDisabled,
     OpmlNotFoundError,
@@ -64,11 +65,19 @@ const queueFromEnv = (env: Env): OpmlQueueSender => ({
     },
 });
 
-export const makeDefaultOpmlOrchestrator = (env: Env): OpmlOrchestrator =>
-    makeOpmlOrchestrator({
+export const makeDefaultOpmlOrchestrator = (env: Env): OpmlOrchestrator => {
+    const refresh = makeRefreshRuntime(env);
+    return makeOpmlOrchestrator({
         repository: makeOpmlRepository(makeD1(env.DB)),
         queue: queueFromEnv(env),
+        ...(refresh.config.dispatchEnabled
+            ? {
+                  dispatchRefresh: (operationId: string) =>
+                      refresh.orchestrator.dispatchOperation(operationId),
+              }
+            : {}),
     });
+};
 
 export const opmlImportEnabled = (
     env: Pick<Env, 'OPML_IMPORT_ENABLED'>,
