@@ -30,7 +30,11 @@ D1 is authoritative for users, sessions, reader data, durable jobs, outbox comma
 - `DB`, `IMAGES`, and `AUTH_RATE_LIMITER` bindings.
 - Feed refresh and OPML import queues, consumers, bounded batches, concurrency, retries, and DLQs.
 - Five-minute production Cron and ten-minute test Cron.
-- Refresh and AI rollout variables.
+- Exact production and test custom domains with `workers_dev=false`.
+- Refresh and AI rollout variables. Production starts with refresh scheduling,
+  Queue dispatch, favicon refresh, Images, and AI summaries disabled.
+- Native traces at 10% in production and 100% in test. Persisted and invocation
+  logs remain disabled in both environments.
 
 The test environment uses the checked-in D1 ID and rate-limit namespace. Production identifiers remain placeholders until an operator provisions production. Resource creation is an explicit one-time operator action.
 
@@ -56,6 +60,7 @@ npm test
 npm run d1:validate:large
 npm run deploy:check
 npm run deploy:check:test
+npm run d1:migrations:list:test
 npm audit
 ```
 
@@ -78,6 +83,11 @@ Wrangler owns the Worker custom domain and its DNS record. Deploy the test envir
 ```bash
 npm run deploy:test
 ```
+
+`deploy:test` first applies pending remote test D1 migrations, then builds the
+flattened test configuration and deploys it. Migration application creates a D1
+backup and each migration is atomic. List pending migrations without changing
+remote data with `npm run d1:migrations:list:test`.
 
 ## Production provisioning order
 
@@ -179,6 +189,26 @@ Initial alert policy:
 - Review security-event spikes and repeated Turnstile failures without logging submitted credentials.
 
 Tune thresholds with real private-deployment traffic. Do not use local Workerd elapsed times as production SLO evidence.
+
+## Worker rollback
+
+D1 migrations are forward-only. Before deployment, confirm that the previous
+Worker remains compatible with every migration being applied. If application
+code must be rolled back, build the flattened environment configuration, inspect
+the recent versions, and select an explicit known-good version:
+
+```bash
+npm run build:test
+wrangler deployments list --config dist/larafeed/wrangler.json
+wrangler rollback VERSION_ID --config dist/larafeed/wrangler.json \
+  --message "rollback test deployment"
+```
+
+For production, use the production build/config only after its resource
+identifiers are provisioned. Never use a test version ID for production. A code
+rollback does not reverse D1 migrations or Queue deliveries. If a migration
+needs repair, ship a new forward migration and keep background rollout controls
+disabled until it is verified.
 
 ## Incident procedures
 

@@ -4,6 +4,13 @@
     "main": "./worker/index.ts",
     "compatibility_date": "2026-07-18",
     "compatibility_flags": ["nodejs_compat"],
+    "workers_dev": false,
+    "routes": [
+        {
+            "pattern": "larafeed.stanislas.cloud",
+            "custom_domain": true
+        }
+    ],
     "vars": {
         "AUTH_ENVIRONMENT": "production",
         "AUTH_RP_ID": "larafeed.stanislas.cloud",
@@ -14,12 +21,12 @@
         "AI_SUMMARY_ENABLED": "false",
         "AI_GATEWAY_NAME": "larafeed",
         "AI_MODEL": "gemini-2.5-flash",
-        "REFRESH_SCHEDULER_ENABLED": "true",
-        "REFRESH_DISPATCH_ENABLED": "true",
+        "REFRESH_SCHEDULER_ENABLED": "false",
+        "REFRESH_DISPATCH_ENABLED": "false",
         "REFRESH_DUE_LIMIT": "10",
         "OPML_IMPORT_ENABLED": "true",
-        "FAVICON_REFRESH_ENABLED": "true",
-        "IMAGES_ENABLED": "true"
+        "FAVICON_REFRESH_ENABLED": "false",
+        "IMAGES_ENABLED": "false"
     },
     "assets": {
         "not_found_handling": "single-page-application",
@@ -86,6 +93,20 @@
         ]
     },
     "triggers": { "crons": ["*/5 * * * *"] },
+    "observability": {
+        "enabled": true,
+        "logs": {
+            "enabled": false,
+            "head_sampling_rate": 0,
+            "invocation_logs": false,
+            "persist": false
+        },
+        "traces": {
+            "enabled": true,
+            "head_sampling_rate": 0.1,
+            "persist": true
+        }
+    },
     "env": {
         "test": {
             "vars": {

@@ -1,4 +1,4 @@
-.PHONY: install dev build preview test lint typecheck types d1-migrate d1-validate deploy-check clean
+.PHONY: install dev build preview test lint typecheck types d1-migrate d1-migrate-test d1-validate deploy-check deploy-test clean
 
 install:
 	npm ci
@@ -28,11 +28,17 @@ types:
 d1-migrate:
 	npm run d1:migrate:local
 
+d1-migrate-test:
+	npm run d1:migrate:test
+
 d1-validate:
 	npm run d1:validate
 
 deploy-check:
 	npm run deploy:check
+
+deploy-test:
+	npm run deploy:test
 
 clean:
 	rm -rf dist .wrangler scripts/cloudflare-validation/output/report.json scripts/cloudflare-validation/output/report.md
