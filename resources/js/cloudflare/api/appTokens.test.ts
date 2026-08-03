@@ -91,6 +91,7 @@ describe('AppTokenClient', () => {
                 method: 'DELETE',
                 credentials: 'same-origin',
                 headers: expect.objectContaining({
+                    'Content-Type': 'application/json',
                     'X-CSRF-Token': 'csrf-token',
                 }),
             }),

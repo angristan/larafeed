@@ -157,6 +157,7 @@ export const revokeAppToken = Effect.fn('AppTokenClient.revoke')(
                         credentials: 'same-origin',
                         headers: {
                             Accept: 'application/json',
+                            'Content-Type': 'application/json',
                             'X-CSRF-Token': input.csrfToken,
                         },
                         signal,
