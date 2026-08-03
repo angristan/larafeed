@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { FeedParseError } from './errors';
-import { MAX_FEED_ENTRIES, type ParsedFeed, parseFeedDocument } from './parser';
+import {
+    MAX_FEED_ENTRIES,
+    MAX_FEED_ITEMS_TO_PARSE,
+    type ParsedFeed,
+    parseFeedDocument,
+} from './parser';
 import { MAX_CONTENT_BYTES } from './sanitize';
 
 const finalUrl = new URL('https://feeds.example.com/path/feed.xml');
@@ -400,7 +405,7 @@ describe('feed parser', () => {
         );
     });
 
-    it('keeps at most the 50 newest entries with source order tie-breaking', async () => {
+    it('keeps every RSS entry when a feed has more than 50', async () => {
         const items = Array.from({ length: 52 }, (_, index) => {
             const date = new Date(fetchedAt - index * 60_000).toISOString();
             return `<item><guid>${index}</guid><title>${index}</title><pubDate>${date}</pubDate></item>`;
@@ -411,9 +416,109 @@ describe('feed parser', () => {
             `<rss><channel><title>x</title>${items}</channel></rss>`,
         );
 
+        expect(feed.entries).toHaveLength(52);
+        expect(feed.entries.map((entry) => entry.sourceId)).toEqual(
+            Array.from({ length: 52 }, (_, index) => String(index)),
+        );
+    });
+
+    it('keeps every Atom entry when a feed has more than 50', async () => {
+        const entries = Array.from(
+            { length: 51 },
+            (_, index) =>
+                `<entry><id>atom-${index}</id><title>${index}</title></entry>`,
+        ).join('');
+        const feed = await parse(
+            `<feed xmlns="http://www.w3.org/2005/Atom"><title>x</title>${entries}</feed>`,
+        );
+
+        expect(feed.entries).toHaveLength(51);
+        expect(feed.entries[0]?.sourceId).toBe('atom-0');
+        expect(feed.entries.at(-1)?.sourceId).toBe('atom-50');
+    });
+
+    it('keeps every JSON Feed entry when a feed has more than 50', async () => {
+        const items = Array.from({ length: 53 }, (_, index) => ({
+            id: `json-${index}`,
+            title: String(index),
+            date_published: new Date(fetchedAt - index * 60_000).toISOString(),
+            content_text: `Body ${index}`,
+        })).reverse();
+        const feed = await parse(
+            JSON.stringify({
+                version: 'https://jsonfeed.org/version/1.1',
+                title: 'x',
+                items,
+            }),
+        );
+
+        expect(feed.entries).toHaveLength(53);
+        expect(feed.entries.map((entry) => entry.sourceId)).toEqual(
+            Array.from({ length: 53 }, (_, index) => `json-${index}`),
+        );
+    });
+
+    it('fails atomically above the entry bound after future skips and deduplication', async () => {
+        const items = Array.from(
+            { length: MAX_FEED_ENTRIES },
+            (_, index) =>
+                `<item><guid>${index}</guid><title>${index}</title></item>`,
+        ).join('');
+        const ignored = `
+            <item><guid>0</guid><title>duplicate</title></item>
+            <item><guid>future</guid><title>future</title><pubDate>2999-01-01T00:00:00Z</pubDate></item>`;
+        const document = (extra = '') =>
+            `<rss><channel><title>x</title>${items}${ignored}${extra}</channel></rss>`;
+
+        const feed = await parse(document());
         expect(feed.entries).toHaveLength(MAX_FEED_ENTRIES);
-        expect(feed.entries[0].sourceId).toBe('0');
-        expect(feed.entries.at(-1)?.sourceId).toBe('49');
+
+        await expect(
+            parse(
+                document(
+                    '<item><guid>overflow</guid><title>overflow</title></item>',
+                ),
+            ),
+        ).rejects.toMatchObject({
+            _tag: 'FeedParseError',
+            reason: 'too_many_entries',
+            retryable: false,
+        });
+    });
+
+    it.each([
+        'RSS',
+        'Atom',
+        'JSON',
+    ] as const)('rejects %s source items above the bounded parsing budget', async (kind) => {
+        const count = MAX_FEED_ITEMS_TO_PARSE + 1;
+        const document =
+            kind === 'RSS'
+                ? `<rss><channel><title>x</title>${Array.from(
+                      { length: count },
+                      (_, index) =>
+                          `<item><guid>${index}</guid><pubDate>2999-01-01T00:00:00Z</pubDate></item>`,
+                  ).join('')}</channel></rss>`
+                : kind === 'Atom'
+                  ? `<feed><title>x</title>${Array.from(
+                        { length: count },
+                        (_, index) =>
+                            `<entry><id>${index}</id><updated>2999-01-01T00:00:00Z</updated></entry>`,
+                    ).join('')}</feed>`
+                  : JSON.stringify({
+                        version: 'https://jsonfeed.org/version/1.1',
+                        title: 'x',
+                        items: Array.from({ length: count }, (_, index) => ({
+                            id: String(index),
+                            date_published: '2999-01-01T00:00:00Z',
+                            content_text: 'future',
+                        })),
+                    });
+
+        await expect(parse(document)).rejects.toMatchObject({
+            _tag: 'FeedParseError',
+            reason: 'too_many_entries',
+        });
     });
 
     it('uses fetch time for missing or invalid dates without feed-date leakage', async () => {

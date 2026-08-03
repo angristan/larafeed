@@ -4,10 +4,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     FeedHttpError,
     FeedNetworkError,
+    FeedParseError,
     FeedPolicyError,
     FeedSizeError,
     FeedTimeoutError,
 } from './errors';
+import { MAX_FEED_ENTRIES } from './parser';
 import {
     COMMON_FEED_DISCOVERY_PATHS,
     FEED_FETCH_TIMEOUT_MS,
@@ -238,6 +240,29 @@ describe('feed refresh service', () => {
                     contentHtml: '<p>JSON body</p>',
                 },
             ],
+        });
+    });
+
+    it('fails refresh instead of returning a partial oversized feed', async () => {
+        const items = Array.from(
+            { length: MAX_FEED_ENTRIES + 1 },
+            (_, index) =>
+                `<item><guid>${index}</guid><title>${index}</title></item>`,
+        ).join('');
+        const service = makeFeedRefreshService({
+            fetch: async () =>
+                new Response(
+                    `<rss><channel><title>Oversized</title>${items}</channel></rss>`,
+                    { headers: { 'content-type': 'application/rss+xml' } },
+                ),
+        });
+
+        const error = await failure(service.refresh(source));
+
+        expect(error).toBeInstanceOf(FeedParseError);
+        expect(error).toMatchObject({
+            reason: 'too_many_entries',
+            retryable: false,
         });
     });
 

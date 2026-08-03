@@ -32,6 +32,7 @@ export class FeedParseError extends Schema.TaggedErrorClass<FeedParseError>()(
             'forbidden_declaration',
             'malformed_json',
             'malformed_xml',
+            'too_many_entries',
             'unsupported_feed',
         ]),
     },

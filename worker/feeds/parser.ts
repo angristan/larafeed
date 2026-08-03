@@ -4,7 +4,11 @@ import { XMLParser } from 'fast-xml-parser';
 import { FeedParseError } from './errors';
 import { MAX_CONTENT_BYTES, sanitizeArticleHtml } from './sanitize';
 
-export const MAX_FEED_ENTRIES = 50;
+// Refresh persistence uses at most two D1 statements per entry plus fixed
+// bookkeeping statements. This leaves headroom below the paid Workers limit of
+// 1,000 D1 queries per invocation while allowing complete normal feed refreshes.
+export const MAX_FEED_ENTRIES = 400;
+export const MAX_FEED_ITEMS_TO_PARSE = 1_000;
 
 export type ContentStatus = 'stored' | 'empty' | 'oversized';
 
@@ -477,8 +481,6 @@ const JSON_FEED_MIME_TYPES = new Set([
     'application/feed+json',
     'application/json',
 ]);
-const MAX_JSON_FEED_ITEMS_TO_PARSE = 1_000;
-
 const jsonText = (value: unknown): string | undefined => {
     if (typeof value !== 'string') {
         return undefined;
@@ -585,6 +587,10 @@ const jsonFeed = (
         throw new FeedParseError({ reason: 'unsupported_feed' });
     }
 
+    if (feed.items.length > MAX_FEED_ITEMS_TO_PARSE) {
+        throw new FeedParseError({ reason: 'too_many_entries' });
+    }
+
     const metadata: NormalizedFeedMetadata = {
         title: plainTextTitle(title, 500) ?? finalUrl.hostname,
         siteUrl: resolveHttpUrl(jsonText(feed.home_page_url), finalUrl),
@@ -596,7 +602,6 @@ const jsonFeed = (
     };
     const feedAuthor = jsonAuthor(feed);
     const candidates = feed.items
-        .slice(0, MAX_JSON_FEED_ITEMS_TO_PARSE)
         .map((item, sourceIndex) =>
             candidateFromJsonItem(
                 item,
@@ -746,13 +751,13 @@ const entriesFromCandidates = async (
         seen.add(key);
 
         const { sortTimestamp: _, sourceIndex: __, ...entry } = candidate;
+        if (entries.length === MAX_FEED_ENTRIES) {
+            throw new FeedParseError({ reason: 'too_many_entries' });
+        }
         entries.push({
             ...entry,
             deduplicationKey,
         });
-        if (entries.length === MAX_FEED_ENTRIES) {
-            break;
-        }
     }
     return entries;
 };
@@ -803,6 +808,9 @@ export const parseFeedDocument = async (
         }
 
         const shape = feedShape(document);
+        if (shape.items.length > MAX_FEED_ITEMS_TO_PARSE) {
+            throw new FeedParseError({ reason: 'too_many_entries' });
+        }
         metadata = metadataFromShape(
             shape,
             options.finalUrl,
