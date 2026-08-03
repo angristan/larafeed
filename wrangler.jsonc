@@ -116,7 +116,7 @@
                 "AUTH_RP_NAME": "Larafeed Test",
                 "AUTH_CHALLENGE_TTL_SECONDS": "300",
                 "AUTH_SESSION_TTL_SECONDS": "2592000",
-                "AI_SUMMARY_ENABLED": "true",
+                "AI_SUMMARY_ENABLED": "false",
                 "AI_GATEWAY_NAME": "larafeed-test",
                 "AI_MODEL": "gemini-2.5-flash",
                 "REFRESH_SCHEDULER_ENABLED": "true",
