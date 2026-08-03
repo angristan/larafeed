@@ -9,6 +9,7 @@ import { makeJobOrchestrator } from './orchestration';
 import { makeJobRepository } from './repository';
 import {
     DEFAULT_REFRESH_INTERVAL_MS,
+    DEFAULT_REFRESH_REDRIVE_AGE_MS,
     MAX_OUTBOX_ATTEMPTS,
     type RefreshJobClaim,
 } from './types';
@@ -291,6 +292,236 @@ describe('durable feed refresh jobs', () => {
         expect(JSON.parse(payload?.payload_json ?? '{}')).toEqual({
             operationId: 'operation-321001',
         });
+    });
+
+    it('redrives a lost Queue and DLQ delivery with the stable payload and converges duplicates', async () => {
+        const now = 2_100_001_250_000;
+        const feedId = 323_001;
+        const operationId = 'lost-delivery-operation';
+        await settlePendingOutbox(now);
+        await insertFeed(feedId, now);
+        await createJob(feedId, 323_101, now, { operationId });
+
+        const [initial] = await repository.leaseOutbox({
+            owner: 'initial-dispatch',
+            now,
+            leaseMs: 1_000,
+            limit: 1,
+        });
+        if (initial === undefined) throw new Error('Expected initial lease');
+        await repository.markDispatched(initial, now);
+
+        await expect(
+            repository.reconcileStrandedRefreshJobs({
+                now: now + DEFAULT_REFRESH_REDRIVE_AGE_MS - 1,
+                staleBefore: now - 1,
+                limit: 1,
+            }),
+        ).resolves.toEqual({ redriven: 0, deadLettered: 0 });
+
+        const recoveredAt = now + DEFAULT_REFRESH_REDRIVE_AGE_MS;
+        await expect(
+            repository.reconcileStrandedRefreshJobs({
+                now: recoveredAt,
+                staleBefore: now,
+                limit: 1,
+            }),
+        ).resolves.toEqual({ redriven: 1, deadLettered: 0 });
+        await expect(
+            first<{
+                state: string;
+                attempt_count: number;
+                payload_json: string;
+            }>(
+                `SELECT state, attempt_count, payload_json
+                 FROM outbox_messages WHERE id = ?`,
+                [initial.id],
+            ),
+        ).resolves.toEqual({
+            state: 'pending',
+            attempt_count: 1,
+            payload_json: JSON.stringify({ operationId }),
+        });
+
+        const sent: { operationId: string }[] = [];
+        let historyId = 323_200;
+        let processorCalls = 0;
+        const service = makeJobOrchestrator({
+            repository,
+            queue: { send: async (body) => void sent.push(body) },
+            processor: async () => {
+                processorCalls += 1;
+                return {
+                    type: 'not_modified',
+                    etag: null,
+                    lastModified: null,
+                    httpStatus: 304,
+                };
+            },
+            now: () => recoveredAt,
+            generateId: async () => {
+                historyId += 1;
+                return historyId;
+            },
+            generateToken: async () => 'recovery-owner',
+        });
+        await expect(service.dispatchOutbox(1)).resolves.toMatchObject({
+            sent: 1,
+        });
+        expect(sent).toEqual([{ operationId }]);
+
+        await expect(service.processQueueMessage(sent[0])).resolves.toEqual({
+            action: 'ack',
+            reason: 'not_modified',
+        });
+        await expect(service.processQueueMessage(sent[0])).resolves.toEqual({
+            action: 'ack',
+            reason: 'succeeded',
+        });
+        expect(processorCalls).toBe(1);
+        await expect(
+            first<{ state: string }>(
+                'SELECT state FROM jobs WHERE operation_id = ?',
+                [operationId],
+            ),
+        ).resolves.toEqual({ state: 'succeeded' });
+        await expect(
+            repository.reconcileStrandedRefreshJobs({
+                now: recoveredAt + DEFAULT_REFRESH_REDRIVE_AGE_MS,
+                staleBefore: recoveredAt,
+                limit: 1,
+            }),
+        ).resolves.toEqual({ redriven: 0, deadLettered: 0 });
+    });
+
+    it('bounds stranded redrives and recovers eligible failed jobs only', async () => {
+        const now = 2_100_001_350_000;
+        await settlePendingOutbox(now);
+        const jobs = [324_001, 324_011, 324_021];
+        for (const feedId of jobs) {
+            await insertFeed(feedId, now);
+            await createJob(feedId, feedId + 1, now);
+            const [leased] = await repository.leaseOutbox({
+                owner: `dispatch-${feedId}`,
+                now,
+                leaseMs: 1_000,
+                limit: 1,
+            });
+            if (leased === undefined) throw new Error('Expected outbox lease');
+            await repository.markDispatched(leased, now);
+        }
+
+        const failedClaim = await claim('operation-324002', now, 'failed-job');
+        await repository.recordRefreshFailure({
+            claim: failedClaim,
+            historyId: 324_100,
+            failedAt: now + 1,
+            retryable: true,
+            errorClass: 'temporary',
+            errorMessage: 'Try later',
+            httpStatus: 503,
+            durationMs: 1,
+            retryAt: now + 2,
+        });
+        const reconciledAt = now + DEFAULT_REFRESH_REDRIVE_AGE_MS + 1;
+        await expect(
+            repository.reconcileStrandedRefreshJobs({
+                now: reconciledAt,
+                staleBefore: now + 1,
+                limit: 2,
+            }),
+        ).resolves.toEqual({ redriven: 2, deadLettered: 0 });
+        await expect(
+            scalar(
+                `SELECT COUNT(*) AS value FROM outbox_messages o
+                 JOIN jobs j ON j.id = o.job_id
+                 WHERE j.operation_id IN (?, ?, ?) AND o.state = 'pending'`,
+                ['operation-324002', 'operation-324012', 'operation-324022'],
+            ),
+        ).resolves.toBe(2);
+        await expect(
+            repository.reconcileStrandedRefreshJobs({
+                now: reconciledAt,
+                staleBefore: now + 1,
+                limit: 2,
+            }),
+        ).resolves.toEqual({ redriven: 1, deadLettered: 0 });
+    });
+
+    it('exhausts redrive recovery once, advances scheduled feeds, and excludes terminal jobs', async () => {
+        const now = 2_100_001_450_000;
+        const feedId = 324_501;
+        const operationId = `feed-refresh:scheduled:${feedId}:${now}`;
+        await settlePendingOutbox(now);
+        await run(
+            d1.run({
+                sql: `UPDATE jobs SET state = 'canceled', completed_at = ?,
+                        lease_owner = NULL, lease_expires_at = NULL,
+                        updated_at = MAX(updated_at, ?)
+                    WHERE kind = 'feed_refresh'
+                      AND state IN ('pending', 'queued', 'failed', 'running')`,
+                bindings: [now, now],
+            }),
+        );
+        await insertFeed(feedId, now);
+        await createJob(feedId, 324_601, now, {
+            operationId,
+            trigger: 'scheduled',
+        });
+        const [leased] = await repository.leaseOutbox({
+            owner: 'terminal-dispatch',
+            now,
+            leaseMs: 1_000,
+            limit: 1,
+        });
+        if (leased === undefined) throw new Error('Expected outbox lease');
+        await repository.markDispatched(leased, now);
+        await run(
+            d1.run({
+                sql: `UPDATE outbox_messages SET attempt_count = ?
+                    WHERE id = ?`,
+                bindings: [MAX_OUTBOX_ATTEMPTS, leased.id],
+            }),
+        );
+
+        const reconciledAt = now + DEFAULT_REFRESH_REDRIVE_AGE_MS;
+        const reconcile = () =>
+            repository.reconcileStrandedRefreshJobs({
+                now: reconciledAt,
+                staleBefore: now,
+                limit: 1,
+            });
+        await expect(reconcile()).resolves.toEqual({
+            redriven: 0,
+            deadLettered: 1,
+        });
+        const terminal = await first<{
+            job_state: string;
+            outbox_state: string;
+            next_refresh_at: number;
+        }>(
+            `SELECT j.state AS job_state, o.state AS outbox_state,
+                f.next_refresh_at
+             FROM jobs j
+             JOIN outbox_messages o ON o.job_id = j.id
+             JOIN feeds f ON f.id = json_extract(j.payload_json, '$.feedId')
+             WHERE j.operation_id = ?`,
+            [operationId],
+        );
+        expect(terminal).toEqual({
+            job_state: 'dead_lettered',
+            outbox_state: 'dead_lettered',
+            next_refresh_at: reconciledAt + DEFAULT_REFRESH_INTERVAL_MS,
+        });
+        await expect(reconcile()).resolves.toEqual({
+            redriven: 0,
+            deadLettered: 0,
+        });
+        await expect(
+            scalar('SELECT next_refresh_at AS value FROM feeds WHERE id = ?', [
+                feedId,
+            ]),
+        ).resolves.toBe(terminal?.next_refresh_at);
     });
 
     it('advances scheduled generation after outbox send exhaustion', async () => {

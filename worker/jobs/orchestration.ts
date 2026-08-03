@@ -7,6 +7,7 @@ import {
     DEFAULT_MAX_ATTEMPTS,
     DEFAULT_OUTBOX_LEASE_MS,
     DEFAULT_REFRESH_INTERVAL_MS,
+    DEFAULT_REFRESH_REDRIVE_AGE_MS,
     FEED_REFRESH_RETENTION_MS,
     MAX_BACKOFF_MS,
     MAX_DUE_FEEDS,
@@ -41,6 +42,8 @@ export interface DispatchResult {
 
 export interface CronResult {
     readonly recoveredJobs: number;
+    readonly redrivenJobs: number;
+    readonly deadLetteredJobs: number;
     readonly reservedJobs: number;
     readonly dispatched: DispatchResult;
     readonly refreshHistoryDeleted: number;
@@ -75,6 +78,7 @@ export interface JobOrchestrator {
         readonly dueLimit?: number;
         readonly dispatchLimit?: number;
         readonly staleLeaseLimit?: number;
+        readonly redriveLimit?: number;
         readonly cleanupLimit?: number;
     }) => Promise<CronResult>;
 }
@@ -408,6 +412,7 @@ export const makeJobOrchestrator = (
             readonly dueLimit?: number;
             readonly dispatchLimit?: number;
             readonly staleLeaseLimit?: number;
+            readonly redriveLimit?: number;
             readonly cleanupLimit?: number;
         } = {},
     ): Promise<CronResult> => {
@@ -416,6 +421,14 @@ export const makeJobOrchestrator = (
             currentTime,
             limit(input.staleLeaseLimit, MAX_DUE_FEEDS),
         );
+        const reconciled = await repository.reconcileStrandedRefreshJobs({
+            now: currentTime,
+            staleBefore: Math.max(
+                0,
+                currentTime - DEFAULT_REFRESH_REDRIVE_AGE_MS,
+            ),
+            limit: limit(input.redriveLimit, MAX_DUE_FEEDS),
+        });
         const refreshHistoryDeleted = await repository.cleanupRefreshHistory(
             Math.max(0, currentTime - FEED_REFRESH_RETENTION_MS),
             limit(input.cleanupLimit, MAX_HISTORY_CLEANUP),
@@ -430,6 +443,8 @@ export const makeJobOrchestrator = (
                 : await dispatchOutbox(input.dispatchLimit);
         return {
             recoveredJobs,
+            redrivenJobs: reconciled.redriven,
+            deadLetteredJobs: reconciled.deadLettered,
             reservedJobs: reserved.reserved,
             dispatched,
             refreshHistoryDeleted,

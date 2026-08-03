@@ -12,6 +12,7 @@ export const DEFAULT_MAX_ATTEMPTS = 8;
 export const DEFAULT_JOB_LEASE_MS = 5 * 60_000;
 export const DEFAULT_OUTBOX_LEASE_MS = 60_000;
 export const DEFAULT_REFRESH_INTERVAL_MS = 15 * 60_000;
+export const DEFAULT_REFRESH_REDRIVE_AGE_MS = 15 * 60_000;
 export const MAX_BACKOFF_MS = 6 * 60 * 60_000;
 export const FEED_REFRESH_RETENTION_MS = 90 * 24 * 60 * 60_000;
 export const MAX_HISTORY_CLEANUP = 500;
@@ -64,6 +65,11 @@ export interface LeasedOutboxMessage {
     readonly attemptCount: number;
     readonly leaseOwner: string;
     readonly leaseExpiresAt: number;
+}
+
+export interface RefreshRedriveResult {
+    readonly redriven: number;
+    readonly deadLettered: number;
 }
 
 export type ClaimRefreshJobResult =

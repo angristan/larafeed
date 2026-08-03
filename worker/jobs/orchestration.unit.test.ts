@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { makeJobOrchestrator, retryBackoffMs } from './orchestration';
 import type { JobRepository } from './repository';
 import {
+    DEFAULT_REFRESH_REDRIVE_AGE_MS,
     FEED_REFRESH_RETENTION_MS,
     type LeasedOutboxMessage,
     type RefreshQueueMessage,
@@ -220,6 +221,10 @@ describe('job orchestration', () => {
                     calls.push(`recover:${limit}`);
                     return 2;
                 },
+                reconcileStrandedRefreshJobs: async (input) => {
+                    calls.push(`redrive:${input.staleBefore}:${input.limit}`);
+                    return { redriven: 4, deadLettered: 1 };
+                },
                 cleanupRefreshHistory: async (cutoff, limit) => {
                     calls.push(`cleanup:${cutoff}:${limit}`);
                     return 3;
@@ -255,16 +260,20 @@ describe('job orchestration', () => {
                 dueLimit: 7,
                 dispatchLimit: 8,
                 staleLeaseLimit: 6,
+                redriveLimit: 4,
                 cleanupLimit: 5,
             }),
         ).resolves.toEqual({
             recoveredJobs: 2,
+            redrivenJobs: 4,
+            deadLetteredJobs: 1,
             reservedJobs: 1,
             dispatched: { leased: 0, sent: 0, released: 0, ambiguous: 0 },
             refreshHistoryDeleted: 3,
         });
         expect(calls).toEqual([
             'recover:6',
+            `redrive:${400 * 24 * 60 * 60_000 - DEFAULT_REFRESH_REDRIVE_AGE_MS}:4`,
             `cleanup:${400 * 24 * 60 * 60_000 - FEED_REFRESH_RETENTION_MS}:5`,
             'due:7',
         ]);

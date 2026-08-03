@@ -31,6 +31,7 @@ import {
     type RefreshFailureRecord,
     type RefreshJob,
     type RefreshJobClaim,
+    type RefreshRedriveResult,
     type RefreshTrigger,
 } from './types';
 
@@ -65,6 +66,11 @@ interface FeedInputRow {
     readonly etag: string | null;
     readonly last_modified: string | null;
     readonly subscription_filters_json: string;
+}
+
+interface StrandedOutboxRow {
+    readonly id: number;
+    readonly exhausted: number;
 }
 
 interface JobPayload {
@@ -111,6 +117,11 @@ export interface JobRepository {
         now: number,
         limit: number,
     ) => Promise<number>;
+    readonly reconcileStrandedRefreshJobs: (input: {
+        readonly now: number;
+        readonly staleBefore: number;
+        readonly limit: number;
+    }) => Promise<RefreshRedriveResult>;
     readonly cleanupRefreshHistory: (
         cutoff: number,
         limit: number,
@@ -837,6 +848,194 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             );
         }
         return recovered;
+    },
+
+    async reconcileStrandedRefreshJobs(input) {
+        const operation = 'reconcileStrandedRefreshJobs';
+        const bounded = boundedLimit(input.limit, MAX_DUE_FEEDS);
+        const candidates = await run(
+            operation,
+            d1.all<StrandedOutboxRow>({
+                sql: `SELECT o.id,
+                        CASE WHEN o.attempt_count >= ?
+                                  OR j.attempt_count >= j.max_attempts
+                            THEN 1 ELSE 0 END AS exhausted
+                    FROM outbox_messages o
+                    JOIN jobs j ON j.id = o.job_id
+                    WHERE o.topic = ? AND o.state = 'sent'
+                      AND o.updated_at <= ?
+                      AND j.kind = ? AND j.state IN ('queued', 'failed')
+                      AND j.updated_at <= ? AND j.available_at <= ?
+                    ORDER BY o.updated_at, o.id LIMIT ?`,
+                bindings: [
+                    MAX_OUTBOX_ATTEMPTS,
+                    FEED_REFRESH_TOPIC,
+                    input.staleBefore,
+                    FEED_REFRESH_JOB_KIND,
+                    input.staleBefore,
+                    input.now,
+                    bounded,
+                ],
+            }),
+        );
+        const redriveIds: number[] = [];
+        const exhaustedIds: number[] = [];
+        for (const row of candidates.results) {
+            if (
+                !isSafeId(row.id) ||
+                (row.exhausted !== 0 && row.exhausted !== 1)
+            ) {
+                throw new JobInvariantError(
+                    operation,
+                    'invalid stranded outbox row',
+                );
+            }
+            (row.exhausted === 1 ? exhaustedIds : redriveIds).push(row.id);
+        }
+        if (redriveIds.length + exhaustedIds.length > bounded) {
+            throw new JobInvariantError(
+                operation,
+                'selected beyond redrive limit',
+            );
+        }
+        if (candidates.results.length === 0) {
+            return { redriven: 0, deadLettered: 0 };
+        }
+
+        const redriveJson = JSON.stringify(redriveIds);
+        const exhaustedJson = JSON.stringify(exhaustedIds);
+        const results = await run(
+            operation,
+            d1.batch([
+                {
+                    sql: `UPDATE jobs
+                        SET state = 'dead_lettered', completed_at = ?,
+                            last_error_class = 'queue_redrive_exhausted',
+                            last_error_message = 'Queue redrive attempts exhausted',
+                            updated_at = ?
+                        WHERE id IN (
+                            SELECT o.job_id FROM outbox_messages o
+                            JOIN json_each(?) selected
+                              ON o.id = CAST(selected.value AS INTEGER)
+                            WHERE o.topic = ? AND o.state = 'sent'
+                              AND (
+                                o.attempt_count >= ?
+                                OR jobs.attempt_count >= jobs.max_attempts
+                              )
+                        ) AND kind = ? AND state IN ('queued', 'failed')
+                          AND updated_at <= ? AND available_at <= ?`,
+                    bindings: [
+                        input.now,
+                        input.now,
+                        exhaustedJson,
+                        FEED_REFRESH_TOPIC,
+                        MAX_OUTBOX_ATTEMPTS,
+                        FEED_REFRESH_JOB_KIND,
+                        input.staleBefore,
+                        input.now,
+                    ],
+                },
+                {
+                    sql: `UPDATE feeds
+                        SET next_refresh_at = MAX(
+                                next_refresh_at + 1,
+                                ? + ${DEFAULT_REFRESH_INTERVAL_MS}
+                            ),
+                            updated_at = MAX(updated_at, ?)
+                        WHERE id IN (
+                            SELECT json_extract(j.payload_json, '$.feedId')
+                            FROM jobs j
+                            JOIN outbox_messages o ON o.job_id = j.id
+                            JOIN json_each(?) selected
+                              ON o.id = CAST(selected.value AS INTEGER)
+                            WHERE o.topic = ? AND o.state = 'sent'
+                              AND j.state = 'dead_lettered'
+                              AND j.last_error_class = 'queue_redrive_exhausted'
+                              AND j.updated_at = ?
+                              AND json_extract(j.payload_json, '$.trigger') = 'scheduled'
+                        )`,
+                    bindings: [
+                        input.now,
+                        input.now,
+                        exhaustedJson,
+                        FEED_REFRESH_TOPIC,
+                        input.now,
+                    ],
+                },
+                {
+                    sql: `UPDATE outbox_messages
+                        SET state = 'dead_lettered', sent_at = NULL,
+                            last_error_class = 'queue_redrive_exhausted',
+                            last_error_message = 'Queue redrive attempts exhausted',
+                            updated_at = ?
+                        WHERE id IN (
+                            SELECT CAST(value AS INTEGER) FROM json_each(?)
+                        ) AND topic = ? AND state = 'sent'
+                          AND EXISTS (
+                            SELECT 1 FROM jobs j
+                            WHERE j.id = outbox_messages.job_id
+                              AND j.state = 'dead_lettered'
+                              AND j.last_error_class = 'queue_redrive_exhausted'
+                              AND j.updated_at = ?
+                          )`,
+                    bindings: [
+                        input.now,
+                        exhaustedJson,
+                        FEED_REFRESH_TOPIC,
+                        input.now,
+                    ],
+                },
+                {
+                    sql: `UPDATE outbox_messages
+                        SET state = 'pending',
+                            attempt_count = attempt_count + 1,
+                            available_at = ?, sent_at = NULL,
+                            last_error_class = 'queue_delivery_lost',
+                            last_error_message = 'Queue delivery was not observed',
+                            updated_at = ?
+                        WHERE id IN (
+                            SELECT CAST(value AS INTEGER) FROM json_each(?)
+                        ) AND topic = ? AND state = 'sent'
+                          AND attempt_count < ? AND updated_at <= ?
+                          AND EXISTS (
+                            SELECT 1 FROM jobs j
+                            WHERE j.id = outbox_messages.job_id
+                              AND j.kind = ?
+                              AND j.state IN ('queued', 'failed')
+                              AND j.attempt_count < j.max_attempts
+                              AND j.updated_at <= ? AND j.available_at <= ?
+                          )`,
+                    bindings: [
+                        input.now,
+                        input.now,
+                        redriveJson,
+                        FEED_REFRESH_TOPIC,
+                        MAX_OUTBOX_ATTEMPTS,
+                        input.staleBefore,
+                        FEED_REFRESH_JOB_KIND,
+                        input.staleBefore,
+                        input.now,
+                    ],
+                },
+            ]),
+        );
+        const terminalJobs = changeCount(operation, results[0]);
+        const advancedFeeds = changeCount(operation, results[1]);
+        const terminalOutbox = changeCount(operation, results[2]);
+        const redriven = changeCount(operation, results[3]);
+        if (
+            terminalJobs > exhaustedIds.length ||
+            advancedFeeds > terminalJobs ||
+            terminalOutbox !== terminalJobs ||
+            redriven > redriveIds.length ||
+            terminalJobs + redriven > bounded
+        ) {
+            throw new JobInvariantError(
+                operation,
+                'invalid redrive reconciliation',
+            );
+        }
+        return { redriven, deadLettered: terminalJobs };
     },
 
     async cleanupRefreshHistory(cutoff, limit) {

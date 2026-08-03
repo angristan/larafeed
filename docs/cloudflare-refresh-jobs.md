@@ -10,6 +10,11 @@ Cron/manual command
   -> consumer claim
   -> bounded fetch + parse + sanitize
   -> atomic feed/entries/history/job commit
+
+Cron reconciliation
+  -> find old queued/failed jobs with a sent outbox row
+  -> reopen that same outbox row and stable { operationId }
+  -> dispatch a safe duplicate, or end the exhausted job
 ```
 
 ## Runtime limits
@@ -21,12 +26,18 @@ Cron/manual command
 - A refresh keeps at most 50 entries. Sanitized article HTML is stored only below 1.8 MB.
 - Parser source IDs remain canonical. On the first post-migration refresh, an exact source-less legacy URL identity is promoted in place so entry IDs and interactions remain stable.
 - Jobs use leased, conditional state transitions and at most 8 processing attempts.
-- Queue messages contain only an operation ID. Retries reload feed and job state from D1.
+- Queue messages contain only an operation ID. Retries and redrives reload feed and job state from D1.
+- Cron checks at most the configured due-feed limit for stranded deliveries per run. A queued or failed job must be available and unchanged for at least 15 minutes before redrive.
+- Queue-send failures and lost-delivery redrives share the existing 10-attempt outbox recovery budget.
 - Detailed refresh history older than 90 days is deleted in bounded batches, and the newest row for each feed is always retained. Daily refresh aggregates preserve complete 365-day charts without retaining every attempt row.
 
 ## Failure behavior
 
 Queue sends and D1 writes do not share a transaction. The dispatcher therefore leaves ambiguous sends leased. Lease expiry can send the same operation again; consumer claims and unique constraints make that safe.
+
+The main Queue and its DLQ can both exhaust delivery retries while D1 is unavailable. In that case Cloudflare can delete the DLQ message before its terminal state is stored. Scheduled reconciliation detects only old, available `queued` or `failed` jobs whose one authoritative outbox row is still `sent`. It reopens that row without changing its payload, so the same operation ID is dispatched again. Duplicate original and redriven deliveries converge through the conditional claim. Succeeded, canceled, and dead-lettered jobs are never reopened.
+
+Each reconciliation is age-gated, batch-limited, and charged to the outbox attempt budget. Budget exhaustion dead-letters both the job and outbox. A terminal scheduled job advances the feed generation by at least the normal refresh interval, so it cannot reserve the same operation forever. Manual jobs do not change the scheduled feed time.
 
 Retryable network, timeout, HTTP 408/425/429, and 5xx failures use bounded exponential backoff. Valid `Retry-After` guidance can extend that delay within the persisted six-hour cap. Terminal policy, parse, size, and other 4xx failures end the job. A terminal feed that is not gone is reconsidered no sooner than the normal refresh interval, rather than the short queue-retry delay. HTTP 404 and 410 also mark the feed gone. The DLQ consumer records terminal D1 state before acknowledging.
 
@@ -40,7 +51,7 @@ These non-secret Worker variables bound or stop new work:
 - `REFRESH_DISPATCH_ENABLED` — send leased outbox messages.
 - `REFRESH_DUE_LIMIT` — maximum due feeds reserved per run, from 1 to 100.
 
-Disabling scheduling stops new scheduled jobs. Disabling dispatch keeps commands durable in the outbox. Subscription creation still creates its refresh command but does not send it to the Queue. Existing Queue deliveries continue so already accepted work can reach an authoritative terminal state.
+Disabling scheduling stops new scheduled jobs. Reconciliation still records stranded delivery work, because it protects already accepted commands. Disabling dispatch keeps both new and reopened commands durable in the outbox. Subscription creation still creates its refresh command but does not send it to the Queue. Existing Queue deliveries continue so already accepted work can reach an authoritative terminal state.
 
 ## Provisioning
 
