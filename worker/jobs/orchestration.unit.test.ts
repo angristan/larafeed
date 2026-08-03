@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { makeJobOrchestrator, retryBackoffMs } from './orchestration';
 import type { JobRepository } from './repository';
 import {
@@ -174,6 +174,68 @@ describe('job orchestration', () => {
         expect(generatedIds).toBe(1);
         expect(committedEntries).toHaveLength(1);
         expect(committedEntries[0]).not.toHaveProperty('id');
+    });
+
+    it('releases a claimed job when refresh commit orchestration fails', async () => {
+        const releaseRefreshJobLease = vi.fn(async () => true);
+        const service = makeJobOrchestrator({
+            repository: repository({
+                claimRefreshJob: async ({ operationId, owner }) => ({
+                    type: 'claimed',
+                    claim: {
+                        jobId: 10,
+                        operationId,
+                        feedId: 20,
+                        trigger: 'scheduled',
+                        attemptCount: 1,
+                        maxAttempts: 5,
+                        leaseOwner: owner,
+                        leaseExpiresAt: 20_000,
+                    },
+                }),
+                loadFeedInput: async (claim) => ({
+                    ...claim,
+                    feedUrl: 'https://example.test/feed.xml',
+                    siteUrl: null,
+                    etag: null,
+                    lastModified: null,
+                    subscriptionFilters: [],
+                }),
+                commitRefresh: async () => {
+                    throw new Error('stale filter snapshot');
+                },
+                releaseRefreshJobLease,
+            }),
+            queue: { send: async () => undefined },
+            processor: async () => ({
+                type: 'not_modified',
+                etag: null,
+                lastModified: null,
+                nextRefreshAt: 70_000,
+                httpStatus: 304,
+            }),
+            now: () => 10_000,
+            generateId: async () => 1_000,
+            generateToken: async () => 'lease-owner',
+        });
+
+        await expect(
+            service.processQueueMessage({ operationId: 'revision-race' }),
+        ).resolves.toEqual({
+            action: 'retry',
+            reason: 'orchestration_error',
+            retryDelaySeconds: 30,
+        });
+        expect(releaseRefreshJobLease).toHaveBeenCalledWith({
+            claim: expect.objectContaining({
+                operationId: 'revision-race',
+                leaseOwner: 'refresh:lease-owner',
+            }),
+            now: 10_000,
+            availableAt: 40_000,
+            errorClass: 'orchestration_error',
+            errorMessage: 'Refresh orchestration failed',
+        });
     });
 
     it('returns individual ack retry and dead decisions without Queue globals', async () => {

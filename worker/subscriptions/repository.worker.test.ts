@@ -385,6 +385,7 @@ describe('subscription management D1 repository', () => {
                     excludeContent: [],
                     excludeAuthor: [],
                 },
+                0,
                 823_002,
                 [823_001, 823_002],
                 now + 1,
@@ -417,6 +418,7 @@ describe('subscription management D1 repository', () => {
                         excludeContent: [],
                         excludeAuthor: [],
                     },
+                    1,
                     823_002,
                     [],
                     now + 2,
@@ -458,6 +460,7 @@ describe('subscription management D1 repository', () => {
                     excludeContent: [],
                     excludeAuthor: [],
                 },
+                1,
                 823_002,
                 [],
                 now + 2,
@@ -502,6 +505,7 @@ describe('subscription management D1 repository', () => {
                         excludeContent: [],
                         excludeAuthor: [],
                     },
+                    2,
                     823_002,
                     [],
                     now + 3,
@@ -528,14 +532,115 @@ describe('subscription management D1 repository', () => {
                     feedId,
                     categoryId,
                     null,
-                    {
-                        excludeTitle: [],
-                        excludeContent: [],
-                        excludeAuthor: [],
-                    },
                     now,
                 ),
             ),
         ).rejects.toBeInstanceOf(SubscriptionNotFound);
+    });
+
+    it('rejects a concurrent rebuild without mixing interaction sets', async () => {
+        const owner = 850_001;
+        const categoryId = 851_001;
+        const feedId = 852_001;
+        const appleEntryId = 853_001;
+        const bananaEntryId = 853_002;
+        await insertUser(owner);
+        await Effect.runPromise(
+            repository.createCategory(categoryId, owner, 'Concurrent', now),
+        );
+        await Effect.runPromise(
+            repository.subscribeDiscovered({
+                proposedId: feedId,
+                feedUrl: 'https://concurrent-filters.example.test/feed.xml',
+                name: 'Concurrent filters',
+                siteUrl: null,
+                faviconUrl: null,
+                categoryId,
+                userId: owner,
+                now,
+            }),
+        );
+        await insertEntry(appleEntryId, feedId, 'Apple update');
+        await insertEntry(bananaEntryId, feedId, 'Banana update');
+
+        const [firstSnapshot, concurrentSnapshot] = await Promise.all([
+            Effect.runPromise(repository.filterEntryWindow(owner, feedId)),
+            Effect.runPromise(repository.filterEntryWindow(owner, feedId)),
+        ]);
+        expect(firstSnapshot).toEqual(concurrentSnapshot);
+        expect(firstSnapshot.filterRevision).toBe(0);
+
+        await Effect.runPromise(
+            repository.updateSubscriptionWithFilterRebuild(
+                owner,
+                feedId,
+                categoryId,
+                'Apple feed',
+                {
+                    excludeTitle: ['Apple'],
+                    excludeContent: [],
+                    excludeAuthor: [],
+                },
+                firstSnapshot.filterRevision,
+                firstSnapshot.throughId ?? 0,
+                [appleEntryId],
+                now + 1,
+            ),
+        );
+        await expect(
+            Effect.runPromise(
+                repository.updateSubscriptionWithFilterRebuild(
+                    owner,
+                    feedId,
+                    categoryId,
+                    'Banana feed',
+                    {
+                        excludeTitle: ['Banana'],
+                        excludeContent: [],
+                        excludeAuthor: [],
+                    },
+                    concurrentSnapshot.filterRevision,
+                    concurrentSnapshot.throughId ?? 0,
+                    [bananaEntryId],
+                    now + 2,
+                ),
+            ),
+        ).rejects.toEqual(
+            new SubscriptionConflict({ reason: 'filter_rebuild_stale' }),
+        );
+
+        await expect(
+            Effect.runPromise(repository.findSubscription(owner, feedId)),
+        ).resolves.toMatchObject({
+            customFeedName: 'Apple feed',
+            filterRules: {
+                excludeTitle: ['Apple'],
+                excludeContent: [],
+                excludeAuthor: [],
+            },
+        });
+        await expect(
+            Effect.runPromise(
+                d1.all<{ entry_id: number }>({
+                    sql: `SELECT entry_id FROM entry_interactions
+                        WHERE user_id = ? AND filtered_at IS NOT NULL
+                        ORDER BY entry_id`,
+                    bindings: [owner],
+                }),
+            ).then((result) => result.results),
+        ).resolves.toEqual([{ entry_id: appleEntryId }]);
+        await expect(
+            Effect.runPromise(
+                d1.first<number>(
+                    {
+                        sql: `SELECT filter_revision AS revision
+                            FROM feed_subscriptions
+                            WHERE user_id = ? AND feed_id = ?`,
+                        bindings: [owner, feedId],
+                    },
+                    'revision',
+                ),
+            ),
+        ).resolves.toBe(1);
     });
 });

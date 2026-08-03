@@ -102,6 +102,7 @@ export interface RefreshJobClaim {
 
 export interface FeedSubscriptionFilter {
     readonly userId: number;
+    readonly filterRevision: number;
     readonly rules: SubscriptionFilterRules;
 }
 
@@ -183,6 +184,10 @@ export type RefreshProcessorResult =
 
 export interface CommitRefreshInput {
     readonly claim: RefreshJobClaim;
+    readonly subscriptionFilterRevisions: readonly {
+        readonly userId: number;
+        readonly filterRevision: number;
+    }[];
     readonly historyId: number;
     readonly completedAt: number;
     readonly etag: string | null;

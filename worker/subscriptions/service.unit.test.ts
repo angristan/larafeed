@@ -67,7 +67,12 @@ const repository = (
             }),
         updateSubscription: () => Effect.void,
         unsubscribe: () => Effect.void,
-        filterEntryWindow: () => Effect.succeed({ total: 2, throughId: 32 }),
+        filterEntryWindow: () =>
+            Effect.succeed({
+                total: 2,
+                throughId: 32,
+                filterRevision: 4,
+            }),
         listFilterCandidates: () =>
             Effect.succeed([
                 {
@@ -361,14 +366,7 @@ describe('subscription management service', () => {
             }),
         );
 
-        expect(updateSubscription).toHaveBeenCalledWith(
-            7,
-            21,
-            11,
-            null,
-            baseSubscription.filterRules,
-            2_000,
-        );
+        expect(updateSubscription).toHaveBeenCalledWith(7, 21, 11, null, 2_000);
     });
 
     it('atomically stores rules with rebuilt sparse interactions', async () => {
@@ -413,6 +411,7 @@ describe('subscription management service', () => {
             11,
             'My feed',
             rules,
+            4,
             32,
             [31],
             2_000,
@@ -502,6 +501,7 @@ describe('subscription management service', () => {
                     Effect.succeed({
                         total: MAX_FILTER_REAPPLY_ENTRIES,
                         throughId: MAX_FILTER_REAPPLY_ENTRIES,
+                        filterRevision: 4,
                     }),
                 listFilterCandidates,
                 updateSubscriptionWithFilterRebuild,
@@ -543,6 +543,7 @@ describe('subscription management service', () => {
                     Effect.succeed({
                         total: MAX_FILTER_REAPPLY_ENTRIES + 1,
                         throughId: MAX_FILTER_REAPPLY_ENTRIES + 1,
+                        filterRevision: 4,
                     }),
                 listFilterCandidates,
                 updateSubscriptionWithFilterRebuild,

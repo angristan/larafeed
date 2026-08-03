@@ -68,12 +68,14 @@ const FilterCandidateRow = Schema.Struct({
 const FilterWindowRow = Schema.Struct({
     total: Count,
     max_id: Schema.NullOr(SafeId),
+    filter_revision: Count,
     subscription_exists: BooleanInt,
 });
 const FilterCommitStatusRow = Schema.Struct({
     subscription_exists: BooleanInt,
     category_exists: BooleanInt,
     has_newer_entries: BooleanInt,
+    revision_matches: BooleanInt,
 });
 const FeedIdRow = Schema.Struct({ id: SafeId });
 
@@ -190,7 +192,6 @@ export interface SubscriptionRepository {
         feedId: number,
         categoryId: number,
         customFeedName: string | null,
-        rules: SubscriptionFilterRules,
         now: number,
     ) => Effect.Effect<
         void,
@@ -211,7 +212,11 @@ export interface SubscriptionRepository {
         userId: number,
         feedId: number,
     ) => Effect.Effect<
-        { readonly total: number; readonly throughId: number | null },
+        {
+            readonly total: number;
+            readonly throughId: number | null;
+            readonly filterRevision: number;
+        },
         | SubscriptionNotFound
         | SubscriptionStorageError
         | SubscriptionInvariantError
@@ -233,6 +238,7 @@ export interface SubscriptionRepository {
         categoryId: number,
         customFeedName: string | null,
         rules: SubscriptionFilterRules,
+        expectedFilterRevision: number,
         throughId: number,
         matchedEntryIds: readonly number[],
         now: number,
@@ -759,14 +765,7 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                 };
             }),
 
-        updateSubscription: (
-            userId,
-            feedId,
-            categoryId,
-            customFeedName,
-            rules,
-            now,
-        ) =>
+        updateSubscription: (userId, feedId, categoryId, customFeedName, now) =>
             Effect.gen(function* () {
                 const operation = 'subscriptions.update';
                 const result = yield* mapStorage(
@@ -774,7 +773,7 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                     d1.run({
                         sql: `UPDATE feed_subscriptions
                             SET category_id = ?, custom_feed_name = ?,
-                                filter_rules_json = ?, updated_at = ?
+                                updated_at = ?
                             WHERE user_id = ? AND feed_id = ?
                               AND EXISTS (
                                 SELECT 1 FROM subscription_categories c
@@ -783,7 +782,6 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                         bindings: [
                             categoryId,
                             customFeedName,
-                            serializeFilterRules(rules),
                             now,
                             userId,
                             feedId,
@@ -837,11 +835,23 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                                 WHERE e.feed_id = ?) AS total,
                             (SELECT MAX(e.id) FROM entries e
                                 WHERE e.feed_id = ?) AS max_id,
+                            COALESCE((
+                                SELECT fs.filter_revision
+                                FROM feed_subscriptions fs
+                                WHERE fs.user_id = ? AND fs.feed_id = ?
+                            ), 0) AS filter_revision,
                             CASE WHEN EXISTS (
                                 SELECT 1 FROM feed_subscriptions fs
                                 WHERE fs.user_id = ? AND fs.feed_id = ?
                             ) THEN 1 ELSE 0 END AS subscription_exists`,
-                        bindings: [feedId, feedId, userId, feedId],
+                        bindings: [
+                            feedId,
+                            feedId,
+                            userId,
+                            feedId,
+                            userId,
+                            feedId,
+                        ],
                     }),
                 );
                 if (row === null)
@@ -850,7 +860,11 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                 if (decoded.subscription_exists === 0) {
                     return yield* Effect.fail(new SubscriptionNotFound());
                 }
-                return { total: decoded.total, throughId: decoded.max_id };
+                return {
+                    total: decoded.total,
+                    throughId: decoded.max_id,
+                    filterRevision: decoded.filter_revision,
+                };
             }),
 
         listFilterCandidates: (
@@ -901,6 +915,7 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
             categoryId,
             customFeedName,
             rules,
+            expectedFilterRevision,
             throughId,
             matchedEntryIds,
             now,
@@ -912,55 +927,37 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                     SELECT 1 FROM entries newer
                     WHERE newer.feed_id = ? AND newer.id > ?
                 )`;
-                const ownedSubscription = `EXISTS (
+                const ownedSubscriptionAtRevision = `EXISTS (
                     SELECT 1 FROM feed_subscriptions fs
                     JOIN subscription_categories c
                       ON c.user_id = fs.user_id AND c.id = ?
                     WHERE fs.user_id = ? AND fs.feed_id = ?
+                      AND fs.filter_revision = ?
                       AND ${noNewerEntries}
                 )`;
+                const ownershipBindings = [
+                    categoryId,
+                    userId,
+                    feedId,
+                    expectedFilterRevision,
+                    feedId,
+                    throughId,
+                ] as const;
                 const results = yield* mapStorage(
                     operation,
                     d1.batch([
-                        {
-                            sql: `UPDATE feed_subscriptions
-                                SET category_id = ?, custom_feed_name = ?,
-                                    filter_rules_json = ?, updated_at = ?
-                                WHERE user_id = ? AND feed_id = ?
-                                  AND EXISTS (
-                                    SELECT 1 FROM subscription_categories c
-                                    WHERE c.user_id = ? AND c.id = ?
-                                  )
-                                  AND ${noNewerEntries}`,
-                            bindings: [
-                                categoryId,
-                                customFeedName,
-                                serializeFilterRules(rules),
-                                now,
-                                userId,
-                                feedId,
-                                userId,
-                                categoryId,
-                                feedId,
-                                throughId,
-                            ],
-                        },
                         {
                             sql: `DELETE FROM entry_interactions
                                 WHERE user_id = ? AND feed_id = ?
                                   AND entry_id <= ? AND filtered_at IS NOT NULL
                                   AND read_override IS NULL
                                   AND starred_at IS NULL AND archived_at IS NULL
-                                  AND ${ownedSubscription}`,
+                                  AND ${ownedSubscriptionAtRevision}`,
                             bindings: [
                                 userId,
                                 feedId,
                                 throughId,
-                                categoryId,
-                                userId,
-                                feedId,
-                                feedId,
-                                throughId,
+                                ...ownershipBindings,
                             ],
                         },
                         {
@@ -968,17 +965,13 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                                 SET filtered_at = NULL, updated_at = ?
                                 WHERE user_id = ? AND feed_id = ?
                                   AND entry_id <= ? AND filtered_at IS NOT NULL
-                                  AND ${ownedSubscription}`,
+                                  AND ${ownedSubscriptionAtRevision}`,
                             bindings: [
                                 now,
                                 userId,
                                 feedId,
                                 throughId,
-                                categoryId,
-                                userId,
-                                feedId,
-                                feedId,
-                                throughId,
+                                ...ownershipBindings,
                             ],
                         },
                         {
@@ -992,7 +985,7 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                                 JOIN entries e
                                     ON e.id = CAST(ids.value AS INTEGER)
                                    AND e.feed_id = ?
-                                WHERE ${ownedSubscription}
+                                WHERE ${ownedSubscriptionAtRevision}
                                 ON CONFLICT(user_id, entry_id) DO UPDATE SET
                                     filtered_at = excluded.filtered_at,
                                     updated_at = excluded.updated_at`,
@@ -1004,9 +997,32 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                                 now,
                                 idsJson,
                                 feedId,
+                                ...ownershipBindings,
+                            ],
+                        },
+                        {
+                            sql: `UPDATE feed_subscriptions
+                                SET category_id = ?, custom_feed_name = ?,
+                                    filter_rules_json = ?,
+                                    filter_revision = filter_revision + 1,
+                                    updated_at = ?
+                                WHERE user_id = ? AND feed_id = ?
+                                  AND filter_revision = ?
+                                  AND EXISTS (
+                                    SELECT 1 FROM subscription_categories c
+                                    WHERE c.user_id = ? AND c.id = ?
+                                  )
+                                  AND ${noNewerEntries}`,
+                            bindings: [
                                 categoryId,
+                                customFeedName,
+                                serializeFilterRules(rules),
+                                now,
                                 userId,
                                 feedId,
+                                expectedFilterRevision,
+                                userId,
+                                categoryId,
                                 feedId,
                                 throughId,
                             ],
@@ -1015,10 +1031,10 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                 );
                 const subscriptionChanges = yield* changeCount(
                     operation,
-                    results[0],
+                    results[3],
                 );
                 const interactionChanges = yield* Effect.forEach(
-                    results.slice(1),
+                    results.slice(0, 3),
                     (result) => changeCount(operation, result),
                 );
                 if (subscriptionChanges === 1) return;
@@ -1044,7 +1060,12 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                             CASE WHEN EXISTS (
                                 SELECT 1 FROM entries
                                 WHERE feed_id = ? AND id > ?
-                            ) THEN 1 ELSE 0 END AS has_newer_entries`,
+                            ) THEN 1 ELSE 0 END AS has_newer_entries,
+                            CASE WHEN EXISTS (
+                                SELECT 1 FROM feed_subscriptions
+                                WHERE user_id = ? AND feed_id = ?
+                                  AND filter_revision = ?
+                            ) THEN 1 ELSE 0 END AS revision_matches`,
                         bindings: [
                             userId,
                             feedId,
@@ -1052,6 +1073,9 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                             categoryId,
                             feedId,
                             throughId,
+                            userId,
+                            feedId,
+                            expectedFilterRevision,
                         ],
                     }),
                 );
@@ -1069,7 +1093,10 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                 ) {
                     return yield* Effect.fail(new SubscriptionNotFound());
                 }
-                if (status.has_newer_entries === 1) {
+                if (
+                    status.has_newer_entries === 1 ||
+                    status.revision_matches === 0
+                ) {
                     return yield* Effect.fail(
                         new SubscriptionConflict({
                             reason: 'filter_rebuild_stale',

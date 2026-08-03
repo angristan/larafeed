@@ -84,6 +84,7 @@ describe('refresh runtime adapter', () => {
             subscriptionFilters: [
                 {
                     userId: 7,
+                    filterRevision: 3,
                     rules: {
                         excludeTitle: ['sponsor'],
                         excludeContent: [],

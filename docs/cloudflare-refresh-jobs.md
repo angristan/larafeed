@@ -27,6 +27,10 @@ Cron reconciliation
 - Parser source IDs remain canonical. On the first post-migration refresh, an exact source-less legacy URL identity is promoted in place so entry IDs and interactions remain stable.
 - Jobs use leased, conditional state transitions and at most 8 processing attempts.
 - Queue messages contain only an operation ID. Retries and redrives reload feed and job state from D1.
+- Refresh processing snapshots subscription filter revisions. The atomic refresh
+  commit aborts every feed, entry, interaction, history, and job mutation if the
+  rule-bearing subscriber set or any revision changed, so a retry evaluates new
+  entries with current rules instead of publishing stale filter state.
 - Cron checks at most the configured due-feed limit for stranded deliveries per run. A queued or failed job must be available and unchanged for at least 15 minutes before redrive.
 - Queue-send failures and lost-delivery redrives share the existing 10-attempt outbox recovery budget.
 - Detailed refresh history older than 90 days is deleted in bounded batches, and the newest row for each feed is always retained. Daily refresh aggregates preserve complete 365-day charts without retaining every attempt row.

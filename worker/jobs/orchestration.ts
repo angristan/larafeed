@@ -16,6 +16,7 @@ import {
     type QueueDecision,
     type QueueSender,
     type RefreshJob,
+    type RefreshJobClaim,
     type RefreshProcessor,
     type RefreshProcessorResult,
     type RefreshQueueMessage,
@@ -263,6 +264,7 @@ export const makeJobOrchestrator = (
             return { action: 'dead', reason: 'invalid_message' };
         }
         const currentTime = now();
+        let activeClaim: RefreshJobClaim | undefined;
         try {
             const owner = requestedOwner ?? `refresh:${await generateToken()}`;
             const claimed = await repository.claimRefreshJob({
@@ -291,6 +293,7 @@ export const makeJobOrchestrator = (
                         claimed.retryAt,
                     );
                 case 'claimed':
+                    activeClaim = claimed.claim;
                     break;
             }
 
@@ -340,6 +343,12 @@ export const makeJobOrchestrator = (
             const entries = result.type === 'success' ? result.entries : [];
             await repository.commitRefresh({
                 claim: claimed.claim,
+                subscriptionFilterRevisions: feed.subscriptionFilters.map(
+                    ({ userId, filterRevision }) => ({
+                        userId,
+                        filterRevision,
+                    }),
+                ),
                 historyId,
                 completedAt,
                 etag: result.etag,
@@ -367,11 +376,22 @@ export const makeJobOrchestrator = (
                         : 'succeeded',
             };
         } catch {
-            return retryDecision(
-                'orchestration_error',
-                currentTime,
-                currentTime + 30_000,
-            );
+            const failedAt = now();
+            const retryAt = failedAt + 30_000;
+            if (activeClaim !== undefined) {
+                try {
+                    await repository.releaseRefreshJobLease({
+                        claim: activeClaim,
+                        now: failedAt,
+                        availableAt: retryAt,
+                        errorClass: 'orchestration_error',
+                        errorMessage: 'Refresh orchestration failed',
+                    });
+                } catch {
+                    // Expiry recovery remains the fallback if D1 is unavailable.
+                }
+            }
+            return retryDecision('orchestration_error', failedAt, retryAt);
         }
     };
 

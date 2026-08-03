@@ -153,6 +153,7 @@ export const makeSubscriptionService = (
                 categoryId,
                 customFeedName,
                 rules,
+                window.filterRevision,
                 throughId,
                 matched,
                 now(),
@@ -324,7 +325,6 @@ export const makeSubscriptionService = (
                         feedId,
                         input.categoryId,
                         customFeedName,
-                        input.filterRules,
                         now(),
                     );
                 }

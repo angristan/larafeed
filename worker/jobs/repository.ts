@@ -113,6 +113,13 @@ export interface JobRepository {
         claim: RefreshJobClaim,
         now: number,
     ) => Promise<FeedRefreshInput>;
+    readonly releaseRefreshJobLease: (input: {
+        readonly claim: RefreshJobClaim;
+        readonly now: number;
+        readonly availableAt: number;
+        readonly errorClass: string;
+        readonly errorMessage: string;
+    }) => Promise<boolean>;
     readonly recoverStaleJobLeases: (
         now: number,
         limit: number,
@@ -209,6 +216,8 @@ const resultRows = <T>(result: D1Result<unknown> | undefined): readonly T[] => {
 
 const isSafeId = (value: unknown): value is number =>
     typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+const isTimestamp = (value: unknown): value is number =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const parseSubscriptionFilters = (
     value: string,
 ): FeedRefreshInput['subscriptionFilters'] => {
@@ -232,6 +241,7 @@ const parseSubscriptionFilters = (
             typeof item !== 'object' ||
             item === null ||
             !isSafeId(Reflect.get(item, 'userId')) ||
+            !isTimestamp(Reflect.get(item, 'filterRevision')) ||
             typeof Reflect.get(item, 'rulesJson') !== 'string'
         ) {
             throw new JobInvariantError(
@@ -241,14 +251,13 @@ const parseSubscriptionFilters = (
         }
         return {
             userId: Reflect.get(item, 'userId') as number,
+            filterRevision: Reflect.get(item, 'filterRevision') as number,
             rules: parseStoredFilterRules(
                 Reflect.get(item, 'rulesJson') as string,
             ),
         };
     });
 };
-const isTimestamp = (value: unknown): value is number =>
-    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 
 const parsePayload = (operation: string, value: string): JobPayload => {
     let parsed: unknown;
@@ -810,6 +819,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     COALESCE((
                         SELECT json_group_array(json_object(
                             'userId', fs.user_id,
+                            'filterRevision', fs.filter_revision,
                             'rulesJson', fs.filter_rules_json
                         ))
                         FROM feed_subscriptions fs
@@ -844,6 +854,36 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 row.subscription_filters_json,
             ),
         };
+    },
+
+    async releaseRefreshJobLease(input) {
+        const operation = 'releaseRefreshJobLease';
+        const result = await run(
+            operation,
+            d1.run({
+                sql: `UPDATE jobs
+                    SET state = 'failed', available_at = ?,
+                        lease_owner = NULL, lease_expires_at = NULL,
+                        last_error_class = ?, last_error_message = ?,
+                        updated_at = ?
+                    WHERE operation_id = ? AND kind = ?
+                      AND state = 'running' AND lease_owner = ?`,
+                bindings: [
+                    input.availableAt,
+                    errorClass(input.errorClass),
+                    errorMessage(input.errorMessage),
+                    input.now,
+                    input.claim.operationId,
+                    FEED_REFRESH_JOB_KIND,
+                    input.claim.leaseOwner,
+                ],
+            }),
+        );
+        const changed = changeCount(operation, result);
+        if (changed > 1) {
+            throw new JobInvariantError(operation, 'released multiple jobs');
+        }
+        return changed === 1;
     },
 
     async recoverStaleJobLeases(now, limit) {
@@ -1139,10 +1179,44 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
 
     async commitRefresh(input) {
         const operation = 'commitRefresh';
+        const filterRevisionMappings = JSON.stringify(
+            input.subscriptionFilterRevisions,
+        );
+        const commitPredicate = `${leasePredicate}
+            AND NOT EXISTS (
+                SELECT 1 FROM feed_subscriptions current_fs
+                WHERE current_fs.feed_id = ?
+                  AND current_fs.filter_rules_json IS NOT NULL
+                  AND NOT EXISTS (
+                    SELECT 1 FROM json_each(?) snapshot
+                    WHERE CAST(json_extract(snapshot.value, '$.userId') AS INTEGER)
+                            = current_fs.user_id
+                      AND CAST(json_extract(snapshot.value, '$.filterRevision') AS INTEGER)
+                            = current_fs.filter_revision
+                  )
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM json_each(?) snapshot
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM feed_subscriptions current_fs
+                    WHERE current_fs.feed_id = ?
+                      AND current_fs.filter_rules_json IS NOT NULL
+                      AND current_fs.user_id = CAST(
+                        json_extract(snapshot.value, '$.userId') AS INTEGER
+                      )
+                      AND current_fs.filter_revision = CAST(
+                        json_extract(snapshot.value, '$.filterRevision') AS INTEGER
+                      )
+                )
+            )`;
         const conditionBindings = [
             input.claim.operationId,
             input.claim.leaseOwner,
             input.completedAt,
+            input.claim.feedId,
+            filterRevisionMappings,
+            filterRevisionMappings,
+            input.claim.feedId,
         ] as const;
         const statements: D1Statement[] = [];
         const mutationKinds: (
@@ -1177,7 +1251,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     next_refresh_at = ?, last_error_class = NULL,
                     last_error_message = NULL, updated_at = ?
                 WHERE id = ? AND EXISTS (
-                    SELECT 1 FROM jobs j WHERE ${leasePredicate}
+                    SELECT 1 FROM jobs j WHERE ${commitPredicate}
                 )`,
             bindings: [
                 input.feedName ?? null,
@@ -1213,7 +1287,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     SELECT sequence.next_id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     FROM entry_id_sequence sequence
                     WHERE sequence.singleton = 1 AND EXISTS (
-                        SELECT 1 FROM jobs j WHERE ${leasePredicate}
+                        SELECT 1 FROM jobs j WHERE ${commitPredicate}
                     )
                     ON CONFLICT(feed_id, deduplication_key) DO UPDATE SET
                         source_id = COALESCE(excluded.source_id, entries.source_id),
@@ -1271,7 +1345,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         SELECT e.id, ?, ?, ?, ?, ? FROM entries e
                         WHERE e.feed_id = ? AND e.deduplication_key = ?
                             AND EXISTS (
-                                SELECT 1 FROM jobs j WHERE ${leasePredicate}
+                                SELECT 1 FROM jobs j WHERE ${commitPredicate}
                             )
                         ON CONFLICT(entry_id) DO UPDATE SET
                             content_html = excluded.content_html,
@@ -1297,7 +1371,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                             SELECT id FROM entries
                             WHERE feed_id = ? AND deduplication_key = ?
                         ) AND EXISTS (
-                            SELECT 1 FROM jobs j WHERE ${leasePredicate}
+                            SELECT 1 FROM jobs j WHERE ${commitPredicate}
                         )`,
                     bindings: [
                         input.claim.feedId,
@@ -1326,19 +1400,32 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 JOIN json_each(?) mapping
                   ON hex(e.deduplication_key) = json_extract(mapping.value, '$.deduplicationKey')
                 WHERE e.feed_id = ?`;
+            const currentFilterRevision = `EXISTS (
+                SELECT 1 FROM json_each(?) snapshot
+                JOIN feed_subscriptions fs
+                  ON fs.user_id = entry_interactions.user_id
+                 AND fs.feed_id = entry_interactions.feed_id
+                 AND fs.filter_revision = CAST(
+                    json_extract(snapshot.value, '$.filterRevision') AS INTEGER
+                 )
+                WHERE CAST(json_extract(snapshot.value, '$.userId') AS INTEGER)
+                    = entry_interactions.user_id
+            )`;
             statements.push({
                 sql: `DELETE FROM entry_interactions
                     WHERE feed_id = ? AND filtered_at IS NOT NULL
                       AND read_override IS NULL AND starred_at IS NULL
                       AND archived_at IS NULL
                       AND entry_id IN (${refreshedEntryIds})
+                      AND ${currentFilterRevision}
                       AND EXISTS (
-                        SELECT 1 FROM jobs j WHERE ${leasePredicate}
+                        SELECT 1 FROM jobs j WHERE ${commitPredicate}
                       )`,
                 bindings: [
                     input.claim.feedId,
                     filterMappings,
                     input.claim.feedId,
+                    filterRevisionMappings,
                     ...conditionBindings,
                 ],
             });
@@ -1348,14 +1435,16 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     SET filtered_at = NULL, updated_at = ?
                     WHERE feed_id = ? AND filtered_at IS NOT NULL
                       AND entry_id IN (${refreshedEntryIds})
+                      AND ${currentFilterRevision}
                       AND EXISTS (
-                        SELECT 1 FROM jobs j WHERE ${leasePredicate}
+                        SELECT 1 FROM jobs j WHERE ${commitPredicate}
                       )`,
                 bindings: [
                     input.completedAt,
                     input.claim.feedId,
                     filterMappings,
                     input.claim.feedId,
+                    filterRevisionMappings,
                     ...conditionBindings,
                 ],
             });
@@ -1373,11 +1462,17 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                       ON e.feed_id = ?
                      AND hex(e.deduplication_key) = json_extract(mapping.value, '$.deduplicationKey')
                     JOIN json_each(mapping.value, '$.filteredUserIds') users
+                    JOIN json_each(?) snapshot
+                      ON CAST(json_extract(snapshot.value, '$.userId') AS INTEGER)
+                       = CAST(users.value AS INTEGER)
                     JOIN feed_subscriptions fs
                       ON fs.user_id = CAST(users.value AS INTEGER)
                      AND fs.feed_id = e.feed_id
+                     AND fs.filter_revision = CAST(
+                        json_extract(snapshot.value, '$.filterRevision') AS INTEGER
+                     )
                     WHERE EXISTS (
-                        SELECT 1 FROM jobs j WHERE ${leasePredicate}
+                        SELECT 1 FROM jobs j WHERE ${commitPredicate}
                     )
                     ON CONFLICT(user_id, entry_id) DO UPDATE SET
                         filtered_at = excluded.filtered_at,
@@ -1389,6 +1484,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     input.completedAt,
                     filterMappings,
                     input.claim.feedId,
+                    filterRevisionMappings,
                     ...conditionBindings,
                 ],
             });
@@ -1407,7 +1503,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     ? - (SELECT COUNT(*) FROM entries
                          WHERE feed_id = ? AND created_at = ? AND updated_at = ?),
                     ?, ?
-                FROM jobs j WHERE ${leasePredicate}`,
+                FROM jobs j WHERE ${commitPredicate}`,
             bindings: [
                 input.historyId,
                 input.claim.feedId,
@@ -1434,7 +1530,9 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             sql: `UPDATE jobs
                 SET state = 'succeeded', lease_owner = NULL,
                     lease_expires_at = NULL, completed_at = ?, updated_at = ?
-                WHERE ${directLeasePredicate}`,
+                WHERE id = (
+                    SELECT j.id FROM jobs j WHERE ${commitPredicate}
+                )`,
             bindings: [
                 input.completedAt,
                 input.completedAt,

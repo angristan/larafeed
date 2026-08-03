@@ -6,6 +6,8 @@ import { makeCompatibilityRepository } from '../compat/repository';
 import { makeD1 } from '../infrastructure/d1';
 import { OPML_IMPORT_JOB_KIND, OPML_IMPORT_TOPIC } from '../opml/types';
 import { makeReaderRepository } from '../reader/repository';
+import { makeSubscriptionRepository } from '../subscriptions/repository';
+import { RefreshLeaseLostError } from './errors';
 import { makeJobOrchestrator } from './orchestration';
 import { makeJobRepository } from './repository';
 import {
@@ -184,6 +186,7 @@ describe('durable feed refresh jobs', () => {
             const jobClaim = await claim(operationId, now);
             await repository.commitRefresh({
                 claim: jobClaim,
+                subscriptionFilterRevisions: [],
                 historyId: jobId + 2,
                 completedAt,
                 etag: null,
@@ -1011,6 +1014,7 @@ describe('durable feed refresh jobs', () => {
         await expect(
             repository.commitRefresh({
                 claim: jobClaim,
+                subscriptionFilterRevisions: [],
                 historyId: 352_001,
                 completedAt: now + 1,
                 etag: 'must-roll-back',
@@ -1076,6 +1080,7 @@ describe('durable feed refresh jobs', () => {
 
         await repository.commitRefresh({
             claim: jobClaim,
+            subscriptionFilterRevisions: [],
             historyId: 362_001,
             completedAt: now + 1,
             etag: 'stored-etag',
@@ -1181,6 +1186,7 @@ describe('durable feed refresh jobs', () => {
         const firstClaim = await claim('operation-364101', now);
         await repository.commitRefresh({
             claim: firstClaim,
+            subscriptionFilterRevisions: [],
             historyId: 364_103,
             completedAt: now + 1,
             etag: null,
@@ -1232,6 +1238,7 @@ describe('durable feed refresh jobs', () => {
         const sparseClaim = await claim('operation-364201', now + 2);
         await repository.commitRefresh({
             claim: sparseClaim,
+            subscriptionFilterRevisions: [],
             historyId: 364_203,
             completedAt: now + 3,
             etag: null,
@@ -1329,6 +1336,7 @@ describe('durable feed refresh jobs', () => {
             subscriptionFilters: [
                 {
                     userId,
+                    filterRevision: 0,
                     rules: {
                         excludeTitle: ['sponsor'],
                         excludeContent: [],
@@ -1339,6 +1347,7 @@ describe('durable feed refresh jobs', () => {
         });
         await repository.commitRefresh({
             claim: firstClaim,
+            subscriptionFilterRevisions: [{ userId, filterRevision: 0 }],
             historyId: 365_103,
             completedAt: now + 1,
             etag: null,
@@ -1386,6 +1395,7 @@ describe('durable feed refresh jobs', () => {
         const secondClaim = await claim('operation-365201', now + 3);
         await repository.commitRefresh({
             claim: secondClaim,
+            subscriptionFilterRevisions: [{ userId, filterRevision: 0 }],
             historyId: 365_203,
             completedAt: now + 4,
             etag: null,
@@ -1421,6 +1431,235 @@ describe('durable feed refresh jobs', () => {
         ).resolves.toEqual({
             filtered_at: null,
             starred_at: now + 2,
+        });
+    });
+
+    it('does not apply stale refresh filter results after a rebuild', async () => {
+        const now = 2_100_005_650_000;
+        const userId = 366_001;
+        const categoryId = 366_002;
+        const feedId = 366_003;
+        const firstEntryId = 366_004;
+        const secondEntryId = 366_005;
+        const firstKey = bytes(66);
+        const secondKey = bytes(67);
+        await insertFeed(feedId, now);
+        await run(
+            d1.batch([
+                {
+                    sql: `INSERT INTO users (
+                            id, webauthn_user_handle, username, email,
+                            display_name, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    bindings: [
+                        userId,
+                        bytes(68),
+                        'filter-race-reader',
+                        'filter-race-reader@example.test',
+                        'Filter Race Reader',
+                        now,
+                        now,
+                    ],
+                },
+                {
+                    sql: `INSERT INTO subscription_categories (
+                            id, user_id, name, created_at, updated_at
+                        ) VALUES (?, ?, 'Filter race', ?, ?)`,
+                    bindings: [categoryId, userId, now, now],
+                },
+                {
+                    sql: `INSERT INTO feed_subscriptions (
+                            user_id, feed_id, category_id, filter_rules_json,
+                            created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?)`,
+                    bindings: [
+                        userId,
+                        feedId,
+                        categoryId,
+                        '{"exclude_title":["Old"],"exclude_content":[],"exclude_author":[]}',
+                        now,
+                        now,
+                    ],
+                },
+                {
+                    sql: `INSERT INTO entries (
+                            id, feed_id, deduplication_key, source_id, title,
+                            published_at, content_status, created_at, updated_at
+                        ) VALUES (?, ?, ?, 'race-first', 'New blocked', ?,
+                            'empty', ?, ?)`,
+                    bindings: [firstEntryId, feedId, firstKey, now, now, now],
+                },
+                {
+                    sql: `INSERT INTO entries (
+                            id, feed_id, deduplication_key, source_id, title,
+                            published_at, content_status, created_at, updated_at
+                        ) VALUES (?, ?, ?, 'race-second', 'Old blocked', ?,
+                            'empty', ?, ?)`,
+                    bindings: [secondEntryId, feedId, secondKey, now, now, now],
+                },
+                {
+                    sql: `INSERT INTO entry_interactions (
+                            user_id, feed_id, entry_id, starred_at,
+                            filtered_at, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, NULL, ?, ?),
+                                 (?, ?, ?, ?, ?, ?, ?)`,
+                    bindings: [
+                        userId,
+                        feedId,
+                        firstEntryId,
+                        now,
+                        now,
+                        now,
+                        userId,
+                        feedId,
+                        secondEntryId,
+                        now,
+                        now,
+                        now,
+                        now,
+                    ],
+                },
+            ]),
+        );
+        await createJob(feedId, 366_101, now, {
+            operationId: 'operation-366101',
+        });
+        const refreshClaim = await claim('operation-366101', now);
+        const refreshInput = await repository.loadFeedInput(refreshClaim, now);
+        expect(refreshInput.subscriptionFilters).toMatchObject([
+            { userId, filterRevision: 0 },
+        ]);
+
+        const subscriptions = makeSubscriptionRepository(d1);
+        const window = await run(
+            subscriptions.filterEntryWindow(userId, feedId),
+        );
+        await run(
+            subscriptions.updateSubscriptionWithFilterRebuild(
+                userId,
+                feedId,
+                categoryId,
+                null,
+                {
+                    excludeTitle: ['New'],
+                    excludeContent: [],
+                    excludeAuthor: [],
+                },
+                window.filterRevision,
+                window.throughId ?? 0,
+                [firstEntryId],
+                now + 1,
+            ),
+        );
+
+        await expect(
+            repository.commitRefresh({
+                claim: refreshClaim,
+                subscriptionFilterRevisions:
+                    refreshInput.subscriptionFilters.map(
+                        ({ userId: snapshotUserId, filterRevision }) => ({
+                            userId: snapshotUserId,
+                            filterRevision,
+                        }),
+                    ),
+                historyId: 366_103,
+                completedAt: now + 2,
+                etag: null,
+                lastModified: null,
+                nextRefreshAt: now + 60_000,
+                httpStatus: 200,
+                durationMs: 5,
+                notModified: false,
+                entries: [
+                    {
+                        deduplicationKey: firstKey,
+                        sourceId: 'race-first',
+                        title: 'Ordinary first',
+                        url: null,
+                        author: null,
+                        publishedAt: now,
+                        sourceUpdatedAt: null,
+                        updateMask: allEntryFields,
+                        filteredUserIds: [],
+                        content: { type: 'empty' },
+                    },
+                    {
+                        deduplicationKey: secondKey,
+                        sourceId: 'race-second',
+                        title: 'Old blocked',
+                        url: null,
+                        author: null,
+                        publishedAt: now,
+                        sourceUpdatedAt: null,
+                        updateMask: allEntryFields,
+                        filteredUserIds: [userId],
+                        content: { type: 'empty' },
+                    },
+                ],
+            }),
+        ).rejects.toBeInstanceOf(RefreshLeaseLostError);
+        await expect(
+            repository.releaseRefreshJobLease({
+                claim: refreshClaim,
+                now: now + 2,
+                availableAt: now + 30_002,
+                errorClass: 'orchestration_error',
+                errorMessage: 'Refresh orchestration failed',
+            }),
+        ).resolves.toBe(true);
+        await expect(
+            repository.claimRefreshJob({
+                operationId: refreshClaim.operationId,
+                owner: 'revision-retry-owner',
+                now: now + 30_002,
+                leaseMs: 60_000,
+            }),
+        ).resolves.toMatchObject({
+            type: 'claimed',
+            claim: { leaseOwner: 'revision-retry-owner' },
+        });
+
+        await expect(
+            run(
+                d1.all<{
+                    entry_id: number;
+                    title: string;
+                    starred_at: number | null;
+                    filtered_at: number | null;
+                }>({
+                    sql: `SELECT e.id AS entry_id, e.title,
+                            ei.starred_at, ei.filtered_at
+                        FROM entries e
+                        LEFT JOIN entry_interactions ei
+                          ON ei.user_id = ? AND ei.entry_id = e.id
+                        WHERE e.feed_id = ? ORDER BY e.id`,
+                    bindings: [userId, feedId],
+                }),
+            ).then((result) => result.results),
+        ).resolves.toEqual([
+            {
+                entry_id: firstEntryId,
+                title: 'New blocked',
+                starred_at: now,
+                filtered_at: now + 1,
+            },
+            {
+                entry_id: secondEntryId,
+                title: 'Old blocked',
+                starred_at: now,
+                filtered_at: null,
+            },
+        ]);
+        await expect(
+            first<{ filter_revision: number; filter_rules_json: string }>(
+                `SELECT filter_revision, filter_rules_json
+                 FROM feed_subscriptions WHERE user_id = ? AND feed_id = ?`,
+                [userId, feedId],
+            ),
+        ).resolves.toEqual({
+            filter_revision: 1,
+            filter_rules_json:
+                '{"exclude_title":["New"],"exclude_content":[],"exclude_author":[]}',
         });
     });
 
@@ -1499,6 +1738,7 @@ describe('durable feed refresh jobs', () => {
         ).resolves.toMatchObject({ feedId, trigger: 'manual' });
         await repository.commitRefresh({
             claim: recoveryClaim,
+            subscriptionFilterRevisions: [],
             historyId: 368_303,
             completedAt: attemptAt + 2,
             etag: null,

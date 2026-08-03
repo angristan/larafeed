@@ -111,10 +111,7 @@ export const queryPlanSpecs = (
                     AND ${effectiveRead} = 0
                 ORDER BY e.published_at DESC, e.id DESC LIMIT 20`,
             bindings: [primaryUserId],
-            required: [
-                'feed_subscriptions_user_category',
-                'entries_feed_published',
-            ],
+            required: ['feed_subscriptions', 'entries_feed_published'],
         },
         {
             name: 'reader.favorites',
