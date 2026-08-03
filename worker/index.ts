@@ -9,6 +9,7 @@ import {
     opmlImportEnabled,
 } from './opml';
 import { handleRefreshCron, handleRefreshQueue } from './refresh/handlers';
+import { runScheduledSubsystems } from './scheduled';
 
 export { app, createApp } from './app';
 
@@ -29,10 +30,13 @@ export default {
         await handleRefreshQueue(batch, env);
     },
     scheduled: async (controller, env) => {
-        await handleRefreshCron(controller, env);
-        await handleOpmlCron(makeDefaultOpmlOrchestrator(env), {
-            dispatchEnabled: opmlImportEnabled(env),
-        });
-        await handleFaviconCron(env);
+        await runScheduledSubsystems([
+            () => handleRefreshCron(controller, env),
+            () =>
+                handleOpmlCron(makeDefaultOpmlOrchestrator(env), {
+                    dispatchEnabled: opmlImportEnabled(env),
+                }),
+            () => handleFaviconCron(env),
+        ]);
     },
 } satisfies ExportedHandler<Env, RefreshQueueMessage>;
