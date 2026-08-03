@@ -320,14 +320,19 @@ export const makeOpmlOrchestrator = (
                     discovered.finalUrl,
                 ).href;
                 const completedAt = now();
-                const [feedId, categoryId] = await Promise.all([
-                    generateId(),
-                    generateId(),
-                ]);
+                const [feedId, categoryId, refreshJobId, refreshOutboxId] =
+                    await Promise.all([
+                        generateId(),
+                        generateId(),
+                        generateId(),
+                        generateId(),
+                    ]);
                 const outcome = await repository.completeItem({
                     claim,
                     feedId,
                     categoryId,
+                    refreshJobId,
+                    refreshOutboxId,
                     feedUrl: canonicalFeedUrl,
                     feedName:
                         discovered.feed.title ||
@@ -414,7 +419,11 @@ export const makeOpmlOrchestrator = (
                     `    <outline text="${xmlEscape(category)}" title="${xmlEscape(category)}">\n${feeds
                         .map(
                             (feed) =>
-                                `      <outline type="rss" text="${xmlEscape(feed.title)}" title="${xmlEscape(feed.title)}" xmlUrl="${xmlEscape(feed.feedUrl)}"${
+                                `      <outline type="rss" text="${xmlEscape(feed.canonicalTitle)}" title="${xmlEscape(feed.canonicalTitle)}"${
+                                    feed.customTitle === null
+                                        ? ''
+                                        : ` customTitle="${xmlEscape(feed.customTitle)}"`
+                                } xmlUrl="${xmlEscape(feed.feedUrl)}"${
                                     feed.siteUrl === null
                                         ? ''
                                         : ` htmlUrl="${xmlEscape(feed.siteUrl)}"`

@@ -3,6 +3,11 @@ import { Effect } from 'effect';
 
 import type { D1, D1Statement } from '../infrastructure/d1';
 import {
+    DEFAULT_MAX_ATTEMPTS as DEFAULT_REFRESH_MAX_ATTEMPTS,
+    FEED_REFRESH_JOB_KIND,
+    FEED_REFRESH_TOPIC,
+} from '../jobs/types';
+import {
     OpmlInvariantError,
     OpmlLeaseLostError,
     OpmlNotFoundError,
@@ -61,6 +66,7 @@ interface ClaimRow extends JobRow {
     readonly import_id: number;
     readonly user_id: number;
     readonly title: string | null;
+    readonly custom_title: string | null;
     readonly feed_url: string;
     readonly normalized_feed_url: string;
     readonly site_url: string | null;
@@ -256,6 +262,8 @@ export interface OpmlRepository {
         readonly claim: OpmlItemClaim;
         readonly feedId: number;
         readonly categoryId: number;
+        readonly refreshJobId: number;
+        readonly refreshOutboxId: number;
         readonly feedUrl: string;
         readonly feedName: string;
         readonly categoryName: string;
@@ -404,10 +412,11 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                         {
                             sql: `INSERT INTO opml_import_items (
                                     id, import_id, user_id, position, operation_id,
-                                    job_id, title, feed_url, normalized_feed_url,
-                                    site_url, category_path_json, state,
-                                    max_attempts, created_at, updated_at
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+                                    job_id, title, custom_title, feed_url,
+                                    normalized_feed_url, site_url,
+                                    category_path_json, state, max_attempts,
+                                    created_at, updated_at
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
                             bindings: [
                                 item.id,
                                 input.id,
@@ -416,6 +425,7 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                                 item.operationId,
                                 item.jobId,
                                 item.title,
+                                item.customTitle,
                                 item.feedUrl,
                                 item.normalizedFeedUrl,
                                 item.siteUrl,
@@ -539,23 +549,26 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
             operation,
             d1.all<{
                 category: string;
-                title: string;
+                canonical_title: string;
+                custom_title: string | null;
                 feed_url: string;
                 site_url: string | null;
             }>({
-                sql: `SELECT c.name AS category, COALESCE(fs.custom_feed_name, f.name) AS title,
-                    f.feed_url, f.site_url
+                sql: `SELECT c.name AS category, f.name AS canonical_title,
+                    fs.custom_feed_name AS custom_title, f.feed_url, f.site_url
                 FROM feed_subscriptions fs
                 JOIN feeds f ON f.id = fs.feed_id
                 JOIN subscription_categories c ON c.id = fs.category_id AND c.user_id = fs.user_id
                 WHERE fs.user_id = ?
-                ORDER BY c.name COLLATE NOCASE, c.id, title COLLATE NOCASE, f.id`,
+                ORDER BY c.name COLLATE NOCASE, c.id,
+                    COALESCE(fs.custom_feed_name, f.name) COLLATE NOCASE, f.id`,
                 bindings: [userId],
             }),
         );
         return result.results.map((row) => ({
             category: row.category,
-            title: row.title,
+            canonicalTitle: row.canonical_title,
+            customTitle: row.custom_title,
             feedUrl: row.feed_url,
             siteUrl: row.site_url,
         }));
@@ -791,8 +804,9 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                 {
                     sql: `SELECT j.id, j.operation_id, j.state, j.attempt_count, j.max_attempts,
                         j.available_at, j.lease_expires_at, j.lease_owner,
-                        i.id AS item_id, i.import_id, i.user_id, i.title, i.feed_url,
-                        i.normalized_feed_url, i.site_url, i.category_path_json
+                        i.id AS item_id, i.import_id, i.user_id, i.title,
+                        i.custom_title, i.feed_url, i.normalized_feed_url,
+                        i.site_url, i.category_path_json
                     FROM jobs j JOIN opml_import_items i ON i.job_id = j.id
                     WHERE j.operation_id = ? AND j.kind = ?`,
                     bindings: [input.operationId, OPML_IMPORT_JOB_KIND],
@@ -812,6 +826,7 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                     jobId: row.id,
                     operationId: row.operation_id,
                     title: row.title,
+                    customTitle: row.custom_title,
                     feedUrl: row.feed_url,
                     normalizedFeedUrl: row.normalized_feed_url,
                     siteUrl: row.site_url,
@@ -843,6 +858,10 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
 
     async completeItem(input) {
         const operation = 'opml.completeItem';
+        const refreshOperationId = `feed-refresh:opml:${input.claim.operationId}`;
+        const refreshQueuePayload = JSON.stringify({
+            operationId: refreshOperationId,
+        });
         const condition = [
             input.claim.operationId,
             input.claim.leaseOwner,
@@ -881,13 +900,71 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                     ],
                 },
                 {
+                    sql: `INSERT INTO jobs (
+                            id, operation_id, kind, state, payload_json,
+                            max_attempts, available_at, created_at, updated_at
+                        )
+                        SELECT ?, ?, ?, 'pending',
+                            json_object('feedId', f.id, 'trigger', 'scheduled'),
+                            ?, ?, ?, ?
+                        FROM feeds f
+                        WHERE f.feed_url = ?
+                            AND f.last_successful_refresh_at IS NULL
+                            AND EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})
+                            AND NOT EXISTS (
+                                SELECT 1 FROM jobs active
+                                WHERE active.kind = ?
+                                    AND active.state IN ('pending', 'queued', 'running', 'failed')
+                                    AND json_extract(active.payload_json, '$.feedId') = f.id
+                            )
+                        ON CONFLICT(operation_id) DO NOTHING`,
+                    bindings: [
+                        input.refreshJobId,
+                        refreshOperationId,
+                        FEED_REFRESH_JOB_KIND,
+                        DEFAULT_REFRESH_MAX_ATTEMPTS,
+                        input.completedAt,
+                        input.completedAt,
+                        input.completedAt,
+                        input.feedUrl,
+                        ...condition,
+                        FEED_REFRESH_JOB_KIND,
+                    ],
+                },
+                {
+                    sql: `INSERT INTO outbox_messages (
+                            id, job_id, topic, payload_json, state,
+                            available_at, created_at, updated_at
+                        )
+                        SELECT ?, j.id, ?, ?, 'pending', ?, ?, ?
+                        FROM jobs j
+                        WHERE j.operation_id = ? AND j.kind = ?
+                            AND changes() = 1
+                            AND EXISTS (SELECT 1 FROM jobs lease WHERE ${leasePredicate.replaceAll('j.', 'lease.')})
+                            AND NOT EXISTS (SELECT 1 FROM outbox_messages o
+                                WHERE o.job_id = j.id)
+                        ON CONFLICT(job_id) DO NOTHING`,
+                    bindings: [
+                        input.refreshOutboxId,
+                        FEED_REFRESH_TOPIC,
+                        refreshQueuePayload,
+                        input.completedAt,
+                        input.completedAt,
+                        input.completedAt,
+                        refreshOperationId,
+                        FEED_REFRESH_JOB_KIND,
+                        ...condition,
+                    ],
+                },
+                {
                     sql: `INSERT INTO feed_subscriptions (user_id, feed_id, category_id, custom_feed_name, created_at, updated_at)
-                    SELECT ?, f.id, c.id, NULL, ?, ? FROM feeds f, subscription_categories c
+                    SELECT ?, f.id, c.id, ?, ?, ? FROM feeds f, subscription_categories c
                     WHERE f.feed_url = ? AND c.user_id = ? AND c.name = ? COLLATE NOCASE
                         AND EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})
                     ON CONFLICT(user_id, feed_id) DO NOTHING`,
                     bindings: [
                         input.claim.userId,
+                        input.claim.customTitle,
                         input.completedAt,
                         input.completedAt,
                         input.feedUrl,
@@ -931,17 +1008,20 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                 },
             ]),
         );
+        const bootstrappedJobs = changes(operation, results[2]);
         if (
             changes(operation, results[0]) > 1 ||
             changes(operation, results[1]) > 1 ||
-            changes(operation, results[2]) > 1 ||
-            changes(operation, results[3]) !== 1 ||
-            changes(operation, results[4]) !== 1 ||
-            changes(operation, results[5]) !== 1
+            bootstrappedJobs > 1 ||
+            changes(operation, results[3]) !== bootstrappedJobs ||
+            changes(operation, results[4]) > 1 ||
+            changes(operation, results[5]) !== 1 ||
+            changes(operation, results[6]) !== 1 ||
+            changes(operation, results[7]) !== 1
         ) {
             throw new OpmlLeaseLostError(input.claim.operationId);
         }
-        const state = rows<{ state: string }>(results[6])[0]?.state;
+        const state = rows<{ state: string }>(results[8])[0]?.state;
         if (state !== 'succeeded' && state !== 'skipped')
             throw new OpmlInvariantError(
                 operation,

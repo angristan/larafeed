@@ -3,6 +3,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { OpmlValidationError } from './errors';
 import {
     MAX_CATEGORY_SEGMENT_LENGTH,
+    MAX_CUSTOM_TITLE_LENGTH,
     MAX_OPML_CHARACTERS,
     MAX_OPML_DEPTH,
     MAX_OPML_FEEDS,
@@ -126,6 +127,11 @@ export const parseOpml = (source: string): readonly ParsedOpmlItem[] => {
                     items.push({
                         position: items.length,
                         title: attribute(outline, ['title', 'text'], 255),
+                        customTitle: attribute(
+                            outline,
+                            ['customtitle'],
+                            MAX_CUSTOM_TITLE_LENGTH,
+                        ),
                         feedUrl,
                         normalizedFeedUrl,
                         siteUrl: attribute(outline, ['htmlurl'], 16_384),

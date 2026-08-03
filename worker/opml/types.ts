@@ -6,6 +6,7 @@ export const MAX_OPML_CHARACTERS = 2_000_000;
 export const MAX_OPML_FEEDS = 500;
 export const MAX_OPML_DEPTH = 50;
 export const MAX_CATEGORY_SEGMENT_LENGTH = 120;
+export const MAX_CUSTOM_TITLE_LENGTH = 255;
 export const MAX_FLATTENED_CATEGORY_LENGTH = 255;
 export const MAX_IMPORT_ERRORS = 20;
 export const MAX_RECENT_IMPORTS = 20;
@@ -20,6 +21,7 @@ export const MAX_BACKOFF_MS = 6 * 60 * 60_000;
 export interface ParsedOpmlItem {
     readonly position: number;
     readonly title: string | null;
+    readonly customTitle: string | null;
     readonly feedUrl: string;
     readonly normalizedFeedUrl: string;
     readonly siteUrl: string | null;
@@ -74,6 +76,7 @@ export interface OpmlItemClaim {
     readonly jobId: number;
     readonly operationId: string;
     readonly title: string | null;
+    readonly customTitle: string | null;
     readonly feedUrl: string;
     readonly normalizedFeedUrl: string;
     readonly siteUrl: string | null;
@@ -126,7 +129,8 @@ export interface OpmlImportCreation {
 
 export interface OpmlExportSubscription {
     readonly category: string;
-    readonly title: string;
+    readonly canonicalTitle: string;
+    readonly customTitle: string | null;
     readonly feedUrl: string;
     readonly siteUrl: string | null;
 }

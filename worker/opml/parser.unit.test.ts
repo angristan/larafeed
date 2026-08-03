@@ -10,7 +10,7 @@ describe('parseOpml', () => {
             <opml version="2.0"><body>
                 <outline text="Technology">
                     <outline title="Web">
-                        <outline text="First" xmlUrl="HTTPS://Example.com:443/feed.xml" htmlUrl="https://example.com/" />
+                        <outline text="First" customTitle="My Feed" xmlUrl="HTTPS://Example.com:443/feed.xml" htmlUrl="https://example.com/" />
                     </outline>
                 </outline>
                 <outline text="Duplicate" xmlUrl="https://example.com/feed.xml" />
@@ -21,6 +21,7 @@ describe('parseOpml', () => {
             {
                 position: 0,
                 title: 'First',
+                customTitle: 'My Feed',
                 feedUrl: 'HTTPS://Example.com:443/feed.xml',
                 normalizedFeedUrl: 'https://example.com/feed.xml',
                 siteUrl: 'https://example.com/',
@@ -29,6 +30,7 @@ describe('parseOpml', () => {
             {
                 position: 1,
                 title: 'Outside',
+                customTitle: null,
                 feedUrl: 'https://outside.example.org/rss',
                 normalizedFeedUrl: 'https://outside.example.org/rss',
                 siteUrl: null,

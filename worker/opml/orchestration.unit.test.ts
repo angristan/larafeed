@@ -78,6 +78,7 @@ describe('OPML orchestration', () => {
                         jobId: 4,
                         operationId: 'private-url',
                         title: null,
+                        customTitle: null,
                         feedUrl: 'http://127.0.0.1/rss',
                         normalizedFeedUrl: 'http://127.0.0.1/rss',
                         siteUrl: null,
@@ -124,7 +125,8 @@ describe('OPML orchestration', () => {
                         userId: 3,
                         jobId: 4,
                         operationId: 'verified-feed',
-                        title: 'Custom title',
+                        title: 'Fallback title',
+                        customTitle: 'Custom title',
                         feedUrl: 'https://site.example.test/',
                         normalizedFeedUrl: 'https://site.example.test/',
                         siteUrl: null,
@@ -138,7 +140,7 @@ describe('OPML orchestration', () => {
             ),
             completeItem,
         });
-        const generatedIds = [10, 11];
+        const generatedIds = [10, 11, 12, 13];
         const orchestrator = makeOpmlOrchestrator({
             repository,
             queue: { send: async () => undefined },
@@ -171,6 +173,8 @@ describe('OPML orchestration', () => {
             expect.objectContaining({
                 feedId: 10,
                 categoryId: 11,
+                refreshJobId: 12,
+                refreshOutboxId: 13,
                 feedUrl: 'https://site.example.test/feed.xml',
                 feedName: 'Discovered feed',
                 categoryName: 'Tech',
@@ -196,6 +200,7 @@ describe('OPML orchestration', () => {
                         jobId: 4,
                         operationId: 'invalid-feed',
                         title: null,
+                        customTitle: null,
                         feedUrl: 'https://site.example.test/page',
                         normalizedFeedUrl: 'https://site.example.test/page',
                         siteUrl: null,
@@ -236,14 +241,22 @@ describe('OPML orchestration', () => {
         );
     });
 
-    it('escapes exported attributes and preserves deterministic grouping', async () => {
+    it('exports canonical and escaped custom titles compatibly', async () => {
         const repository = repositoryStub({
             listExportSubscriptions: vi.fn(() =>
                 Promise.resolve([
                     {
                         category: 'A & B',
-                        title: 'Feed "One"',
+                        canonicalTitle: 'Feed "One"',
+                        customTitle: 'My <Feed>',
                         feedUrl: 'https://one.example.test/rss?a=1&b=2',
+                        siteUrl: null,
+                    },
+                    {
+                        category: 'A & B',
+                        canonicalTitle: 'Feed Two',
+                        customTitle: null,
+                        feedUrl: 'https://two.example.test/rss',
                         siteUrl: null,
                     },
                 ]),
@@ -256,7 +269,11 @@ describe('OPML orchestration', () => {
 
         const document = await orchestrator.exportOpml(1);
         expect(document).toContain('A &amp; B');
-        expect(document).toContain('Feed &quot;One&quot;');
+        expect(document).toContain(
+            'text="Feed &quot;One&quot;" title="Feed &quot;One&quot;" customTitle="My &lt;Feed&gt;"',
+        );
         expect(document).toContain('a=1&amp;b=2');
+        expect(document).toContain('text="Feed Two" title="Feed Two" xmlUrl=');
+        expect(document).not.toContain('customTitle="Feed Two"');
     });
 });
