@@ -10,7 +10,10 @@ const json = (body: unknown) => ({
     body: JSON.stringify(body),
 });
 
-async function mockReaderApi(page: Page): Promise<void> {
+async function mockReaderApi(
+    page: Page,
+    options: { readonly faviconUrl?: string | null } = {},
+): Promise<void> {
     await page.addInitScript(() => {
         document.cookie =
             'larafeed-test-csrf=browser-csrf; path=/; SameSite=Lax';
@@ -62,7 +65,7 @@ async function mockReaderApi(page: Page): Promise<void> {
                             categoryId: 11,
                             feedName: 'Example feed',
                             customFeedName: null,
-                            faviconUrl: null,
+                            faviconUrl: options.faviconUrl ?? null,
                             faviconIsDark: false,
                             totalCount: 1,
                             unreadCount: 1,
@@ -199,4 +202,16 @@ test('navigates categories and exposes separate keyboard menus', async ({
 
     await categoryLink.click();
     await expect(page).toHaveURL(/(?:\?|&)category=11(?:&|$)/u);
+});
+
+test('shows the RSS fallback when a favicon request fails', async ({ page }) => {
+    await mockReaderApi(page, {
+        faviconUrl: '/api/images/feeds/21/small',
+    });
+    await page.goto('/feeds?filter=all&order_by=published_at&page=1');
+
+    const feedLink = page.getByRole('link', { name: 'Example feed' });
+    await expect(feedLink).toBeVisible();
+    await expect(feedLink.locator('img')).toHaveCount(0);
+    await expect(feedLink.locator('svg')).toBeVisible();
 });

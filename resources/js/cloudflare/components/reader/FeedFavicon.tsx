@@ -1,5 +1,6 @@
 import { Center } from '@mantine/core';
 import { IconRss } from '@tabler/icons-react';
+import { useState } from 'react';
 
 import classes from './Reader.module.css';
 
@@ -10,7 +11,9 @@ interface FeedFaviconProps {
 }
 
 export function FeedFavicon({ src, isDark, size = 18 }: FeedFaviconProps) {
-    if (src === null) {
+    const [failedSrc, setFailedSrc] = useState<string | null>(null);
+
+    if (src === null || src === failedSrc) {
         return (
             <Center
                 aria-hidden="true"
@@ -29,6 +32,7 @@ export function FeedFavicon({ src, isDark, size = 18 }: FeedFaviconProps) {
             className={isDark === false ? classes.favicon : classes.faviconDark}
             height={size}
             loading="lazy"
+            onError={() => setFailedSrc(src)}
             src={src}
             width={size}
         />
