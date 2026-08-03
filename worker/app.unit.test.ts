@@ -5,6 +5,16 @@ import type { HealthResponse } from '../shared/http';
 import { createApp, HealthCheckUnavailable } from './app';
 
 describe('Worker HTTP app', () => {
+    it('preserves the public plain-text liveness endpoint', async () => {
+        const response = await createApp().request('/up');
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get('content-type')).toBe(
+            'text/plain; charset=utf-8',
+        );
+        await expect(response.text()).resolves.toBe('OK');
+    });
+
     it('returns the schema-encoded health response', async () => {
         const response = await createApp().request('/api/health');
 

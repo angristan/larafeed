@@ -151,6 +151,10 @@ Users use `/settings/security` to edit profile fields, add or remove passkeys, c
 
 There is no telemetry SDK kill switch because the application relies on native Workers logs and traces. Sampling is configured at the Cloudflare environment level.
 
+## Health checks
+
+The unauthenticated `GET /up` endpoint returns `200 OK` with a plain-text `OK` body for uptime monitors. `GET /api/health` remains the JSON application-health endpoint.
+
 ## Dashboards and alerts
 
 Create production and test views separately. Do not include article text, tokens, cookies, passkey payloads, URLs with credentials, or migration content in logs.

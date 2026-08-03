@@ -204,6 +204,14 @@ export const createApp = (
         return next();
     });
 
+    app.get(
+        '/up',
+        () =>
+            new Response('OK', {
+                headers: { 'content-type': 'text/plain; charset=utf-8' },
+            }),
+    );
+
     app.get('/api/health', (context) => {
         const program = mapRequestErrors(makeHealthRequest(dependencies));
 
