@@ -128,10 +128,6 @@ export interface ProcessedRefreshEntry {
     readonly filteredUserIds: readonly number[];
 }
 
-export interface PersistedRefreshEntry extends ProcessedRefreshEntry {
-    readonly id: number;
-}
-
 interface RefreshCompletionBase {
     readonly etag: string | null;
     readonly lastModified: string | null;
@@ -182,7 +178,7 @@ export interface CommitRefreshInput {
     readonly feedName?: string;
     readonly siteUrl?: string | null;
     readonly faviconUrl?: string | null;
-    readonly entries: readonly PersistedRefreshEntry[];
+    readonly entries: readonly ProcessedRefreshEntry[];
 }
 
 export interface RecordRefreshFailureInput {

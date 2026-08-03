@@ -2,7 +2,9 @@ import { env } from 'cloudflare:workers';
 import { Effect } from 'effect';
 import { describe, expect, it } from 'vitest';
 
+import { makeCompatibilityRepository } from '../compat/repository';
 import { makeD1 } from '../infrastructure/d1';
+import { makeReaderRepository } from '../reader/repository';
 import { makeJobOrchestrator } from './orchestration';
 import { makeJobRepository } from './repository';
 import { DEFAULT_REFRESH_INTERVAL_MS, type RefreshJobClaim } from './types';
@@ -115,6 +117,127 @@ describe('durable feed refresh jobs', () => {
                 ['manual-stable-operation'],
             ),
         ).resolves.toBe(1);
+    });
+
+    it('allocates non-reused IDs for watermarks and Fever cursors', async () => {
+        const now = 2_100_000_500_000;
+        const userId = 315_001;
+        const categoryId = 315_002;
+        const feedId = 315_003;
+        await insertFeed(feedId, now);
+        await run(
+            d1.batch([
+                {
+                    sql: `INSERT INTO users (
+                            id, webauthn_user_handle, username, email,
+                            display_name, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    bindings: [
+                        userId,
+                        bytes(15),
+                        'monotonic-reader',
+                        'monotonic-reader@example.test',
+                        'Monotonic Reader',
+                        now,
+                        now,
+                    ],
+                },
+                {
+                    sql: `INSERT INTO subscription_categories (
+                            id, user_id, name, created_at, updated_at
+                        ) VALUES (?, ?, 'Monotonic', ?, ?)`,
+                    bindings: [categoryId, userId, now, now],
+                },
+                {
+                    sql: `INSERT INTO feed_subscriptions (
+                            user_id, feed_id, category_id, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?)`,
+                    bindings: [userId, feedId, categoryId, now, now],
+                },
+            ]),
+        );
+
+        const commitEntry = async (
+            jobId: number,
+            sourceId: string,
+            publishedAt: number,
+        ) => {
+            const operationId = `operation-${jobId}`;
+            const completedAt = now + (jobId % 1_000);
+            await createJob(feedId, jobId, now, { operationId });
+            const jobClaim = await claim(operationId, now);
+            await repository.commitRefresh({
+                claim: jobClaim,
+                historyId: jobId + 2,
+                completedAt,
+                etag: null,
+                lastModified: null,
+                nextRefreshAt: completedAt + 60_000,
+                httpStatus: 200,
+                durationMs: 1,
+                notModified: false,
+                entries: [
+                    {
+                        deduplicationKey: bytes(jobId),
+                        sourceId,
+                        title: sourceId,
+                        url: `https://jobs.example.test/${sourceId}`,
+                        author: null,
+                        publishedAt,
+                        sourceUpdatedAt: null,
+                        filteredUserIds: [],
+                        content: { type: 'empty' },
+                    },
+                ],
+            });
+            const entryId = await scalar(
+                'SELECT id AS value FROM entries WHERE source_id = ?',
+                [sourceId],
+            );
+            if (entryId === null) {
+                throw new Error('Expected committed entry ID');
+            }
+            return entryId;
+        };
+
+        const firstEntryId = await commitEntry(315_100, 'first', now);
+        await run(
+            makeReaderRepository(d1).advanceReadThrough(userId, feedId, now),
+        );
+        const lateOldEntryId = await commitEntry(
+            315_200,
+            'late-old',
+            now - 86_400_000,
+        );
+        expect(lateOldEntryId).toBeGreaterThan(firstEntryId);
+
+        await expect(
+            run(
+                makeReaderRepository(d1).listEntries(userId, {
+                    scope: { type: 'feed', id: feedId },
+                    filter: 'unread',
+                    orderBy: 'published_at',
+                    page: 1,
+                    pageSize: 20,
+                }),
+            ).then((page) => page.entries.map((entry) => entry.id)),
+        ).resolves.toContain(lateOldEntryId);
+
+        await run(
+            d1.run({
+                sql: 'DELETE FROM entries WHERE id = ?',
+                bindings: [lateOldEntryId],
+            }),
+        );
+        const newestEntryId = await commitEntry(315_300, 'newest', now + 1);
+        expect(newestEntryId).toBeGreaterThan(lateOldEntryId);
+        await expect(
+            run(
+                makeCompatibilityRepository(d1).listFeverItems(userId, {
+                    sinceId: lateOldEntryId,
+                }),
+            ).then((page) => page.entries.map((entry) => entry.id)),
+        ).resolves.toEqual([newestEntryId]);
     });
 
     it('leases stale outbox messages for ambiguous-send recovery with stable payloads', async () => {
@@ -265,7 +388,6 @@ describe('durable feed refresh jobs', () => {
                 notModified: false,
                 entries: [
                     {
-                        id: 353_001,
                         deduplicationKey: bytes(1),
                         sourceId: 'valid',
                         title: 'Valid entry',
@@ -277,7 +399,6 @@ describe('durable feed refresh jobs', () => {
                         content: { type: 'empty' },
                     },
                     {
-                        id: 353_002,
                         deduplicationKey: bytes(2, 1),
                         sourceId: 'invalid',
                         title: 'Invalid entry',
@@ -333,7 +454,6 @@ describe('durable feed refresh jobs', () => {
             faviconUrl: 'https://jobs.example.test/favicon.ico',
             entries: [
                 {
-                    id: 363_001,
                     deduplicationKey: bytes(3),
                     sourceId: 'stored',
                     title: 'Stored content',
@@ -349,7 +469,6 @@ describe('durable feed refresh jobs', () => {
                     },
                 },
                 {
-                    id: 363_002,
                     deduplicationKey: bytes(5),
                     sourceId: 'oversized',
                     title: 'Oversized content',
@@ -490,7 +609,6 @@ describe('durable feed refresh jobs', () => {
             notModified: false,
             entries: [
                 {
-                    id: 365_104,
                     deduplicationKey,
                     sourceId: 'filtered-entry',
                     title: 'Sponsored post',
@@ -503,11 +621,15 @@ describe('durable feed refresh jobs', () => {
                 },
             ],
         });
+        const persistedEntryId = await scalar(
+            'SELECT id AS value FROM entries WHERE feed_id = ?',
+            [feedId],
+        );
         await expect(
             first<{ filtered_at: number | null }>(
                 `SELECT filtered_at FROM entry_interactions
                  WHERE user_id = ? AND entry_id = ?`,
-                [userId, 365_104],
+                [userId, persistedEntryId],
             ),
         ).resolves.toEqual({ filtered_at: now + 1 });
 
@@ -516,7 +638,7 @@ describe('durable feed refresh jobs', () => {
                 sql: `UPDATE entry_interactions
                     SET starred_at = ?, updated_at = ?
                     WHERE user_id = ? AND entry_id = ?`,
-                bindings: [now + 2, now + 2, userId, 365_104],
+                bindings: [now + 2, now + 2, userId, persistedEntryId],
             }),
         );
         await createJob(feedId, 365_201, now + 3);
@@ -533,7 +655,6 @@ describe('durable feed refresh jobs', () => {
             notModified: false,
             entries: [
                 {
-                    id: 365_204,
                     deduplicationKey,
                     sourceId: 'filtered-entry',
                     title: 'Ordinary post',
@@ -553,7 +674,7 @@ describe('durable feed refresh jobs', () => {
             }>(
                 `SELECT filtered_at, starred_at FROM entry_interactions
                  WHERE user_id = ? AND entry_id = ?`,
-                [userId, 365_104],
+                [userId, persistedEntryId],
             ),
         ).resolves.toEqual({
             filtered_at: null,

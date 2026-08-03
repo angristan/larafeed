@@ -889,11 +889,11 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             const contentStatus = entry.content.type;
             statements.push({
                 sql: `INSERT INTO entries (
-                        id, feed_id, deduplication_key, source_id, title, url,
+                        feed_id, deduplication_key, source_id, title, url,
                         author, published_at, source_updated_at, content_status,
                         created_at, updated_at
                     )
-                    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     WHERE EXISTS (
                         SELECT 1 FROM jobs j WHERE ${leasePredicate}
                     )
@@ -906,7 +906,6 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         content_status = excluded.content_status,
                         updated_at = excluded.updated_at`,
                 bindings: [
-                    entry.id,
                     input.claim.feedId,
                     entry.deduplicationKey,
                     entry.sourceId,

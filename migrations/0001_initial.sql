@@ -166,7 +166,7 @@ CREATE INDEX feeds_due_refresh
     ON feeds(next_refresh_at, id) WHERE is_gone = 0;
 
 CREATE TABLE entries (
-    id INTEGER PRIMARY KEY CHECK (id BETWEEN 1 AND 9007199254740991),
+    id INTEGER PRIMARY KEY AUTOINCREMENT CHECK (id BETWEEN 1 AND 9007199254740991),
     feed_id INTEGER NOT NULL REFERENCES feeds(id) ON DELETE CASCADE,
     -- SHA-256 over the parser's canonical source identity (GUID, URL, or a
     -- documented fallback) makes retries and reordered deliveries idempotent.

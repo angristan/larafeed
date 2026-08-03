@@ -101,6 +101,72 @@ describe('job orchestration', () => {
         expect(retryBackoffMs(100)).toBe(6 * 60 * 60_000);
     });
 
+    it('leaves entry ID allocation to the repository', async () => {
+        let generatedIds = 0;
+        let committedEntries: readonly unknown[] = [];
+        const service = makeJobOrchestrator({
+            repository: repository({
+                claimRefreshJob: async ({ operationId, owner }) => ({
+                    type: 'claimed',
+                    claim: {
+                        jobId: 10,
+                        operationId,
+                        feedId: 20,
+                        trigger: 'scheduled',
+                        attemptCount: 1,
+                        maxAttempts: 5,
+                        leaseOwner: owner,
+                        leaseExpiresAt: 20_000,
+                    },
+                }),
+                loadFeedInput: async (claim) => ({
+                    ...claim,
+                    feedUrl: 'https://example.test/feed.xml',
+                    siteUrl: null,
+                    etag: null,
+                    lastModified: null,
+                    subscriptionFilters: [],
+                }),
+                commitRefresh: async (input) => {
+                    committedEntries = input.entries;
+                },
+            }),
+            queue: { send: async () => undefined },
+            processor: async () => ({
+                type: 'success',
+                etag: null,
+                lastModified: null,
+                httpStatus: 200,
+                entries: [
+                    {
+                        deduplicationKey: new Uint8Array(32),
+                        sourceId: 'entry-1',
+                        title: 'Entry',
+                        url: null,
+                        author: null,
+                        publishedAt: 1_000,
+                        sourceUpdatedAt: null,
+                        content: { type: 'empty' },
+                        filteredUserIds: [],
+                    },
+                ],
+            }),
+            now: () => 10_000,
+            generateId: async () => {
+                generatedIds += 1;
+                return 1_000 + generatedIds;
+            },
+            generateToken: async () => 'lease-owner',
+        });
+
+        await expect(
+            service.processQueueMessage({ operationId: 'scheduled-1' }),
+        ).resolves.toEqual({ action: 'ack', reason: 'succeeded' });
+        expect(generatedIds).toBe(1);
+        expect(committedEntries).toHaveLength(1);
+        expect(committedEntries[0]).not.toHaveProperty('id');
+    });
+
     it('returns individual ack retry and dead decisions without Queue globals', async () => {
         const service = makeJobOrchestrator({
             repository: repository({

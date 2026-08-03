@@ -333,15 +333,7 @@ export const makeJobOrchestrator = (
                       );
             }
 
-            const entries =
-                result.type === 'success'
-                    ? await Promise.all(
-                          result.entries.map(async (entry) => ({
-                              ...entry,
-                              id: await generateId(),
-                          })),
-                      )
-                    : [];
+            const entries = result.type === 'success' ? result.entries : [];
             await repository.commitRefresh({
                 claim: claimed.claim,
                 historyId,
