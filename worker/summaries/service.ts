@@ -5,6 +5,7 @@ import { generateSafeId } from '../auth/crypto';
 import { sanitizeArticleHtml } from '../feeds/sanitize';
 import type { SummaryConfig } from './config';
 import {
+    SummaryContentChanged,
     SummaryContentUnavailable,
     SummaryFeatureDisabled,
     SummaryGenerationInProgress,
@@ -29,6 +30,10 @@ export interface SummaryServiceDependencies {
 
 const utf8 = new TextEncoder();
 const strictUtf8 = new TextDecoder('utf-8', { fatal: true });
+const sameBytes = (left: Uint8Array | null, right: Uint8Array): boolean =>
+    left !== null &&
+    left.byteLength === right.byteLength &&
+    left.every((byte, index) => byte === right[index]);
 
 export const truncateUtf8 = (value: string, maximumBytes: number): string => {
     const encoded = utf8.encode(value);
@@ -211,7 +216,9 @@ export const makeSummaryService = (
                         });
                     }
                     return yield* Effect.fail(
-                        new SummaryGenerationInProgress(),
+                        sameBytes(current.contentHash, contentHash)
+                            ? new SummaryGenerationInProgress()
+                            : new SummaryContentChanged(),
                     );
                 }
 
@@ -253,6 +260,7 @@ export const makeSummaryService = (
                         userId,
                         entryId,
                         contentHash,
+                        leaseToken: lease.leaseToken,
                         html,
                         ...key,
                         now: currentTime(),

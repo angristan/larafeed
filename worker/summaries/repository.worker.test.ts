@@ -3,7 +3,11 @@ import { Effect } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import { makeD1 } from '../infrastructure/d1';
-import { SummaryNotFound } from './errors';
+import {
+    SummaryContentChanged,
+    SummaryGenerationInProgress,
+    SummaryNotFound,
+} from './errors';
 import { makeSummaryRepository } from './repository';
 
 const d1 = makeD1(env.DB);
@@ -123,12 +127,27 @@ describe('summary D1 repository', () => {
             ),
         ).rejects.toBeInstanceOf(SummaryNotFound);
 
+        const contentHash = owned.contentHash ?? new Uint8Array();
+        await expect(
+            Effect.runPromise(
+                repository.claimGeneration({
+                    userId,
+                    entryId,
+                    contentHash,
+                    leaseToken: 95_000,
+                    ...key,
+                    now,
+                    expiresAt: now + 60_000,
+                }),
+            ),
+        ).resolves.toBe(true);
         const summary = await Effect.runPromise(
             repository.saveSummary({
                 id: 95_001,
                 userId,
                 entryId,
-                contentHash: owned.contentHash ?? new Uint8Array(),
+                contentHash,
+                leaseToken: 95_000,
                 html: '<p>Cached summary.</p>',
                 ...key,
                 now,
@@ -192,6 +211,134 @@ describe('summary D1 repository', () => {
         ).resolves.toBe(true);
     });
 
+    it('rejects stale owners after lease takeover', async () => {
+        const userId = 106_001;
+        const otherUserId = 106_002;
+        const feedId = 107_001;
+        const categoryId = 108_001;
+        const entryId = 109_001;
+        await Effect.runPromise(
+            fixture(userId, otherUserId, feedId, categoryId, entryId),
+        );
+        const owned = await Effect.runPromise(
+            repository.findOwnedEntry(userId, entryId, key),
+        );
+        const contentHash = owned.contentHash ?? new Uint8Array();
+        const first = {
+            userId,
+            entryId,
+            contentHash,
+            leaseToken: 110_001,
+            ...key,
+            now,
+            expiresAt: now + 10,
+        };
+        await expect(
+            Effect.runPromise(repository.claimGeneration(first)),
+        ).resolves.toBe(true);
+        const second = {
+            ...first,
+            leaseToken: 110_002,
+            now: now + 10,
+            expiresAt: now + 60_010,
+        };
+        await expect(
+            Effect.runPromise(repository.claimGeneration(second)),
+        ).resolves.toBe(true);
+
+        await expect(
+            Effect.runPromise(
+                repository.saveSummary({
+                    id: 110_003,
+                    userId,
+                    entryId,
+                    contentHash,
+                    leaseToken: first.leaseToken,
+                    html: '<p>Stale owner.</p>',
+                    ...key,
+                    now: now + 11,
+                }),
+            ),
+        ).rejects.toBeInstanceOf(SummaryGenerationInProgress);
+        await expect(
+            Effect.runPromise(
+                repository.saveSummary({
+                    id: 110_004,
+                    userId,
+                    entryId,
+                    contentHash,
+                    leaseToken: second.leaseToken,
+                    html: '<p>Current owner.</p>',
+                    ...key,
+                    now: now + 11,
+                }),
+            ),
+        ).resolves.toMatchObject({ id: 110_004 });
+    });
+
+    it('rejects a generated summary when article content changes', async () => {
+        const userId = 111_001;
+        const otherUserId = 111_002;
+        const feedId = 112_001;
+        const categoryId = 113_001;
+        const entryId = 114_001;
+        await Effect.runPromise(
+            fixture(userId, otherUserId, feedId, categoryId, entryId),
+        );
+        const owned = await Effect.runPromise(
+            repository.findOwnedEntry(userId, entryId, key),
+        );
+        const contentHash = owned.contentHash ?? new Uint8Array();
+        await expect(
+            Effect.runPromise(
+                repository.claimGeneration({
+                    userId,
+                    entryId,
+                    contentHash,
+                    leaseToken: 115_001,
+                    ...key,
+                    now,
+                    expiresAt: now + 60_000,
+                }),
+            ),
+        ).resolves.toBe(true);
+        await Effect.runPromise(
+            d1.run({
+                sql: `UPDATE entry_contents
+                    SET content_html = '<p>Changed.</p>', content_hash = ?,
+                        encoded_size_bytes = 15, updated_at = ?
+                    WHERE entry_id = ?`,
+                bindings: [bytes(99), now + 1, entryId],
+            }),
+        );
+
+        await expect(
+            Effect.runPromise(
+                repository.saveSummary({
+                    id: 115_002,
+                    userId,
+                    entryId,
+                    contentHash,
+                    leaseToken: 115_001,
+                    html: '<p>Stale content.</p>',
+                    ...key,
+                    now: now + 2,
+                }),
+            ),
+        ).rejects.toBeInstanceOf(SummaryContentChanged);
+        await expect(
+            Effect.runPromise(
+                d1.first<number>(
+                    {
+                        sql: 'SELECT COUNT(*) AS total FROM entry_summaries WHERE entry_id = ?',
+                        bindings: [entryId],
+                    },
+                    'total',
+                ),
+            ),
+        ).resolves.toBe(0);
+    });
+
     it('reloads the winning row after an idempotent unique race', async () => {
         const userId = 96_001;
         const otherUserId = 96_002;
@@ -205,6 +352,19 @@ describe('summary D1 repository', () => {
             repository.findOwnedEntry(userId, entryId, key),
         );
         const contentHash = owned.contentHash ?? new Uint8Array();
+        await expect(
+            Effect.runPromise(
+                repository.claimGeneration({
+                    userId,
+                    entryId,
+                    contentHash,
+                    leaseToken: 100_000,
+                    ...key,
+                    now,
+                    expiresAt: now + 60_000,
+                }),
+            ),
+        ).resolves.toBe(true);
 
         const [left, right] = await Promise.all([
             Effect.runPromise(
@@ -213,6 +373,7 @@ describe('summary D1 repository', () => {
                     userId,
                     entryId,
                     contentHash,
+                    leaseToken: 100_000,
                     html: '<p>First race result.</p>',
                     ...key,
                     now,
@@ -224,6 +385,7 @@ describe('summary D1 repository', () => {
                     userId,
                     entryId,
                     contentHash,
+                    leaseToken: 100_000,
                     html: '<p>Second race result.</p>',
                     ...key,
                     now: now + 1,

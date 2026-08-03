@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { SummaryConfig } from './config';
 import {
+    SummaryContentChanged,
     SummaryFeatureDisabled,
     SummaryGenerationInProgress,
     SummaryProviderError,
@@ -105,6 +106,28 @@ describe('summary service', () => {
         expect(provider.generate).not.toHaveBeenCalled();
         expect(repository.saveSummary).not.toHaveBeenCalled();
         expect(repository.releaseGeneration).not.toHaveBeenCalled();
+    });
+
+    it('reports content changes that happen before lease claim', async () => {
+        const repository = makeRepository(entry);
+        vi.mocked(repository.claimGeneration).mockReturnValue(
+            Effect.succeed(false),
+        );
+        vi.mocked(repository.findOwnedEntry)
+            .mockReturnValueOnce(Effect.succeed(entry))
+            .mockReturnValueOnce(
+                Effect.succeed({
+                    ...entry,
+                    contentHash: new Uint8Array(32).fill(8),
+                }),
+            );
+        const provider = makeProvider('<p>Unused</p>');
+        const service = makeSummaryService({ config, repository, provider });
+
+        await expect(
+            Effect.runPromise(service.generate(7, 31)),
+        ).rejects.toBeInstanceOf(SummaryContentChanged);
+        expect(provider.generate).not.toHaveBeenCalled();
     });
 
     it('releases generation ownership after provider failure', async () => {

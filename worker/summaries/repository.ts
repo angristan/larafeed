@@ -3,6 +3,8 @@ import { Effect, Schema } from 'effect';
 
 import type { D1, D1OperationError } from '../infrastructure/d1';
 import {
+    SummaryContentChanged,
+    SummaryGenerationInProgress,
     SummaryInvariantError,
     SummaryNotFound,
     SummaryStorageError,
@@ -44,6 +46,7 @@ export interface SaveSummaryInput extends SummaryCacheKey {
     readonly userId: number;
     readonly entryId: number;
     readonly contentHash: Uint8Array;
+    readonly leaseToken: number;
     readonly html: string;
     readonly now: number;
 }
@@ -76,12 +79,20 @@ export interface SummaryRepository {
         input: SaveSummaryInput,
     ) => Effect.Effect<
         EntrySummary,
-        SummaryNotFound | SummaryStorageError | SummaryInvariantError
+        | SummaryNotFound
+        | SummaryContentChanged
+        | SummaryGenerationInProgress
+        | SummaryStorageError
+        | SummaryInvariantError
     >;
 }
 
 const invariant = (operation: string) =>
     new SummaryInvariantError({ operation });
+const sameBytes = (left: Uint8Array | null, right: Uint8Array): boolean =>
+    left !== null &&
+    left.byteLength === right.byteLength &&
+    left.every((byte, index) => byte === right[index]);
 const withStorageError = <A, R>(
     operation: string,
     effect: Effect.Effect<A, D1OperationError, R>,
@@ -309,39 +320,65 @@ export const makeSummaryRepository = (d1: D1): SummaryRepository => {
         saveSummary: (input) =>
             Effect.gen(function* () {
                 const operation = 'summaries.entry.save';
-                yield* withStorageError(
+                const result = yield* withStorageError(
                     operation,
                     d1.run({
                         sql: `INSERT INTO entry_summaries (
                             id, entry_id, requested_by_user_id, content_hash,
                             model, prompt_version, summary_html,
                             created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        )
+                        SELECT ?, e.id, ?, ec.content_hash, ?, ?, ?, ?, ?
+                        FROM entries e
+                        JOIN feed_subscriptions fs
+                            ON fs.feed_id = e.feed_id AND fs.user_id = ?
+                        JOIN entry_contents ec ON ec.entry_id = e.id
+                        JOIN entry_summary_generation_leases lease
+                            ON lease.entry_id = e.id
+                           AND lease.content_hash = ec.content_hash
+                           AND lease.model = ? AND lease.prompt_version = ?
+                           AND lease.lease_token = ?
+                           AND lease.lease_expires_at > ?
+                        LEFT JOIN entry_interactions ei
+                            ON ei.user_id = fs.user_id AND ei.entry_id = e.id
+                        WHERE e.id = ? AND ec.content_hash = ?
+                          AND ei.filtered_at IS NULL
                         ON CONFLICT(entry_id, content_hash, model, prompt_version)
                         DO NOTHING`,
                         bindings: [
                             input.id,
-                            input.entryId,
                             input.userId,
-                            input.contentHash,
                             input.model,
                             input.promptVersion,
                             input.html,
                             input.now,
                             input.now,
+                            input.userId,
+                            input.model,
+                            input.promptVersion,
+                            input.leaseToken,
+                            input.now,
+                            input.entryId,
+                            input.contentHash,
                         ],
                     }),
                 );
+                const changes = result.meta.changes;
+                if (changes !== 0 && changes !== 1) {
+                    return yield* Effect.fail(invariant(operation));
+                }
 
                 const reloaded = yield* findOwnedEntry(
                     input.userId,
                     input.entryId,
                     input,
                 );
-                if (reloaded.summary === null) {
-                    return yield* Effect.fail(invariant(operation));
-                }
-                return reloaded.summary;
+                if (reloaded.summary !== null) return reloaded.summary;
+                return yield* Effect.fail(
+                    sameBytes(reloaded.contentHash, input.contentHash)
+                        ? new SummaryGenerationInProgress()
+                        : new SummaryContentChanged(),
+                );
             }),
     };
 };

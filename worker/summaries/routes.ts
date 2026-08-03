@@ -108,6 +108,12 @@ const safeError = (error: unknown): SafeError => {
                 message: 'Summary generation is already in progress',
                 status: 409,
             };
+        case 'SummaryContentChanged':
+            return {
+                code: 'conflict',
+                message: 'Article content changed; retry summary generation',
+                status: 409,
+            };
         case 'SummaryRateLimited':
             return {
                 code: 'rate_limited',

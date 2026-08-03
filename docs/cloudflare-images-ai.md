@@ -52,7 +52,9 @@ The Worker:
 2. Reuses a D1 summary keyed by entry content hash, model, and prompt version.
 3. Claims a 60-second D1 generation lease for that complete cache key. Concurrent
    misses in other isolates return a retryable conflict instead of making another
-   paid provider call. Failed or interrupted requests release the lease, and its
+   paid provider call. Saving is atomically fenced by the current content hash,
+   unexpired lease, and lease token, so changed articles and expired owners cannot
+   publish stale output. Failed or interrupted requests release the lease, and its
    expiry recovers abandoned ownership.
 4. Sanitizes article HTML and sends at most 50 KiB of article text.
 5. Calls Gemini only through the configured AI Gateway.

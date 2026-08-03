@@ -35,6 +35,11 @@ export class SummaryGenerationInProgress extends Schema.TaggedErrorClass<Summary
     {},
 ) {}
 
+export class SummaryContentChanged extends Schema.TaggedErrorClass<SummaryContentChanged>()(
+    'SummaryContentChanged',
+    {},
+) {}
+
 export class SummaryStorageError extends Schema.TaggedErrorClass<SummaryStorageError>()(
     'SummaryStorageError',
     {
