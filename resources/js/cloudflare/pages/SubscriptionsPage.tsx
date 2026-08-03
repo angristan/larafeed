@@ -37,8 +37,17 @@ import {
 export { buildAddFeedBookmarklet } from '../bookmarklet';
 
 type SubscriptionStatus = 'healthy' | 'failing' | 'never' | 'gone';
-type LegacyStatus = 'success' | 'failed' | 'never';
 type SortField = 'name' | 'entries' | 'lastSuccess' | 'lastFailure';
+
+export const subscriptionStatusFilterOptions = [
+    { label: 'Success', value: 'healthy' },
+    { label: 'Failed', value: 'failing' },
+    { label: 'Never refreshed', value: 'never' },
+    { label: 'Gone', value: 'gone' },
+] as const satisfies readonly {
+    readonly label: string;
+    readonly value: SubscriptionStatus;
+}[];
 type SortDirection = 'asc' | 'desc';
 
 export function nextSubscriptionSortDirection(
@@ -102,18 +111,13 @@ export function getSubscriptionStatus(
     return subscription.lastSuccessfulRefreshAt === null ? 'never' : 'healthy';
 }
 
-function legacyStatus(subscription: ManagedSubscription): LegacyStatus {
-    const latest = subscription.refreshes[0];
-    if (latest === undefined) return 'never';
-    return latest.successful ? 'success' : 'failed';
-}
-
 function StatusBadge({ subscription }: { subscription: ManagedSubscription }) {
-    const status = legacyStatus(subscription);
+    const status = getSubscriptionStatus(subscription);
     const presentation = {
-        success: { label: 'Success', color: 'green' },
-        failed: { label: 'Failed', color: 'red' },
+        healthy: { label: 'Success', color: 'green' },
+        failing: { label: 'Failed', color: 'red' },
         never: { label: 'Never refreshed', color: 'gray' },
+        gone: { label: 'Gone', color: 'gray' },
     }[status];
     return (
         <Badge color={presentation.color} radius="sm" variant="light">
@@ -289,7 +293,7 @@ export function SubscriptionsPage() {
     const data = management.data;
     const [search, setSearch] = useState('');
     const [category, setCategory] = useState('all');
-    const [status, setStatus] = useState<LegacyStatus | 'all'>('all');
+    const [status, setStatus] = useState<SubscriptionStatus | 'all'>('all');
     const [sortField, setSortField] = useState<SortField>('name');
     const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
     const [selectedFeedId, setSelectedFeedId] = useState<number | null>(null);
@@ -315,7 +319,8 @@ export function SubscriptionsPage() {
                     category === 'all' ||
                     String(subscription.categoryId) === category;
                 const matchesStatus =
-                    status === 'all' || legacyStatus(subscription) === status;
+                    status === 'all' ||
+                    getSubscriptionStatus(subscription) === status;
                 return matchesSearch && matchesCategory && matchesStatus;
             })
             .toSorted((left, right) => {
@@ -406,13 +411,13 @@ export function SubscriptionsPage() {
                     <Select
                         data={[
                             { label: 'All statuses', value: 'all' },
-                            { label: 'Success', value: 'success' },
-                            { label: 'Failed', value: 'failed' },
-                            { label: 'Never refreshed', value: 'never' },
+                            ...subscriptionStatusFilterOptions,
                         ]}
                         label="Status"
                         onChange={(value) =>
-                            setStatus((value ?? 'all') as LegacyStatus | 'all')
+                            setStatus(
+                                (value ?? 'all') as SubscriptionStatus | 'all',
+                            )
                         }
                         value={status}
                     />
@@ -463,11 +468,14 @@ export function SubscriptionsPage() {
         </ScrollArea>
     );
 
-    const errorCount = subscriptions.filter(
-        (subscription) => legacyStatus(subscription) === 'failed',
-    ).length;
+    const errorCount = subscriptions.filter((subscription) => {
+        const subscriptionStatus = getSubscriptionStatus(subscription);
+        return (
+            subscriptionStatus === 'failing' || subscriptionStatus === 'gone'
+        );
+    }).length;
     const neverCount = subscriptions.filter(
-        (subscription) => legacyStatus(subscription) === 'never',
+        (subscription) => getSubscriptionStatus(subscription) === 'never',
     ).length;
 
     return (

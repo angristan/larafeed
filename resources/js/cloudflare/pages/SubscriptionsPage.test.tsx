@@ -11,6 +11,7 @@ import {
     getSubscriptionStatus,
     nextSubscriptionSortDirection,
     SubscriptionsPage,
+    subscriptionStatusFilterOptions,
 } from './SubscriptionsPage';
 
 const subscription: ManagedSubscription = {
@@ -109,6 +110,43 @@ describe('SubscriptionsPage', () => {
         expect(markup).toContain('Last success');
         expect(markup).toContain('Last failure');
         expect(markup).toContain('Sorted ascending');
+    });
+
+    it('uses authoritative statuses for badges, filters, and totals', () => {
+        const markup = renderPage({
+            categories: [{ id: 3, name: 'Technology', subscriptionCount: 4 }],
+            subscriptions: [
+                subscription,
+                {
+                    ...subscription,
+                    feedId: 8,
+                    customFeedName: 'Recovering feed',
+                    consecutiveFailures: 2,
+                },
+                {
+                    ...subscription,
+                    feedId: 9,
+                    customFeedName: 'Gone feed',
+                    isGone: true,
+                },
+                {
+                    ...subscription,
+                    feedId: 10,
+                    customFeedName: 'New feed',
+                    lastSuccessfulRefreshAt: null,
+                    refreshes: [],
+                },
+            ],
+        });
+
+        expect(markup).toContain('Total: 4');
+        expect(markup).toContain('With errors: 2');
+        expect(markup).toContain('Never refreshed: 1');
+        expect(markup).toContain('Failed');
+        expect(markup).toContain('Gone');
+        expect(
+            subscriptionStatusFilterOptions.map(({ value }) => value),
+        ).toEqual(['healthy', 'failing', 'never', 'gone']);
     });
 
     it('keeps add-feed controls out of the legacy audit page', () => {
