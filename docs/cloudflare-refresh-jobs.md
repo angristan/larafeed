@@ -65,4 +65,4 @@ Wrangler declares these resources but does not create them during a dry run:
 - `larafeed-feed-refresh-dlq`
 - test equivalents prefixed with `larafeed-test-`
 
-Create the queues before the first explicit deployment. No queue or Cron configuration has been written to Cloudflare from this branch.
+The test queues and ten-minute Cron are provisioned and attached to the isolated test Worker. Production queues and Cron remain unprovisioned; create the queues before the first approved production deployment.
