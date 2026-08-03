@@ -151,8 +151,6 @@ CREATE TABLE feeds (
     last_modified TEXT,
     is_gone INTEGER NOT NULL DEFAULT 0 CHECK (is_gone IN (0, 1)),
     consecutive_failures INTEGER NOT NULL DEFAULT 0 CHECK (consecutive_failures >= 0),
-    consecutive_not_found_failures INTEGER NOT NULL DEFAULT 0
-        CHECK (consecutive_not_found_failures >= 0),
     last_attempt_at INTEGER CHECK (last_attempt_at IS NULL OR last_attempt_at >= 0),
     last_successful_refresh_at INTEGER CHECK (last_successful_refresh_at IS NULL OR last_successful_refresh_at >= 0),
     latest_entry_at INTEGER CHECK (latest_entry_at IS NULL OR latest_entry_at >= 0),
