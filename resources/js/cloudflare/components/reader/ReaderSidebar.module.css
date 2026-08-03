@@ -82,6 +82,92 @@
     margin-left: 11px;
 }
 
+.managementControl {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    min-width: 24px;
+    margin-left: 5px;
+}
+
+.managementControl > * {
+    grid-area: 1 / 1;
+}
+
+.managementControl .feedMenuIcon,
+.managementControl .mainLinkBadge {
+    margin-left: 0;
+}
+
+.managementMenuTarget {
+    opacity: 0;
+    transition: opacity 150ms ease;
+}
+
+.managementCount {
+    transition: opacity 150ms ease;
+}
+
+.feedRow:hover .managementMenuTarget,
+.categoryRow:hover .managementMenuTarget,
+.managementControl:hover .managementMenuTarget,
+.managementControl:focus-within .managementMenuTarget,
+.managementMenuTarget[data-expanded] {
+    opacity: 1;
+}
+
+.feedRow:hover .managementCount,
+.categoryRow:hover .managementCount,
+.managementControl:hover .managementCount,
+.managementControl:focus-within .managementCount,
+.managementControl:has(.managementMenuTarget[data-expanded]) .managementCount {
+    opacity: 0;
+}
+
+@media (hover: none), (pointer: coarse) {
+    .managementMenuTarget {
+        opacity: 1;
+    }
+
+    .managementCount {
+        opacity: 0;
+    }
+}
+
+.categoryRow {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    border-radius: var(--mantine-radius-sm);
+}
+
+.categoryRow:hover {
+    background-color: light-dark(
+        var(--mantine-color-gray-1),
+        var(--mantine-color-dark-6)
+    );
+}
+
+.categoryNavigation {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+}
+
+.categoryDisclosure {
+    flex: 0 0 auto;
+    margin-left: 2px;
+    transition: transform 150ms ease;
+}
+
+.categoryDisclosureOpened {
+    transform: rotate(90deg);
+}
+
+.categoryFeeds {
+    padding-left: var(--mantine-spacing-lg);
+}
+
 .collectionLink {
     display: block;
     padding: 8px var(--mantine-spacing-xs);
@@ -122,6 +208,18 @@
     justify-content: space-between;
     width: 100%;
     gap: var(--mantine-spacing-xs);
+}
+
+.feedNavigationLink {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+}
+
+.feedNavigationLink > * {
+    max-width: 100%;
 }
 
 .feedRowLeft {

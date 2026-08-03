@@ -75,6 +75,9 @@ describe('ReaderSidebar', () => {
         expect(markup).toContain('Newsletters');
         expect(markup).toContain('Cloudflare Blog');
         expect(markup).toContain('Create feed or category');
+        expect(markup).toContain('aria-label="Manage Technology category"');
+        expect(markup).toContain('aria-label="Manage Cloudflare Blog"');
+        expect(markup).toContain('aria-label="Collapse Technology feeds"');
         expect(markup).not.toContain('Reader app tokens');
     });
 

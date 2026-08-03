@@ -5,6 +5,7 @@ import {
     Badge,
     Button,
     Code,
+    Collapse,
     Divider,
     Fieldset,
     Group,
@@ -21,7 +22,7 @@ import {
     TextInput,
     Tooltip,
 } from '@mantine/core';
-import { useDisclosure, useHover } from '@mantine/hooks';
+import { useDisclosure } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import {
@@ -553,11 +554,13 @@ export function FeedActions({
     managed,
     categories,
     onUnsubscribed,
+    showCount = false,
 }: {
     readonly subscription: ReaderSubscriptionList['subscriptions'][number];
     readonly managed: ManagedSubscription | undefined;
     readonly categories: readonly ManagedCategory[];
     readonly onUnsubscribed?: () => void;
+    readonly showCount?: boolean;
 }) {
     const queryClient = useQueryClient();
     const refresh = useMutation(
@@ -569,8 +572,6 @@ export function FeedActions({
     const unsubscribe = useMutation(unsubscribeMutationOptions(queryClient));
     const update = useMutation(updateSubscriptionMutationOptions(queryClient));
     const markRead = useReadThroughMutation(subscription.feedId);
-    const { hovered, ref } = useHover();
-    const [opened, setOpened] = useState(false);
     const [editOpened, editModal] = useDisclosure(false);
     const [customName, setCustomName] = useState('');
     const [categoryId, setCategoryId] = useState('');
@@ -746,183 +747,184 @@ export function FeedActions({
                     </form>
                 </Fieldset>
             </Modal>
-            <Menu opened={opened} onChange={setOpened} shadow="md">
-                <Group gap={0} ref={ref} wrap="nowrap">
+            <div className={classes.managementControl}>
+                {showCount && (
+                    <Badge
+                        aria-hidden="true"
+                        className={`${classes.mainLinkBadge} ${classes.managementCount}`}
+                        size="sm"
+                        variant="default"
+                    >
+                        {subscription.totalCount}
+                    </Badge>
+                )}
+                <Menu shadow="md">
                     <Menu.Target>
-                        {hovered || opened ? (
-                            <ActionIcon
-                                className={classes.feedMenuIcon}
-                                color="gray"
-                                onClick={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                    setOpened(!opened);
-                                }}
-                                size="xs"
-                            >
-                                <IconDots size={15} stroke={1.5} />
-                            </ActionIcon>
-                        ) : (
-                            <Badge
-                                className={classes.mainLinkBadge}
-                                size="sm"
-                                variant="default"
-                            >
-                                {subscription.totalCount}
-                            </Badge>
-                        )}
+                        <ActionIcon
+                            aria-label={`Manage ${subscription.customFeedName ?? subscription.feedName}`}
+                            className={`${classes.feedMenuIcon} ${showCount ? classes.managementMenuTarget : ''}`}
+                            color="gray"
+                            size="xs"
+                            type="button"
+                        >
+                            <IconDots
+                                aria-hidden="true"
+                                size={15}
+                                stroke={1.5}
+                            />
+                        </ActionIcon>
                     </Menu.Target>
-                </Group>
-                <Menu.Dropdown onClick={(event) => event.stopPropagation()}>
-                    <Menu.Label>Manage feed</Menu.Label>
-                    <Menu.Item
-                        component="a"
-                        disabled={managed?.siteUrl == null}
-                        href={managed?.siteUrl ?? undefined}
-                        leftSection={<IconExternalLink size={14} />}
-                        rel="noreferrer"
-                        target="_blank"
-                    >
-                        Open website
-                    </Menu.Item>
-                    <Menu.Item
-                        component="a"
-                        disabled={managed === undefined}
-                        href={managed?.feedUrl}
-                        leftSection={<IconRss size={14} />}
-                        rel="noreferrer"
-                        target="_blank"
-                    >
-                        Open feed
-                    </Menu.Item>
-                    <Menu.Divider />
-                    <Menu.Item
-                        disabled={markRead.isPending}
-                        leftSection={<IconCheck size={14} />}
-                        onClick={() =>
-                            markRead.mutate(undefined, {
-                                onError: (error) =>
-                                    notifyActionError(
-                                        'Failed to mark feed as read',
-                                        error,
+                    <Menu.Dropdown>
+                        <Menu.Label>Manage feed</Menu.Label>
+                        <Menu.Item
+                            component="a"
+                            disabled={managed?.siteUrl == null}
+                            href={managed?.siteUrl ?? undefined}
+                            leftSection={<IconExternalLink size={14} />}
+                            rel="noreferrer"
+                            target="_blank"
+                        >
+                            Open website
+                        </Menu.Item>
+                        <Menu.Item
+                            component="a"
+                            disabled={managed === undefined}
+                            href={managed?.feedUrl}
+                            leftSection={<IconRss size={14} />}
+                            rel="noreferrer"
+                            target="_blank"
+                        >
+                            Open feed
+                        </Menu.Item>
+                        <Menu.Divider />
+                        <Menu.Item
+                            disabled={markRead.isPending}
+                            leftSection={<IconCheck size={14} />}
+                            onClick={() =>
+                                markRead.mutate(undefined, {
+                                    onError: (error) =>
+                                        notifyActionError(
+                                            'Failed to mark feed as read',
+                                            error,
+                                        ),
+                                })
+                            }
+                        >
+                            Mark as read
+                        </Menu.Item>
+                        <Menu.Item
+                            disabled={refresh.isPending}
+                            leftSection={<IconRefresh size={14} />}
+                            onClick={() =>
+                                refresh.mutate(
+                                    { feedId: subscription.feedId },
+                                    {
+                                        onSuccess: () =>
+                                            notifications.show({
+                                                title: 'Feed refresh requested',
+                                                message:
+                                                    'The feed refresh has been queued',
+                                                color: 'green',
+                                                withBorder: true,
+                                            }),
+                                        onError: (error) =>
+                                            notifyActionError(
+                                                'Failed to refresh feed',
+                                                error,
+                                            ),
+                                    },
+                                )
+                            }
+                        >
+                            Request refresh
+                        </Menu.Item>
+                        <Menu.Item
+                            disabled={refreshFavicon.isPending}
+                            leftSection={<IconPhoto size={14} />}
+                            onClick={() =>
+                                refreshFavicon.mutate(
+                                    { feedId: subscription.feedId },
+                                    {
+                                        onSuccess: () =>
+                                            notifications.show({
+                                                title: 'Favicon refreshed',
+                                                message:
+                                                    'The feed favicon has been refreshed',
+                                                color: 'green',
+                                                withBorder: true,
+                                            }),
+                                        onError: (error) =>
+                                            notifyActionError(
+                                                'Failed to refresh favicon',
+                                                error,
+                                            ),
+                                    },
+                                )
+                            }
+                        >
+                            Refresh favicon
+                        </Menu.Item>
+                        <Menu.Item
+                            disabled={managed === undefined}
+                            leftSection={<IconPencil size={14} />}
+                            onClick={openEdit}
+                        >
+                            Edit feed
+                        </Menu.Item>
+                        <Menu.Divider />
+                        <Menu.Item
+                            color="red"
+                            disabled={unsubscribe.isPending}
+                            leftSection={<IconTrash size={14} />}
+                            onClick={() =>
+                                modals.openConfirmModal({
+                                    title: 'Unsubscribe from feed?',
+                                    children: (
+                                        <Text size="sm">
+                                            Remove{' '}
+                                            <strong>
+                                                {subscription.customFeedName ??
+                                                    subscription.feedName}
+                                            </strong>{' '}
+                                            from Larafeed? Existing entries from
+                                            the feed will no longer appear in
+                                            your reader.
+                                        </Text>
                                     ),
-                            })
-                        }
-                    >
-                        Mark as read
-                    </Menu.Item>
-                    <Menu.Item
-                        disabled={refresh.isPending}
-                        leftSection={<IconRefresh size={14} />}
-                        onClick={() =>
-                            refresh.mutate(
-                                { feedId: subscription.feedId },
-                                {
-                                    onSuccess: () =>
-                                        notifications.show({
-                                            title: 'Feed refresh requested',
-                                            message:
-                                                'The feed refresh has been queued',
-                                            color: 'green',
-                                            withBorder: true,
-                                        }),
-                                    onError: (error) =>
-                                        notifyActionError(
-                                            'Failed to refresh feed',
-                                            error,
-                                        ),
-                                },
-                            )
-                        }
-                    >
-                        Request refresh
-                    </Menu.Item>
-                    <Menu.Item
-                        disabled={refreshFavicon.isPending}
-                        leftSection={<IconPhoto size={14} />}
-                        onClick={() =>
-                            refreshFavicon.mutate(
-                                { feedId: subscription.feedId },
-                                {
-                                    onSuccess: () =>
-                                        notifications.show({
-                                            title: 'Favicon refreshed',
-                                            message:
-                                                'The feed favicon has been refreshed',
-                                            color: 'green',
-                                            withBorder: true,
-                                        }),
-                                    onError: (error) =>
-                                        notifyActionError(
-                                            'Failed to refresh favicon',
-                                            error,
-                                        ),
-                                },
-                            )
-                        }
-                    >
-                        Refresh favicon
-                    </Menu.Item>
-                    <Menu.Item
-                        disabled={managed === undefined}
-                        leftSection={<IconPencil size={14} />}
-                        onClick={openEdit}
-                    >
-                        Edit feed
-                    </Menu.Item>
-                    <Menu.Divider />
-                    <Menu.Item
-                        color="red"
-                        disabled={unsubscribe.isPending}
-                        leftSection={<IconTrash size={14} />}
-                        onClick={() =>
-                            modals.openConfirmModal({
-                                title: 'Unsubscribe from feed?',
-                                children: (
-                                    <Text size="sm">
-                                        Remove{' '}
-                                        <strong>
-                                            {subscription.customFeedName ??
-                                                subscription.feedName}
-                                        </strong>{' '}
-                                        from Larafeed? Existing entries from the
-                                        feed will no longer appear in your
-                                        reader.
-                                    </Text>
-                                ),
-                                labels: {
-                                    confirm: 'Unsubscribe',
-                                    cancel: 'Cancel',
-                                },
-                                confirmProps: { color: 'red' },
-                                onConfirm: () =>
-                                    unsubscribe.mutate(
-                                        { feedId: subscription.feedId },
-                                        {
-                                            onSuccess: () => {
-                                                notifications.show({
-                                                    title: 'Unsubscribed',
-                                                    message:
-                                                        'The feed subscription was removed',
-                                                    color: 'green',
-                                                    withBorder: true,
-                                                });
-                                                onUnsubscribed?.();
+                                    labels: {
+                                        confirm: 'Unsubscribe',
+                                        cancel: 'Cancel',
+                                    },
+                                    confirmProps: { color: 'red' },
+                                    onConfirm: () =>
+                                        unsubscribe.mutate(
+                                            { feedId: subscription.feedId },
+                                            {
+                                                onSuccess: () => {
+                                                    notifications.show({
+                                                        title: 'Unsubscribed',
+                                                        message:
+                                                            'The feed subscription was removed',
+                                                        color: 'green',
+                                                        withBorder: true,
+                                                    });
+                                                    onUnsubscribed?.();
+                                                },
+                                                onError: (error) =>
+                                                    notifyActionError(
+                                                        'Failed to unsubscribe',
+                                                        error,
+                                                    ),
                                             },
-                                            onError: (error) =>
-                                                notifyActionError(
-                                                    'Failed to unsubscribe',
-                                                    error,
-                                                ),
-                                        },
-                                    ),
-                            })
-                        }
-                    >
-                        Unsubscribe
-                    </Menu.Item>
-                </Menu.Dropdown>
-            </Menu>
+                                        ),
+                                })
+                            }
+                        >
+                            Unsubscribe
+                        </Menu.Item>
+                    </Menu.Dropdown>
+                </Menu>
+            </div>
         </>
     );
 }
@@ -946,8 +948,6 @@ function CategoryHeader({
     );
     const update = useMutation(updateCategoryMutationOptions(queryClient));
     const remove = useMutation(deleteCategoryMutationOptions(queryClient));
-    const { hovered, ref } = useHover();
-    const [opened, setOpened] = useState(false);
     const [renameOpened, rename] = useDisclosure(false);
     const [nextName, setNextName] = useState(name);
 
@@ -1005,104 +1005,104 @@ function CategoryHeader({
                     </Group>
                 </form>
             </Modal>
-            <Menu opened={opened} onChange={setOpened} shadow="md">
-                <Group justify="space-between" ref={ref} wrap="nowrap">
-                    <span>{name}</span>
+            <div className={classes.managementControl}>
+                <Badge
+                    aria-hidden="true"
+                    className={`${classes.mainLinkBadge} ${classes.managementCount}`}
+                    size="sm"
+                    variant="default"
+                >
+                    {entriesCount}
+                </Badge>
+                <Menu shadow="md">
                     <Menu.Target>
-                        {hovered || opened ? (
-                            <ActionIcon
-                                className={classes.feedMenuIcon}
-                                color="gray"
-                                onClick={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                    setOpened(!opened);
-                                }}
-                                size="xs"
-                            >
-                                <IconDots size={15} stroke={1.5} />
-                            </ActionIcon>
-                        ) : (
-                            <Badge
-                                className={classes.mainLinkBadge}
-                                size="sm"
-                                variant="default"
-                            >
-                                {entriesCount}
-                            </Badge>
-                        )}
+                        <ActionIcon
+                            aria-label={`Manage ${name} category`}
+                            className={`${classes.feedMenuIcon} ${classes.managementMenuTarget}`}
+                            color="gray"
+                            size="xs"
+                            type="button"
+                        >
+                            <IconDots
+                                aria-hidden="true"
+                                size={15}
+                                stroke={1.5}
+                            />
+                        </ActionIcon>
                     </Menu.Target>
-                </Group>
-                <Menu.Dropdown onClick={(event) => event.stopPropagation()}>
-                    <Menu.Label>Manage category</Menu.Label>
-                    <Menu.Item
-                        disabled={markRead.isPending || feedIds.length === 0}
-                        leftSection={<IconCheck size={14} />}
-                        onClick={() =>
-                            markRead.mutate(undefined, {
-                                onSuccess: () =>
-                                    notifications.show({
-                                        title: 'Category marked as read',
-                                        message: `${name} feeds were marked as read`,
-                                        color: 'green',
-                                        withBorder: true,
-                                    }),
-                                onError: (actionError) =>
-                                    notifyActionError(
-                                        actionError instanceof
-                                            CategoryReadThroughError &&
-                                            actionError.succeeded > 0
-                                            ? 'Category partially marked as read'
-                                            : 'Failed to mark category as read',
-                                        actionError,
-                                    ),
-                            })
-                        }
-                    >
-                        Mark feeds as read
-                    </Menu.Item>
-                    <Menu.Item
-                        disabled={update.isPending}
-                        leftSection={<IconPencil size={14} />}
-                        onClick={() => {
-                            setNextName(name);
-                            update.reset();
-                            rename.open();
-                        }}
-                    >
-                        Edit category name
-                    </Menu.Item>
-                    <Menu.Divider />
-                    <Menu.Item
-                        color="red"
-                        disabled={feedCount > 0 || remove.isPending}
-                        leftSection={<IconTrash size={14} />}
-                        onClick={() =>
-                            remove.mutate(
-                                { categoryId },
-                                {
+                    <Menu.Dropdown>
+                        <Menu.Label>Manage category</Menu.Label>
+                        <Menu.Item
+                            disabled={
+                                markRead.isPending || feedIds.length === 0
+                            }
+                            leftSection={<IconCheck size={14} />}
+                            onClick={() =>
+                                markRead.mutate(undefined, {
                                     onSuccess: () =>
                                         notifications.show({
-                                            title: 'Category deleted',
-                                            message: `The category ${name} has been deleted`,
+                                            title: 'Category marked as read',
+                                            message: `${name} feeds were marked as read`,
                                             color: 'green',
                                             withBorder: true,
                                         }),
                                     onError: (actionError) =>
                                         notifyActionError(
-                                            `Failed to delete category ${name}`,
+                                            actionError instanceof
+                                                CategoryReadThroughError &&
+                                                actionError.succeeded > 0
+                                                ? 'Category partially marked as read'
+                                                : 'Failed to mark category as read',
                                             actionError,
                                         ),
-                                },
-                            )
-                        }
-                    >
-                        {feedCount > 0
-                            ? 'Delete (needs to be empty)'
-                            : 'Delete category'}
-                    </Menu.Item>
-                </Menu.Dropdown>
-            </Menu>
+                                })
+                            }
+                        >
+                            Mark feeds as read
+                        </Menu.Item>
+                        <Menu.Item
+                            disabled={update.isPending}
+                            leftSection={<IconPencil size={14} />}
+                            onClick={() => {
+                                setNextName(name);
+                                update.reset();
+                                rename.open();
+                            }}
+                        >
+                            Edit category name
+                        </Menu.Item>
+                        <Menu.Divider />
+                        <Menu.Item
+                            color="red"
+                            disabled={feedCount > 0 || remove.isPending}
+                            leftSection={<IconTrash size={14} />}
+                            onClick={() =>
+                                remove.mutate(
+                                    { categoryId },
+                                    {
+                                        onSuccess: () =>
+                                            notifications.show({
+                                                title: 'Category deleted',
+                                                message: `The category ${name} has been deleted`,
+                                                color: 'green',
+                                                withBorder: true,
+                                            }),
+                                        onError: (actionError) =>
+                                            notifyActionError(
+                                                `Failed to delete category ${name}`,
+                                                actionError,
+                                            ),
+                                    },
+                                )
+                            }
+                        >
+                            {feedCount > 0
+                                ? 'Delete (needs to be empty)'
+                                : 'Delete category'}
+                        </Menu.Item>
+                    </Menu.Dropdown>
+                </Menu>
+            </div>
         </>
     );
 }
@@ -1386,11 +1386,28 @@ function CategoryGroup({
         0,
     );
 
+    const feedsId = `reader-category-${categoryId}-feeds`;
+
     return (
-        <NavLink
-            active={active}
-            defaultOpened
-            label={
+        <div>
+            <div
+                className={`${classes.categoryRow} ${
+                    active ? classes.activeFeed : ''
+                }`}
+            >
+                <NavLink
+                    active={active}
+                    className={classes.categoryNavigation}
+                    component={Link}
+                    label={categoryName}
+                    leftSection={<IconRss size={15} stroke={1.5} />}
+                    onClick={onNavigate}
+                    to={readerHref(state, {
+                        categoryId: active ? null : categoryId,
+                        feedId: null,
+                        page: 1,
+                    })}
+                />
                 <CategoryHeader
                     categoryId={categoryId}
                     entriesCount={totalCount}
@@ -1400,91 +1417,109 @@ function CategoryGroup({
                     )}
                     name={categoryName}
                 />
-            }
-            leftSection={<IconRss size={15} stroke={1.5} />}
-            onClick={() => onNavigate?.()}
-            opened={opened}
-            component={Link}
-            rightSection={
-                <IconChevronRight
-                    onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
+                <ActionIcon
+                    aria-controls={feedsId}
+                    aria-expanded={opened}
+                    aria-label={`${opened ? 'Collapse' : 'Expand'} ${categoryName} feeds`}
+                    className={`${classes.categoryDisclosure} ${
+                        opened ? classes.categoryDisclosureOpened : ''
+                    }`}
+                    color="gray"
+                    onClick={() =>
                         setManualOpened((current) =>
                             current === null ? !opened : !current,
+                        )
+                    }
+                    size="xs"
+                    type="button"
+                    variant="subtle"
+                >
+                    <IconChevronRight
+                        aria-hidden="true"
+                        size={15}
+                        stroke={1.5}
+                    />
+                </ActionIcon>
+            </div>
+            <Collapse expanded={opened} id={feedsId}>
+                <div className={classes.categoryFeeds}>
+                    {subscriptions.map((subscription) => {
+                        const feedActive = state.feedId === subscription.feedId;
+                        const name =
+                            subscription.customFeedName ??
+                            subscription.feedName;
+                        const managed = management?.subscriptions.find(
+                            (item) => item.feedId === subscription.feedId,
                         );
-                    }}
-                    size={15}
-                    stroke={1.5}
-                />
-            }
-            to={readerHref(state, {
-                categoryId: active ? null : categoryId,
-                feedId: null,
-                page: 1,
-            })}
-        >
-            {subscriptions.map((subscription) => {
-                const feedActive = state.feedId === subscription.feedId;
-                const name =
-                    subscription.customFeedName ?? subscription.feedName;
-                const managed = management?.subscriptions.find(
-                    (item) => item.feedId === subscription.feedId,
-                );
-                return (
-                    <div
-                        key={subscription.feedId}
-                        onClick={(event) => event.stopPropagation()}
-                    >
-                        <Tooltip
-                            label={
-                                <Stack gap={2}>
-                                    <Text fw={500} size="sm">
-                                        {name}
-                                    </Text>
-                                    <Text c="dimmed" size="xs">
-                                        {feedRefreshStatus(managed)}
-                                    </Text>
-                                </Stack>
-                            }
-                            multiline
-                            openDelay={1000}
-                            position="right"
-                            withArrow
-                        >
-                            <Link
-                                className={`${classes.collectionLink} ${
-                                    feedActive ? classes.activeFeed : ''
-                                }`}
-                                onClick={onNavigate}
-                                to={readerHref(state, {
-                                    feedId: subscription.feedId,
-                                    categoryId: null,
-                                    filter: 'all',
-                                    page: 1,
-                                })}
+                        return (
+                            <Tooltip
+                                key={subscription.feedId}
+                                label={
+                                    <Stack gap={2}>
+                                        <Text fw={500} size="sm">
+                                            {name}
+                                        </Text>
+                                        <Text c="dimmed" size="xs">
+                                            {feedRefreshStatus(managed)}
+                                        </Text>
+                                    </Stack>
+                                }
+                                multiline
+                                openDelay={1000}
+                                position="right"
+                                withArrow
                             >
-                                <Indicator
-                                    color="orange"
-                                    disabled={
-                                        managed === undefined ||
-                                        managed.consecutiveFailures === 0
-                                    }
-                                    withBorder
+                                <div
+                                    className={`${classes.collectionLink} ${
+                                        feedActive ? classes.activeFeed : ''
+                                    }`}
                                 >
                                     <div className={classes.feedRow}>
-                                        <div className={classes.feedRowLeft}>
-                                            <FeedFavicon
-                                                isDark={
-                                                    subscription.faviconIsDark
+                                        <Link
+                                            className={
+                                                classes.feedNavigationLink
+                                            }
+                                            onClick={onNavigate}
+                                            to={readerHref(state, {
+                                                feedId: subscription.feedId,
+                                                categoryId: null,
+                                                filter: 'all',
+                                                page: 1,
+                                            })}
+                                        >
+                                            <Indicator
+                                                color="orange"
+                                                disabled={
+                                                    managed === undefined ||
+                                                    managed.consecutiveFailures ===
+                                                        0
                                                 }
-                                                size={18}
-                                                src={subscription.faviconUrl}
-                                            />
-                                            <span className={classes.feedName}>
-                                                {name}
-                                            </span>
-                                        </div>
+                                                withBorder
+                                            >
+                                                <div
+                                                    className={
+                                                        classes.feedRowLeft
+                                                    }
+                                                >
+                                                    <FeedFavicon
+                                                        isDark={
+                                                            subscription.faviconIsDark
+                                                        }
+                                                        size={18}
+                                                        src={
+                                                            subscription.faviconUrl
+                                                        }
+                                                    />
+                                                    <span
+                                                        className={
+                                                            classes.feedName
+                                                        }
+                                                    >
+                                                        {name}
+                                                    </span>
+                                                </div>
+                                            </Indicator>
+                                        </Link>
                                         <FeedActions
                                             categories={
                                                 management?.categories ?? []
@@ -1502,15 +1537,16 @@ function CategoryGroup({
                                                     );
                                                 }
                                             }}
+                                            showCount
                                             subscription={subscription}
                                         />
                                     </div>
-                                </Indicator>
-                            </Link>
-                        </Tooltip>
-                    </div>
-                );
-            })}
-        </NavLink>
+                                </div>
+                            </Tooltip>
+                        );
+                    })}
+                </div>
+            </Collapse>
+        </div>
     );
 }
