@@ -272,6 +272,11 @@ const parseBoundedInt = (
 const remoteIp = (context: CompatibilityContext): string =>
     context.req.header('CF-Connecting-IP') ?? 'local-development';
 
+const preAuthenticationRateLimitKey = (
+    context: CompatibilityContext,
+    protocol: 'fever' | 'google',
+): string => `compat:${protocol}:pre-auth:${remoteIp(context)}`;
+
 const googleCredential = (
     context: CompatibilityContext,
 ): Effect.Effect<string, never> | null => {
@@ -314,13 +319,13 @@ export const registerCompatibilityRoutes = (
         runGoogle(
             context.req.raw,
             Effect.gen(function* () {
+                yield* rateLimit(
+                    context.env,
+                    preAuthenticationRateLimitKey(context, 'google'),
+                );
                 const form = yield* requestParameters(context.req.raw);
                 const username = yield* requiredValue(form, 'Email', 100);
                 const plaintextToken = yield* requiredValue(form, 'Passwd');
-                yield* rateLimit(
-                    context.env,
-                    `compat:google:login:${username.toLowerCase()}:${remoteIp(context)}`,
-                );
                 const compat = yield* runtime(context.env);
                 yield* compat.auth.service.authenticateAppToken({
                     username,
@@ -342,14 +347,18 @@ export const registerCompatibilityRoutes = (
             authentication: AppTokenAuthenticationResult,
             credential: string,
         ) => Effect.Effect<Response, unknown>,
-    ): Promise<Response> => {
-        const credential = googleCredential(context);
-        if (credential === null) {
-            return Promise.resolve(text('Error=AuthRequired\n', 401));
-        }
-        return runGoogle(
+    ): Promise<Response> =>
+        runGoogle(
             context.req.raw,
             Effect.gen(function* () {
+                yield* rateLimit(
+                    context.env,
+                    preAuthenticationRateLimitKey(context, 'google'),
+                );
+                const credential = googleCredential(context);
+                if (credential === null) {
+                    return text('Error=AuthRequired\n', 401);
+                }
                 const plaintextToken = yield* credential;
                 const compat = yield* runtime(context.env);
                 const authentication =
@@ -364,7 +373,6 @@ export const registerCompatibilityRoutes = (
                 return yield* operation(compat, authentication, plaintextToken);
             }),
         );
-    };
 
     app.get(`${GOOGLE_ROOT}/user-info`, (context) =>
         protectedGoogle(context, (compat, authentication) =>
@@ -510,6 +518,10 @@ export const registerCompatibilityRoutes = (
         runFever(
             context.req.raw,
             Effect.gen(function* () {
+                yield* rateLimit(
+                    context.env,
+                    preAuthenticationRateLimitKey(context, 'fever'),
+                );
                 const parameters = yield* requestParameters(context.req.raw);
                 const apiKey = yield* requiredValue(parameters, 'api_key', 32);
                 const compat = yield* runtime(context.env);

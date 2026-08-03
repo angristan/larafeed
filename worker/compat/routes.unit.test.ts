@@ -5,8 +5,10 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AuthConfig } from '../auth/config';
 import { AuthenticationFailed } from '../auth/errors';
 import type { AuthService } from '../auth/service';
+import { CompatibilityRateLimited } from './errors';
 import type { CompatibilityRepository } from './repository';
 import {
+    type CompatibilityRouteDependencies,
     type CompatibilityRuntime,
     registerCompatibilityRoutes,
 } from './routes';
@@ -25,6 +27,7 @@ const authentication = {
 const makeHarness = (overrides: {
     readonly service?: Partial<AuthService>;
     readonly repository?: Partial<CompatibilityRepository>;
+    readonly rateLimit?: CompatibilityRouteDependencies['rateLimit'];
 }) => {
     const authenticateAppToken = vi.fn(() => Effect.succeed(authentication));
     const authenticateAppTokenCredential = vi.fn((input) =>
@@ -136,9 +139,9 @@ const makeHarness = (overrides: {
     const rateKeys: string[] = [];
     const app = registerCompatibilityRoutes(new Hono<{ Bindings: Env }>(), {
         runtimeFactory: () => Effect.succeed(runtime),
-        rateLimit: (_env, key) => {
+        rateLimit: (env, key) => {
             rateKeys.push(key);
-            return Effect.void;
+            return overrides.rateLimit?.(env, key) ?? Effect.void;
         },
     });
     return {
@@ -177,7 +180,118 @@ describe('compatibility protocol routes', () => {
             requiredScope: 'google-reader',
         });
         expect(response.headers.get('cache-control')).toBe('no-store');
-        expect(harness.rateKeys[0]).toContain('compat:google:login:owner:');
+        expect(harness.rateKeys).toEqual([
+            'compat:google:pre-auth:local-development',
+        ]);
+    });
+
+    it('rate-limits invalid Google credentials by IP before verification', async () => {
+        const harness = makeHarness({
+            rateLimit: () => Effect.fail(new CompatibilityRateLimited()),
+        });
+        const response = await harness.app.request(
+            '/api/reader/reader/api/0/user-info',
+            {
+                headers: {
+                    Authorization: 'GoogleLogin auth=bad',
+                    'CF-Connecting-IP': '203.0.113.20',
+                },
+            },
+            {} as Env,
+        );
+
+        expect(response.status).toBe(429);
+        expect(await response.text()).toBe('Error=RateLimited\n');
+        expect(harness.rateKeys).toEqual([
+            'compat:google:pre-auth:203.0.113.20',
+        ]);
+        expect(harness.authenticateAppTokenCredential).not.toHaveBeenCalled();
+    });
+
+    it('rate-limits invalid Fever credentials by IP before verification', async () => {
+        const harness = makeHarness({
+            rateLimit: () => Effect.fail(new CompatibilityRateLimited()),
+        });
+        const response = await harness.app.request(
+            '/api/fever/?api_key=ffffffffffffffffffffffffffffffff',
+            { headers: { 'CF-Connecting-IP': '203.0.113.21' } },
+            {} as Env,
+        );
+
+        expect(response.status).toBe(429);
+        expect(await response.json()).toEqual({ api_version: 3, auth: 1 });
+        expect(harness.rateKeys).toEqual([
+            'compat:fever:pre-auth:203.0.113.21',
+        ]);
+        expect(harness.authenticateFeverApiKey).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        {
+            name: 'user info',
+            path: '/api/reader/reader/api/0/user-info',
+            body: undefined,
+        },
+        {
+            name: 'token',
+            path: '/api/reader/reader/api/0/token',
+            body: undefined,
+        },
+        {
+            name: 'subscription list',
+            path: '/api/reader/reader/api/0/subscription/list',
+            body: undefined,
+        },
+        {
+            name: 'item IDs',
+            path: '/api/reader/reader/api/0/stream/items/ids',
+            body: undefined,
+        },
+        {
+            name: 'item contents',
+            path: '/api/reader/reader/api/0/stream/items/contents',
+            body: new URLSearchParams({ i: '4660' }),
+        },
+        {
+            name: 'tag edits',
+            path: '/api/reader/reader/api/0/edit-tag',
+            body: new URLSearchParams({
+                i: '4660',
+                a: 'user/-/state/com.google/read',
+            }),
+        },
+    ])('applies IP then token limits to protected Google $name', async ({
+        path,
+        body,
+    }) => {
+        const harness = makeHarness({});
+        const response = await harness.app.request(
+            path,
+            {
+                ...(body === undefined ? {} : { method: 'POST', body }),
+                headers: {
+                    Authorization: 'GoogleLogin auth=opaque-token',
+                    'CF-Connecting-IP': '203.0.113.22',
+                    ...(body === undefined
+                        ? {}
+                        : {
+                              'content-type':
+                                  'application/x-www-form-urlencoded',
+                          }),
+                },
+            },
+            {} as Env,
+        );
+
+        expect(response.status).toBe(200);
+        expect(harness.rateKeys).toEqual([
+            'compat:google:pre-auth:203.0.113.22',
+            'compat:google:token:91',
+        ]);
+        expect(harness.authenticateAppTokenCredential).toHaveBeenCalledWith({
+            plaintextToken: 'opaque-token',
+            requiredScope: 'google-reader',
+        });
     });
 
     it('serves Google JSON content and text authentication errors', async () => {
@@ -259,7 +373,10 @@ describe('compatibility protocol routes', () => {
             true,
             1_800_000_000_000,
         );
-        expect(harness.rateKeys).toContain('compat:fever:token:91');
+        expect(harness.rateKeys).toEqual([
+            'compat:fever:pre-auth:local-development',
+            'compat:fever:token:91',
+        ]);
 
         const denied = await harness.app.request(
             '/api/fever/?api_key=ffffffffffffffffffffffffffffffff',
