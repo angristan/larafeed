@@ -11,12 +11,13 @@ import {
     FeedTimeoutError,
 } from '../feeds/errors';
 import {
+    SubscriptionConflict,
     SubscriptionFeedError,
     SubscriptionInvariantError,
     SubscriptionValidationError,
 } from './errors';
 import type { SubscriptionRepository } from './repository';
-import { makeSubscriptionService } from './service';
+import { MAX_FILTER_REAPPLY_ENTRIES, makeSubscriptionService } from './service';
 
 const baseSubscription = {
     feedId: 21,
@@ -473,7 +474,7 @@ describe('subscription management service', () => {
         expect(updateSubscriptionWithFilterRebuild).toHaveBeenCalledTimes(1);
     });
 
-    it('keeps maximum content rebuilds within 500 candidate queries', async () => {
+    it('rebuilds the full supported maximum within 750 content queries', async () => {
         const listFilterCandidates = vi.fn(
             (
                 _userId: number,
@@ -498,7 +499,10 @@ describe('subscription management service', () => {
         const service = makeSubscriptionService({
             repository: repository({
                 filterEntryWindow: () =>
-                    Effect.succeed({ total: 10_000, throughId: 10_000 }),
+                    Effect.succeed({
+                        total: MAX_FILTER_REAPPLY_ENTRIES,
+                        throughId: MAX_FILTER_REAPPLY_ENTRIES,
+                    }),
                 listFilterCandidates,
                 updateSubscriptionWithFilterRebuild,
             }),
@@ -518,16 +522,52 @@ describe('subscription management service', () => {
             }),
         );
 
-        expect(listFilterCandidates).toHaveBeenCalledTimes(500);
+        expect(listFilterCandidates).toHaveBeenCalledTimes(750);
         expect(listFilterCandidates).toHaveBeenLastCalledWith(
             7,
             21,
-            9_980,
-            10_000,
+            MAX_FILTER_REAPPLY_ENTRIES - 20,
+            MAX_FILTER_REAPPLY_ENTRIES,
             20,
             true,
         );
         expect(updateSubscriptionWithFilterRebuild).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects one entry above the supported rebuild maximum before scanning', async () => {
+        const listFilterCandidates = vi.fn(() => Effect.die('unused'));
+        const updateSubscriptionWithFilterRebuild = vi.fn(() => Effect.void);
+        const service = makeSubscriptionService({
+            repository: repository({
+                filterEntryWindow: () =>
+                    Effect.succeed({
+                        total: MAX_FILTER_REAPPLY_ENTRIES + 1,
+                        throughId: MAX_FILTER_REAPPLY_ENTRIES + 1,
+                    }),
+                listFilterCandidates,
+                updateSubscriptionWithFilterRebuild,
+            }),
+            discoverFeed: () => Effect.die('unused'),
+            scheduleRefresh: () => Effect.die('unused'),
+        });
+
+        await expect(
+            Effect.runPromise(
+                service.updateSubscription(7, 21, {
+                    categoryId: 11,
+                    customFeedName: null,
+                    filterRules: {
+                        excludeTitle: ['sponsor'],
+                        excludeContent: [],
+                        excludeAuthor: [],
+                    },
+                }),
+            ),
+        ).rejects.toEqual(
+            new SubscriptionConflict({ reason: 'filter_rebuild_too_large' }),
+        );
+        expect(listFilterCandidates).not.toHaveBeenCalled();
+        expect(updateSubscriptionWithFilterRebuild).not.toHaveBeenCalled();
     });
 
     it('rejects out-of-bounds filters before changing subscription state', async () => {

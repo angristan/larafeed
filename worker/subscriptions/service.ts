@@ -25,9 +25,10 @@ import {
 } from './filter';
 import type { SubscriptionRepository } from './repository';
 
-export const MAX_FILTER_REAPPLY_ENTRIES = 10_000;
-// At the 10,000-entry cap, content rebuilds use at most 500 reads.
-// This leaves ample room below D1's 1,000-query paid invocation limit.
+export const MAX_FILTER_REAPPLY_ENTRIES = 15_000;
+// A complete 15,000-entry content rebuild needs at most 750 candidate reads.
+// Including the snapshot, two subscription reads, and four commit statements,
+// the service uses at most 757 of D1's 1,000 paid-invocation query allowance.
 const FILTER_PAGE_SIZE_WITH_CONTENT = 20;
 const FILTER_PAGE_SIZE_WITHOUT_CONTENT = 100;
 

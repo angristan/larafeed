@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { makeD1 } from '../infrastructure/d1';
 import { SubscriptionConflict, SubscriptionNotFound } from './errors';
 import { makeSubscriptionRepository } from './repository';
+import { makeSubscriptionService } from './service';
 
 const d1 = makeD1(env.DB);
 const repository = makeSubscriptionRepository(d1);
@@ -195,6 +196,148 @@ describe('subscription management D1 repository', () => {
                 ),
             ),
         ).resolves.toBe(1);
+    });
+
+    it('rebuilds all 10,001 entries and preserves sparse state', async () => {
+        const owner = 840_001;
+        const categoryId = 841_001;
+        const feedId = 842_001;
+        const firstEntryId = 8_400_000;
+        const lastEntryId = firstEntryId + 10_000;
+        await insertUser(owner);
+        await Effect.runPromise(
+            repository.createCategory(categoryId, owner, 'Large feed', now),
+        );
+        await Effect.runPromise(
+            repository.subscribeDiscovered({
+                proposedId: feedId,
+                feedUrl: 'https://large-filters.example.test/feed.xml',
+                name: 'Large filter feed',
+                siteUrl: null,
+                faviconUrl: null,
+                categoryId,
+                userId: owner,
+                now,
+            }),
+        );
+        await Effect.runPromise(
+            d1.run({
+                sql: `WITH digits(value) AS (
+                        VALUES (0), (1), (2), (3), (4),
+                               (5), (6), (7), (8), (9)
+                    ), offsets(value) AS (
+                        SELECT ones.value
+                            + 10 * tens.value
+                            + 100 * hundreds.value
+                            + 1000 * thousands.value
+                        FROM digits ones
+                        CROSS JOIN digits tens
+                        CROSS JOIN digits hundreds
+                        CROSS JOIN digits thousands
+                        UNION ALL SELECT 10000
+                    )
+                    INSERT INTO entries (
+                        id, feed_id, deduplication_key, title, author,
+                        published_at, content_status, created_at, updated_at
+                    )
+                    SELECT ? + value, ?, CAST(printf('%032d', value) AS BLOB),
+                        CASE
+                            WHEN value = 0 THEN 'Old blocked entry'
+                            WHEN value = 10000 THEN 'Recent blocked entry'
+                            ELSE 'Ordinary entry ' || value
+                        END,
+                        'Author', ?, 'empty', ?, ?
+                    FROM offsets`,
+                bindings: [firstEntryId, feedId, now, now, now],
+            }),
+        );
+        await Effect.runPromise(
+            d1.batch([
+                {
+                    sql: `INSERT INTO entry_interactions (
+                            user_id, feed_id, entry_id, read_override,
+                            read_changed_at, starred_at, archived_at,
+                            created_at, updated_at
+                        ) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)`,
+                    bindings: [
+                        owner,
+                        feedId,
+                        firstEntryId,
+                        now,
+                        now,
+                        now,
+                        now,
+                        now,
+                    ],
+                },
+                {
+                    sql: `INSERT INTO entry_interactions (
+                            user_id, feed_id, entry_id, read_override,
+                            read_changed_at, archived_at, created_at, updated_at
+                        ) VALUES (?, ?, ?, 0, ?, ?, ?, ?)`,
+                    bindings: [owner, feedId, lastEntryId, now, now, now, now],
+                },
+            ]),
+        );
+
+        const service = makeSubscriptionService({
+            repository,
+            discoverFeed: () => Effect.die('unused'),
+            scheduleRefresh: () => Effect.die('unused'),
+            now: () => now + 1,
+        });
+        await expect(
+            Effect.runPromise(
+                service.updateSubscription(owner, feedId, {
+                    categoryId,
+                    customFeedName: 'Filtered large feed',
+                    filterRules: {
+                        excludeTitle: ['blocked'],
+                        excludeContent: [],
+                        excludeAuthor: [],
+                    },
+                }),
+            ),
+        ).resolves.toMatchObject({
+            subscription: {
+                customFeedName: 'Filtered large feed',
+                filterRules: { excludeTitle: ['blocked'] },
+            },
+        });
+
+        await expect(
+            Effect.runPromise(
+                d1.all<{
+                    entry_id: number;
+                    read_override: number | null;
+                    starred_at: number | null;
+                    archived_at: number | null;
+                    filtered_at: number | null;
+                }>({
+                    sql: `SELECT entry_id, read_override, starred_at,
+                            archived_at, filtered_at
+                        FROM entry_interactions
+                        WHERE user_id = ? AND feed_id = ?
+                        ORDER BY entry_id`,
+                    bindings: [owner, feedId],
+                }),
+            ).then((result) => result.results),
+        ).resolves.toEqual([
+            {
+                entry_id: firstEntryId,
+                read_override: 1,
+                starred_at: now,
+                archived_at: now,
+                filtered_at: now + 1,
+            },
+            {
+                entry_id: lastEntryId,
+                read_override: 0,
+                starred_at: null,
+                archived_at: now,
+                filtered_at: now + 1,
+            },
+        ]);
     });
 
     it('enforces ownership and preserves read/star state while replacing sparse filters', async () => {

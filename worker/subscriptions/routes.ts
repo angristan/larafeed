@@ -25,7 +25,11 @@ import {
     SubscriptionValidationError,
 } from './errors';
 import { makeSubscriptionRepository } from './repository';
-import { makeSubscriptionService, type SubscriptionService } from './service';
+import {
+    MAX_FILTER_REAPPLY_ENTRIES,
+    makeSubscriptionService,
+    type SubscriptionService,
+} from './service';
 
 const NO_STORE_HEADERS = {
     'cache-control': 'no-store',
@@ -253,7 +257,7 @@ const safeError = (error: unknown): SafeError => {
                     reason === 'category_in_use'
                         ? 'Move or remove feeds before deleting this category'
                         : reason === 'filter_rebuild_too_large'
-                          ? 'This feed has too many existing entries to rebuild filters in one request'
+                          ? `Filters can be changed for feeds with up to ${MAX_FILTER_REAPPLY_ENTRIES.toLocaleString('en-US')} existing entries`
                           : 'This change conflicts with existing data',
                 status: 409,
             };

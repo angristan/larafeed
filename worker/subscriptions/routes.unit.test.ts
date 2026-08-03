@@ -344,4 +344,37 @@ describe('subscription management routes', () => {
             },
         });
     });
+
+    it('reports the supported full-history filter maximum', async () => {
+        const response = await app(
+            subscriptionService({
+                updateSubscription: () =>
+                    Effect.fail(
+                        new SubscriptionConflict({
+                            reason: 'filter_rebuild_too_large',
+                        }),
+                    ),
+            }),
+        ).request(
+            '/api/subscriptions/21',
+            request('PATCH', {
+                categoryId: 11,
+                customFeedName: null,
+                filterRules: {
+                    excludeTitle: ['sponsor'],
+                    excludeContent: [],
+                    excludeAuthor: [],
+                },
+            }),
+        );
+
+        expect(response.status).toBe(409);
+        await expect(decode(response, ApiErrorResponse)).resolves.toEqual({
+            error: {
+                code: 'conflict',
+                message:
+                    'Filters can be changed for feeds with up to 15,000 existing entries',
+            },
+        });
+    });
 });
