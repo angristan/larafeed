@@ -45,4 +45,4 @@ Each feed has one D1 job and one outbox row with topic `opml_import_feed`. Queue
 - OPML cron recovers stale leases, incomplete import creation, and accepted import commands whose Queue delivery was lost. Standard refresh cron performs bounded recovery for initial feed-refresh work.
 - Partial import creation stays in `pending` and cannot dispatch. Cron eventually marks it failed.
 
-Production queue names are `larafeed-opml-import` and `larafeed-opml-import-dlq`. Test names use the `larafeed-test-` prefix. Wrangler declares these resources but this branch has not created, deployed, or configured them in Cloudflare.
+Production queue names are `larafeed-opml-import` and `larafeed-opml-import-dlq`. Test names use the `larafeed-test-` prefix. The isolated test queues are provisioned and attached to the test Worker. Production queues remain unprovisioned.
