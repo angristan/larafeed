@@ -601,13 +601,39 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         input.message.id,
                     ],
                 },
+                {
+                    sql: `UPDATE feeds
+                        SET next_refresh_at = MAX(next_refresh_at + 1, ?),
+                            updated_at = MAX(updated_at, ?)
+                        WHERE id = (
+                            SELECT json_extract(j.payload_json, '$.feedId')
+                            FROM jobs j
+                            JOIN outbox_messages o ON o.job_id = j.id
+                            WHERE j.id = ? AND o.id = ?
+                              AND j.state = 'dead_lettered'
+                              AND o.state = 'dead_lettered'
+                              AND json_extract(j.payload_json, '$.trigger') = 'scheduled'
+                        )`,
+                    bindings: [
+                        Math.max(input.now, input.availableAt),
+                        input.now,
+                        input.message.jobId,
+                        input.message.id,
+                    ],
+                },
             ]),
         );
         if (changeCount(operation, results[0]) !== 1) {
             throw new JobInvariantError(operation, 'outbox lease was lost');
         }
-        if (changeCount(operation, results[1]) > 1) {
-            throw new JobInvariantError(operation, 'updated multiple jobs');
+        if (
+            changeCount(operation, results[1]) > 1 ||
+            changeCount(operation, results[2]) > 1
+        ) {
+            throw new JobInvariantError(
+                operation,
+                'updated multiple jobs or feeds',
+            );
         }
     },
 
@@ -753,34 +779,53 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
 
     async recoverStaleJobLeases(now, limit) {
         const operation = 'recoverStaleJobLeases';
-        const result = await run(
+        const bounded = boundedLimit(limit, MAX_DUE_FEEDS);
+        const staleJobs = `SELECT id FROM jobs
+            WHERE state = 'running' AND lease_expires_at <= ?
+            ORDER BY lease_expires_at, id LIMIT ?`;
+        const results = await run(
             operation,
-            d1.run({
-                sql: `UPDATE jobs
-                    SET state = CASE WHEN attempt_count >= max_attempts
-                            THEN 'dead_lettered' ELSE 'failed' END,
-                        available_at = ?, lease_owner = NULL,
-                        lease_expires_at = NULL,
-                        completed_at = CASE WHEN attempt_count >= max_attempts
-                            THEN ? ELSE NULL END,
-                        last_error_class = 'stale_lease',
-                        last_error_message = 'Worker lease expired',
-                        updated_at = ?
-                    WHERE id IN (
-                        SELECT id FROM jobs
-                        WHERE state = 'running' AND lease_expires_at <= ?
-                        ORDER BY lease_expires_at, id LIMIT ?
-                    )`,
-                bindings: [
-                    now,
-                    now,
-                    now,
-                    now,
-                    boundedLimit(limit, MAX_DUE_FEEDS),
-                ],
-            }),
+            d1.batch([
+                {
+                    sql: `UPDATE feeds
+                        SET next_refresh_at = MAX(
+                                next_refresh_at + 1,
+                                ? + ${DEFAULT_REFRESH_INTERVAL_MS}
+                            ),
+                            updated_at = MAX(updated_at, ?)
+                        WHERE id IN (
+                            SELECT json_extract(payload_json, '$.feedId')
+                            FROM jobs
+                            WHERE id IN (${staleJobs})
+                              AND attempt_count >= max_attempts
+                              AND json_extract(payload_json, '$.trigger') = 'scheduled'
+                        )`,
+                    bindings: [now, now, now, bounded],
+                },
+                {
+                    sql: `UPDATE jobs
+                        SET state = CASE WHEN attempt_count >= max_attempts
+                                THEN 'dead_lettered' ELSE 'failed' END,
+                            available_at = ?, lease_owner = NULL,
+                            lease_expires_at = NULL,
+                            completed_at = CASE WHEN attempt_count >= max_attempts
+                                THEN ? ELSE NULL END,
+                            last_error_class = 'stale_lease',
+                            last_error_message = 'Worker lease expired',
+                            updated_at = ?
+                        WHERE id IN (
+                            SELECT id FROM jobs
+                            WHERE state = 'running' AND lease_expires_at <= ?
+                            ORDER BY lease_expires_at, id LIMIT ?
+                        )`,
+                    bindings: [now, now, now, now, bounded],
+                },
+            ]),
         );
-        const recovered = changeCount(operation, result);
+        if (changeCount(operation, results[0]) > bounded) {
+            throw new JobInvariantError(operation, 'advanced beyond job limit');
+        }
+        const recovered = changeCount(operation, results[1]);
         if (recovered > boundedLimit(limit, MAX_DUE_FEEDS)) {
             throw new JobInvariantError(
                 operation,
@@ -1286,6 +1331,14 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     sql: `UPDATE feeds
                         SET consecutive_failures = consecutive_failures + 1,
                             last_attempt_at = ?, last_failed_refresh_at = ?,
+                            next_refresh_at = CASE WHEN (
+                                SELECT json_extract(j.payload_json, '$.trigger')
+                                FROM jobs j
+                                WHERE j.operation_id = ? AND j.kind = ?
+                            ) = 'scheduled' THEN MAX(
+                                next_refresh_at + 1,
+                                ? + ${DEFAULT_REFRESH_INTERVAL_MS}
+                            ) ELSE next_refresh_at END,
                             last_error_class = ?, last_error_message = ?,
                             updated_at = ?
                         WHERE id = (
@@ -1295,6 +1348,9 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         )`,
                     bindings: [
                         input.now,
+                        input.now,
+                        input.operationId,
+                        FEED_REFRESH_JOB_KIND,
                         input.now,
                         klass,
                         message,

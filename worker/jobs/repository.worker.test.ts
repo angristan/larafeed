@@ -7,7 +7,11 @@ import { makeD1 } from '../infrastructure/d1';
 import { makeReaderRepository } from '../reader/repository';
 import { makeJobOrchestrator } from './orchestration';
 import { makeJobRepository } from './repository';
-import { DEFAULT_REFRESH_INTERVAL_MS, type RefreshJobClaim } from './types';
+import {
+    DEFAULT_REFRESH_INTERVAL_MS,
+    MAX_OUTBOX_ATTEMPTS,
+    type RefreshJobClaim,
+} from './types';
 
 const d1 = makeD1(env.DB);
 const repository = makeJobRepository(d1);
@@ -40,6 +44,7 @@ const createJob = (
     overrides: {
         readonly operationId?: string;
         readonly maxAttempts?: number;
+        readonly trigger?: 'manual' | 'scheduled';
     } = {},
 ) =>
     repository.createRefreshJob({
@@ -47,7 +52,7 @@ const createJob = (
         outboxId: id + 1,
         operationId: overrides.operationId ?? `operation-${id}`,
         feedId,
-        trigger: 'manual',
+        trigger: overrides.trigger ?? 'manual',
         maxAttempts: overrides.maxAttempts ?? 3,
         now,
     });
@@ -79,8 +84,9 @@ const settlePendingOutbox = (now: number) =>
     run(
         d1.run({
             sql: `UPDATE outbox_messages
-                SET state = 'sent', sent_at = ?, updated_at = ?
-                WHERE state = 'pending'`,
+                SET state = 'sent', sent_at = ?, lease_owner = NULL,
+                    lease_expires_at = NULL, updated_at = ?
+                WHERE state IN ('pending', 'leased')`,
             bindings: [now, now],
         }),
     );
@@ -276,6 +282,91 @@ describe('durable feed refresh jobs', () => {
         expect(JSON.parse(payload?.payload_json ?? '{}')).toEqual({
             operationId: 'operation-321001',
         });
+    });
+
+    it('advances scheduled generation after outbox send exhaustion', async () => {
+        const now = 2_100_001_500_000;
+        const feedId = 325_001;
+        const initialOperationId = `feed-refresh:scheduled:${feedId}:${now}`;
+        await settlePendingOutbox(now);
+        await insertFeed(feedId, now);
+        await createJob(feedId, 325_101, now, {
+            operationId: initialOperationId,
+            trigger: 'scheduled',
+        });
+
+        let attemptAt = now;
+        for (let attempt = 0; attempt < MAX_OUTBOX_ATTEMPTS; attempt += 1) {
+            const [message] = await repository.leaseOutbox({
+                owner: `exhaustion-${attempt}`,
+                now: attemptAt,
+                leaseMs: 1_000,
+                limit: 1,
+            });
+            if (message === undefined) {
+                throw new Error('Expected outbox lease');
+            }
+            const availableAt = attemptAt + 1_000;
+            await repository.releaseOutbox({
+                message,
+                now: attemptAt,
+                availableAt,
+                errorClass: 'queue_unavailable',
+                errorMessage: 'Queue unavailable',
+            });
+            attemptAt = availableAt;
+        }
+
+        await expect(
+            first<{ job_state: string; outbox_state: string }>(
+                `SELECT j.state AS job_state, o.state AS outbox_state
+                 FROM jobs j JOIN outbox_messages o ON o.job_id = j.id
+                 WHERE j.operation_id = ?`,
+                [initialOperationId],
+            ),
+        ).resolves.toEqual({
+            job_state: 'dead_lettered',
+            outbox_state: 'dead_lettered',
+        });
+        const nextRefreshAt = await scalar(
+            'SELECT next_refresh_at AS value FROM feeds WHERE id = ?',
+            [feedId],
+        );
+        if (nextRefreshAt === null) {
+            throw new Error('Expected next refresh time');
+        }
+        expect(nextRefreshAt).toBeGreaterThan(now);
+        await run(
+            d1.run({
+                sql: `UPDATE feeds SET next_refresh_at = ?
+                    WHERE id <> ? AND next_refresh_at <= ?`,
+                bindings: [nextRefreshAt + 60_000, feedId, nextRefreshAt],
+            }),
+        );
+
+        let nextId = 325_200;
+        const orchestrator = makeJobOrchestrator({
+            repository,
+            queue: { send: async () => undefined },
+            processor: async () => ({
+                type: 'not_modified',
+                etag: null,
+                lastModified: null,
+                httpStatus: 304,
+            }),
+            now: () => nextRefreshAt,
+            generateId: async () => {
+                nextId += 1;
+                return nextId;
+            },
+            generateToken: async () => 'token',
+        });
+        const reserved = await orchestrator.reserveDueRefreshes(1);
+        expect(reserved.reserved).toBe(1);
+        expect(reserved.operations).toEqual([
+            `feed-refresh:scheduled:${feedId}:${nextRefreshAt}`,
+        ]);
+        expect(reserved.operations).not.toContain(initialOperationId);
     });
 
     it('recovers stale job leases conditionally and respects attempt limits', async () => {
