@@ -882,7 +882,12 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             input.completedAt,
         ] as const;
         const statements: D1Statement[] = [];
-        const mutationKinds: ('exactlyOne' | 'atMostOne' | 'any')[] = [];
+        const mutationKinds: (
+            | 'exactlyOne'
+            | 'oneOrTwo'
+            | 'atMostOne'
+            | 'any'
+        )[] = [];
         const latestEntryAt = input.entries.reduce<number | null>(
             (latest, entry) =>
                 latest === null
@@ -938,12 +943,13 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             const contentStatus = entry.content.type;
             statements.push({
                 sql: `INSERT INTO entries (
-                        feed_id, deduplication_key, source_id, title, url,
+                        id, feed_id, deduplication_key, source_id, title, url,
                         author, published_at, source_updated_at, content_status,
                         created_at, updated_at
                     )
-                    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-                    WHERE EXISTS (
+                    SELECT sequence.next_id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    FROM entry_id_sequence sequence
+                    WHERE sequence.singleton = 1 AND EXISTS (
                         SELECT 1 FROM jobs j WHERE ${leasePredicate}
                     )
                     ON CONFLICT(feed_id, deduplication_key) DO UPDATE SET
@@ -982,7 +988,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     entry.updateMask.content ? 1 : 0,
                 ],
             });
-            mutationKinds.push('exactlyOne');
+            mutationKinds.push('oneOrTwo');
 
             if (entry.updateMask.content && entry.content.type === 'stored') {
                 const encodedSize = new TextEncoder().encode(
@@ -1180,6 +1186,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             const kind = mutationKinds[index];
             if (
                 (kind === 'exactlyOne' && changes !== 1) ||
+                (kind === 'oneOrTwo' && (changes < 1 || changes > 2)) ||
                 (kind === 'atMostOne' && changes > 1)
             ) {
                 throw new RefreshLeaseLostError(input.claim.operationId);
