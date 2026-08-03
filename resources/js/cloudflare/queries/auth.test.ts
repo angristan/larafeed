@@ -1,5 +1,5 @@
-import { QueryClient } from '@tanstack/react-query';
-import { describe, expect, it } from 'vitest';
+import { QueryClient, QueryObserver } from '@tanstack/react-query';
+import { describe, expect, it, vi } from 'vitest';
 
 import { AuthClientError } from '../api/auth';
 import { ReaderClientError } from '../api/reader';
@@ -71,6 +71,57 @@ describe('authentication cache policy', () => {
         expect(queryClient.getQueryData(authKeys.session())).toEqual({
             authenticated: false,
         });
+    });
+
+    it('stops protected observers and handles session expiry once', async () => {
+        const onSessionExpired = vi.fn();
+        const queryClient = createAppQueryClient(onSessionExpired);
+        queryClient.setQueryData(authKeys.session(), {
+            authenticated: true,
+            user: {
+                id: 1,
+                username: 'owner',
+                displayName: 'Owner',
+                isAdmin: true,
+            },
+            expiresAt: 1_900_000_000_000,
+        });
+        const queryFn = vi.fn(() =>
+            Promise.reject(
+                new AuthClientError(
+                    'status',
+                    'Sign in again.',
+                    401,
+                    'unauthenticated',
+                ),
+            ),
+        );
+        const options = {
+            queryKey: [...protectedQueryKeys.all, 'storm-regression'] as const,
+            queryFn,
+            retry: false,
+        };
+        const observer = new QueryObserver(queryClient, options);
+        const unsubscribe = observer.subscribe(() => undefined);
+
+        await vi.waitFor(() => expect(onSessionExpired).toHaveBeenCalledOnce());
+        observer.setOptions(options);
+        await Promise.resolve();
+
+        expect(queryFn).toHaveBeenCalledOnce();
+        expect(queryClient.getQueryData(authKeys.session())).toEqual({
+            authenticated: false,
+        });
+
+        await expect(
+            queryClient.fetchQuery({
+                queryKey: ['another', 'unauthorized'],
+                retry: false,
+                queryFn,
+            }),
+        ).rejects.toBeInstanceOf(AuthClientError);
+        expect(onSessionExpired).toHaveBeenCalledOnce();
+        unsubscribe();
     });
 
     it('classifies reader API 401 responses as session expiry', () => {

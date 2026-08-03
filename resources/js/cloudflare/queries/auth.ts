@@ -45,8 +45,9 @@ export function isUnauthenticatedError(error: unknown): boolean {
 }
 
 export function clearAuthenticatedCache(queryClient: QueryClient): void {
-    queryClient.removeQueries({ queryKey: protectedQueryKeys.all });
     queryClient.setQueryData<AuthSession>(authKeys.session(), {
         authenticated: false,
     });
+    void queryClient.cancelQueries({ queryKey: protectedQueryKeys.all });
+    queryClient.removeQueries({ queryKey: protectedQueryKeys.all });
 }

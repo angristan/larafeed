@@ -66,7 +66,9 @@ export function ReaderPage() {
     const selectedEntryId = state.entryId ?? 1;
     const entryDetailQuery = useQuery({
         ...entryDetailQueryOptions(selectedEntryId),
-        enabled: state.entryId !== null,
+        enabled:
+            state.entryId !== null &&
+            sessionQuery.data?.authenticated !== false,
     });
     const entryMutations = useEntryInteractionMutations(selectedEntryId);
     const openedReadAttempt = useRef<number | null>(null);

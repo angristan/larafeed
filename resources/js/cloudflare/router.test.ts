@@ -5,7 +5,27 @@ vi.mock('react-router', async (importOriginal) => {
     return { ...actual, createBrowserRouter: vi.fn(() => ({})) };
 });
 
-import { legacySettingsRedirectTarget } from './router';
+import {
+    legacySettingsRedirectTarget,
+    sessionExpiryLoginTarget,
+} from './router';
+
+describe('session expiry redirects', () => {
+    it('preserves the protected location as an encoded return target', () => {
+        expect(
+            sessionExpiryLoginTarget({
+                pathname: '/feeds',
+                search: '?filter=unread&category=3',
+                hash: '#entry',
+            }),
+        ).toBe(
+            '/login?returnTo=%2Ffeeds%3Ffilter%3Dunread%26category%3D3%23entry',
+        );
+        expect(
+            sessionExpiryLoginTarget({ pathname: '/login', search: '' }),
+        ).toBeNull();
+    });
+});
 
 describe('legacy settings redirects', () => {
     it.each([

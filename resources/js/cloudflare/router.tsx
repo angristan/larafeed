@@ -29,7 +29,7 @@ import {
     subscriptionListQueryOptions,
 } from './queries/reader';
 import { subscriptionManagementQueryOptions } from './queries/subscriptions';
-import { queryClient } from './queryClient';
+import { queryClient, setAppSessionExpiredHandler } from './queryClient';
 import {
     canonicalReaderRouteSearch,
     parseReaderState,
@@ -118,6 +118,18 @@ const legacySettingsPaths = {
     '/profile': '/settings/security',
     '/import': '/settings/opml',
 } as const;
+
+export function sessionExpiryLoginTarget(location: {
+    readonly pathname: string;
+    readonly search: string;
+    readonly hash?: string;
+}): string | null {
+    if (location.pathname === '/login') return null;
+
+    const returnTo = `${location.pathname}${location.search}${location.hash ?? ''}`;
+    const parameters = new URLSearchParams({ returnTo });
+    return `/login?${parameters.toString()}`;
+}
 
 export function legacySettingsRedirectTarget(url: URL): string | null {
     const pathname =
@@ -310,3 +322,11 @@ export const router = createBrowserRouter([
         ],
     },
 ]);
+
+setAppSessionExpiredHandler(() => {
+    const target = sessionExpiryLoginTarget(router.state.location);
+    if (target === null) return;
+
+    clearCapturedAccessToken();
+    void router.navigate(target, { replace: true });
+});
