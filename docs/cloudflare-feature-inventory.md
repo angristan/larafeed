@@ -1,6 +1,6 @@
 # Cloudflare feature inventory
 
-This inventory is the cutover contract. “Implemented” means the Cloudflare application owns the behavior. “Removed” means the legacy route or UI must not remain reachable after cutover.
+This inventory is the deployment contract. “Implemented” means the Cloudflare application owns the behavior. “Removed” means the legacy route or UI must not remain reachable.
 
 ## Implemented or replaced
 
@@ -27,7 +27,7 @@ This inventory is the cutover contract. “Implemented” means the Cloudflare a
 | API token settings | Implemented with one-time plaintext display and revocation. |
 | Favicons and article image privacy | Replaced by ownership-bound opaque routes and fixed Cloudflare Images transforms. Manual and bounded monthly stale refreshes discover ranked HTML icons, probe safe same-origin fallbacks, and validate every redirect/MIME/size before storing a source URL. The application is not an arbitrary image proxy. |
 | Gemini summaries | Replaced by bounded, cached AI Gateway requests with a kill switch and application rate limits. |
-| Existing users, feeds, entries, categories, subscriptions, interactions, compatible tokens, and refresh history | Migrated by the deterministic PostgreSQL exporter. Legacy article HTML is sanitized before size/hash classification, and the first Worker refresh promotes URL identities without replacing entry IDs or interactions. Existing users enroll new passkeys after cutover. |
+| Initial subscriptions | Start from an empty D1 database, enroll users with passkeys, and import subscription outlines through OPML. Legacy entries, interactions, tokens, and refresh history are not imported. |
 
 ## Intentionally removed
 
@@ -38,10 +38,10 @@ This inventory is the cutover contract. “Implemented” means the Cloudflare a
 | TOTP/two-factor challenge and settings | Passkeys are the only web credential. TOTP secrets are not migrated. |
 | Public registration | Users are provisioned through short-lived admin enrollment links. |
 | Server-rendered Inertia pages, Ziggy routes, and Laravel-style form helpers | Replaced by React Router, TanStack Query, and typed JSON HTTP APIs. |
-| Go HTTP server, River workers, PostgreSQL runtime, Docker image deployment | Replaced by Workers, D1, Queues, Cron, Static Assets, Images, and AI Gateway. Go remains only for the read-only migration exporter. |
+| Go HTTP server, River workers, PostgreSQL runtime, Docker image deployment | Replaced by Workers, D1, Queues, Cron, Static Assets, Images, and AI Gateway. |
 
 ## Operator-only surfaces
 
 - Initial administrator enrollment and last-administrator recovery use `scripts/auth-access-link.ts` with `AUTH_OPERATOR_SECRET`.
 - Ordinary administrators use `/admin/users` for invitations, recovery, link revocation, account state, and the security ledger.
-- Cloudflare resource provisioning, secret writes, D1 imports, deployment, and traffic cutover remain explicit operator actions. Nothing in normal tests performs them.
+- Cloudflare resource provisioning, secret writes, D1 migration application, deployment, and traffic activation remain explicit operator actions. Nothing in normal tests performs them.

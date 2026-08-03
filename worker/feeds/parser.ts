@@ -20,8 +20,6 @@ export interface NormalizedFeedEntry {
     /** Canonical parser identity. Priority: source ID, resolved link, fallback. */
     readonly sourceIdentity: string;
     readonly deduplicationKey: Uint8Array;
-    /** Legacy exporter identity used only to promote source-less migrated rows. */
-    readonly legacyUrlDeduplicationKey: Uint8Array | null;
     readonly sourceId: string | null;
     readonly title: string;
     readonly url: string | null;
@@ -624,15 +622,10 @@ const entriesFromCandidates = async (
         }
         seen.add(key);
 
-        const legacyUrlDeduplicationKey =
-            candidate.sourceId !== null && candidate.url !== null
-                ? await digestIdentity(`url:${candidate.url}`, webCrypto)
-                : null;
         const { sortTimestamp: _, sourceIndex: __, ...entry } = candidate;
         entries.push({
             ...entry,
             deduplicationKey,
-            legacyUrlDeduplicationKey,
         });
         if (entries.length === MAX_FEED_ENTRIES) {
             break;

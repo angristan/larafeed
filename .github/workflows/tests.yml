@@ -12,9 +12,6 @@ jobs:
           node-version: "24"
           cache: npm
       - uses: oven-sh/setup-bun@v2
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
       - name: Install JavaScript dependencies
         run: npm ci
       - name: Unit and Workerd tests
@@ -23,8 +20,6 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser parity tests
         run: npm run test:browser
-      - name: Migration exporter tests
-        run: go test -race ./...
       - name: Production build and deployment dry run
         run: npm run deploy:check
       - name: Representative D1 validation

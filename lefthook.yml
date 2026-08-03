@@ -10,9 +10,3 @@ pre-commit:
     cloudflare-test:
       glob: "{worker,shared,resources/js/cloudflare}/**/*.{ts,tsx}"
       run: npm test
-    golangci-lint:
-      glob: "*.go"
-      run: golangci-lint run --new-from-rev=HEAD
-    go-test:
-      glob: "*.go"
-      run: go test -race ./...

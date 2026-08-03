@@ -11,9 +11,6 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
       - name: Install JavaScript dependencies
         run: npm ci
       - name: Biome
@@ -22,4 +19,3 @@ jobs:
         run: npm run typecheck
       - name: Generated Worker bindings
         run: npm run types:check:cloudflare
-      - uses: golangci/golangci-lint-action@v9

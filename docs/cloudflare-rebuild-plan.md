@@ -2,14 +2,14 @@
 
 ## Status
 
-Implemented locally on the `cloudflare` branch. The Worker, React frontend, D1 schema, durable jobs, OPML, compatibility APIs, Images, AI Gateway integration, and deterministic migration tooling are complete and validated. The legacy Go/Inertia runtime has been removed; only the read-only PostgreSQL exporter remains in Go. Cloudflare provisioning, remote D1 validation, production migration, and traffic cutover require explicit operator approval.
+Implemented locally on the `cloudflare` branch. The Worker, React frontend, D1 schema, durable jobs, OPML, compatibility APIs, Images, and AI Gateway integration are complete and validated. The legacy Go/Inertia runtime and PostgreSQL data-migration path have been removed. Cloudflare provisioning, remote D1 validation, and production deployment require explicit operator approval.
 
 ## Goals
 
 - Rebuild Larafeed on Cloudflare-managed compute, storage, and background processing.
 - Preserve the current reader experience and Google Reader/Fever compatibility.
 - Reuse the React and Mantine UI where practical.
-- Keep the final migration bounded and minimize write downtime.
+- Start from an empty D1 database and restore subscriptions through OPML.
 - Validate D1 with production-shaped data before committing to it as the system of record.
 
 ## Non-goals
@@ -50,7 +50,7 @@ Implemented locally on the `cloudflare` branch. The Worker, React frontend, D1 s
 | Notifications | Direct Telegram API calls | Telegram retained through durable Queue delivery or bounded `waitUntil()` work |
 | Observability | OpenTelemetry export and process logs | Workers Observability, native spans, structured logs; Analytics Engine only if needed |
 | Static assets | Go file server and Vite manifest | Worker Static Assets with SPA fallback and selective Worker-first routing |
-| Testing | Go tests, testify, testcontainers | Effect test layers, Vitest, Workerd integration tests, browser tests, protocol fixtures |
+| Testing | Legacy server integration tests | Effect test layers, Vitest, Workerd integration tests, browser tests, protocol fixtures |
 | Deployment | Container/server with PostgreSQL | Wrangler-deployed Worker and Cloudflare bindings |
 
 ### Reuse boundary
@@ -210,7 +210,7 @@ Preserve URL-addressable reader state such as selected feed, category, filter, p
 2. **Mark-all-read watermark**
    - Add a per-subscription read-through entry identifier so marking a feed read is one update rather than one write per entry.
    - Base the watermark on ingestion identity rather than publication time so late-arriving old articles remain unread.
-   - Keep explicit interaction rows for manual unread/read exceptions and define migration semantics for existing interactions.
+   - Keep explicit interaction rows for manual unread/read exceptions.
 
 3. **Refresh scheduling fields**
    - Store `last_attempt_at`, `latest_entry_at`, and `next_refresh_at` explicitly.
@@ -221,7 +221,7 @@ Preserve URL-addressable reader state such as selected feed, category, filter, p
    - Add maintained per-subscription counters only if production-shaped benchmarks show that aggregation is too costly.
 
 5. **Retention**
-   - Define retention for `feed_refreshes` before cutover.
+   - Define retention for `feed_refreshes` before production launch.
    - Measure article-content growth before deciding whether to truncate, compress, expire, or archive old content.
 
 ### Candidate indexes
@@ -277,10 +277,10 @@ Requirements:
 
 ### Phase 0: validate the foundations
 
-- Measure current PostgreSQL row counts, identifier ranges, article-content sizes, database size, and growth rate.
-- Produce a production-shaped anonymized benchmark dataset, including oversized entries and dense interaction histories.
+- Define production-shaped entry counts, identifier ranges, article-content sizes, database size, and growth assumptions.
+- Produce a representative benchmark dataset, including oversized entries and dense interaction histories.
 - Spike Worker + Hono + Effect request handling and an application-owned native D1 Effect adapter.
-- Verify native batch semantics, affected-row inspection, Sessions/bookmarks, result metadata, migration tooling, and read-after-write behavior.
+- Verify native batch semantics, affected-row inspection, Sessions/bookmarks, result metadata, D1 migration application, and read-after-write behavior.
 - Benchmark the reader list, sidebar counts, mark-all-read, feed ingestion, bounded batch sizes, and concurrent reads/writes. Record overload frequency as well as latency.
 - Project per-database storage with headroom and define classified behavior for rows or imports approaching current platform limits.
 - Confirm the chosen Effect v4 packages and Cloudflare runtime compatibility. Pin the resolved Effect v4 beta and aligned `@effect/*` packages exactly; treat upgrades as migrations.
@@ -340,24 +340,15 @@ Requirements:
 
 **Gate:** focused contract tests pass for web, Google Reader, and Fever clients, and the feature inventory has an explicit disposition for every existing route and UI surface.
 
-### Phase 5: data migration rehearsal
+### Phase 5: production bootstrap
 
-- Export PostgreSQL data in bounded chunks.
-- Transform types and preserve identifiers, supported API tokens, and relationships while respecting current D1 import, statement, binding, and row limits. Do not migrate password hashes or TOTP secrets; existing users enroll passkeys through admin-generated links after cutover.
-- Import in foreign-key order.
-- Validate row counts, identifier safety, sampled records, unique constraints, and `PRAGMA foreign_key_check`.
-- Repeat the process from a clean D1 database to prove it is deterministic.
+- Provision an empty production D1 database and apply every Wrangler migration.
+- Keep refresh scheduling, Queue dispatch, and AI summaries disabled for the first deployment.
+- Enroll the first administrator and import subscriptions through OPML.
+- Enable Queue dispatch, inspect initial refresh outcomes, and then enable scheduled refreshes.
+- Monitor errors, queue and outbox backlog, oldest due feed, D1 latency and overload, image and AI usage, and authentication failures.
 
-**Gate:** migration is deterministic, timed, validated, and fits the accepted maintenance window.
-
-### Phase 6: cutover
-
-- Announce the maintenance window.
-- Pause background refreshes and application writes.
-- Run the final migration and validation.
-- Switch traffic to the Worker and resume processing.
-- Monitor errors, queue and outbox backlog, oldest due work, D1 latency/row scans/overload, image/AI usage, and authentication failures.
-- Retire the prior deployment and PostgreSQL database after the cutover acceptance checks complete.
+**Gate:** the empty-database bootstrap and OPML import are repeatable, validated, and operationally bounded.
 
 ## Validation strategy
 
@@ -383,9 +374,9 @@ Requirements:
 
 ## Completion criteria
 
-- All current user-facing features have an explicit migrated, replaced, or intentionally removed status.
+- All current user-facing features have an explicit implemented, replaced, or intentionally removed status.
 - Core behavior and compatibility tests pass.
 - Production-shaped D1 capacity, consistency, cost, and security gates pass or the PostgreSQL/Hyperdrive branch is selected explicitly.
-- The final migration is rehearsed and fits the accepted maintenance window.
+- Empty-database provisioning, administrator enrollment, and OPML bootstrap are rehearsed.
 - Operational dashboards, alerts, and kill switches cover HTTP errors, D1, outbox/Queues, external feed and image fetches, Images, AI, and authentication.
-- The Go application can be retired without losing data or supported API behavior.
+- No legacy server runtime or PostgreSQL data-migration dependency remains.

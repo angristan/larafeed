@@ -85,11 +85,6 @@ const normalizedEntry = async (
         .map(({ userId }) => userId);
     return {
         deduplicationKey: entry.deduplicationKey,
-        ...(entry.legacyUrlDeduplicationKey === null
-            ? {}
-            : {
-                  legacyUrlDeduplicationKey: entry.legacyUrlDeduplicationKey,
-              }),
         sourceId: entry.sourceId,
         title: entry.title,
         url: entry.url,

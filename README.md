@@ -18,7 +18,7 @@ Larafeed is a private feed reader built on Cloudflare Workers.
 - OPML import, progress, retry, and export
 - Ownership-bound Cloudflare Images transformations
 - Cached Gemini summaries through Cloudflare AI Gateway
-- Deterministic PostgreSQL-to-D1 migration tooling
+- Fresh D1 bootstrap with OPML subscription import
 
 See [the feature inventory](docs/cloudflare-feature-inventory.md) for implemented, replaced, and intentionally removed legacy behavior.
 
@@ -42,13 +42,12 @@ React + Mantine + React Router + TanStack Query
 - `resources/js/cloudflare/` contains the browser application.
 - `shared/` contains Effect Schema wire contracts.
 - `migrations/` contains D1 migrations.
-- `cmd/cloudflare-export/` is the read-only legacy PostgreSQL exporter. It is the only Go runtime.
 
 The application does not use Inertia, Ziggy, passwords, TOTP, River, or a PostgreSQL production runtime.
 
 ## Local development
 
-Requirements: Node.js 24, npm, Go, and Bun.
+Requirements: Node.js 24, npm, and Bun.
 
 ```bash
 npm ci
@@ -67,25 +66,22 @@ npm run lint-check
 npm run typecheck
 npm run types:check:cloudflare
 npm test
-go test -race ./...
 npm run d1:validate
 npm run build
 npm run deploy:check
 npm run deploy:check:test
 ```
 
-Use `npm run d1:validate:large` before a migration rehearsal or cutover. Deployment checks are dry runs. They do not deploy.
+Use `npm run d1:validate:large` before production provisioning. Deployment checks are dry runs. They do not deploy.
 
-## Operations and migration
+## Operations
 
 - [Rebuild architecture and decisions](docs/cloudflare-rebuild-plan.md)
 - [Operations, provisioning, alerts, and incidents](docs/cloudflare-operations.md)
-- [PostgreSQL-to-D1 migration](docs/cloudflare-migration.md)
 - [Refresh jobs](docs/cloudflare-refresh-jobs.md)
 - [OPML](docs/cloudflare-opml.md)
 - [Google Reader and Fever](docs/cloudflare-compatibility-apis.md)
 - [Images and AI](docs/cloudflare-images-ai.md)
-- [D1 baseline and validation](docs/cloudflare-baseline.md)
 
 Production uses `larafeed.stanislas.cloud`. The isolated test deployment uses `larafeedcf.stanislas.cloud` with its own WebAuthn RP ID, Turnstile keys, passkeys, D1 database, queues, and rate-limit namespace.
 

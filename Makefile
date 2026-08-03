@@ -1,4 +1,4 @@
-.PHONY: install dev build preview test test-go lint typecheck types d1-migrate d1-validate deploy-check clean
+.PHONY: install dev build preview test lint typecheck types d1-migrate d1-validate deploy-check clean
 
 install:
 	npm ci
@@ -14,15 +14,10 @@ preview:
 
 test:
 	npm test
-	go test -race ./...
-
-test-go:
-	go test -race ./cmd/cloudflare-export
 
 lint:
 	npm run lint-check
 	npm run typecheck
-	golangci-lint run ./...
 
 typecheck:
 	npm run typecheck

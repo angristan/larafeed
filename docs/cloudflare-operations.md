@@ -43,7 +43,7 @@ Set these separately for production and test with Wrangler or the Cloudflare das
 - `AI_GATEWAY_ACCOUNT_ID` — Cloudflare account identifier used in the exact Gateway URL.
 - `GEMINI_API_KEY` — provider credential.
 
-Do not put production secrets in `wrangler.jsonc`, `.dev.vars`, shell history, build output, or migration artifacts. `AI_SUMMARY_ENABLED=false` keeps provider calls disabled even when credentials exist.
+Do not put production secrets in `wrangler.jsonc`, `.dev.vars`, shell history, or build output. `AI_SUMMARY_ENABLED=false` keeps provider calls disabled even when credentials exist.
 
 ## Pre-deployment validation
 
@@ -53,7 +53,6 @@ npm run lint-check
 npm run typecheck
 npm run types:check:cloudflare
 npm test
-go test -race ./...
 npm run d1:validate:large
 npm run deploy:check
 npm run deploy:check:test
@@ -97,11 +96,11 @@ Do not run these actions until the operator approves production writes.
 
 Wrangler declarations remain the source of truth after identifiers are known.
 
-## Migrations and cutover
+## Fresh database bootstrap
 
-Follow [PostgreSQL-to-D1 migration](cloudflare-migration.md). The accepted strategy uses a maintenance window and has no automated rollback.
+Production starts from an empty D1 database. Legacy PostgreSQL data is not imported.
 
-Before migration:
+Before the first deployment, keep costly background work disabled:
 
 ```text
 REFRESH_SCHEDULER_ENABLED=false
@@ -109,7 +108,7 @@ REFRESH_DISPATCH_ENABLED=false
 AI_SUMMARY_ENABLED=false
 ```
 
-Pause legacy writes and workers, export one read-only PostgreSQL snapshot, validate/render locally, import in filename order, and run `PRAGMA foreign_key_check` plus row-count checks. Enroll the selected administrator after migration. Re-enable dispatch first, inspect the backlog, then re-enable scheduling.
+Apply every D1 migration, deploy, and enroll the first administrator. Import subscriptions through the authenticated OPML workflow. Enable Queue dispatch and inspect initial refresh jobs before enabling scheduled refreshes. Enable AI summaries only after provider credentials and cost controls are verified.
 
 ## Initial and recovery access
 

@@ -887,37 +887,6 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
 
         for (const entry of input.entries) {
             const contentStatus = entry.content.type;
-            if (entry.legacyUrlDeduplicationKey !== undefined) {
-                // Migrated entries used url:<article URL> and had no source ID.
-                // Promote that exact row to the parser's canonical ID identity so
-                // its primary key and user interactions survive the first refresh.
-                statements.push({
-                    sql: `UPDATE entries
-                        SET deduplication_key = ?, source_id = ?, updated_at = ?
-                        WHERE feed_id = ? AND deduplication_key = ?
-                          AND source_id IS NULL AND url = ?
-                          AND NOT EXISTS (
-                            SELECT 1 FROM entries canonical
-                            WHERE canonical.feed_id = ?
-                              AND canonical.deduplication_key = ?
-                          )
-                          AND EXISTS (
-                            SELECT 1 FROM jobs j WHERE ${leasePredicate}
-                          )`,
-                    bindings: [
-                        entry.deduplicationKey,
-                        entry.sourceId,
-                        input.completedAt,
-                        input.claim.feedId,
-                        entry.legacyUrlDeduplicationKey,
-                        entry.url,
-                        input.claim.feedId,
-                        entry.deduplicationKey,
-                        ...conditionBindings,
-                    ],
-                });
-                mutationKinds.push('atMostOne');
-            }
             statements.push({
                 sql: `INSERT INTO entries (
                         id, feed_id, deduplication_key, source_id, title, url,

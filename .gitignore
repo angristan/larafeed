@@ -15,9 +15,8 @@ tmp/
 cloudflare-env/.env*
 !cloudflare-env/.env.example
 
-# Migration and validation artifacts
+# Validation artifacts
 artifacts/
-/cloudflare-export
 
 # Browser test artifacts
 test-results/
