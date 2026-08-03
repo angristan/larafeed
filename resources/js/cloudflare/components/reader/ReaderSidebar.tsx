@@ -43,7 +43,6 @@ import {
     IconTrash,
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Effect } from 'effect';
 import {
     type FormEvent,
     type ReactNode,
@@ -54,12 +53,10 @@ import {
 } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 
-import { readCsrfToken } from '../../api/auth';
-import {
-    markFeedReadThrough,
-    type ReaderCategoryList,
-    type ReaderCounts,
-    type ReaderSubscriptionList,
+import type {
+    ReaderCategoryList,
+    ReaderCounts,
+    ReaderSubscriptionList,
 } from '../../api/reader';
 import type {
     ManagedCategory,
@@ -67,7 +64,11 @@ import type {
     SubscriptionFilterRules,
 } from '../../api/subscriptions';
 import { buildAddFeedBookmarklet } from '../../bookmarklet';
-import { useReadThroughMutation } from '../../queries/readerMutations';
+import {
+    CategoryReadThroughError,
+    categoryReadThroughMutationOptions,
+    useReadThroughMutation,
+} from '../../queries/readerMutations';
 import {
     createCategoryMutationOptions,
     createSubscriptionMutationOptions,
@@ -940,29 +941,9 @@ function CategoryHeader({
     readonly feedIds: readonly number[];
 }) {
     const queryClient = useQueryClient();
-    const markRead = useMutation({
-        mutationKey: [
-            'protected',
-            'reader',
-            'category-read-through',
-            categoryId,
-        ],
-        mutationFn: async () => {
-            const csrfToken = readCsrfToken();
-            if (csrfToken === undefined) {
-                throw new Error('Your session security token is missing.');
-            }
-            await Promise.all(
-                feedIds.map((feedId) =>
-                    Effect.runPromise(
-                        markFeedReadThrough({ feedId, csrfToken }),
-                    ),
-                ),
-            );
-        },
-        onSuccess: async () =>
-            queryClient.invalidateQueries({ queryKey: ['protected'] }),
-    });
+    const markRead = useMutation(
+        categoryReadThroughMutationOptions(queryClient, categoryId, feedIds),
+    );
     const update = useMutation(updateCategoryMutationOptions(queryClient));
     const remove = useMutation(deleteCategoryMutationOptions(queryClient));
     const { hovered, ref } = useHover();
@@ -1068,7 +1049,11 @@ function CategoryHeader({
                                     }),
                                 onError: (actionError) =>
                                     notifyActionError(
-                                        'Failed to mark category as read',
+                                        actionError instanceof
+                                            CategoryReadThroughError &&
+                                            actionError.succeeded > 0
+                                            ? 'Category partially marked as read'
+                                            : 'Failed to mark category as read',
                                         actionError,
                                     ),
                             })

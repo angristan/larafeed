@@ -22,6 +22,30 @@ import {
     subscriptionKeys,
 } from './reader';
 
+export interface CategoryReadThroughResult {
+    readonly succeeded: number;
+    readonly total: number;
+}
+
+export class CategoryReadThroughError extends Error {
+    readonly failed: number;
+
+    constructor(
+        readonly succeeded: number,
+        readonly total: number,
+        failures: readonly unknown[],
+    ) {
+        const failed = failures.length;
+        const message =
+            succeeded === 0
+                ? `No feeds were marked as read. ${failed} failed.`
+                : `${succeeded} of ${total} feeds were marked as read. ${failed} failed.`;
+        super(message, { cause: new AggregateError(failures) });
+        this.name = 'CategoryReadThroughError';
+        this.failed = failed;
+    }
+}
+
 function requireCsrfToken(): string {
     const csrfToken = readCsrfToken();
     if (csrfToken === undefined) {
@@ -101,6 +125,56 @@ export function entryArchiveMutationOptions(
         onSuccess: async (interaction) => {
             reconcileReaderInteraction(queryClient, interaction);
             await invalidateReaderAfterInteraction(queryClient);
+        },
+    });
+}
+
+export function categoryReadThroughMutationOptions(
+    queryClient: QueryClient,
+    categoryId: number,
+    feedIds: readonly number[],
+) {
+    return mutationOptions({
+        mutationKey: [
+            'protected',
+            'reader',
+            'category-read-through',
+            categoryId,
+        ],
+        retry: false,
+        mutationFn: async (): Promise<CategoryReadThroughResult> => {
+            const csrfToken = requireCsrfToken();
+            const results = await Promise.allSettled(
+                feedIds.map((feedId) =>
+                    Effect.runPromise(
+                        markFeedReadThrough({ feedId, csrfToken }),
+                    ),
+                ),
+            );
+            const failures = results
+                .filter((result) => result.status === 'rejected')
+                .map((result) => result.reason);
+            const succeeded = feedIds.length - failures.length;
+
+            if (failures.length > 0) {
+                throw new CategoryReadThroughError(
+                    succeeded,
+                    feedIds.length,
+                    failures,
+                );
+            }
+
+            return { succeeded, total: feedIds.length };
+        },
+        onSettled: async (result, error) => {
+            const succeeded =
+                result?.succeeded ??
+                (error instanceof CategoryReadThroughError
+                    ? error.succeeded
+                    : 0);
+            if (succeeded > 0) {
+                await invalidateReaderAfterReadThrough(queryClient);
+            }
         },
     });
 }
