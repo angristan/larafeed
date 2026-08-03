@@ -102,6 +102,12 @@ const safeError = (error: unknown): SafeError => {
                 message: 'Article content is unavailable',
                 status: 409,
             };
+        case 'SummaryGenerationInProgress':
+            return {
+                code: 'conflict',
+                message: 'Summary generation is already in progress',
+                status: 409,
+            };
         case 'SummaryRateLimited':
             return {
                 code: 'rate_limited',

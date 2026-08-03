@@ -2,7 +2,11 @@ import { Effect } from 'effect';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { SummaryConfig } from './config';
-import { SummaryFeatureDisabled, SummaryProviderError } from './errors';
+import {
+    SummaryFeatureDisabled,
+    SummaryGenerationInProgress,
+    SummaryProviderError,
+} from './errors';
 import type { SummaryProvider } from './provider';
 import type { OwnedSummaryEntry, SummaryRepository } from './repository';
 import {
@@ -38,6 +42,8 @@ const cached = {
 
 const makeRepository = (owned: OwnedSummaryEntry): SummaryRepository => ({
     findOwnedEntry: vi.fn(() => Effect.succeed(owned)),
+    claimGeneration: vi.fn(() => Effect.succeed(true)),
+    releaseGeneration: vi.fn(() => Effect.void),
     saveSummary: vi.fn((input) =>
         Effect.succeed({
             ...cached,
@@ -83,6 +89,36 @@ describe('summary service', () => {
         });
         expect(provider.generate).not.toHaveBeenCalled();
         expect(repository.saveSummary).not.toHaveBeenCalled();
+    });
+
+    it('does not call the provider when another request owns generation', async () => {
+        const repository = makeRepository(entry);
+        vi.mocked(repository.claimGeneration).mockReturnValue(
+            Effect.succeed(false),
+        );
+        const provider = makeProvider('<p>Unused</p>');
+        const service = makeSummaryService({ config, repository, provider });
+
+        await expect(
+            Effect.runPromise(service.generate(7, 31)),
+        ).rejects.toBeInstanceOf(SummaryGenerationInProgress);
+        expect(provider.generate).not.toHaveBeenCalled();
+        expect(repository.saveSummary).not.toHaveBeenCalled();
+        expect(repository.releaseGeneration).not.toHaveBeenCalled();
+    });
+
+    it('releases generation ownership after provider failure', async () => {
+        const repository = makeRepository(entry);
+        const provider: SummaryProvider = {
+            generate: () =>
+                Effect.fail(new SummaryProviderError({ kind: 'transport' })),
+        };
+        const service = makeSummaryService({ config, repository, provider });
+
+        await expect(
+            Effect.runPromise(service.generate(7, 31)),
+        ).rejects.toBeInstanceOf(SummaryProviderError);
+        expect(repository.releaseGeneration).toHaveBeenCalledTimes(1);
     });
 
     it('sanitizes and bounds article input and provider HTML output', async () => {

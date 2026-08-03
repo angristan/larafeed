@@ -145,6 +145,53 @@ describe('summary D1 repository', () => {
         ).resolves.toMatchObject({ summary: null });
     });
 
+    it('grants one durable generation lease for concurrent cache misses', async () => {
+        const userId = 101_001;
+        const otherUserId = 101_002;
+        const feedId = 102_001;
+        const categoryId = 103_001;
+        const entryId = 104_001;
+        await Effect.runPromise(
+            fixture(userId, otherUserId, feedId, categoryId, entryId),
+        );
+        const owned = await Effect.runPromise(
+            repository.findOwnedEntry(userId, entryId, key),
+        );
+        const base = {
+            userId,
+            entryId,
+            contentHash: owned.contentHash ?? new Uint8Array(),
+            ...key,
+            now,
+            expiresAt: now + 60_000,
+        };
+
+        const claims = await Promise.all([
+            Effect.runPromise(
+                repository.claimGeneration({ ...base, leaseToken: 105_001 }),
+            ),
+            Effect.runPromise(
+                repository.claimGeneration({ ...base, leaseToken: 105_002 }),
+            ),
+        ]);
+
+        expect(claims.toSorted()).toEqual([false, true]);
+        const winner = claims[0] ? 105_001 : 105_002;
+        await Effect.runPromise(
+            repository.releaseGeneration({ ...base, leaseToken: winner }),
+        );
+        await expect(
+            Effect.runPromise(
+                repository.claimGeneration({
+                    ...base,
+                    leaseToken: 105_003,
+                    now: now + 1,
+                    expiresAt: now + 60_001,
+                }),
+            ),
+        ).resolves.toBe(true);
+    });
+
     it('reloads the winning row after an idempotent unique race', async () => {
         const userId = 96_001;
         const otherUserId = 96_002;

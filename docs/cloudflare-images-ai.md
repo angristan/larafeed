@@ -50,11 +50,15 @@ The Worker:
 
 1. Checks entry ownership and filtered state.
 2. Reuses a D1 summary keyed by entry content hash, model, and prompt version.
-3. Sanitizes article HTML and sends at most 50 KiB of article text.
-4. Calls Gemini only through the configured AI Gateway.
-5. Uses a 15-second total deadline and at most one retry for transport, `429`, or `5xx` failures.
-6. Bounds the provider body and sanitized summary HTML.
-7. Inserts idempotently and reloads the winner on a unique race.
+3. Claims a 60-second D1 generation lease for that complete cache key. Concurrent
+   misses in other isolates return a retryable conflict instead of making another
+   paid provider call. Failed or interrupted requests release the lease, and its
+   expiry recovers abandoned ownership.
+4. Sanitizes article HTML and sends at most 50 KiB of article text.
+5. Calls Gemini only through the configured AI Gateway.
+6. Uses a 15-second total deadline and at most one retry for transport, `429`, or `5xx` failures.
+7. Bounds the provider body and sanitized summary HTML.
+8. Inserts idempotently and reloads the winner on a unique race.
 
 The request disables AI Gateway response caching because D1 owns the semantic cache key. It also disables prompt/response log collection so article content is not stored in Gateway logs. Gateway request counts and provider metrics remain available.
 

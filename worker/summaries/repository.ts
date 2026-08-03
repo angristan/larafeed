@@ -48,6 +48,15 @@ export interface SaveSummaryInput extends SummaryCacheKey {
     readonly now: number;
 }
 
+export interface SummaryGenerationLeaseInput extends SummaryCacheKey {
+    readonly userId: number;
+    readonly entryId: number;
+    readonly contentHash: Uint8Array;
+    readonly leaseToken: number;
+    readonly now: number;
+    readonly expiresAt: number;
+}
+
 export interface SummaryRepository {
     readonly findOwnedEntry: (
         userId: number,
@@ -57,6 +66,12 @@ export interface SummaryRepository {
         OwnedSummaryEntry,
         SummaryNotFound | SummaryStorageError | SummaryInvariantError
     >;
+    readonly claimGeneration: (
+        input: SummaryGenerationLeaseInput,
+    ) => Effect.Effect<boolean, SummaryStorageError | SummaryInvariantError>;
+    readonly releaseGeneration: (
+        input: SummaryGenerationLeaseInput,
+    ) => Effect.Effect<void, SummaryStorageError | SummaryInvariantError>;
     readonly saveSummary: (
         input: SaveSummaryInput,
     ) => Effect.Effect<
@@ -210,6 +225,87 @@ export const makeSummaryRepository = (d1: D1): SummaryRepository => {
 
     return {
         findOwnedEntry,
+        claimGeneration: (input) =>
+            Effect.gen(function* () {
+                const operation = 'summaries.generation.claim';
+                const result = yield* withStorageError(
+                    operation,
+                    d1.run({
+                        sql: `INSERT INTO entry_summary_generation_leases (
+                            entry_id, content_hash, model, prompt_version,
+                            lease_token, lease_expires_at, created_at, updated_at
+                        )
+                        SELECT e.id, ec.content_hash, ?, ?, ?, ?, ?, ?
+                        FROM entries e
+                        JOIN feed_subscriptions fs
+                            ON fs.feed_id = e.feed_id AND fs.user_id = ?
+                        JOIN entry_contents ec ON ec.entry_id = e.id
+                        LEFT JOIN entry_interactions ei
+                            ON ei.user_id = fs.user_id AND ei.entry_id = e.id
+                        WHERE e.id = ? AND ec.content_hash = ?
+                          AND ei.filtered_at IS NULL
+                          AND NOT EXISTS (
+                              SELECT 1 FROM entry_summaries es
+                              WHERE es.entry_id = e.id
+                                AND es.content_hash = ec.content_hash
+                                AND es.model = ? AND es.prompt_version = ?
+                          )
+                        ON CONFLICT(entry_id, content_hash, model, prompt_version)
+                        DO UPDATE SET
+                            lease_token = excluded.lease_token,
+                            lease_expires_at = excluded.lease_expires_at,
+                            updated_at = excluded.updated_at
+                        WHERE entry_summary_generation_leases.lease_expires_at <= excluded.created_at
+                          AND NOT EXISTS (
+                              SELECT 1 FROM entry_summaries es
+                              WHERE es.entry_id = excluded.entry_id
+                                AND es.content_hash = excluded.content_hash
+                                AND es.model = excluded.model
+                                AND es.prompt_version = excluded.prompt_version
+                          )`,
+                        bindings: [
+                            input.model,
+                            input.promptVersion,
+                            input.leaseToken,
+                            input.expiresAt,
+                            input.now,
+                            input.now,
+                            input.userId,
+                            input.entryId,
+                            input.contentHash,
+                            input.model,
+                            input.promptVersion,
+                        ],
+                    }),
+                );
+                const changes = result.meta.changes;
+                if (changes === 1) return true;
+                if (changes === 0) return false;
+                return yield* Effect.fail(invariant(operation));
+            }),
+        releaseGeneration: (input) =>
+            Effect.gen(function* () {
+                const operation = 'summaries.generation.release';
+                const result = yield* withStorageError(
+                    operation,
+                    d1.run({
+                        sql: `DELETE FROM entry_summary_generation_leases
+                            WHERE entry_id = ? AND content_hash = ?
+                              AND model = ? AND prompt_version = ?
+                              AND lease_token = ?`,
+                        bindings: [
+                            input.entryId,
+                            input.contentHash,
+                            input.model,
+                            input.promptVersion,
+                            input.leaseToken,
+                        ],
+                    }),
+                );
+                const changes = result.meta.changes;
+                if (changes === 0 || changes === 1) return;
+                return yield* Effect.fail(invariant(operation));
+            }),
         saveSummary: (input) =>
             Effect.gen(function* () {
                 const operation = 'summaries.entry.save';

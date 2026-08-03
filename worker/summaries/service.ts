@@ -7,6 +7,7 @@ import type { SummaryConfig } from './config';
 import {
     SummaryContentUnavailable,
     SummaryFeatureDisabled,
+    SummaryGenerationInProgress,
     SummaryInvariantError,
     SummaryProviderError,
 } from './errors';
@@ -16,6 +17,7 @@ import type { SummaryRepository } from './repository';
 export const SUMMARY_MAX_ARTICLE_BYTES = 50_000;
 export const SUMMARY_MAX_TITLE_BYTES = 1_000;
 export const SUMMARY_MAX_HTML_BYTES = 32_000;
+export const SUMMARY_GENERATION_LEASE_MS = 60_000;
 
 export interface SummaryServiceDependencies {
     readonly config: SummaryConfig;
@@ -176,54 +178,93 @@ export const makeSummaryService = (
                         summary: entry.summary,
                     });
                 }
+                const contentHtml = entry.contentHtml;
+                const contentHash = entry.contentHash;
                 if (
-                    entry.contentHtml === null ||
-                    entry.contentHash === null ||
-                    entry.contentHtml.trim().length === 0
+                    contentHtml === null ||
+                    contentHash === null ||
+                    contentHtml.trim().length === 0
                 ) {
                     return yield* Effect.fail(new SummaryContentUnavailable());
                 }
 
-                const text = truncateUtf8(
-                    articleText(entry.contentHtml, articleBaseUrl(entry.url)),
-                    SUMMARY_MAX_ARTICLE_BYTES,
-                );
-                if (text.length === 0) {
-                    return yield* Effect.fail(new SummaryContentUnavailable());
-                }
-                const title = truncateUtf8(
-                    entry.title.trim() || 'Untitled article',
-                    SUMMARY_MAX_TITLE_BYTES,
-                );
-                const generated = yield* provider.generate({
-                    title,
-                    articleText: text,
-                });
-                const html = providerHtml(generated);
-                if (
-                    html.length === 0 ||
-                    utf8.encode(html).byteLength > SUMMARY_MAX_HTML_BYTES
-                ) {
+                const leaseNow = currentTime();
+                const lease = {
+                    userId,
+                    entryId,
+                    contentHash,
+                    leaseToken: yield* nextId(),
+                    ...key,
+                    now: leaseNow,
+                    expiresAt: leaseNow + SUMMARY_GENERATION_LEASE_MS,
+                };
+                const claimed = yield* repository.claimGeneration(lease);
+                if (!claimed) {
+                    const current = yield* repository.findOwnedEntry(
+                        userId,
+                        entryId,
+                        key,
+                    );
+                    if (current.summary !== null) {
+                        return EntrySummaryResponse.make({
+                            summary: current.summary,
+                        });
+                    }
                     return yield* Effect.fail(
-                        new SummaryProviderError({
-                            kind:
-                                html.length === 0
-                                    ? 'invalid_response'
-                                    : 'output_too_large',
-                        }),
+                        new SummaryGenerationInProgress(),
                     );
                 }
 
-                const summary = yield* repository.saveSummary({
-                    id: yield* nextId(),
-                    userId,
-                    entryId,
-                    contentHash: entry.contentHash,
-                    html,
-                    ...key,
-                    now: currentTime(),
+                const generate = Effect.gen(function* () {
+                    const text = truncateUtf8(
+                        articleText(contentHtml, articleBaseUrl(entry.url)),
+                        SUMMARY_MAX_ARTICLE_BYTES,
+                    );
+                    if (text.length === 0) {
+                        return yield* Effect.fail(
+                            new SummaryContentUnavailable(),
+                        );
+                    }
+                    const title = truncateUtf8(
+                        entry.title.trim() || 'Untitled article',
+                        SUMMARY_MAX_TITLE_BYTES,
+                    );
+                    const generated = yield* provider.generate({
+                        title,
+                        articleText: text,
+                    });
+                    const html = providerHtml(generated);
+                    if (
+                        html.length === 0 ||
+                        utf8.encode(html).byteLength > SUMMARY_MAX_HTML_BYTES
+                    ) {
+                        return yield* Effect.fail(
+                            new SummaryProviderError({
+                                kind:
+                                    html.length === 0
+                                        ? 'invalid_response'
+                                        : 'output_too_large',
+                            }),
+                        );
+                    }
+
+                    const summary = yield* repository.saveSummary({
+                        id: yield* nextId(),
+                        userId,
+                        entryId,
+                        contentHash,
+                        html,
+                        ...key,
+                        now: currentTime(),
+                    });
+                    return EntrySummaryResponse.make({ summary });
                 });
-                return EntrySummaryResponse.make({ summary });
+
+                return yield* generate.pipe(
+                    Effect.ensuring(
+                        repository.releaseGeneration(lease).pipe(Effect.ignore),
+                    ),
+                );
             }),
     };
 };
