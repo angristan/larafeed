@@ -319,9 +319,11 @@ const jobFromRow = (operation: string, row: JobRow): RefreshJob => {
     };
 };
 
-const leasePredicate = `j.operation_id = ? AND j.state = 'running'
+const leasePredicate = `j.operation_id = ?
+    AND j.kind = '${FEED_REFRESH_JOB_KIND}' AND j.state = 'running'
     AND j.lease_owner = ? AND j.lease_expires_at >= ?`;
-const directLeasePredicate = `operation_id = ? AND state = 'running'
+const directLeasePredicate = `operation_id = ?
+    AND kind = '${FEED_REFRESH_JOB_KIND}' AND state = 'running'
     AND lease_owner = ? AND lease_expires_at >= ?`;
 
 export const makeJobRepository = (d1: D1): JobRepository => ({
@@ -387,10 +389,11 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 {
                     sql: `SELECT COUNT(*) AS count FROM outbox_messages o
                         JOIN jobs j ON j.id = o.job_id
-                        WHERE j.operation_id = ? AND o.topic = ?
-                            AND o.payload_json = ?`,
+                        WHERE j.operation_id = ? AND j.kind = ?
+                            AND o.topic = ? AND o.payload_json = ?`,
                     bindings: [
                         input.operationId,
+                        FEED_REFRESH_JOB_KIND,
                         FEED_REFRESH_TOPIC,
                         queuePayload,
                     ],
@@ -456,13 +459,18 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                             lease_expires_at = NULL,
                             available_at = MIN(available_at, ?), updated_at = ?
                         WHERE id IN (
-                            SELECT id FROM outbox_messages
-                            WHERE state = 'leased' AND lease_expires_at <= ?
-                            ORDER BY lease_expires_at, id LIMIT ?
+                            SELECT o.id FROM outbox_messages o
+                            JOIN jobs j ON j.id = o.job_id
+                            WHERE o.topic = ? AND j.kind = ?
+                              AND o.state = 'leased'
+                              AND o.lease_expires_at <= ?
+                            ORDER BY o.lease_expires_at, o.id LIMIT ?
                         )`,
                     bindings: [
                         input.now,
                         input.now,
+                        FEED_REFRESH_TOPIC,
+                        FEED_REFRESH_JOB_KIND,
                         input.now,
                         boundedLimit(input.limit, MAX_OUTBOX_MESSAGES),
                     ],
@@ -472,9 +480,11 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         SET state = 'leased', lease_owner = ?,
                             lease_expires_at = ?, updated_at = ?
                         WHERE id IN (
-                            SELECT id FROM outbox_messages
-                            WHERE state = 'pending' AND available_at <= ?
-                            ORDER BY available_at, id LIMIT ?
+                            SELECT o.id FROM outbox_messages o
+                            JOIN jobs j ON j.id = o.job_id
+                            WHERE o.topic = ? AND j.kind = ?
+                              AND o.state = 'pending' AND o.available_at <= ?
+                            ORDER BY o.available_at, o.id LIMIT ?
                         )
                         RETURNING id, job_id, payload_json, attempt_count,
                             lease_owner, lease_expires_at`,
@@ -482,6 +492,8 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         input.owner,
                         leaseExpiresAt,
                         input.now,
+                        FEED_REFRESH_TOPIC,
+                        FEED_REFRESH_JOB_KIND,
                         input.now,
                         boundedLimit(input.limit, MAX_OUTBOX_MESSAGES),
                     ],
@@ -534,23 +546,48 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             d1.batch([
                 {
                     sql: `UPDATE jobs SET state = 'queued', updated_at = ?
-                        WHERE id = ? AND operation_id = ?
-                            AND state IN ('pending', 'failed')`,
-                    bindings: [now, message.jobId, message.operationId],
+                        WHERE id = ? AND operation_id = ? AND kind = ?
+                            AND state IN ('pending', 'failed')
+                            AND EXISTS (
+                                SELECT 1 FROM outbox_messages o
+                                WHERE o.id = ? AND o.job_id = jobs.id
+                                  AND o.topic = ? AND o.state = 'leased'
+                                  AND o.lease_owner = ?
+                                  AND o.lease_expires_at >= ?
+                            )`,
+                    bindings: [
+                        now,
+                        message.jobId,
+                        message.operationId,
+                        FEED_REFRESH_JOB_KIND,
+                        message.id,
+                        FEED_REFRESH_TOPIC,
+                        message.leaseOwner,
+                        now,
+                    ],
                 },
                 {
                     sql: `UPDATE outbox_messages
                         SET state = 'sent', sent_at = ?, lease_owner = NULL,
                             lease_expires_at = NULL, updated_at = ?
-                        WHERE id = ? AND job_id = ? AND state = 'leased'
-                            AND lease_owner = ? AND lease_expires_at >= ?`,
+                        WHERE id = ? AND job_id = ? AND topic = ?
+                            AND state = 'leased' AND lease_owner = ?
+                            AND lease_expires_at >= ?
+                            AND EXISTS (
+                                SELECT 1 FROM jobs j
+                                WHERE j.id = outbox_messages.job_id
+                                  AND j.operation_id = ? AND j.kind = ?
+                            )`,
                     bindings: [
                         now,
                         now,
                         message.id,
                         message.jobId,
+                        FEED_REFRESH_TOPIC,
                         message.leaseOwner,
                         now,
+                        message.operationId,
+                        FEED_REFRESH_JOB_KIND,
                     ],
                 },
             ]),
@@ -578,8 +615,14 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                             available_at = ?, lease_owner = NULL,
                             lease_expires_at = NULL, last_error_class = ?,
                             last_error_message = ?, updated_at = ?
-                        WHERE id = ? AND job_id = ? AND state = 'leased'
-                            AND lease_owner = ? AND lease_expires_at >= ?`,
+                        WHERE id = ? AND job_id = ? AND topic = ?
+                            AND state = 'leased' AND lease_owner = ?
+                            AND lease_expires_at >= ?
+                            AND EXISTS (
+                                SELECT 1 FROM jobs j
+                                WHERE j.id = outbox_messages.job_id
+                                  AND j.operation_id = ? AND j.kind = ?
+                            )`,
                     bindings: [
                         MAX_OUTBOX_ATTEMPTS,
                         Math.max(input.now, input.availableAt),
@@ -588,8 +631,11 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         input.now,
                         input.message.id,
                         input.message.jobId,
+                        FEED_REFRESH_TOPIC,
                         input.message.leaseOwner,
                         input.now,
+                        input.message.operationId,
+                        FEED_REFRESH_JOB_KIND,
                     ],
                 },
                 {
@@ -597,10 +643,11 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         SET state = 'dead_lettered', completed_at = ?,
                             last_error_class = ?, last_error_message = ?,
                             updated_at = ?
-                        WHERE id = ? AND state IN ('pending', 'failed')
+                        WHERE id = ? AND operation_id = ? AND kind = ?
+                          AND state IN ('pending', 'failed')
                           AND EXISTS (
                               SELECT 1 FROM outbox_messages
-                              WHERE id = ? AND job_id = jobs.id
+                              WHERE id = ? AND job_id = jobs.id AND topic = ?
                                 AND state = 'dead_lettered'
                           )`,
                     bindings: [
@@ -609,7 +656,10 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         message,
                         input.now,
                         input.message.jobId,
+                        input.message.operationId,
+                        FEED_REFRESH_JOB_KIND,
                         input.message.id,
+                        FEED_REFRESH_TOPIC,
                     ],
                 },
                 {
@@ -620,7 +670,8 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                             SELECT json_extract(j.payload_json, '$.feedId')
                             FROM jobs j
                             JOIN outbox_messages o ON o.job_id = j.id
-                            WHERE j.id = ? AND o.id = ?
+                            WHERE j.id = ? AND j.operation_id = ?
+                              AND j.kind = ? AND o.id = ? AND o.topic = ?
                               AND j.state = 'dead_lettered'
                               AND o.state = 'dead_lettered'
                               AND json_extract(j.payload_json, '$.trigger') = 'scheduled'
@@ -629,7 +680,10 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         Math.max(input.now, input.availableAt),
                         input.now,
                         input.message.jobId,
+                        input.message.operationId,
+                        FEED_REFRESH_JOB_KIND,
                         input.message.id,
+                        FEED_REFRESH_TOPIC,
                     ],
                 },
             ]),
@@ -796,7 +850,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
         const operation = 'recoverStaleJobLeases';
         const bounded = boundedLimit(limit, MAX_DUE_FEEDS);
         const staleJobs = `SELECT id FROM jobs
-            WHERE state = 'running' AND lease_expires_at <= ?
+            WHERE kind = ? AND state = 'running' AND lease_expires_at <= ?
             ORDER BY lease_expires_at, id LIMIT ?`;
         const results = await run(
             operation,
@@ -815,7 +869,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                               AND attempt_count >= max_attempts
                               AND json_extract(payload_json, '$.trigger') = 'scheduled'
                         )`,
-                    bindings: [now, now, now, bounded],
+                    bindings: [now, now, FEED_REFRESH_JOB_KIND, now, bounded],
                 },
                 {
                     sql: `UPDATE jobs
@@ -830,10 +884,18 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                             updated_at = ?
                         WHERE id IN (
                             SELECT id FROM jobs
-                            WHERE state = 'running' AND lease_expires_at <= ?
+                            WHERE kind = ? AND state = 'running'
+                              AND lease_expires_at <= ?
                             ORDER BY lease_expires_at, id LIMIT ?
                         )`,
-                    bindings: [now, now, now, now, bounded],
+                    bindings: [
+                        now,
+                        now,
+                        now,
+                        FEED_REFRESH_JOB_KIND,
+                        now,
+                        bounded,
+                    ],
                 },
             ]),
         );
@@ -949,7 +1011,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                             JOIN json_each(?) selected
                               ON o.id = CAST(selected.value AS INTEGER)
                             WHERE o.topic = ? AND o.state = 'sent'
-                              AND j.state = 'dead_lettered'
+                              AND j.kind = ? AND j.state = 'dead_lettered'
                               AND j.last_error_class = 'queue_redrive_exhausted'
                               AND j.updated_at = ?
                               AND json_extract(j.payload_json, '$.trigger') = 'scheduled'
@@ -959,6 +1021,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         input.now,
                         exhaustedJson,
                         FEED_REFRESH_TOPIC,
+                        FEED_REFRESH_JOB_KIND,
                         input.now,
                     ],
                 },
@@ -974,7 +1037,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                           AND EXISTS (
                             SELECT 1 FROM jobs j
                             WHERE j.id = outbox_messages.job_id
-                              AND j.state = 'dead_lettered'
+                              AND j.kind = ? AND j.state = 'dead_lettered'
                               AND j.last_error_class = 'queue_redrive_exhausted'
                               AND j.updated_at = ?
                           )`,
@@ -982,6 +1045,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         input.now,
                         exhaustedJson,
                         FEED_REFRESH_TOPIC,
+                        FEED_REFRESH_JOB_KIND,
                         input.now,
                     ],
                 },
@@ -1533,9 +1597,17 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                             last_error_class = ?, last_error_message = ?,
                             updated_at = ?
                         WHERE job_id = (
-                            SELECT id FROM jobs WHERE operation_id = ?
-                        ) AND state <> 'dead_lettered'`,
-                    bindings: [klass, message, input.now, input.operationId],
+                            SELECT id FROM jobs
+                            WHERE operation_id = ? AND kind = ?
+                        ) AND topic = ? AND state <> 'dead_lettered'`,
+                    bindings: [
+                        klass,
+                        message,
+                        input.now,
+                        input.operationId,
+                        FEED_REFRESH_JOB_KIND,
+                        FEED_REFRESH_TOPIC,
+                    ],
                 },
                 {
                     sql: `INSERT INTO feed_refreshes (

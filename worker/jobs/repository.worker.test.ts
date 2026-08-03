@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { makeCompatibilityRepository } from '../compat/repository';
 import { makeD1 } from '../infrastructure/d1';
+import { OPML_IMPORT_JOB_KIND, OPML_IMPORT_TOPIC } from '../opml/types';
 import { makeReaderRepository } from '../reader/repository';
 import { makeJobOrchestrator } from './orchestration';
 import { makeJobRepository } from './repository';
@@ -292,6 +293,193 @@ describe('durable feed refresh jobs', () => {
         expect(JSON.parse(payload?.payload_json ?? '{}')).toEqual({
             operationId: 'operation-321001',
         });
+    });
+
+    it('dispatches only refresh outbox rows and rejects OPML transitions', async () => {
+        const now = 2_100_001_100_000;
+        const feedId = 322_001;
+        const refreshJobId = 322_101;
+        const opmlRows = [
+            {
+                jobId: 322_201,
+                outboxId: 322_202,
+                operationId: 'opml-pending-isolation',
+                outboxState: 'pending',
+                leaseOwner: null,
+                leaseExpiresAt: null,
+            },
+            {
+                jobId: 322_301,
+                outboxId: 322_302,
+                operationId: 'opml-expired-isolation',
+                outboxState: 'leased',
+                leaseOwner: 'opml-expired-owner',
+                leaseExpiresAt: now - 1,
+            },
+            {
+                jobId: 322_401,
+                outboxId: 322_402,
+                operationId: 'opml-active-isolation',
+                outboxState: 'leased',
+                leaseOwner: 'opml-active-owner',
+                leaseExpiresAt: now + 10_000,
+            },
+        ] as const;
+
+        await settlePendingOutbox(now);
+        await insertFeed(feedId, now);
+        await createJob(feedId, refreshJobId, now, {
+            operationId: 'refresh-dispatch-isolation',
+        });
+        await run(
+            d1.batch(
+                opmlRows.flatMap((row) => [
+                    {
+                        sql: `INSERT INTO jobs (
+                                id, operation_id, kind, state, payload_json,
+                                max_attempts, available_at, created_at, updated_at
+                            ) VALUES (?, ?, ?, 'pending', ?, 3, ?, ?, ?)`,
+                        bindings: [
+                            row.jobId,
+                            row.operationId,
+                            OPML_IMPORT_JOB_KIND,
+                            JSON.stringify({ itemId: row.jobId }),
+                            now,
+                            now,
+                            now,
+                        ],
+                    },
+                    {
+                        sql: `INSERT INTO outbox_messages (
+                                id, job_id, topic, payload_json, state,
+                                available_at, lease_owner, lease_expires_at,
+                                created_at, updated_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        bindings: [
+                            row.outboxId,
+                            row.jobId,
+                            OPML_IMPORT_TOPIC,
+                            JSON.stringify({ operationId: row.operationId }),
+                            row.outboxState,
+                            now,
+                            row.leaseOwner,
+                            row.leaseExpiresAt,
+                            now,
+                            now,
+                        ],
+                    },
+                ]),
+            ),
+        );
+
+        const leased = await repository.leaseOutbox({
+            owner: 'refresh-isolation-dispatcher',
+            now,
+            leaseMs: 1_000,
+            limit: 10,
+        });
+        expect(leased).toHaveLength(1);
+        expect(leased[0]).toMatchObject({
+            jobId: refreshJobId,
+            operationId: 'refresh-dispatch-isolation',
+        });
+        const refreshMessage = leased[0];
+        if (refreshMessage === undefined) {
+            throw new Error('Expected refresh outbox lease');
+        }
+        await repository.markDispatched(refreshMessage, now);
+
+        await expect(
+            first<{ job_state: string; outbox_state: string }>(
+                `SELECT j.state AS job_state, o.state AS outbox_state
+                 FROM jobs j JOIN outbox_messages o ON o.job_id = j.id
+                 WHERE j.id = ?`,
+                [refreshJobId],
+            ),
+        ).resolves.toEqual({ job_state: 'queued', outbox_state: 'sent' });
+        await expect(
+            run(
+                d1.all<{
+                    id: number;
+                    job_state: string;
+                    outbox_state: string;
+                    lease_owner: string | null;
+                    lease_expires_at: number | null;
+                }>({
+                    sql: `SELECT o.id, j.state AS job_state,
+                            o.state AS outbox_state, o.lease_owner,
+                            o.lease_expires_at
+                        FROM outbox_messages o
+                        JOIN jobs j ON j.id = o.job_id
+                        WHERE j.kind = ? ORDER BY o.id`,
+                    bindings: [OPML_IMPORT_JOB_KIND],
+                }),
+            ).then((result) => result.results),
+        ).resolves.toEqual(
+            opmlRows.map((row) => ({
+                id: row.outboxId,
+                job_state: 'pending',
+                outbox_state: row.outboxState,
+                lease_owner: row.leaseOwner,
+                lease_expires_at: row.leaseExpiresAt,
+            })),
+        );
+
+        const opmlMessage = {
+            id: 322_402,
+            jobId: 322_401,
+            operationId: 'opml-active-isolation',
+            attemptCount: 0,
+            leaseOwner: 'opml-active-owner',
+            leaseExpiresAt: now + 10_000,
+        };
+        await expect(
+            repository.markDispatched(opmlMessage, now),
+        ).rejects.toThrow('dispatch lease was lost');
+        await expect(
+            repository.releaseOutbox({
+                message: opmlMessage,
+                now,
+                availableAt: now + 1_000,
+                errorClass: 'queue_unavailable',
+                errorMessage: 'Refresh dispatcher must not release OPML work',
+            }),
+        ).rejects.toThrow('outbox lease was lost');
+        await expect(
+            repository.recordDeadLetter({
+                operationId: opmlMessage.operationId,
+                historyId: 322_501,
+                now,
+                errorClass: 'queue_dead_letter',
+                errorMessage: 'Refresh DLQ must not terminate OPML work',
+            }),
+        ).resolves.toBe(false);
+        await expect(
+            first<{
+                job_state: string;
+                outbox_state: string;
+                lease_owner: string | null;
+                lease_expires_at: number | null;
+            }>(
+                `SELECT j.state AS job_state, o.state AS outbox_state,
+                    o.lease_owner, o.lease_expires_at
+                 FROM jobs j JOIN outbox_messages o ON o.job_id = j.id
+                 WHERE j.id = ?`,
+                [opmlMessage.jobId],
+            ),
+        ).resolves.toEqual({
+            job_state: 'pending',
+            outbox_state: 'leased',
+            lease_owner: opmlMessage.leaseOwner,
+            lease_expires_at: opmlMessage.leaseExpiresAt,
+        });
+        await run(
+            d1.run({
+                sql: `UPDATE jobs SET state = 'canceled', completed_at = ?,
+                        updated_at = ? WHERE id = ?`,
+                bindings: [now, now, refreshJobId],
+            }),
+        );
     });
 
     it('redrives a lost Queue and DLQ delivery with the stable payload and converges duplicates', async () => {
@@ -607,6 +795,120 @@ describe('durable feed refresh jobs', () => {
             `feed-refresh:scheduled:${feedId}:${nextRefreshAt}`,
         ]);
         expect(reserved.operations).not.toContain(initialOperationId);
+    });
+
+    it('recovers stale refresh jobs without touching earlier OPML leases', async () => {
+        const now = 2_100_001_750_000;
+        const feedId = 329_001;
+        const refreshJobId = 329_101;
+        const refreshOperationId = 'refresh-stale-isolation';
+        const opmlRunningJobId = 329_201;
+        const opmlPendingJobId = 329_301;
+
+        await insertFeed(feedId, now);
+        await createJob(feedId, refreshJobId, now, {
+            operationId: refreshOperationId,
+            maxAttempts: 2,
+        });
+        await claim(refreshOperationId, now, 'refresh-stale-owner');
+        await run(
+            d1.batch([
+                {
+                    sql: `INSERT INTO jobs (
+                            id, operation_id, kind, state, payload_json,
+                            attempt_count, max_attempts, available_at,
+                            lease_owner, lease_expires_at, started_at,
+                            created_at, updated_at
+                        ) VALUES (?, ?, ?, 'running', ?, 1, 3, ?, ?, ?, ?, ?, ?)`,
+                    bindings: [
+                        opmlRunningJobId,
+                        'opml-running-stale-isolation',
+                        OPML_IMPORT_JOB_KIND,
+                        JSON.stringify({ itemId: opmlRunningJobId }),
+                        now,
+                        'opml-running-owner',
+                        now + 500,
+                        now,
+                        now,
+                        now,
+                    ],
+                },
+                {
+                    sql: `INSERT INTO jobs (
+                            id, operation_id, kind, state, payload_json,
+                            max_attempts, available_at, created_at, updated_at
+                        ) VALUES (?, ?, ?, 'pending', ?, 3, ?, ?, ?)`,
+                    bindings: [
+                        opmlPendingJobId,
+                        'opml-pending-stale-isolation',
+                        OPML_IMPORT_JOB_KIND,
+                        JSON.stringify({ itemId: opmlPendingJobId }),
+                        now,
+                        now,
+                        now,
+                    ],
+                },
+            ]),
+        );
+
+        const recoveredAt = now + 10_001;
+        await expect(
+            repository.recoverStaleJobLeases(recoveredAt, 1),
+        ).resolves.toBe(1);
+        await expect(
+            first<{
+                state: string;
+                lease_owner: string | null;
+                last_error_class: string | null;
+            }>(
+                `SELECT state, lease_owner, last_error_class
+                 FROM jobs WHERE id = ?`,
+                [refreshJobId],
+            ),
+        ).resolves.toEqual({
+            state: 'failed',
+            lease_owner: null,
+            last_error_class: 'stale_lease',
+        });
+        await expect(
+            run(
+                d1.all<{
+                    id: number;
+                    state: string;
+                    attempt_count: number;
+                    lease_owner: string | null;
+                    lease_expires_at: number | null;
+                    last_error_class: string | null;
+                }>({
+                    sql: `SELECT id, state, attempt_count, lease_owner,
+                            lease_expires_at, last_error_class
+                        FROM jobs
+                        WHERE kind = ? AND id IN (?, ?) ORDER BY id`,
+                    bindings: [
+                        OPML_IMPORT_JOB_KIND,
+                        opmlRunningJobId,
+                        opmlPendingJobId,
+                    ],
+                }),
+            ).then((result) => result.results),
+        ).resolves.toEqual([
+            {
+                id: opmlRunningJobId,
+                state: 'running',
+                attempt_count: 1,
+                lease_owner: 'opml-running-owner',
+                lease_expires_at: now + 500,
+                last_error_class: null,
+            },
+            {
+                id: opmlPendingJobId,
+                state: 'pending',
+                attempt_count: 0,
+                lease_owner: null,
+                lease_expires_at: null,
+                last_error_class: null,
+            },
+        ]);
     });
 
     it('recovers stale job leases conditionally and respects attempt limits', async () => {
