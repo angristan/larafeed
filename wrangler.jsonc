@@ -116,15 +116,15 @@
                 "AUTH_RP_NAME": "Larafeed Test",
                 "AUTH_CHALLENGE_TTL_SECONDS": "300",
                 "AUTH_SESSION_TTL_SECONDS": "2592000",
-                "AI_SUMMARY_ENABLED": "false",
+                "AI_SUMMARY_ENABLED": "true",
                 "AI_GATEWAY_NAME": "larafeed-test",
                 "AI_MODEL": "gemini-2.5-flash",
-                "REFRESH_SCHEDULER_ENABLED": "false",
-                "REFRESH_DISPATCH_ENABLED": "false",
+                "REFRESH_SCHEDULER_ENABLED": "true",
+                "REFRESH_DISPATCH_ENABLED": "true",
                 "REFRESH_DUE_LIMIT": "5",
-                "OPML_IMPORT_ENABLED": "false",
-                "FAVICON_REFRESH_ENABLED": "false",
-                "IMAGES_ENABLED": "false"
+                "OPML_IMPORT_ENABLED": "true",
+                "FAVICON_REFRESH_ENABLED": "true",
+                "IMAGES_ENABLED": "true"
             },
             "routes": [
                 {
