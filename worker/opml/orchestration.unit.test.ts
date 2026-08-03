@@ -11,6 +11,8 @@ const repositoryStub = (overrides: Partial<OpmlRepository>): OpmlRepository =>
         getImport: vi.fn(),
         listExportSubscriptions: vi.fn(),
         leaseOutbox: vi.fn(),
+        markDispatchedBatch: vi.fn(),
+        releaseOutboxBatch: vi.fn(),
         markDispatched: vi.fn(),
         releaseOutbox: vi.fn(),
         claimJob: vi.fn(),
@@ -23,44 +25,53 @@ const repositoryStub = (overrides: Partial<OpmlRepository>): OpmlRepository =>
     }) as OpmlRepository;
 
 describe('OPML orchestration', () => {
-    it('dispatches only the operation ID wire contract', async () => {
-        const send = vi.fn((_message: { readonly operationId: string }) =>
-            Promise.resolve(),
+    it('dispatches only operation IDs for one import in bounded batches', async () => {
+        const leased = Array.from({ length: 105 }, (_, index) => ({
+            id: index + 1,
+            jobId: index + 1_000,
+            operationId: `opml-operation-${index}`,
+            attemptCount: 0,
+            leaseOwner: 'opml-outbox:owner',
+            leaseExpiresAt: 61_000,
+        }));
+        const sendBatch = vi.fn(
+            (_messages: readonly { readonly operationId: string }[]) =>
+                Promise.resolve(),
         );
-        const markDispatched = vi.fn(() => Promise.resolve());
+        const markDispatchedBatch = vi.fn(() => Promise.resolve());
+        const leaseOutbox = vi.fn(() => Promise.resolve(leased));
         const repository = repositoryStub({
-            leaseOutbox: vi.fn(() =>
-                Promise.resolve([
-                    {
-                        id: 1,
-                        jobId: 2,
-                        operationId: 'opml-operation',
-                        attemptCount: 0,
-                        leaseOwner: 'opml-outbox:owner',
-                        leaseExpiresAt: 61_000,
-                    },
-                ]),
-            ),
-            markDispatched,
+            leaseOutbox,
+            markDispatchedBatch,
         });
         const orchestrator = makeOpmlOrchestrator({
             repository,
-            queue: { send },
+            queue: { sendBatch },
             now: () => 1_000,
             generateToken: async () => 'owner',
         });
 
-        await expect(orchestrator.dispatchOutbox(1)).resolves.toEqual({
-            leased: 1,
-            sent: 1,
+        await expect(orchestrator.dispatchOutbox(105, 42)).resolves.toEqual({
+            leased: 105,
+            sent: 105,
             released: 0,
             ambiguous: 0,
         });
-        expect(send).toHaveBeenCalledWith({ operationId: 'opml-operation' });
-        expect(Object.keys(send.mock.calls[0]?.[0] ?? {})).toEqual([
+        expect(leaseOutbox).toHaveBeenCalledWith(
+            expect.objectContaining({ limit: 105, importId: 42 }),
+        );
+        expect(
+            sendBatch.mock.calls.map(([messages]) => messages.length),
+        ).toEqual([50, 50, 5]);
+        expect(sendBatch.mock.calls.flatMap(([messages]) => messages)).toEqual(
+            leased.map((message) => ({
+                operationId: message.operationId,
+            })),
+        );
+        expect(Object.keys(sendBatch.mock.calls[0]?.[0]?.[0] ?? {})).toEqual([
             'operationId',
         ]);
-        expect(markDispatched).toHaveBeenCalledOnce();
+        expect(markDispatchedBatch).toHaveBeenCalledTimes(3);
     });
 
     it('terminally fails a private normalized feed URL', async () => {
@@ -94,7 +105,7 @@ describe('OPML orchestration', () => {
         });
         const orchestrator = makeOpmlOrchestrator({
             repository,
-            queue: { send: async () => undefined },
+            queue: { sendBatch: async () => undefined },
             now: () => 1_000,
         });
 
@@ -143,7 +154,7 @@ describe('OPML orchestration', () => {
         const generatedIds = [10, 11, 12, 13];
         const orchestrator = makeOpmlOrchestrator({
             repository,
-            queue: { send: async () => undefined },
+            queue: { sendBatch: async () => undefined },
             now: () => 1_000,
             generateId: async () => generatedIds.shift() ?? Number.NaN,
             discoverFeed: async () => ({
@@ -217,7 +228,7 @@ describe('OPML orchestration', () => {
         });
         const orchestrator = makeOpmlOrchestrator({
             repository,
-            queue: { send: async () => undefined },
+            queue: { sendBatch: async () => undefined },
             now: () => 1_000,
             discoverFeed: async () =>
                 Promise.reject(
@@ -264,7 +275,7 @@ describe('OPML orchestration', () => {
         });
         const orchestrator = makeOpmlOrchestrator({
             repository,
-            queue: { send: async () => undefined },
+            queue: { sendBatch: async () => undefined },
         });
 
         const document = await orchestrator.exportOpml(1);

@@ -18,6 +18,7 @@ import {
     type DispatchResult,
     MAX_BACKOFF_MS,
     MAX_OUTBOX_BATCH,
+    MAX_QUEUE_SEND_BATCH,
     MAX_RECOVERY_BATCH,
     type OpmlCronResult,
     type OpmlQueueDecision,
@@ -155,7 +156,10 @@ export interface OpmlOrchestrator {
         importId: number,
     ) => Promise<OpmlImportResponse | null>;
     readonly exportOpml: (userId: number) => Promise<string>;
-    readonly dispatchOutbox: (limit?: number) => Promise<DispatchResult>;
+    readonly dispatchOutbox: (
+        limit?: number,
+        importId?: number,
+    ) => Promise<DispatchResult>;
     readonly processQueueMessage: (
         body: unknown,
         owner?: string,
@@ -221,6 +225,7 @@ export const makeOpmlOrchestrator = (
 
     const dispatchOutbox = async (
         requestedLimit = MAX_OUTBOX_BATCH,
+        importId?: number,
     ): Promise<DispatchResult> => {
         const currentTime = now();
         const owner = `opml-outbox:${await generateToken()}`;
@@ -229,41 +234,63 @@ export const makeOpmlOrchestrator = (
             now: currentTime,
             leaseMs: outboxLeaseMs,
             limit: limit(requestedLimit, MAX_OUTBOX_BATCH),
+            importId,
         });
         let sent = 0;
         let released = 0;
         let ambiguous = 0;
-        for (const message of leased) {
+        for (
+            let offset = 0;
+            offset < leased.length;
+            offset += MAX_QUEUE_SEND_BATCH
+        ) {
+            const batch = leased.slice(offset, offset + MAX_QUEUE_SEND_BATCH);
             try {
-                // The operation ID is the complete wire contract. D1 remains
+                // Operation IDs are the complete wire contract. D1 remains
                 // authoritative for user, URL, and category data.
-                await queue.send({ operationId: message.operationId });
+                await queue.sendBatch(
+                    batch.map((message) => ({
+                        operationId: message.operationId,
+                    })),
+                );
             } catch (cause) {
-                await repository.releaseOutbox({
-                    message,
-                    now: currentTime,
-                    availableAt:
-                        currentTime +
-                        opmlRetryBackoffMs(message.attemptCount + 1),
-                    errorClass:
-                        cause instanceof Error
-                            ? cause.name
-                            : 'queue_send_error',
-                    errorMessage:
-                        cause instanceof Error
-                            ? cause.message
-                            : 'Queue send failed',
-                });
-                released += 1;
+                try {
+                    await repository.releaseOutboxBatch({
+                        messages: batch,
+                        now: currentTime,
+                        availableAt:
+                            currentTime +
+                            opmlRetryBackoffMs(
+                                Math.max(
+                                    ...batch.map(
+                                        (message) => message.attemptCount + 1,
+                                    ),
+                                ),
+                            ),
+                        errorClass:
+                            cause instanceof Error
+                                ? cause.name
+                                : 'queue_send_error',
+                        errorMessage:
+                            cause instanceof Error
+                                ? cause.message
+                                : 'Queue batch send failed',
+                    });
+                    released += batch.length;
+                } catch {
+                    // A failed send followed by a failed D1 transition is
+                    // ambiguous. Lease recovery safely retries stable IDs.
+                    ambiguous += batch.length;
+                }
                 continue;
             }
             try {
-                await repository.markDispatched(message, currentTime);
-                sent += 1;
+                await repository.markDispatchedBatch(batch, currentTime);
+                sent += batch.length;
             } catch {
-                // Keep an ambiguous send leased. Lease expiry produces a safe
-                // duplicate with the same idempotent operation ID.
-                ambiguous += 1;
+                // Keep an ambiguous send leased. Lease expiry produces safe
+                // duplicates with the same idempotent operation IDs.
+                ambiguous += batch.length;
             }
         }
         return { leased: leased.length, sent, released, ambiguous };

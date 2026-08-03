@@ -81,7 +81,7 @@
                 "max_batch_timeout": 5,
                 "max_retries": 5,
                 "dead_letter_queue": "larafeed-opml-import-dlq",
-                "max_concurrency": 2
+                "max_concurrency": 1
             },
             {
                 "queue": "larafeed-opml-import-dlq",
@@ -195,7 +195,7 @@
                         "max_batch_timeout": 5,
                         "max_retries": 5,
                         "dead_letter_queue": "larafeed-test-opml-import-dlq",
-                        "max_concurrency": 2
+                        "max_concurrency": 1
                     },
                     {
                         "queue": "larafeed-test-opml-import-dlq",

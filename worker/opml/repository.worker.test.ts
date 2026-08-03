@@ -214,6 +214,116 @@ describe('OPML D1 repository', () => {
         ).resolves.toEqual({ type: 'completed', state: 'succeeded' });
     });
 
+    it('leases one import and marks its outbox batch atomically', async () => {
+        const now = 2_200_000_250_000;
+        const userId = 728_001;
+        const importId = 728_100;
+        await insertUser(userId, now);
+
+        const item = (
+            position: number,
+            idBase: number,
+            operationId: string,
+        ) => ({
+            id: idBase,
+            jobId: idBase + 1,
+            outboxId: idBase + 2,
+            operationId,
+            position,
+            title: `Feed ${position}`,
+            customTitle: null,
+            feedUrl: `https://opml-batch-${position}.example.test/rss`,
+            normalizedFeedUrl: `https://opml-batch-${position}.example.test/rss`,
+            siteUrl: null,
+            categoryPath: [],
+        });
+        await repository.createImport({
+            id: importId,
+            userId,
+            filename: null,
+            maxAttempts: 3,
+            now,
+            items: [
+                item(0, 728_110, 'opml-batch-0'),
+                item(1, 728_120, 'opml-batch-1'),
+            ],
+        });
+        await repository.createImport({
+            id: 728_200,
+            userId,
+            filename: null,
+            maxAttempts: 3,
+            now,
+            items: [item(0, 728_210, 'opml-other-import')],
+        });
+
+        const leased = await repository.leaseOutbox({
+            owner: 'batch-dispatcher',
+            now,
+            leaseMs: 10_000,
+            limit: 10,
+            importId,
+        });
+        expect(leased.map((message) => message.operationId)).toEqual([
+            'opml-batch-0',
+            'opml-batch-1',
+        ]);
+        await repository.markDispatchedBatch(leased, now);
+
+        await expect(
+            scalar(
+                `SELECT COUNT(*) AS value FROM jobs
+                 WHERE operation_id IN ('opml-batch-0', 'opml-batch-1')
+                    AND state = 'queued'`,
+            ),
+        ).resolves.toBe(2);
+        await expect(
+            scalar(
+                `SELECT COUNT(*) AS value FROM outbox_messages o
+                 JOIN jobs j ON j.id = o.job_id
+                 WHERE j.operation_id IN ('opml-batch-0', 'opml-batch-1')
+                    AND o.state = 'sent'`,
+            ),
+        ).resolves.toBe(2);
+        await expect(
+            first<{ job_state: string; outbox_state: string }>(
+                `SELECT j.state AS job_state, o.state AS outbox_state
+                 FROM jobs j JOIN outbox_messages o ON o.job_id = j.id
+                 WHERE j.operation_id = 'opml-other-import'`,
+            ),
+        ).resolves.toEqual({ job_state: 'pending', outbox_state: 'pending' });
+
+        const failedBatch = await repository.leaseOutbox({
+            owner: 'failed-batch-dispatcher',
+            now,
+            leaseMs: 10_000,
+            limit: 10,
+            importId: 728_200,
+        });
+        await repository.releaseOutboxBatch({
+            messages: failedBatch,
+            now,
+            availableAt: now + 30_000,
+            errorClass: 'queue_error',
+            errorMessage: 'Queue batch failed',
+        });
+        await expect(
+            first<{ state: string; attempt_count: number }>(
+                `SELECT o.state, o.attempt_count FROM outbox_messages o
+                 JOIN jobs j ON j.id = o.job_id
+                 WHERE j.operation_id = 'opml-other-import'`,
+            ),
+        ).resolves.toEqual({ state: 'pending', attempt_count: 1 });
+        const retryBatch = await repository.leaseOutbox({
+            owner: 'retry-batch-dispatcher',
+            now: now + 30_000,
+            leaseMs: 10_000,
+            limit: 10,
+            importId: 728_200,
+        });
+        await repository.markDispatchedBatch(retryBatch, now + 30_000);
+    });
+
     it('creates no duplicate refresh work for retried items or shared feeds', async () => {
         const now = 2_200_000_500_000;
         const firstUserId = 719_001;

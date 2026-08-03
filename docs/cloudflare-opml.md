@@ -6,7 +6,8 @@ Larafeed imports OPML asynchronously. D1 owns import progress and command state.
 Authenticated JSON upload
   -> parse and deduplicate at most 500 feeds
   -> D1 import + item + job + outbox rows
-  -> OPML Queue { operationId }
+  -> immediately enqueue all operation IDs in batches of at most 50
+  -> one OPML Queue consumer processes feeds sequentially
   -> create or reuse feed/category/subscription
   -> atomically create initial feed-refresh job + outbox work when needed
   -> exact D1 progress counters
@@ -38,7 +39,9 @@ An OPML consumer does not ingest discovered entries from memory. In the same D1 
 
 Each feed has one D1 job and one outbox row with topic `opml_import_feed`. Queue messages contain only `{ operationId }`; user IDs, URLs, and category data remain in D1.
 
-- Queue batches contain at most 10 items with consumer concurrency capped at 2.
+- The producer immediately sends all accepted items in batches of at most 50. D1 leases and state transitions remain bounded to the same batch.
+- Consumer batches contain at most 10 items. One consumer invocation processes them sequentially, so only one feed is discovered at a time.
+- OPML cron remains a recovery path for failed or ambiguous Queue sends; normal imports do not wait for Cron dispatch.
 - Item jobs have five attempts, conditional leases, exponential backoff, and a six-hour delay cap.
 - Outbox dispatch has ten attempts. Ambiguous sends remain leased and can safely produce duplicate delivery after expiry.
 - The DLQ records authoritative item and import terminal state before acknowledging.

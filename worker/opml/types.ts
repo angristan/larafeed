@@ -10,7 +10,8 @@ export const MAX_CUSTOM_TITLE_LENGTH = 255;
 export const MAX_FLATTENED_CATEGORY_LENGTH = 255;
 export const MAX_IMPORT_ERRORS = 20;
 export const MAX_RECENT_IMPORTS = 20;
-export const MAX_OUTBOX_BATCH = 50;
+export const MAX_OUTBOX_BATCH = MAX_OPML_FEEDS;
+export const MAX_QUEUE_SEND_BATCH = 50;
 export const MAX_RECOVERY_BATCH = 50;
 export const MAX_OUTBOX_ATTEMPTS = 10;
 export const DEFAULT_ITEM_MAX_ATTEMPTS = 5;
@@ -57,7 +58,9 @@ export interface OpmlQueueMessage {
 }
 
 export interface OpmlQueueSender {
-    readonly send: (message: OpmlQueueMessage) => Promise<void>;
+    readonly sendBatch: (
+        messages: readonly OpmlQueueMessage[],
+    ) => Promise<void>;
 }
 
 export interface LeasedOpmlOutboxMessage {

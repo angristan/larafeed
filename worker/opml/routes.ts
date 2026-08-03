@@ -41,19 +41,26 @@ export interface OpmlRouteDependencies {
 }
 
 const queueFromEnv = (env: Env): OpmlQueueSender => ({
-    send: async (message: OpmlQueueMessage) => {
+    sendBatch: async (messages: readonly OpmlQueueMessage[]) => {
+        if (messages.length === 0) return;
         const binding: unknown = Reflect.get(env, 'OPML_IMPORT_QUEUE');
         if (
             typeof binding !== 'object' ||
             binding === null ||
-            typeof Reflect.get(binding, 'send') !== 'function'
+            typeof Reflect.get(binding, 'sendBatch') !== 'function'
         ) {
             throw new Error('OPML_IMPORT_QUEUE binding is unavailable');
         }
-        const send = Reflect.get(binding, 'send') as (
-            body: OpmlQueueMessage,
+        const sendBatch = Reflect.get(binding, 'sendBatch') as (
+            requests: readonly {
+                readonly body: OpmlQueueMessage;
+                readonly contentType: 'json';
+            }[],
         ) => Promise<void>;
-        await send.call(binding, message);
+        await sendBatch.call(
+            binding,
+            messages.map((body) => ({ body, contentType: 'json' as const })),
+        );
     },
 });
 
@@ -309,7 +316,8 @@ export const registerOpmlRoutes = (
                         : Effect.tryPromise({
                               try: () =>
                                   value.orchestrator.dispatchOutbox(
-                                      Math.min(10, response.totalItems),
+                                      response.totalItems,
+                                      response.id,
                                   ),
                               catch: (cause) => cause,
                           }).pipe(Effect.catchCause(() => Effect.void)),

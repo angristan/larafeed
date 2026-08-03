@@ -21,6 +21,7 @@ import {
     MAX_IMPORT_ERRORS,
     MAX_OUTBOX_ATTEMPTS,
     MAX_OUTBOX_BATCH,
+    MAX_QUEUE_SEND_BATCH,
     MAX_RECENT_IMPORTS,
     MAX_RECOVERY_BATCH,
     OPML_IMPORT_JOB_KIND,
@@ -240,7 +241,19 @@ export interface OpmlRepository {
         readonly now: number;
         readonly leaseMs: number;
         readonly limit: number;
+        readonly importId?: number;
     }) => Promise<readonly LeasedOpmlOutboxMessage[]>;
+    readonly markDispatchedBatch: (
+        messages: readonly LeasedOpmlOutboxMessage[],
+        now: number,
+    ) => Promise<void>;
+    readonly releaseOutboxBatch: (input: {
+        readonly messages: readonly LeasedOpmlOutboxMessage[];
+        readonly now: number;
+        readonly availableAt: number;
+        readonly errorClass: string;
+        readonly errorMessage: string;
+    }) => Promise<void>;
     readonly markDispatched: (
         message: LeasedOpmlOutboxMessage,
         now: number,
@@ -577,6 +590,10 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
     async leaseOutbox(input) {
         const operation = 'opml.leaseOutbox';
         const limit = boundedLimit(input.limit, MAX_OUTBOX_BATCH);
+        const importId = input.importId ?? null;
+        if (importId !== null && !isSafeId(importId)) {
+            throw new OpmlInvariantError(operation, 'invalid import ID');
+        }
         const leaseExpiresAt = input.now + Math.max(1, input.leaseMs);
         const results = await run(
             operation,
@@ -589,6 +606,7 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                         JOIN opml_import_items i ON i.job_id = j.id
                         JOIN opml_imports p ON p.id = i.import_id
                         WHERE o.topic = ? AND j.kind = ? AND p.state = 'processing'
+                            AND (? IS NULL OR p.id = ?)
                             AND o.state = 'leased' AND o.lease_expires_at <= ?
                         ORDER BY o.lease_expires_at, o.id LIMIT ?)`,
                     bindings: [
@@ -596,6 +614,8 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                         input.now,
                         OPML_IMPORT_TOPIC,
                         OPML_IMPORT_JOB_KIND,
+                        importId,
+                        importId,
                         input.now,
                         limit,
                     ],
@@ -607,6 +627,7 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                         JOIN opml_import_items i ON i.job_id = j.id
                         JOIN opml_imports p ON p.id = i.import_id
                         WHERE o.topic = ? AND j.kind = ? AND p.state = 'processing'
+                            AND (? IS NULL OR p.id = ?)
                             AND o.state = 'pending' AND o.available_at <= ?
                         ORDER BY o.available_at, o.id LIMIT ?)
                     RETURNING id, job_id, payload_json, attempt_count, lease_owner, lease_expires_at`,
@@ -616,6 +637,8 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                         input.now,
                         OPML_IMPORT_TOPIC,
                         OPML_IMPORT_JOB_KIND,
+                        importId,
+                        importId,
                         input.now,
                         limit,
                     ],
@@ -637,6 +660,166 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
             leaseOwner: row.lease_owner,
             leaseExpiresAt: row.lease_expires_at,
         }));
+    },
+
+    async markDispatchedBatch(messages, now) {
+        if (messages.length === 0) return;
+        const operation = 'opml.markDispatchedBatch';
+        const owner = messages[0]?.leaseOwner;
+        const ids = messages.map((message) => message.id);
+        if (
+            owner === undefined ||
+            messages.length > MAX_QUEUE_SEND_BATCH ||
+            new Set(ids).size !== ids.length ||
+            messages.some(
+                (message) =>
+                    !isSafeId(message.id) ||
+                    !isSafeId(message.jobId) ||
+                    message.leaseOwner !== owner ||
+                    message.leaseExpiresAt < now,
+            )
+        ) {
+            throw new OpmlInvariantError(operation, 'invalid dispatch batch');
+        }
+        const placeholders = ids.map(() => '?').join(', ');
+        const leasedJobIds = `SELECT job_id FROM outbox_messages
+            WHERE id IN (${placeholders}) AND topic = ? AND state = 'leased'
+                AND lease_owner = ? AND lease_expires_at >= ?`;
+        const results = await run(
+            operation,
+            d1.batch([
+                {
+                    sql: `UPDATE jobs SET state = 'queued', updated_at = ?
+                        WHERE kind = ? AND state IN ('pending', 'failed')
+                            AND id IN (${leasedJobIds})`,
+                    bindings: [
+                        now,
+                        OPML_IMPORT_JOB_KIND,
+                        ...ids,
+                        OPML_IMPORT_TOPIC,
+                        owner,
+                        now,
+                    ],
+                },
+                {
+                    sql: `UPDATE opml_import_items SET state = 'queued', updated_at = ?
+                        WHERE state IN ('pending', 'failed') AND completed_at IS NULL
+                            AND job_id IN (${leasedJobIds})`,
+                    bindings: [now, ...ids, OPML_IMPORT_TOPIC, owner, now],
+                },
+                {
+                    sql: `UPDATE outbox_messages SET state = 'sent', sent_at = ?,
+                            lease_owner = NULL, lease_expires_at = NULL, updated_at = ?
+                        WHERE id IN (${placeholders}) AND topic = ? AND state = 'leased'
+                            AND lease_owner = ? AND lease_expires_at >= ?`,
+                    bindings: [now, now, ...ids, OPML_IMPORT_TOPIC, owner, now],
+                },
+            ]),
+        );
+        if (
+            changes(operation, results[0]) > messages.length ||
+            changes(operation, results[1]) > messages.length ||
+            changes(operation, results[2]) !== messages.length
+        ) {
+            throw new OpmlInvariantError(operation, 'dispatch lease lost');
+        }
+    },
+
+    async releaseOutboxBatch(input) {
+        if (input.messages.length === 0) return;
+        const operation = 'opml.releaseOutboxBatch';
+        const owner = input.messages[0]?.leaseOwner;
+        const ids = input.messages.map((message) => message.id);
+        if (
+            owner === undefined ||
+            input.messages.length > MAX_QUEUE_SEND_BATCH ||
+            new Set(ids).size !== ids.length ||
+            input.messages.some(
+                (message) =>
+                    !isSafeId(message.id) ||
+                    !isSafeId(message.jobId) ||
+                    message.leaseOwner !== owner ||
+                    message.leaseExpiresAt < input.now,
+            )
+        ) {
+            throw new OpmlInvariantError(operation, 'invalid release batch');
+        }
+        const klass = boundedText(input.errorClass, MAX_ERROR_CLASS_LENGTH);
+        const message = boundedText(
+            input.errorMessage,
+            MAX_ERROR_MESSAGE_LENGTH,
+        );
+        const placeholders = ids.map(() => '?').join(', ');
+        const results = await run(
+            operation,
+            d1.batch([
+                {
+                    sql: `UPDATE outbox_messages SET
+                            state = CASE WHEN attempt_count + 1 >= ? THEN 'dead_lettered' ELSE 'pending' END,
+                            attempt_count = attempt_count + 1, available_at = ?, lease_owner = NULL,
+                            lease_expires_at = NULL, last_error_class = ?, last_error_message = ?, updated_at = ?
+                        WHERE id IN (${placeholders}) AND topic = ? AND state = 'leased'
+                            AND lease_owner = ? AND lease_expires_at >= ?`,
+                    bindings: [
+                        MAX_OUTBOX_ATTEMPTS,
+                        Math.max(input.now, input.availableAt),
+                        klass,
+                        message,
+                        input.now,
+                        ...ids,
+                        OPML_IMPORT_TOPIC,
+                        owner,
+                        input.now,
+                    ],
+                },
+                {
+                    sql: `UPDATE jobs SET state = 'dead_lettered', completed_at = ?,
+                            last_error_class = ?, last_error_message = ?, updated_at = ?
+                        WHERE kind = ?
+                            AND state NOT IN ('succeeded', 'dead_lettered', 'canceled')
+                            AND id IN (SELECT job_id FROM outbox_messages
+                                WHERE id IN (${placeholders}) AND state = 'dead_lettered')`,
+                    bindings: [
+                        input.now,
+                        klass,
+                        message,
+                        input.now,
+                        OPML_IMPORT_JOB_KIND,
+                        ...ids,
+                    ],
+                },
+                {
+                    sql: `UPDATE opml_import_items SET state = 'failed', completed_at = ?,
+                            error_class = ?, error_message = ?, updated_at = ?
+                        WHERE completed_at IS NULL
+                            AND job_id IN (SELECT job_id FROM outbox_messages
+                                WHERE id IN (${placeholders}) AND state = 'dead_lettered')`,
+                    bindings: [input.now, klass, message, input.now, ...ids],
+                },
+                {
+                    sql: `UPDATE opml_imports SET
+                            succeeded_items = (SELECT COUNT(*) FROM opml_import_items WHERE import_id = opml_imports.id AND state = 'succeeded' AND completed_at IS NOT NULL),
+                            failed_items = (SELECT COUNT(*) FROM opml_import_items WHERE import_id = opml_imports.id AND state = 'failed' AND completed_at IS NOT NULL),
+                            skipped_items = (SELECT COUNT(*) FROM opml_import_items WHERE import_id = opml_imports.id AND state = 'skipped' AND completed_at IS NOT NULL),
+                            state = CASE WHEN total_items = (SELECT COUNT(*) FROM opml_import_items WHERE import_id = opml_imports.id AND completed_at IS NOT NULL) THEN 'completed' ELSE state END,
+                            completed_at = CASE WHEN total_items = (SELECT COUNT(*) FROM opml_import_items WHERE import_id = opml_imports.id AND completed_at IS NOT NULL) THEN ? ELSE completed_at END,
+                            updated_at = ?
+                        WHERE id IN (SELECT DISTINCT i.import_id FROM opml_import_items i
+                            JOIN outbox_messages o ON o.job_id = i.job_id
+                            WHERE o.id IN (${placeholders}))
+                            AND state IN ('pending', 'processing')`,
+                    bindings: [input.now, input.now, ...ids],
+                },
+            ]),
+        );
+        if (
+            changes(operation, results[0]) !== input.messages.length ||
+            changes(operation, results[1]) > input.messages.length ||
+            changes(operation, results[2]) > input.messages.length ||
+            changes(operation, results[3]) > input.messages.length
+        ) {
+            throw new OpmlInvariantError(operation, 'outbox lease lost');
+        }
     },
 
     async markDispatched(message, now) {

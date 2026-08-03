@@ -37,7 +37,7 @@ const response = {
     id: 10,
     state: 'processing' as const,
     filename: 'feeds.opml',
-    totalItems: 1,
+    totalItems: 200,
     succeededItems: 0,
     failedItems: 0,
     skippedItems: 0,
@@ -190,7 +190,7 @@ describe('OPML routes', () => {
             expect.stringContaining('<opml>'),
             'feeds.opml',
         );
-        expect(dispatchOutbox).toHaveBeenCalledWith(1);
+        expect(dispatchOutbox).toHaveBeenCalledWith(200, response.id);
     });
 
     it('exports with the legacy feeds.opml filename', async () => {

@@ -77,8 +77,7 @@ The isolated test environment is provisioned:
 - D1: `larafeed-test` in Western Europe.
 - Dedicated feed refresh, feed DLQ, OPML import, and OPML DLQ queues.
 - A hostname-bound managed Turnstile widget and separate Worker secrets.
-- AI summaries, refresh scheduling, Queue dispatch, OPML imports, favicon refresh,
-  and Images disabled for the initial rollout.
+- Refresh scheduling, Queue dispatch, OPML imports, favicon refresh, and Images are enabled for the current isolated test rollout. AI summaries remain disabled until dedicated test Gateway credentials and provider cost controls are configured.
 
 Wrangler owns the Worker custom domain and its DNS record. Deploy the test environment only after explicit approval:
 
