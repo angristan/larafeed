@@ -186,7 +186,7 @@ describe('feed image routes', () => {
         expect(response.status).toBe(200);
         expect(response.headers.get('content-type')).toBe('image/webp');
         expect(response.headers.get('cache-control')).toBe('private, no-store');
-        expect(rateLimit).toHaveBeenCalledWith('image:7:21:medium');
+        expect(rateLimit).toHaveBeenCalledWith('image:7');
         expect(transformFeedImage).toHaveBeenCalledWith({
             sourceUrl: 'https://images.example.test/icon.png',
             preset: 'medium',
@@ -257,7 +257,7 @@ describe('feed image routes', () => {
         }
     });
 
-    it('rate limits by user, feed, and preset before source lookup', async () => {
+    it('rate limits all feed images by user before source lookup', async () => {
         const findOwnedFeedSource = vi.fn(() =>
             Effect.succeed({ faviconUrl: 'https://images.example.test/a.png' }),
         );

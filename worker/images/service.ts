@@ -3,12 +3,14 @@ import { validateFeedUrl } from '../feeds/policy';
 export const IMAGE_FETCH_TIMEOUT_MS = 5_000;
 export const MAX_IMAGE_RESPONSE_BYTES = 2 * 1024 * 1024;
 export const MAX_IMAGE_REDIRECTS = 3;
+export const IMAGE_CACHE_TTL_SECONDS = 6 * 60 * 60;
 
 export type FeedImagePreset = 'small' | 'medium';
 
 type AutoImageFormat = 'image/avif' | 'image/webp' | 'image/png';
 
 interface FixedImagePreset {
+    readonly cacheKey: string;
     readonly transform: Readonly<ImageTransform>;
     readonly quality: number;
 }
@@ -17,15 +19,18 @@ export const IMAGE_PRESETS: Readonly<
     Record<FeedImagePreset, FixedImagePreset>
 > = {
     small: {
+        cacheKey: 'feed-small-v1',
         transform: { width: 32, height: 32, fit: 'cover' },
         quality: 80,
     },
     medium: {
+        cacheKey: 'feed-medium-v1',
         transform: { width: 64, height: 64, fit: 'cover' },
         quality: 80,
     },
 };
 export const ARTICLE_IMAGE_PRESET: FixedImagePreset = {
+    cacheKey: 'article-v1',
     transform: { width: 1_600, fit: 'scale-down' },
     quality: 85,
 };
@@ -39,6 +44,10 @@ const IMAGE_ACCEPT =
 export interface ImageServiceDependencies {
     readonly images: ImagesBinding;
     readonly fetch?: typeof globalThis.fetch;
+    /** Cloudflare Cache API. Entries remain inaccessible until route authorization succeeds. */
+    readonly cache?: Cache;
+    /** Application origin used only for opaque internal Cache API keys. */
+    readonly cacheOrigin?: string;
 }
 
 export interface TransformFeedImageInput {
@@ -189,14 +198,116 @@ export const fetchImageBytes = async (
     }
 };
 
+const hexDigest = (bytes: ArrayBuffer): string =>
+    Array.from(new Uint8Array(bytes), (byte) =>
+        byte.toString(16).padStart(2, '0'),
+    ).join('');
+
+const imageCacheRequest = async (
+    dependencies: ImageServiceDependencies,
+    sourceUrl: string,
+    preset: FixedImagePreset,
+    format: AutoImageFormat,
+): Promise<Request | null> => {
+    if (
+        dependencies.cache === undefined ||
+        dependencies.cacheOrigin === undefined
+    ) {
+        return null;
+    }
+
+    try {
+        const digest = hexDigest(
+            await crypto.subtle.digest(
+                'SHA-256',
+                new TextEncoder().encode(sourceUrl),
+            ),
+        );
+        const key = new URL(
+            `/__larafeed-image-cache/${preset.cacheKey}/${format.slice('image/'.length)}/${digest}`,
+            dependencies.cacheOrigin,
+        );
+        return new Request(key, { method: 'GET' });
+    } catch {
+        return null;
+    }
+};
+
+const cachedImage = async (
+    cache: Cache,
+    request: Request,
+    format: AutoImageFormat,
+): Promise<Response | null> => {
+    try {
+        const response = await cache.match(request);
+        if (response === undefined) return null;
+        if (response.body === null || imageMime(response) !== format) {
+            await response.body?.cancel();
+            return null;
+        }
+        return new Response(response.body, {
+            status: 200,
+            headers: { 'content-type': format },
+        });
+    } catch {
+        return null;
+    }
+};
+
+const storeCachedImage = async (
+    cache: Cache,
+    request: Request,
+    response: Response,
+    format: AutoImageFormat,
+): Promise<void> => {
+    try {
+        const copy = response.clone();
+        await cache.put(
+            request,
+            new Response(copy.body, {
+                status: 200,
+                headers: {
+                    'cache-control': `max-age=${IMAGE_CACHE_TTL_SECONDS}`,
+                    'content-type': format,
+                },
+            }),
+        );
+    } catch {
+        // Cache availability must not turn a valid transform into a failure.
+    }
+};
+
 const transformImage = async (
     dependencies: ImageServiceDependencies,
     input: TransformArticleImageInput,
     preset: FixedImagePreset,
 ): Promise<Response> => {
     try {
+        let sourceUrl: string;
+        try {
+            sourceUrl = validateFeedUrl(input.sourceUrl).href;
+        } catch {
+            throw unavailable();
+        }
+
+        const format = autoFormat(input.accept);
+        const cacheRequest = await imageCacheRequest(
+            dependencies,
+            sourceUrl,
+            preset,
+            format,
+        );
+        if (cacheRequest !== null && dependencies.cache !== undefined) {
+            const cached = await cachedImage(
+                dependencies.cache,
+                cacheRequest,
+                format,
+            );
+            if (cached !== null) return cached;
+        }
+
         const source = await fetchImageBytes(
-            input.sourceUrl,
+            sourceUrl,
             dependencies.fetch ?? globalThis.fetch.bind(globalThis),
         );
         const sourceBuffer = new ArrayBuffer(source.byteLength);
@@ -208,12 +319,26 @@ const transformImage = async (
             .input(sourceStream)
             .transform(preset.transform)
             .output({
-                format: autoFormat(input.accept),
+                format,
                 quality: preset.quality,
                 anim: false,
             });
         const response = output.response();
-        if (response.body === null) throw unavailable();
+        if (
+            !response.ok ||
+            response.body === null ||
+            imageMime(response) !== format
+        ) {
+            throw unavailable();
+        }
+        if (cacheRequest !== null && dependencies.cache !== undefined) {
+            await storeCachedImage(
+                dependencies.cache,
+                cacheRequest,
+                response,
+                format,
+            );
+        }
         return response;
     } catch (cause) {
         throw cause instanceof FeedImageUnavailable ? cause : unavailable();

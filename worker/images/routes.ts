@@ -54,6 +54,8 @@ export interface ImageRouteDependencies {
 export const imagesEnabled = (env: Pick<Env, 'IMAGES_ENABLED'>): boolean =>
     env.IMAGES_ENABLED === 'true';
 
+export const imageRateLimitKey = (userId: number): string => `image:${userId}`;
+
 export const defaultImageRuntimeFactory: ImageRuntimeFactory = (env) =>
     defaultAuthRuntimeFactory(env).pipe(
         Effect.flatMap((auth) =>
@@ -69,7 +71,15 @@ export const defaultImageRuntimeFactory: ImageRuntimeFactory = (env) =>
                     return {
                         auth,
                         repository: makeImageRepository(makeD1(env.DB)),
-                        service: makeImageService({ images }),
+                        service: makeImageService({
+                            images,
+                            cache: (
+                                caches as CacheStorage & {
+                                    readonly default: Cache;
+                                }
+                            ).default,
+                            cacheOrigin: auth.config.origin,
+                        }),
                         rateLimit: (key: string) =>
                             env.AUTH_RATE_LIMITER.limit({ key }),
                     };
@@ -182,7 +192,7 @@ export const registerImageRoutes = (
         let rateLimit: { readonly success: boolean };
         try {
             rateLimit = await runtime.rateLimit(
-                `image:${session.user.id}:${feedId}:${preset}`,
+                imageRateLimitKey(session.user.id),
             );
         } catch {
             return jsonError(503, 'service_unavailable', 'Service unavailable');
@@ -256,7 +266,7 @@ export const registerImageRoutes = (
         let rateLimit: { readonly success: boolean };
         try {
             rateLimit = await runtime.rateLimit(
-                `article-image:${session.user.id}:${entryId}:${imageIndex}`,
+                imageRateLimitKey(session.user.id),
             );
         } catch {
             return jsonError(503, 'service_unavailable', 'Service unavailable');

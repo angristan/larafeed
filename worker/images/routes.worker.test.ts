@@ -84,7 +84,7 @@ describe('article image route', () => {
             sourceUrl: 'https://publisher.example.test/second.png',
             accept: 'image/webp,*/*',
         });
-        expect(runtime.rateLimit).toHaveBeenCalledWith('article-image:7:41:2');
+        expect(runtime.rateLimit).toHaveBeenCalledWith('image:7');
     });
 
     it('rejects unowned entries and arbitrary source input', async () => {

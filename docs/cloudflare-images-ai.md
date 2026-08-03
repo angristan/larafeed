@@ -22,7 +22,11 @@ Two fixed Cloudflare Images presets exist:
 | `small` | 32 × 32, cover, quality 80 |
 | `medium` | 64 × 64, cover, quality 80 |
 
-Each fetch validates the source and every redirect with the feed SSRF policy. It permits at most three redirects, five seconds, and 2 MiB. It rejects non-image responses and SVG. Missing or failed sources return a fixed transparent PNG without source details. Responses are private and `no-store`; route-specific rate limits bound transformations.
+Each fetch validates the source and every redirect with the feed SSRF policy. It permits at most three redirects, five seconds, and 2 MiB. It rejects non-image responses and SVG. Missing or failed sources return a fixed transparent PNG without source details.
+
+Every image request authenticates first. Feed and article routes then share one `image:{userId}` rate-limit key, so changing feed IDs, presets, entry IDs, or image indexes cannot multiply the user's transformation budget. Ownership is still checked for the requested feed or entry before any cached bytes or origin source are used.
+
+Successful transforms use Cloudflare's Cache API for six hours. The internal key contains only the application origin, fixed preset and output format, and a SHA-256 digest of the server-owned source URL. It never contains the source origin, path, query, or credentials. Cache lookup happens only after authentication, ownership, and server-side source resolution. Client responses remain `private, no-store`, and internal cache headers are not forwarded, so authenticated images do not enter a public browser or shared HTTP cache. A source URL or preset change selects a new internal entry; expiration bounds staleness when bytes change at the same URL.
 
 Wrangler declares the `IMAGES` binding. It stores no images in Cloudflare Images and creates no variants or hosted assets.
 
