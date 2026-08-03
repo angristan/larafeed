@@ -87,6 +87,18 @@ const errorResponse = (error: unknown): Response => {
                 return ['not_found', 'Not found', 404] as const;
             case 'RefreshRouteRateLimited':
                 return ['rate_limited', 'Too many requests', 429] as const;
+            case 'ManualRefreshCooldownError':
+                return [
+                    'rate_limited',
+                    'This feed was refreshed less than five minutes ago',
+                    429,
+                ] as const;
+            case 'RefreshAlreadyActiveError':
+                return [
+                    'conflict',
+                    'A refresh is already active for this feed',
+                    409,
+                ] as const;
             case 'RefreshRouteUnavailable':
             case 'JobStorageError':
             case 'AuthStorageError':
@@ -111,11 +123,32 @@ const errorResponse = (error: unknown): Response => {
     })();
 
     try {
+        const retryAtValue =
+            typeof error === 'object' && error !== null
+                ? Reflect.get(error, 'retryAt')
+                : undefined;
+        const retryAt =
+            tag(error) === 'ManualRefreshCooldownError' &&
+            typeof retryAtValue === 'number'
+                ? retryAtValue
+                : undefined;
+        const headers =
+            retryAt === undefined
+                ? NO_STORE_HEADERS
+                : {
+                      ...NO_STORE_HEADERS,
+                      'retry-after': String(
+                          Math.max(
+                              1,
+                              Math.ceil((retryAt - Date.now()) / 1_000),
+                          ),
+                      ),
+                  };
         return Response.json(
             Schema.encodeUnknownSync(ApiErrorResponse)(
                 ApiErrorResponse.make({ error: { code, message } }),
             ),
-            { status, headers: NO_STORE_HEADERS },
+            { status, headers },
         );
     } catch {
         return new Response(
@@ -291,7 +324,7 @@ export const registerRefreshRoutes = (
                 Effect.bind('command', ({ runtime, feedId, operationId }) =>
                     Effect.tryPromise({
                         try: () =>
-                            runtime.refresh.orchestrator.createManualRefresh(
+                            runtime.refresh.orchestrator.requestManualRefresh(
                                 feedId,
                                 operationId,
                             ),

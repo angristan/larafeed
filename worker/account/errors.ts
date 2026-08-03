@@ -24,6 +24,11 @@ export class AccountForbidden extends Schema.TaggedErrorClass<AccountForbidden>(
     {},
 ) {}
 
+export class AccountFreshAuthenticationRequired extends Schema.TaggedErrorClass<AccountFreshAuthenticationRequired>()(
+    'AccountFreshAuthenticationRequired',
+    {},
+) {}
+
 export class AccountStorageError extends Schema.TaggedErrorClass<AccountStorageError>()(
     'AccountStorageError',
     { operation: Schema.String, cause: Schema.Defect() },

@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import {
     FeedCategoryFields,
     FilterRuleSection,
+    feedMarkedReadNotification,
     ReaderSidebar,
 } from './ReaderSidebar';
 
@@ -79,6 +80,15 @@ describe('ReaderSidebar', () => {
         expect(markup).toContain('aria-label="Manage Cloudflare Blog"');
         expect(markup).toContain('aria-label="Collapse Technology feeds"');
         expect(markup).not.toContain('Reader app tokens');
+    });
+
+    it('builds success feedback for feed read-through', () => {
+        expect(feedMarkedReadNotification('Cloudflare Blog')).toEqual({
+            title: 'Feed marked as read',
+            message: 'Cloudflare Blog was marked as read',
+            color: 'green',
+            withBorder: true,
+        });
     });
 
     it('renders the legacy filter rule editor controls', () => {

@@ -9,6 +9,7 @@ import {
     SummaryNotFound,
 } from './errors';
 import { makeSummaryRepository } from './repository';
+import { makeSummaryService, SUMMARY_EMPTY_CONTENT_HTML } from './service';
 
 const d1 = makeD1(env.DB);
 const repository = makeSummaryRepository(d1);
@@ -155,6 +156,9 @@ describe('summary D1 repository', () => {
         );
         expect(summary).toMatchObject({ id: 95_001, entryId });
         await expect(
+            Effect.runPromise(repository.findOwnedEntry(userId, entryId)),
+        ).resolves.toMatchObject({ summary });
+        await expect(
             Effect.runPromise(
                 repository.findOwnedEntry(userId, entryId, {
                     ...key,
@@ -162,6 +166,65 @@ describe('summary D1 repository', () => {
                 }),
             ),
         ).resolves.toMatchObject({ summary: null });
+    });
+
+    it('persists the empty-content explanation without provider work', async () => {
+        const userId = 121_001;
+        const otherUserId = 121_002;
+        const feedId = 122_001;
+        const categoryId = 123_001;
+        const entryId = 124_001;
+        await Effect.runPromise(
+            fixture(userId, otherUserId, feedId, categoryId, entryId).pipe(
+                Effect.andThen(
+                    d1.batch([
+                        {
+                            sql: 'DELETE FROM entry_contents WHERE entry_id = ?',
+                            bindings: [entryId],
+                        },
+                        {
+                            sql: `UPDATE entries SET content_status = 'empty',
+                                updated_at = ? WHERE id = ?`,
+                            bindings: [now + 1, entryId],
+                        },
+                    ]),
+                ),
+            ),
+        );
+
+        let providerCalls = 0;
+        const service = makeSummaryService({
+            config: {
+                enabled: true,
+                accountId: '0123456789abcdef0123456789abcdef',
+                gatewayName: 'larafeed-ai',
+                model: key.model,
+                promptVersion: 'entry-summary-v1',
+                apiKey: 'secret',
+            },
+            repository,
+            provider: {
+                generate: () => {
+                    providerCalls += 1;
+                    return Effect.succeed('<p>Unused.</p>');
+                },
+            },
+            now: () => now + 2,
+            generateId: () => Effect.succeed(125_001),
+        });
+
+        await expect(
+            Effect.runPromise(service.generate(userId, entryId)),
+        ).resolves.toMatchObject({
+            summary: { html: SUMMARY_EMPTY_CONTENT_HTML },
+        });
+        expect(providerCalls).toBe(0);
+        await expect(
+            Effect.runPromise(repository.findOwnedEntry(userId, entryId)),
+        ).resolves.toMatchObject({
+            contentHtml: null,
+            summary: { html: SUMMARY_EMPTY_CONTENT_HTML },
+        });
     });
 
     it('grants one durable generation lease for concurrent cache misses', async () => {

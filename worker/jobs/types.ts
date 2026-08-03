@@ -13,9 +13,12 @@ export const DEFAULT_JOB_LEASE_MS = 5 * 60_000;
 export const DEFAULT_OUTBOX_LEASE_MS = 60_000;
 export const DEFAULT_REFRESH_INTERVAL_MS = 15 * 60_000;
 export const DEFAULT_REFRESH_REDRIVE_AGE_MS = 15 * 60_000;
+export const MANUAL_REFRESH_COOLDOWN_MS = 5 * 60_000;
 export const MAX_BACKOFF_MS = 6 * 60 * 60_000;
 export const FEED_REFRESH_RETENTION_MS = 90 * 24 * 60 * 60_000;
+export const TERMINAL_JOB_RETENTION_MS = 7 * 24 * 60 * 60_000;
 export const MAX_HISTORY_CLEANUP = 500;
+export const MAX_TERMINAL_JOB_CLEANUP = 500;
 
 export interface RefreshQueueMessage {
     readonly operationId: string;
@@ -51,7 +54,17 @@ export interface CreateRefreshJobInput {
     readonly trigger: RefreshTrigger;
     readonly maxAttempts: number;
     readonly now: number;
+    readonly manualCooldownMs?: number;
 }
+
+export type CreateRefreshJobResult =
+    | {
+          readonly type: 'created' | 'idempotent';
+          readonly job: RefreshJob;
+      }
+    | { readonly type: 'active'; readonly job: RefreshJob }
+    | { readonly type: 'cooldown'; readonly retryAt: number }
+    | { readonly type: 'gone' };
 
 export interface DueFeed {
     readonly id: number;

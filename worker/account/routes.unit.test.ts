@@ -15,8 +15,13 @@ import {
     AccountForbidden,
     AccountValidationError,
 } from './errors';
+import type { AccountRepository } from './repository';
 import { registerAccountRoutes } from './routes';
-import type { AccountService } from './service';
+import {
+    type AccountService,
+    FRESH_AUTHENTICATION_WINDOW_MS,
+    makeAccountService,
+} from './service';
 
 const origin = 'https://larafeed-test.stanislas.cloud';
 const config = {
@@ -93,6 +98,44 @@ const app = () => {
     });
     return hono;
 };
+const freshAuthApp = (createdAt: number) => {
+    const currentTime = 2_000_000_000_000;
+    const hono = new Hono<{ Bindings: Env }>();
+    const auth: AuthRuntime = {
+        config,
+        service: {
+            authenticateSession: () =>
+                Effect.succeed({ ...session, createdAt }),
+            authorizeMutation: () => Effect.void,
+        } as unknown as AuthService,
+    };
+    const accountRepository = {
+        wipeReaderData: () => Effect.void,
+        deleteAccount: () => Effect.void,
+    } as unknown as AccountRepository;
+    registerAccountRoutes(hono, {
+        runtimeFactory: () =>
+            Effect.succeed({
+                auth,
+                service: makeAccountService({
+                    repository: accountRepository,
+                    now: () => currentTime,
+                    safeId: () => Effect.succeed(77),
+                }),
+            }),
+    });
+    return hono;
+};
+const destructiveRequest = (method: 'POST' | 'DELETE') => ({
+    method,
+    headers: {
+        Cookie: `${config.sessionCookie.name}=session; ${config.csrfCookie.name}=csrf`,
+        Origin: origin,
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': 'csrf',
+    },
+    body: JSON.stringify({ confirmation: 'reader' }),
+});
 const decode = async <S extends Schema.ConstraintDecoder<unknown>>(
     response: Response,
     schema: S,
@@ -181,6 +224,38 @@ describe('account routes', () => {
                 message: 'Display name must be between 1 and 255 characters',
             },
         });
+    });
+
+    it('rejects direct destructive calls unless the session is fresh', async () => {
+        const currentTime = 2_000_000_000_000;
+        const staleApp = freshAuthApp(
+            currentTime - FRESH_AUTHENTICATION_WINDOW_MS - 1,
+        );
+
+        for (const [path, method] of [
+            ['/api/account/wipe', 'POST'],
+            ['/api/account', 'DELETE'],
+        ] as const) {
+            const stale = await staleApp.request(
+                path,
+                destructiveRequest(method),
+            );
+            expect(stale.status).toBe(403);
+            await expect(
+                decode(stale, ApiErrorResponse),
+            ).resolves.toMatchObject({
+                error: {
+                    code: 'forbidden',
+                    message: 'Fresh authentication required',
+                },
+            });
+        }
+
+        const fresh = await freshAuthApp(currentTime).request(
+            '/api/account/wipe',
+            destructiveRequest('POST'),
+        );
+        expect(fresh.status).toBe(200);
     });
 
     it('clears secure cookies after account deletion', async () => {

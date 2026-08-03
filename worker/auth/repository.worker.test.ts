@@ -6,6 +6,7 @@ import { makeD1 } from '../infrastructure/d1';
 import { sha256Bytes } from './crypto';
 import { AuthenticationFailed } from './errors';
 import { makeAuthRepository } from './repository';
+import { AUTH_CLEANUP_BATCH_SIZE } from './service';
 
 const d1 = makeD1(env.DB);
 const repository = makeAuthRepository(d1);
@@ -233,6 +234,252 @@ describe('authentication D1 repository', () => {
                 .bind(linkId)
                 .first<number>('consumed_at'),
         ).toBe(now + 2);
+    });
+
+    it('cleans terminal auth records in bounded batches and preserves live state', async () => {
+        const userId = 8_200_001;
+        const sessionCutoff = now - 30 * 24 * 60 * 60 * 1_000;
+        const challengeCutoff = now - 24 * 60 * 60 * 1_000;
+        const linkCutoff = sessionCutoff;
+        const eventCutoff = now - 365 * 24 * 60 * 60 * 1_000;
+
+        await Effect.runPromise(insertUser(userId, 'retention'));
+        await Effect.runPromise(
+            d1.batch([
+                {
+                    sql: `
+                        INSERT INTO sessions (
+                            id, user_id, token_hash, csrf_token_hash, expires_at,
+                            last_seen_at, revoked_at, created_at
+                        ) VALUES
+                            (8200011, ?, ?, ?, ?, ?, NULL, ?),
+                            (8200012, ?, ?, ?, ?, ?, NULL, ?),
+                            (8200013, ?, ?, ?, ?, ?, ?, ?),
+                            (8200014, ?, ?, ?, ?, ?, ?, ?),
+                            (8200015, ?, ?, ?, ?, ?, NULL, ?)
+                    `,
+                    bindings: [
+                        userId,
+                        bytes(51),
+                        bytes(52),
+                        sessionCutoff - 1,
+                        sessionCutoff - 2,
+                        sessionCutoff - 10_000,
+                        userId,
+                        bytes(53),
+                        bytes(54),
+                        sessionCutoff + 1,
+                        sessionCutoff,
+                        sessionCutoff - 10_000,
+                        userId,
+                        bytes(55),
+                        bytes(56),
+                        now + 100_000,
+                        now,
+                        sessionCutoff - 1,
+                        sessionCutoff - 10_000,
+                        userId,
+                        bytes(57),
+                        bytes(58),
+                        now + 100_000,
+                        now,
+                        sessionCutoff + 1,
+                        sessionCutoff - 10_000,
+                        userId,
+                        bytes(59),
+                        bytes(60),
+                        now + 100_000,
+                        now,
+                        now,
+                    ],
+                },
+                {
+                    sql: `
+                        INSERT INTO user_access_links (
+                            id, user_id, purpose, token_hash, expires_at,
+                            consumed_at, revoked_at, created_at
+                        ) VALUES
+                            (8200021, ?, 'recovery', ?, ?, ?, NULL, ?),
+                            (8200022, ?, 'recovery', ?, ?, ?, NULL, ?),
+                            (8200023, ?, 'recovery', ?, ?, NULL, ?, ?),
+                            (8200024, ?, 'recovery', ?, ?, NULL, ?, ?),
+                            (8200025, ?, 'recovery', ?, ?, NULL, NULL, ?),
+                            (8200026, ?, 'recovery', ?, ?, NULL, NULL, ?),
+                            (8200027, ?, 'recovery', ?, ?, NULL, NULL, ?),
+                            (8200028, ?, 'recovery', ?, ?, ?, NULL, ?)
+                    `,
+                    bindings: [
+                        userId,
+                        bytes(61),
+                        now + 100_000,
+                        linkCutoff - 1,
+                        linkCutoff - 10_000,
+                        userId,
+                        bytes(62),
+                        now + 100_000,
+                        linkCutoff + 1,
+                        linkCutoff - 10_000,
+                        userId,
+                        bytes(63),
+                        now + 100_000,
+                        linkCutoff - 1,
+                        linkCutoff - 10_000,
+                        userId,
+                        bytes(64),
+                        now + 100_000,
+                        linkCutoff + 1,
+                        linkCutoff - 10_000,
+                        userId,
+                        bytes(65),
+                        linkCutoff - 1,
+                        linkCutoff - 10_000,
+                        userId,
+                        bytes(66),
+                        linkCutoff + 1,
+                        linkCutoff - 10_000,
+                        userId,
+                        bytes(67),
+                        now + 100_000,
+                        now,
+                        userId,
+                        bytes(68),
+                        now + 100_000,
+                        linkCutoff - 1,
+                        linkCutoff - 10_000,
+                    ],
+                },
+                {
+                    sql: `
+                        INSERT INTO webauthn_challenges (
+                            id, user_id, access_link_id, purpose, challenge_hash,
+                            expected_rp_id, expected_origin, expires_at,
+                            consumed_at, created_at
+                        ) VALUES
+                            (8200031, ?, 8200021, 'recovery', ?, 'rp', 'https://rp', ?, ?, ?),
+                            (8200032, ?, 8200022, 'recovery', ?, 'rp', 'https://rp', ?, ?, ?),
+                            (8200033, ?, 8200025, 'recovery', ?, 'rp', 'https://rp', ?, NULL, ?),
+                            (8200034, ?, 8200026, 'recovery', ?, 'rp', 'https://rp', ?, NULL, ?),
+                            (8200035, ?, 8200027, 'recovery', ?, 'rp', 'https://rp', ?, NULL, ?)
+                    `,
+                    bindings: [
+                        userId,
+                        bytes(71),
+                        now + 100_000,
+                        challengeCutoff - 1,
+                        challengeCutoff - 10_000,
+                        userId,
+                        bytes(72),
+                        now + 100_000,
+                        challengeCutoff + 1,
+                        challengeCutoff - 10_000,
+                        userId,
+                        bytes(73),
+                        challengeCutoff - 1,
+                        challengeCutoff - 10_000,
+                        userId,
+                        bytes(74),
+                        challengeCutoff + 1,
+                        challengeCutoff - 10_000,
+                        userId,
+                        bytes(75),
+                        now + 100_000,
+                        now,
+                    ],
+                },
+                {
+                    sql: `
+                        WITH RECURSIVE sequence(value) AS (
+                            VALUES(1)
+                            UNION ALL SELECT value + 1 FROM sequence
+                            WHERE value < 102
+                        )
+                        INSERT INTO webauthn_challenges (
+                            id, user_id, access_link_id, purpose, challenge_hash,
+                            expected_rp_id, expected_origin, expires_at,
+                            consumed_at, created_at
+                        )
+                        SELECT 8200400 + value, ?, 8200028, 'recovery',
+                            randomblob(32), 'rp', 'https://rp', ?, ?, ?
+                        FROM sequence
+                    `,
+                    bindings: [
+                        userId,
+                        now + 100_000,
+                        challengeCutoff - 1,
+                        challengeCutoff - 10_000,
+                    ],
+                },
+                {
+                    sql: `
+                        WITH RECURSIVE sequence(value) AS (
+                            VALUES(1)
+                            UNION ALL SELECT value + 1 FROM sequence
+                            WHERE value < 102
+                        )
+                        INSERT INTO security_events (id, kind, created_at)
+                        SELECT 8200100 + value, 'retention.test', ?
+                        FROM sequence
+                    `,
+                    bindings: [eventCutoff - 1],
+                },
+                {
+                    sql: `
+                        INSERT INTO security_events (id, kind, created_at)
+                        VALUES (8200300, 'retention.live', ?)
+                    `,
+                    bindings: [eventCutoff + 1],
+                },
+            ]),
+        );
+
+        await Effect.runPromise(
+            repository.cleanupRetainedRecords({
+                expiredSessionCutoff: sessionCutoff,
+                revokedSessionCutoff: sessionCutoff,
+                challengeCutoff,
+                accessLinkCutoff: linkCutoff,
+                securityEventCutoff: eventCutoff,
+                batchSize: AUTH_CLEANUP_BATCH_SIZE,
+            }),
+        );
+
+        const ids = async (table: string, minimum: number, maximum: number) =>
+            (
+                await env.DB.prepare(
+                    `SELECT id FROM ${table} WHERE id BETWEEN ? AND ? ORDER BY id`,
+                )
+                    .bind(minimum, maximum)
+                    .all<{ id: number }>()
+            ).results.map(({ id }) => id);
+        await expect(ids('sessions', 8_200_011, 8_200_015)).resolves.toEqual([
+            8_200_012, 8_200_014, 8_200_015,
+        ]);
+        await expect(
+            ids('webauthn_challenges', 8_200_031, 8_200_035),
+        ).resolves.toEqual([8_200_032, 8_200_034, 8_200_035]);
+        await expect(
+            ids('user_access_links', 8_200_021, 8_200_028),
+        ).resolves.toEqual([
+            8_200_022, 8_200_024, 8_200_026, 8_200_027, 8_200_028,
+        ]);
+        expect(
+            await env.DB.prepare(
+                `SELECT COUNT(*) AS count FROM webauthn_challenges
+                 WHERE access_link_id = 8200028`,
+            ).first<number>('count'),
+        ).toBe(3);
+        expect(
+            await env.DB.prepare(
+                `SELECT COUNT(*) AS count FROM security_events
+                 WHERE kind = 'retention.test'`,
+            ).first<number>('count'),
+        ).toBe(2);
+        expect(
+            await env.DB.prepare(
+                `SELECT COUNT(*) AS count FROM security_events
+                 WHERE kind = 'retention.live'`,
+            ).first<number>('count'),
+        ).toBe(1);
     });
 
     it('stores app-token hashes and secret-free security events', async () => {

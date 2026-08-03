@@ -70,10 +70,9 @@ class ResponseEncodingError extends Schema.TaggedErrorClass<ResponseEncodingErro
 ) {}
 
 export interface WorkerDependencies {
-    readonly healthCheck: () => Effect.Effect<
-        HealthResponse,
-        HealthCheckUnavailable
-    >;
+    readonly healthCheck: (
+        env: Env,
+    ) => Effect.Effect<HealthResponse, HealthCheckUnavailable>;
     readonly accountRoutes?: AccountRouteDependencies;
     readonly authRoutes?: AuthRouteDependencies;
     readonly chartRoutes?: ChartRouteDependencies;
@@ -88,7 +87,18 @@ export interface WorkerDependencies {
 }
 
 const defaultDependencies: WorkerDependencies = {
-    healthCheck: () => Effect.succeed(HealthResponse.make({ status: 'ok' })),
+    healthCheck: (env) =>
+        Effect.tryPromise({
+            try: () =>
+                env.DB.prepare('SELECT 1 AS ready').first<{ ready: number }>(),
+            catch: () => new HealthCheckUnavailable({}),
+        }).pipe(
+            Effect.flatMap((result) =>
+                result?.ready === 1
+                    ? Effect.succeed(HealthResponse.make({ status: 'ok' }))
+                    : Effect.fail(new HealthCheckUnavailable({})),
+            ),
+        ),
 };
 
 const fallbackInternalServerError = () =>
@@ -138,8 +148,9 @@ const makeApiErrorResponse = (
 
 const makeHealthRequest = Effect.fn('worker.health')(function* (
     dependencies: WorkerDependencies,
+    env: Env,
 ) {
-    const health = yield* dependencies.healthCheck();
+    const health = yield* dependencies.healthCheck(env);
     const body = yield* encodeHealthResponse(health).pipe(
         Effect.mapError(
             (cause) =>
@@ -213,7 +224,9 @@ export const createApp = (
     );
 
     app.get('/api/health', (context) => {
-        const program = mapRequestErrors(makeHealthRequest(dependencies));
+        const program = mapRequestErrors(
+            makeHealthRequest(dependencies, context.env),
+        );
 
         return Effect.runPromise(program, {
             signal: context.req.raw.signal,

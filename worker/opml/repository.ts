@@ -915,7 +915,9 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                                 SELECT 1 FROM jobs active
                                 WHERE active.kind = ?
                                     AND active.state IN ('pending', 'queued', 'running', 'failed')
-                                    AND json_extract(active.payload_json, '$.feedId') = f.id
+                                    AND CAST(json_extract(
+                                        active.payload_json, '$.feedId'
+                                    ) AS INTEGER) = f.id
                             )
                         ON CONFLICT(operation_id) DO NOTHING`,
                     bindings: [

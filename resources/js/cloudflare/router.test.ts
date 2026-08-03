@@ -37,8 +37,24 @@ describe('legacy settings redirects', () => {
             'https://reader.example/profile?source=legacy',
             '/settings/security?source=legacy#profile',
         ],
+        [
+            'https://reader.example/profile?section=profile&source=legacy#old',
+            '/settings/security?source=legacy#profile',
+        ],
+        [
+            'https://reader.example/profile?source=legacy&section=security',
+            '/settings/security?source=legacy#security',
+        ],
+        [
+            'https://reader.example/profile?section=opml&source=legacy#history',
+            '/settings/opml?source=legacy#history',
+        ],
+        [
+            'https://reader.example/profile?source=legacy#security',
+            '/settings/security?source=legacy#security',
+        ],
         ['https://reader.example/import', '/settings/opml'],
-        ['https://reader.example/import/', '/settings/opml'],
+        ['https://reader.example/import/#history', '/settings/opml#history'],
     ])('redirects %s to %s', (source, target) => {
         expect(legacySettingsRedirectTarget(new URL(source))).toBe(target);
     });

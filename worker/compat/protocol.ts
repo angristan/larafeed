@@ -71,7 +71,9 @@ export const googleSubscription = (
             type: 'folder',
         },
     ],
-    iconUrl: subscription.faviconUrl,
+    // App tokens cannot authenticate browser favicon requests. Keep the
+    // legacy empty value instead of disclosing the upstream URL.
+    iconUrl: '',
 });
 
 export const feverItem = (entry: CompatibilityEntry) => ({

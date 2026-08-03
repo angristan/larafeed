@@ -6,6 +6,7 @@ import {
     FEED_REFRESH_RETENTION_MS,
     type LeasedOutboxMessage,
     type RefreshQueueMessage,
+    TERMINAL_JOB_RETENTION_MS,
 } from './types';
 
 const unusedProcessor = async () => ({
@@ -291,12 +292,16 @@ describe('job orchestration', () => {
                     calls.push(`cleanup:${cutoff}:${limit}`);
                     return 3;
                 },
+                cleanupTerminalJobs: async (cutoff, limit) => {
+                    calls.push(`jobs:${cutoff}:${limit}`);
+                    return 5;
+                },
                 listDueFeeds: async (_now, limit) => {
                     calls.push(`due:${limit}`);
                     return [{ id: 9, nextRefreshAt: 500 }];
                 },
                 createRefreshJob: async (input) => ({
-                    created: true,
+                    type: 'created',
                     job: {
                         id: input.jobId,
                         operationId: input.operationId,
@@ -324,6 +329,7 @@ describe('job orchestration', () => {
                 staleLeaseLimit: 6,
                 redriveLimit: 4,
                 cleanupLimit: 5,
+                jobCleanupLimit: 9,
             }),
         ).resolves.toEqual({
             recoveredJobs: 2,
@@ -332,11 +338,13 @@ describe('job orchestration', () => {
             reservedJobs: 1,
             dispatched: { leased: 0, sent: 0, released: 0, ambiguous: 0 },
             refreshHistoryDeleted: 3,
+            terminalJobsDeleted: 5,
         });
         expect(calls).toEqual([
             'recover:6',
             `redrive:${400 * 24 * 60 * 60_000 - DEFAULT_REFRESH_REDRIVE_AGE_MS}:4`,
             `cleanup:${400 * 24 * 60 * 60_000 - FEED_REFRESH_RETENTION_MS}:5`,
+            `jobs:${400 * 24 * 60 * 60_000 - TERMINAL_JOB_RETENTION_MS}:9`,
             'due:7',
         ]);
     });

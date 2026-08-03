@@ -24,7 +24,7 @@
         "REFRESH_SCHEDULER_ENABLED": "false",
         "REFRESH_DISPATCH_ENABLED": "false",
         "REFRESH_DUE_LIMIT": "10",
-        "OPML_IMPORT_ENABLED": "true",
+        "OPML_IMPORT_ENABLED": "false",
         "FAVICON_REFRESH_ENABLED": "false",
         "IMAGES_ENABLED": "false"
     },
@@ -117,9 +117,7 @@
                 "AUTH_CHALLENGE_TTL_SECONDS": "300",
                 "AUTH_SESSION_TTL_SECONDS": "2592000",
                 "AI_SUMMARY_ENABLED": "false",
-                "AI_GATEWAY_ACCOUNT_ID": "00000000000000000000000000000000",
                 "AI_GATEWAY_NAME": "larafeed-test",
-                "GEMINI_API_KEY": "test-only-not-a-real-secret",
                 "AI_MODEL": "gemini-2.5-flash",
                 "REFRESH_SCHEDULER_ENABLED": "false",
                 "REFRESH_DISPATCH_ENABLED": "false",

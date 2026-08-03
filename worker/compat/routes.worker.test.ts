@@ -72,10 +72,11 @@ describe('compatibility routes with Workerd D1', () => {
                 },
                 {
                     sql: `INSERT INTO feeds (
-                        id, name, feed_url, site_url, next_refresh_at,
-                        created_at, updated_at
+                        id, name, feed_url, site_url, favicon_url,
+                        next_refresh_at, created_at, updated_at
                     ) VALUES (?, 'Workerd Feed', 'https://example.test/feed.xml',
-                        'https://example.test', ?, ?, ?)`,
+                        'https://example.test',
+                        'https://upstream.example/private-icon.png', ?, ?, ?)`,
                     bindings: [feedId, now, now, now],
                 },
                 {
@@ -145,6 +146,19 @@ describe('compatibility routes with Workerd D1', () => {
                     origin: { streamId: `feed/${feedId}` },
                 },
             ],
+        });
+
+        const subscriptions = await app.request(
+            '/api/reader/reader/api/0/subscription/list',
+            {
+                headers: {
+                    Authorization: `GoogleLogin auth=${plaintextToken}`,
+                },
+            },
+            env,
+        );
+        expect(await subscriptions.json()).toMatchObject({
+            subscriptions: [{ id: `feed/${feedId}`, iconUrl: '' }],
         });
 
         const fever = await app.request(

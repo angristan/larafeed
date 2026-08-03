@@ -4,6 +4,7 @@ import {
     feverItem,
     googleEntry,
     googleItemTag,
+    googleSubscription,
     parseCompatibilityItemId,
 } from './protocol';
 
@@ -45,6 +46,21 @@ describe('compatibility protocol fixtures', () => {
             ],
             content: { direction: 'ltr', content: '<p>Safe</p>' },
         });
+    });
+
+    it('does not disclose upstream favicons to Google Reader clients', () => {
+        expect(
+            googleSubscription(72, {
+                feedId: 81,
+                categoryId: 9,
+                categoryName: 'News',
+                title: 'Fixture Feed',
+                feedUrl: 'https://example.test/feed.xml',
+                siteUrl: 'https://example.test',
+                faviconUrl: 'https://upstream.example/private-icon.png',
+                lastSuccessfulRefreshAt: null,
+            }),
+        ).toMatchObject({ iconUrl: '' });
     });
 
     it('emits Fever v3 integer flags and seconds', () => {

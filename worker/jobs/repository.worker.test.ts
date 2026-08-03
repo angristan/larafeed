@@ -122,9 +122,12 @@ describe('durable feed refresh jobs', () => {
             now,
         });
 
-        expect(firstResult.created).toBe(true);
+        expect(firstResult).toMatchObject({
+            type: 'created',
+            job: { id: 311_001, operationId: 'manual-stable-operation' },
+        });
         expect(duplicate).toMatchObject({
-            created: false,
+            type: 'idempotent',
             job: { id: 311_001, operationId: 'manual-stable-operation' },
         });
         await expect(
@@ -135,6 +138,96 @@ describe('durable feed refresh jobs', () => {
                 ['manual-stable-operation'],
             ),
         ).resolves.toBe(1);
+    });
+
+    it('admits only one active refresh across racing triggers', async () => {
+        const now = 2_100_000_250_000;
+        const feedId = 312_001;
+        await insertFeed(feedId, now);
+
+        const outcomes = await Promise.all([
+            createJob(feedId, 312_101, now, {
+                operationId: 'racing-manual-refresh',
+                trigger: 'manual',
+            }),
+            createJob(feedId, 312_201, now, {
+                operationId: 'racing-scheduled-refresh',
+                trigger: 'scheduled',
+            }),
+        ]);
+
+        expect(outcomes.map(({ type }) => type).sort()).toEqual([
+            'active',
+            'created',
+        ]);
+        await expect(
+            scalar(
+                `SELECT COUNT(*) AS value FROM jobs
+                 WHERE kind = 'feed_refresh'
+                   AND state IN ('pending', 'queued', 'running', 'failed')
+                   AND CAST(json_extract(payload_json, '$.feedId') AS INTEGER) = ?`,
+                [feedId],
+            ),
+        ).resolves.toBe(1);
+        await expect(
+            scalar(
+                `SELECT COUNT(*) AS value FROM outbox_messages o
+                 JOIN jobs j ON j.id = o.job_id
+                 WHERE CAST(json_extract(j.payload_json, '$.feedId') AS INTEGER) = ?`,
+                [feedId],
+            ),
+        ).resolves.toBe(1);
+    });
+
+    it('enforces manual cooldown while allowing gone-feed recovery', async () => {
+        const now = 2_100_000_350_000;
+        const feedId = 313_001;
+        await insertFeed(feedId, now);
+        await run(
+            d1.run({
+                sql: `UPDATE feeds
+                    SET last_successful_refresh_at = ?, is_gone = 1
+                    WHERE id = ?`,
+                bindings: [now - 60_000, feedId],
+            }),
+        );
+
+        await expect(
+            repository.createRefreshJob({
+                jobId: 313_101,
+                outboxId: 313_102,
+                operationId: 'cooldown-manual-refresh',
+                feedId,
+                trigger: 'manual',
+                maxAttempts: 3,
+                now,
+                manualCooldownMs: 5 * 60_000,
+            }),
+        ).resolves.toEqual({
+            type: 'cooldown',
+            retryAt: now + 4 * 60_000,
+        });
+        await expect(
+            createJob(feedId, 313_201, now, {
+                operationId: 'gone-scheduled-refresh',
+                trigger: 'scheduled',
+            }),
+        ).resolves.toEqual({ type: 'gone' });
+        await expect(
+            repository.createRefreshJob({
+                jobId: 313_301,
+                outboxId: 313_302,
+                operationId: 'gone-manual-recovery',
+                feedId,
+                trigger: 'manual',
+                maxAttempts: 3,
+                now: now + 4 * 60_000,
+                manualCooldownMs: 5 * 60_000,
+            }),
+        ).resolves.toMatchObject({
+            type: 'created',
+            job: { operationId: 'gone-manual-recovery' },
+        });
     });
 
     it('allocates non-reused IDs for watermarks and Fever cursors', async () => {
@@ -914,14 +1007,20 @@ describe('durable feed refresh jobs', () => {
         ]);
     });
 
-    it('recovers stale job leases conditionally and respects attempt limits', async () => {
+    it('deduplicates active refreshes and recovers stale leases conditionally', async () => {
         const now = 2_100_002_000_000;
         const feedId = 330_001;
         await insertFeed(feedId, now);
         await createJob(feedId, 331_001, now, { maxAttempts: 2 });
         await claim('operation-331001', now);
-        await createJob(feedId, 331_101, now, {
-            operationId: 'same-feed-operation',
+        await expect(
+            createJob(feedId, 331_101, now, {
+                operationId: 'same-feed-operation',
+                trigger: 'scheduled',
+            }),
+        ).resolves.toMatchObject({
+            type: 'active',
+            job: { operationId: 'operation-331001', trigger: 'manual' },
         });
         await expect(
             repository.claimRefreshJob({
@@ -930,7 +1029,7 @@ describe('durable feed refresh jobs', () => {
                 now,
                 leaseMs: 10_000,
             }),
-        ).resolves.toEqual({ type: 'busy', retryAt: now + 10_000 });
+        ).resolves.toEqual({ type: 'missing' });
 
         await expect(
             repository.recoverStaleJobLeases(now + 10_001, 1),
@@ -1902,6 +2001,166 @@ describe('durable feed refresh jobs', () => {
             consecutive_failures: 2,
             next_refresh_at: secondNextRefreshAt,
         });
+    });
+
+    it('deletes bounded old terminal jobs without deleting protected work', async () => {
+        const now = 2_100_006_750_000;
+        const old = now - 100 * 24 * 60 * 60_000;
+        const feedId = 378_001;
+        const userId = 378_002;
+        const importId = 378_003;
+        await insertFeed(feedId, now);
+        await run(
+            d1.batch([
+                {
+                    sql: `INSERT INTO users (
+                            id, webauthn_user_handle, username, email,
+                            display_name, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    bindings: [
+                        userId,
+                        bytes(78),
+                        'retention-reader',
+                        'retention-reader@example.test',
+                        'Retention Reader',
+                        now,
+                        now,
+                    ],
+                },
+                {
+                    sql: `INSERT INTO opml_imports (
+                            id, user_id, state, total_items, succeeded_items,
+                            completed_at, created_at, updated_at
+                        ) VALUES (?, ?, 'completed', 1, 1, ?, ?, ?)`,
+                    bindings: [importId, userId, old, old, old],
+                },
+            ]),
+        );
+        const jobs = [
+            { id: 378_100, state: 'succeeded', completedAt: old },
+            { id: 378_110, state: 'canceled', completedAt: old + 1 },
+            { id: 378_120, state: 'succeeded', completedAt: now - 1 },
+            { id: 378_130, state: 'pending', completedAt: null },
+            { id: 378_140, state: 'succeeded', completedAt: old + 2 },
+            { id: 378_150, state: 'dead_lettered', completedAt: old + 3 },
+            { id: 378_160, state: 'canceled', completedAt: old + 4 },
+        ] as const;
+        await run(
+            d1.batch(
+                jobs.flatMap((job) => {
+                    const leased = job.id === 378_160;
+                    return [
+                        {
+                            sql: `INSERT INTO jobs (
+                                    id, operation_id, kind, state, payload_json,
+                                    max_attempts, available_at, lease_owner,
+                                    lease_expires_at, completed_at, created_at,
+                                    updated_at
+                                ) VALUES (?, ?, 'retention_test', ?, '{}', 3,
+                                    ?, NULL, NULL, ?, ?, ?)`,
+                            bindings: [
+                                job.id,
+                                `retention-${job.id}`,
+                                job.state,
+                                old,
+                                job.completedAt,
+                                old,
+                                job.completedAt ?? old,
+                            ],
+                        },
+                        {
+                            sql: `INSERT INTO outbox_messages (
+                                    id, job_id, topic, payload_json, state,
+                                    available_at, lease_owner, lease_expires_at,
+                                    sent_at, created_at, updated_at
+                                ) VALUES (?, ?, 'retention-test', '{}', ?, ?,
+                                    ?, ?, ?, ?, ?)`,
+                            bindings: [
+                                job.id + 1,
+                                job.id,
+                                leased ? 'leased' : 'sent',
+                                old,
+                                leased ? 'retention-lease' : null,
+                                leased ? now + 60_000 : null,
+                                leased ? null : old,
+                                old,
+                                old,
+                            ],
+                        },
+                    ];
+                }),
+            ),
+        );
+        await run(
+            d1.batch([
+                {
+                    sql: `INSERT INTO feed_refreshes (
+                            id, feed_id, job_id, refreshed_at,
+                            was_successful, created_at
+                        ) VALUES (?, ?, ?, ?, 1, ?)`,
+                    bindings: [378_141, feedId, 378_140, old, old],
+                },
+                {
+                    sql: `INSERT INTO opml_import_items (
+                            id, import_id, user_id, position, operation_id,
+                            job_id, feed_url, normalized_feed_url, state,
+                            max_attempts, completed_at, created_at, updated_at
+                        ) VALUES (?, ?, ?, 0, ?, ?, ?, ?, 'succeeded', 3,
+                            ?, ?, ?)`,
+                    bindings: [
+                        378_151,
+                        importId,
+                        userId,
+                        'retention-opml-item',
+                        378_150,
+                        'https://retention.example.test/feed.xml',
+                        'https://retention.example.test/feed.xml',
+                        old,
+                        old,
+                        old,
+                    ],
+                },
+            ]),
+        );
+
+        await expect(
+            repository.cleanupTerminalJobs(now - 90 * 24 * 60 * 60_000, 1),
+        ).resolves.toBe(1);
+        await expect(
+            scalar(
+                `SELECT COUNT(*) AS value FROM jobs
+                 WHERE id IN (378100, 378110)`,
+            ),
+        ).resolves.toBe(1);
+        await expect(
+            repository.cleanupTerminalJobs(now - 90 * 24 * 60 * 60_000, 10),
+        ).resolves.toBe(3);
+        await expect(
+            run(
+                d1.all<{ id: number }>({
+                    sql: `SELECT id FROM jobs
+                        WHERE id BETWEEN 378100 AND 378160 ORDER BY id`,
+                }),
+            ).then((result) => result.results.map(({ id }) => id)),
+        ).resolves.toEqual([378_120, 378_130, 378_160]);
+        await expect(
+            scalar(
+                `SELECT COUNT(*) AS value FROM outbox_messages
+                 WHERE job_id IN (378100, 378110, 378140, 378150)`,
+            ),
+        ).resolves.toBe(0);
+        await expect(
+            first<{ job_id: number | null }>(
+                'SELECT job_id FROM feed_refreshes WHERE id = ?',
+                [378_141],
+            ),
+        ).resolves.toEqual({ job_id: null });
+        await expect(
+            first<{ job_id: number | null }>(
+                'SELECT job_id FROM opml_import_items WHERE id = ?',
+                [378_151],
+            ),
+        ).resolves.toEqual({ job_id: null });
     });
 
     it('records DLQ state and deletes old history without deleting each feed newest row', async () => {

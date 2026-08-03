@@ -21,6 +21,29 @@ const digest = async (value: string) =>
         await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)),
     );
 
+const expectBatchAndPublishedOrder = (
+    feed: ParsedFeed,
+    insertionOrder: readonly string[],
+    publishedOrder: readonly string[],
+) => {
+    const assigned = feed.entries.map((entry, index) => ({
+        id: index + 1,
+        sourceId: entry.sourceId,
+        publishedAt: entry.publishedAt,
+    }));
+    expect(assigned.map(({ id, sourceId }) => [sourceId, id])).toEqual(
+        insertionOrder.map((sourceId, index) => [sourceId, index + 1]),
+    );
+    expect(
+        assigned
+            .toSorted(
+                (left, right) =>
+                    right.publishedAt - left.publishedAt || right.id - left.id,
+            )
+            .map(({ sourceId }) => sourceId),
+    ).toEqual(publishedOrder);
+};
+
 describe('feed parser', () => {
     it('normalizes RSS 2 namespaces, arrays, relative links, and content', async () => {
         const feed = await parse(`<?xml version="1.0"?>
@@ -52,7 +75,10 @@ describe('feed parser', () => {
             sourceUpdatedAt: Date.parse('2026-07-18T10:00:00Z'),
         });
         expect(feed.entries).toHaveLength(2);
-        expect(feed.entries[0]).toMatchObject({
+        const second = feed.entries.find(
+            (entry) => entry.sourceId === 'post-2',
+        );
+        expect(second).toMatchObject({
             sourceIdentity: 'id:post-2',
             sourceId: 'post-2',
             title: 'Second',
@@ -64,11 +90,10 @@ describe('feed parser', () => {
             contentHtml:
                 '<p>Read <a href="https://feeds.example.com/path/images/full">more</a></p>',
         });
-        expect(feed.entries[0].contentEncodedSize).toBe(
-            new TextEncoder().encode(feed.entries[0].contentHtml ?? '')
-                .byteLength,
+        expect(second?.contentEncodedSize).toBe(
+            new TextEncoder().encode(second?.contentHtml ?? '').byteLength,
         );
-        expect(feed.entries[0].deduplicationKey).toHaveLength(32);
+        expect(second?.deduplicationKey).toHaveLength(32);
     });
 
     it('decodes RSS title entities once and skips future entries', async () => {
@@ -297,7 +322,9 @@ describe('feed parser', () => {
         expect(feed.metadata.faviconUrl).toBe(
             'https://feeds.example.com/icon.png',
         );
-        expect(feed.entries[0]).toMatchObject({
+        expect(
+            feed.entries.find((entry) => entry.sourceId === 'text-entry'),
+        ).toMatchObject({
             sourceIdentity: 'id:text-entry',
             title: 'Untitled',
             url: 'https://feeds.example.com/external/1',
@@ -306,7 +333,9 @@ describe('feed parser', () => {
             sourceUpdatedAt: Date.parse('2026-07-18T09:00:00Z'),
             contentHtml: 'Plain &lt;b&gt;text&lt;/b&gt; &amp; safe',
         });
-        expect(feed.entries[1]).toMatchObject({
+        expect(
+            feed.entries.find((entry) => entry.sourceId === 'oversized-entry'),
+        ).toMatchObject({
             sourceIdentity: 'id:oversized-entry',
             contentHtml: null,
             contentEncodedSize: MAX_CONTENT_BYTES + 1,
@@ -405,6 +434,83 @@ describe('feed parser', () => {
         );
     });
 
+    it('orders RSS batches oldest-first and preserves source-order ties for readers', async () => {
+        const feed = await parse(`<rss><channel><title>x</title>
+            <item><guid>rss-newest</guid><pubDate>2026-07-18T11:00:00Z</pubDate></item>
+            <item><guid>rss-equal-first</guid><pubDate>2026-07-18T10:00:00Z</pubDate></item>
+            <item><guid>rss-equal-second</guid><pubDate>2026-07-18T10:00:00Z</pubDate></item>
+            <item><guid>rss-oldest</guid><pubDate>2026-07-18T09:00:00Z</pubDate></item>
+        </channel></rss>`);
+
+        expectBatchAndPublishedOrder(
+            feed,
+            ['rss-oldest', 'rss-equal-second', 'rss-equal-first', 'rss-newest'],
+            ['rss-newest', 'rss-equal-first', 'rss-equal-second', 'rss-oldest'],
+        );
+    });
+
+    it('orders Atom batches oldest-first and preserves source-order ties for readers', async () => {
+        const feed =
+            await parse(`<feed xmlns="http://www.w3.org/2005/Atom"><title>x</title>
+            <entry><id>atom-newest</id><published>2026-07-18T11:00:00Z</published></entry>
+            <entry><id>atom-equal-first</id><published>2026-07-18T10:00:00Z</published></entry>
+            <entry><id>atom-equal-second</id><published>2026-07-18T10:00:00Z</published></entry>
+            <entry><id>atom-oldest</id><published>2026-07-18T09:00:00Z</published></entry>
+        </feed>`);
+
+        expectBatchAndPublishedOrder(
+            feed,
+            [
+                'atom-oldest',
+                'atom-equal-second',
+                'atom-equal-first',
+                'atom-newest',
+            ],
+            [
+                'atom-newest',
+                'atom-equal-first',
+                'atom-equal-second',
+                'atom-oldest',
+            ],
+        );
+    });
+
+    it('orders JSON batches oldest-first and preserves source-order ties for readers', async () => {
+        const item = (id: string, date: string) => ({
+            id,
+            date_published: date,
+            content_text: id,
+        });
+        const feed = await parse(
+            JSON.stringify({
+                version: 'https://jsonfeed.org/version/1.1',
+                title: 'x',
+                items: [
+                    item('json-newest', '2026-07-18T11:00:00Z'),
+                    item('json-equal-first', '2026-07-18T10:00:00Z'),
+                    item('json-equal-second', '2026-07-18T10:00:00Z'),
+                    item('json-oldest', '2026-07-18T09:00:00Z'),
+                ],
+            }),
+        );
+
+        expectBatchAndPublishedOrder(
+            feed,
+            [
+                'json-oldest',
+                'json-equal-second',
+                'json-equal-first',
+                'json-newest',
+            ],
+            [
+                'json-newest',
+                'json-equal-first',
+                'json-equal-second',
+                'json-oldest',
+            ],
+        );
+    });
+
     it('keeps every RSS entry when a feed has more than 50', async () => {
         const items = Array.from({ length: 52 }, (_, index) => {
             const date = new Date(fetchedAt - index * 60_000).toISOString();
@@ -418,7 +524,7 @@ describe('feed parser', () => {
 
         expect(feed.entries).toHaveLength(52);
         expect(feed.entries.map((entry) => entry.sourceId)).toEqual(
-            Array.from({ length: 52 }, (_, index) => String(index)),
+            Array.from({ length: 52 }, (_, index) => String(51 - index)),
         );
     });
 
@@ -433,8 +539,8 @@ describe('feed parser', () => {
         );
 
         expect(feed.entries).toHaveLength(51);
-        expect(feed.entries[0]?.sourceId).toBe('atom-0');
-        expect(feed.entries.at(-1)?.sourceId).toBe('atom-50');
+        expect(feed.entries[0]?.sourceId).toBe('atom-50');
+        expect(feed.entries.at(-1)?.sourceId).toBe('atom-0');
     });
 
     it('keeps every JSON Feed entry when a feed has more than 50', async () => {
@@ -454,7 +560,7 @@ describe('feed parser', () => {
 
         expect(feed.entries).toHaveLength(53);
         expect(feed.entries.map((entry) => entry.sourceId)).toEqual(
-            Array.from({ length: 53 }, (_, index) => `json-${index}`),
+            Array.from({ length: 53 }, (_, index) => `json-${52 - index}`),
         );
     });
 
@@ -532,14 +638,14 @@ describe('feed parser', () => {
         </channel></rss>`);
 
         expect(feed.entries.map((entry) => entry.sourceId)).toEqual([
-            'updated',
-            'missing',
-            'invalid',
             'pre-epoch',
+            'invalid',
+            'missing',
+            'updated',
         ]);
         expect(feed.entries[0]).toMatchObject({
-            publishedAt: Date.parse('2026-07-18T11:00:00Z'),
-            sourceUpdatedAt: Date.parse('2026-07-18T11:00:00Z'),
+            publishedAt: fetchedAt,
+            sourceUpdatedAt: null,
         });
         expect(feed.entries[1]).toMatchObject({
             publishedAt: fetchedAt,
@@ -550,8 +656,8 @@ describe('feed parser', () => {
             sourceUpdatedAt: null,
         });
         expect(feed.entries[3]).toMatchObject({
-            publishedAt: fetchedAt,
-            sourceUpdatedAt: null,
+            publishedAt: Date.parse('2026-07-18T11:00:00Z'),
+            sourceUpdatedAt: Date.parse('2026-07-18T11:00:00Z'),
         });
     });
 

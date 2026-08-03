@@ -74,6 +74,7 @@ const SessionRowSchema = Schema.Struct({
     csrf_token_hash: Schema.Unknown,
     expires_at: Timestamp,
     last_seen_at: Timestamp,
+    created_at: Timestamp,
     username: Schema.String,
     display_name: Schema.String,
     is_admin: BooleanInt,
@@ -158,6 +159,7 @@ export interface SessionRecord {
     readonly csrfTokenHash: Uint8Array;
     readonly expiresAt: number;
     readonly lastSeenAt: number;
+    readonly createdAt: number;
 }
 
 export interface AccessContext {
@@ -202,6 +204,14 @@ export interface NewPasskey {
 }
 
 export interface AuthRepository {
+    readonly cleanupRetainedRecords: (input: {
+        readonly expiredSessionCutoff: number;
+        readonly revokedSessionCutoff: number;
+        readonly challengeCutoff: number;
+        readonly accessLinkCutoff: number;
+        readonly securityEventCutoff: number;
+        readonly batchSize: number;
+    }) => Effect.Effect<void, AuthStorageError | AuthInvariantError>;
     readonly issueAuthenticationChallenge: (input: {
         readonly id: number;
         readonly challengeHash: Uint8Array;
@@ -601,6 +611,127 @@ const eventMetadata = (metadata: Record<string, unknown>): string =>
     JSON.stringify(metadata);
 
 export const makeAuthRepository = (d1: D1): AuthRepository => ({
+    cleanupRetainedRecords: (input) =>
+        Effect.gen(function* () {
+            const operation = 'auth.cleanupRetainedRecords';
+            const results = yield* withStorageError(
+                operation,
+                d1.batch([
+                    {
+                        sql: `
+                            DELETE FROM webauthn_challenges
+                            WHERE id IN (
+                                SELECT id FROM webauthn_challenges
+                                WHERE consumed_at IS NOT NULL
+                                  AND consumed_at <= ?
+                                ORDER BY consumed_at, id LIMIT ?
+                            )
+                        `,
+                        bindings: [input.challengeCutoff, input.batchSize],
+                    },
+                    {
+                        sql: `
+                            DELETE FROM webauthn_challenges
+                            WHERE id IN (
+                                SELECT id FROM webauthn_challenges
+                                WHERE consumed_at IS NULL AND expires_at <= ?
+                                ORDER BY expires_at, id LIMIT ?
+                            )
+                        `,
+                        bindings: [input.challengeCutoff, input.batchSize],
+                    },
+                    {
+                        sql: `
+                            DELETE FROM user_access_links
+                            WHERE id IN (
+                                SELECT id FROM user_access_links
+                                WHERE consumed_at IS NOT NULL
+                                  AND consumed_at <= ?
+                                  AND NOT EXISTS (
+                                      SELECT 1 FROM webauthn_challenges
+                                      WHERE access_link_id = user_access_links.id
+                                  )
+                                ORDER BY consumed_at, id LIMIT ?
+                            )
+                        `,
+                        bindings: [input.accessLinkCutoff, input.batchSize],
+                    },
+                    {
+                        sql: `
+                            DELETE FROM user_access_links
+                            WHERE id IN (
+                                SELECT id FROM user_access_links
+                                WHERE revoked_at IS NOT NULL
+                                  AND revoked_at <= ?
+                                  AND NOT EXISTS (
+                                      SELECT 1 FROM webauthn_challenges
+                                      WHERE access_link_id = user_access_links.id
+                                  )
+                                ORDER BY revoked_at, id LIMIT ?
+                            )
+                        `,
+                        bindings: [input.accessLinkCutoff, input.batchSize],
+                    },
+                    {
+                        sql: `
+                            DELETE FROM user_access_links
+                            WHERE id IN (
+                                SELECT id FROM user_access_links
+                                WHERE consumed_at IS NULL AND revoked_at IS NULL
+                                  AND expires_at <= ?
+                                  AND NOT EXISTS (
+                                      SELECT 1 FROM webauthn_challenges
+                                      WHERE access_link_id = user_access_links.id
+                                  )
+                                ORDER BY expires_at, id LIMIT ?
+                            )
+                        `,
+                        bindings: [input.accessLinkCutoff, input.batchSize],
+                    },
+                    {
+                        sql: `
+                            DELETE FROM sessions
+                            WHERE id IN (
+                                SELECT id FROM sessions
+                                WHERE revoked_at IS NOT NULL
+                                  AND revoked_at <= ?
+                                ORDER BY revoked_at, id LIMIT ?
+                            )
+                        `,
+                        bindings: [input.revokedSessionCutoff, input.batchSize],
+                    },
+                    {
+                        sql: `
+                            DELETE FROM sessions
+                            WHERE id IN (
+                                SELECT id FROM sessions
+                                WHERE revoked_at IS NULL AND expires_at <= ?
+                                ORDER BY expires_at, id LIMIT ?
+                            )
+                        `,
+                        bindings: [input.expiredSessionCutoff, input.batchSize],
+                    },
+                    {
+                        sql: `
+                            DELETE FROM security_events
+                            WHERE id IN (
+                                SELECT id FROM security_events
+                                WHERE created_at <= ?
+                                ORDER BY created_at, id LIMIT ?
+                            )
+                        `,
+                        bindings: [input.securityEventCutoff, input.batchSize],
+                    },
+                ]),
+            );
+            const counts = yield* Effect.forEach(results, (result) =>
+                changes(operation, result),
+            );
+            if (counts.some((count) => count < 0 || count > input.batchSize)) {
+                return yield* Effect.fail(invariantError(operation));
+            }
+        }),
+
     issueAuthenticationChallenge: (input) =>
         withStorageError(
             'challenge.issueAuthentication',
@@ -1321,7 +1452,7 @@ export const makeAuthRepository = (d1: D1): AuthRepository => ({
                     sql: `
                         SELECT s.id AS session_id, s.user_id,
                             s.csrf_token_hash, s.expires_at, s.last_seen_at,
-                            u.username, u.display_name, u.is_admin
+                            s.created_at, u.username, u.display_name, u.is_admin
                         FROM sessions s
                         JOIN users u ON u.id = s.user_id
                         WHERE s.token_hash = ? AND s.revoked_at IS NULL
@@ -1375,6 +1506,7 @@ export const makeAuthRepository = (d1: D1): AuthRepository => ({
                 csrfTokenHash,
                 expiresAt: row.expires_at,
                 lastSeenAt: row.last_seen_at,
+                createdAt: row.created_at,
             };
         }),
 

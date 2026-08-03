@@ -1,7 +1,7 @@
 import { Effect } from 'effect';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { HealthResponse } from '../shared/http';
+import { HealthResponse } from '../shared/http';
 import { createApp, HealthCheckUnavailable } from './app';
 
 describe('Worker HTTP app', () => {
@@ -16,7 +16,10 @@ describe('Worker HTTP app', () => {
     });
 
     it('returns the schema-encoded health response', async () => {
-        const response = await createApp().request('/api/health');
+        const response = await createApp({
+            healthCheck: () =>
+                Effect.succeed(HealthResponse.make({ status: 'ok' })),
+        }).request('/api/health');
 
         expect(response.status).toBe(200);
         expect(response.headers.get('cache-control')).toBe('no-store');
@@ -24,6 +27,22 @@ describe('Worker HTTP app', () => {
             'application/json',
         );
         await expect(response.json()).resolves.toEqual({ status: 'ok' });
+    });
+
+    it('fails readiness when D1 is unavailable', async () => {
+        const response = await createApp().request(
+            '/api/health',
+            undefined,
+            {} as Env,
+        );
+
+        expect(response.status).toBe(503);
+        await expect(response.json()).resolves.toEqual({
+            error: {
+                code: 'service_unavailable',
+                message: 'Service unavailable',
+            },
+        });
     });
 
     it('maps tagged health failures to a safe response', async () => {

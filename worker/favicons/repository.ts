@@ -7,6 +7,7 @@ const TargetRow = Schema.Struct({
     feed_url: Schema.String,
     site_url: Schema.NullOr(Schema.String),
     favicon_url: Schema.NullOr(Schema.String),
+    favicon_is_dark: Schema.NullOr(Schema.Literals([0, 1])),
 });
 
 export interface FaviconTarget {
@@ -14,6 +15,7 @@ export interface FaviconTarget {
     readonly feedUrl: string;
     readonly siteUrl: string | null;
     readonly faviconUrl: string | null;
+    readonly faviconIsDark: boolean | null;
 }
 
 export class FaviconStorageError extends Schema.TaggedErrorClass<FaviconStorageError>()(
@@ -47,6 +49,7 @@ export interface FaviconRepository {
     readonly update: (
         feedId: number,
         faviconUrl: string | null,
+        faviconIsDark: boolean | null,
         now: number,
     ) => Effect.Effect<
         void,
@@ -69,6 +72,10 @@ const decodeRows = (
                     feedUrl: row.feed_url,
                     siteUrl: row.site_url,
                     faviconUrl: row.favicon_url,
+                    faviconIsDark:
+                        row.favicon_is_dark === null
+                            ? null
+                            : row.favicon_is_dark === 1,
                 };
             }),
         catch: () => new FaviconInvariantError({ operation }),
@@ -81,7 +88,7 @@ export const makeFaviconRepository = (d1: D1): FaviconRepository => ({
             const result = yield* d1
                 .all({
                     sql: `SELECT f.id AS feed_id, f.feed_url, f.site_url,
-                            f.favicon_url
+                            f.favicon_url, f.favicon_is_dark
                         FROM feeds f
                         JOIN feed_subscriptions fs ON fs.feed_id = f.id
                         WHERE fs.user_id = ? AND fs.feed_id = ?`,
@@ -100,7 +107,8 @@ export const makeFaviconRepository = (d1: D1): FaviconRepository => ({
     listStaleTargets: (cutoff, limit) =>
         d1
             .all({
-                sql: `SELECT id AS feed_id, feed_url, site_url, favicon_url
+                sql: `SELECT id AS feed_id, feed_url, site_url, favicon_url,
+                        favicon_is_dark
                     FROM feeds
                     WHERE (favicon_updated_at IS NULL OR favicon_updated_at < ?)
                       AND EXISTS (
@@ -117,16 +125,22 @@ export const makeFaviconRepository = (d1: D1): FaviconRepository => ({
                     decodeRows('favicon.listStale', result.results),
                 ),
             ),
-    update: (feedId, faviconUrl, now) =>
+    update: (feedId, faviconUrl, faviconIsDark, now) =>
         Effect.gen(function* () {
             const operation = 'favicon.update';
             const result = yield* d1
                 .run({
                     sql: `UPDATE feeds
-                        SET favicon_url = ?, favicon_is_dark = NULL,
+                        SET favicon_url = ?, favicon_is_dark = ?,
                             favicon_updated_at = ?, updated_at = ?
                         WHERE id = ?`,
-                    bindings: [faviconUrl, now, now, feedId],
+                    bindings: [
+                        faviconUrl,
+                        faviconIsDark === null ? null : faviconIsDark ? 1 : 0,
+                        now,
+                        now,
+                        feedId,
+                    ],
                 })
                 .pipe(Effect.mapError((cause) => storage(operation, cause)));
             const count = result.meta.changes;

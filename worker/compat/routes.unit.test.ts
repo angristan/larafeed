@@ -58,7 +58,7 @@ const makeHarness = (overrides: {
                     title: 'Feed',
                     feedUrl: 'https://example.test/feed.xml',
                     siteUrl: 'https://example.test',
-                    faviconUrl: '',
+                    faviconUrl: 'https://upstream.example/private-icon.png',
                     lastSuccessfulRefreshAt: 1_700_000_000_000,
                 },
             ]),
@@ -291,6 +291,24 @@ describe('compatibility protocol routes', () => {
         expect(harness.authenticateAppTokenCredential).toHaveBeenCalledWith({
             plaintextToken: 'opaque-token',
             requiredScope: 'google-reader',
+        });
+    });
+
+    it('keeps Google subscription favicon URLs empty', async () => {
+        const harness = makeHarness({});
+        const response = await harness.app.request(
+            '/api/reader/reader/api/0/subscription/list',
+            {
+                headers: {
+                    Authorization: 'GoogleLogin auth=opaque-token',
+                },
+            },
+            {} as Env,
+        );
+
+        expect(response.status).toBe(200);
+        expect(await response.json()).toMatchObject({
+            subscriptions: [{ id: 'feed/8', iconUrl: '' }],
         });
     });
 

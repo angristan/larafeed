@@ -51,6 +51,7 @@ Requirements: Node.js 24, npm, and Bun.
 
 ```bash
 npm ci
+npx playwright install chromium
 cp .dev.vars.example .dev.vars
 npm run types:check:cloudflare
 npm run d1:migrate:local
@@ -61,23 +62,19 @@ The development server uses Cloudflare's local Worker runtime and Vite HMR. `.de
 
 ## Validation
 
+Run the complete local validation path:
+
 ```bash
-npm run lint-check
-npm run typecheck
-npm run types:check:cloudflare
-npm test
-npm run d1:validate
-npm run build
-npm run deploy:check
-npm run deploy:check:test
+npm run validate
 ```
 
-Use `npm run d1:validate:large` before production provisioning. Deployment checks are dry runs. They do not deploy.
+This runs formatting, types, generated-binding checks, unit and Workerd tests, browser tests, representative D1 validation, and production/test deployment dry runs. Use `npm run d1:validate:large` before production provisioning. Deployment checks are dry runs. They do not deploy.
 
 ## Operations
 
 - [Rebuild architecture and decisions](docs/cloudflare-rebuild-plan.md)
 - [Operations, provisioning, alerts, and incidents](docs/cloudflare-operations.md)
+- [Capacity and cost model](docs/cloudflare-cost-model.md)
 - [Refresh jobs](docs/cloudflare-refresh-jobs.md)
 - [OPML](docs/cloudflare-opml.md)
 - [Google Reader and Fever](docs/cloudflare-compatibility-apis.md)

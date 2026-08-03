@@ -5,10 +5,58 @@ import { entryKeys, readerKeys, subscriptionKeys } from './reader';
 import {
     CategoryReadThroughError,
     categoryReadThroughMutationOptions,
+    readThroughMutationOptions,
 } from './readerMutations';
 
 afterEach(() => {
     vi.unstubAllGlobals();
+});
+
+describe('feed read-through mutation', () => {
+    it('invalidates reader data after every successful command', async () => {
+        vi.stubGlobal('document', {
+            cookie: 'larafeed-csrf=csrf-token',
+        });
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(() =>
+                Promise.resolve(
+                    Response.json({ feedId: 7, readThroughEntryId: 70 }),
+                ),
+            ),
+        );
+        const queryClient = new QueryClient({
+            defaultOptions: {
+                queries: { retry: false },
+                mutations: { retry: false },
+            },
+        });
+        const entryListKey = [
+            ...entryKeys.finiteLists(),
+            'cached-page',
+        ] as const;
+        queryClient.setQueryData(entryListKey, { entries: [] });
+        queryClient.setQueryData(readerKeys.counts(), { unread: 2 });
+        queryClient.setQueryData(subscriptionKeys.list(), {
+            subscriptions: [],
+        });
+        const observer = new MutationObserver(
+            queryClient,
+            readThroughMutationOptions(queryClient, 7),
+        );
+
+        await observer.mutate(undefined);
+
+        expect(queryClient.getQueryState(entryListKey)?.isInvalidated).toBe(
+            true,
+        );
+        expect(
+            queryClient.getQueryState(readerKeys.counts())?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState(subscriptionKeys.list())?.isInvalidated,
+        ).toBe(true);
+    });
 });
 
 describe('category read-through mutation', () => {

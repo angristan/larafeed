@@ -22,6 +22,7 @@ import {
     TurnstileError,
     type TurnstileHandle,
 } from '../components/Turnstile';
+import { useDocumentTitle } from '../documentTitle';
 import { authConfigQueryOptions, authKeys } from '../queries/auth';
 
 function safeReturnTo(search: string): string {
@@ -62,6 +63,7 @@ function errorPresentation(error: Error): {
 }
 
 export function LoginPage(): ReactElement {
+    useDocumentTitle('Log in');
     const configQuery = useQuery(authConfigQueryOptions);
     const queryClient = useQueryClient();
     const navigate = useNavigate();

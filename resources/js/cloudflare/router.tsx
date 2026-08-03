@@ -42,9 +42,8 @@ async function protectedLoader({ url }: LoaderFunctionArgs) {
     if (!session.authenticated) {
         clearAuthenticatedCache(queryClient);
         clearCapturedAccessToken();
-        const returnTo = `${url.pathname}${url.search}`;
-        const parameters = new URLSearchParams({ returnTo });
-        throw redirect(`/login?${parameters.toString()}`);
+        const target = sessionExpiryLoginTarget(url);
+        if (target !== null) throw redirect(target);
     }
 
     return null;
@@ -115,7 +114,6 @@ async function subscriptionsLoader(args: LoaderFunctionArgs) {
 
 const legacySettingsPaths = {
     '/subscriptions': '/settings/subscriptions',
-    '/profile': '/settings/security',
     '/import': '/settings/opml',
 } as const;
 
@@ -136,11 +134,30 @@ export function legacySettingsRedirectTarget(url: URL): string | null {
         url.pathname.length > 1 && url.pathname.endsWith('/')
             ? url.pathname.slice(0, -1)
             : url.pathname;
+
+    if (pathname === '/profile') {
+        const search = new URLSearchParams(url.search);
+        const section = search.get('section');
+        search.delete('section');
+
+        const target =
+            section === 'opml' ? '/settings/opml' : '/settings/security';
+        const hash =
+            section === 'security'
+                ? '#security'
+                : section === 'profile'
+                  ? '#profile'
+                  : section === 'opml'
+                    ? url.hash
+                    : url.hash || '#profile';
+        const query = search.toString();
+        return `${target}${query === '' ? '' : `?${query}`}${hash}`;
+    }
+
     const target =
         legacySettingsPaths[pathname as keyof typeof legacySettingsPaths];
     if (target === undefined) return null;
-    const hash = pathname === '/profile' ? '#profile' : url.hash;
-    return `${target}${url.search}${hash}`;
+    return `${target}${url.search}${url.hash}`;
 }
 
 async function legacySettingsLoader(args: LoaderFunctionArgs) {

@@ -1,14 +1,20 @@
 import { Effect } from 'effect';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { AuthConfig } from './config';
 import { md5Hex, sha256Bytes } from './crypto';
 import { CsrfInvalid } from './errors';
 import type { AuthRepository } from './repository';
 import {
+    ACCESS_LINK_RETENTION_MS,
+    AUTH_CLEANUP_BATCH_SIZE,
+    EXPIRED_SESSION_RETENTION_MS,
     makeAuthService,
+    REVOKED_SESSION_RETENTION_MS,
+    SECURITY_EVENT_RETENTION_MS,
     SESSION_IDLE_TIMEOUT_MS,
     SESSION_LAST_SEEN_THROTTLE_MS,
+    WEBAUTHN_CHALLENGE_RETENTION_MS,
 } from './service';
 import type { TurnstileValidator } from './turnstile';
 import type { WebAuthn } from './webauthn';
@@ -186,17 +192,56 @@ describe('authentication service request guards', () => {
                     csrfTokenHash: new Uint8Array(32),
                     expiresAt: now + config.sessionTtlMs,
                     lastSeenAt: now,
+                    createdAt: now - 1_000,
                 });
             },
         };
 
-        await Effect.runPromise(
+        const authenticated = await Effect.runPromise(
             makeService(repository, now).authenticateSession('session-token'),
         );
 
+        expect(authenticated.createdAt).toBe(now - 1_000);
         expect(observed).toMatchObject({
             idleCutoff: now - SESSION_IDLE_TIMEOUT_MS,
             lastSeenThrottleCutoff: now - SESSION_LAST_SEEN_THROTTLE_MS,
         });
+    });
+
+    it('runs fixed-size retained-record cleanup at the login boundary', async () => {
+        const now = 2_000_000_000_000;
+        const cleanupRetainedRecords = vi.fn(() => Effect.void);
+        const issueAuthenticationChallenge = vi.fn(() => Effect.void);
+        const service = makeAuthService({
+            repository: {
+                cleanupRetainedRecords,
+                issueAuthenticationChallenge,
+            } as unknown as AuthRepository,
+            webAuthn: {
+                authenticationOptions: () =>
+                    Effect.succeed({ challenge: 'challenge' }),
+            } as unknown as WebAuthn,
+            turnstile: {
+                verify: () => Effect.void,
+            } as unknown as TurnstileValidator,
+            config,
+            now: () => now,
+        });
+
+        await Effect.runPromise(
+            service.authenticationOptions({ turnstileToken: 'valid' }),
+        );
+
+        expect(cleanupRetainedRecords).toHaveBeenCalledWith({
+            expiredSessionCutoff: now - EXPIRED_SESSION_RETENTION_MS,
+            revokedSessionCutoff: now - REVOKED_SESSION_RETENTION_MS,
+            challengeCutoff: now - WEBAUTHN_CHALLENGE_RETENTION_MS,
+            accessLinkCutoff: now - ACCESS_LINK_RETENTION_MS,
+            securityEventCutoff: now - SECURITY_EVENT_RETENTION_MS,
+            batchSize: AUTH_CLEANUP_BATCH_SIZE,
+        });
+        expect(cleanupRetainedRecords.mock.invocationCallOrder[0]).toBeLessThan(
+            issueAuthenticationChallenge.mock.invocationCallOrder[0] ?? 0,
+        );
     });
 });

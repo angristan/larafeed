@@ -4,14 +4,21 @@ import { SummaryConfigError } from './errors';
 
 export const SUMMARY_PROMPT_VERSION = 'entry-summary-v1';
 
-export interface SummaryConfig {
-    readonly enabled: boolean;
+export interface DisabledSummaryConfig {
+    readonly enabled: false;
+    readonly promptVersion: typeof SUMMARY_PROMPT_VERSION;
+}
+
+export interface EnabledSummaryConfig {
+    readonly enabled: true;
     readonly accountId: string;
     readonly gatewayName: string;
     readonly model: string;
     readonly promptVersion: typeof SUMMARY_PROMPT_VERSION;
     readonly apiKey: string;
 }
+
+export type SummaryConfig = DisabledSummaryConfig | EnabledSummaryConfig;
 
 const envValue = (env: Env, name: string): unknown => Reflect.get(env, name);
 const exactString = (
@@ -32,6 +39,12 @@ export const parseSummaryConfig = (
         const enabledValue = envValue(env, 'AI_SUMMARY_ENABLED');
         if (enabledValue !== 'true' && enabledValue !== 'false') {
             return yield* Effect.fail(new SummaryConfigError());
+        }
+        if (enabledValue === 'false') {
+            return {
+                enabled: false,
+                promptVersion: SUMMARY_PROMPT_VERSION,
+            };
         }
 
         const accountId = yield* exactString(
@@ -59,7 +72,7 @@ export const parseSummaryConfig = (
                 : yield* Effect.fail(new SummaryConfigError());
 
         return {
-            enabled: enabledValue === 'true',
+            enabled: true,
             accountId,
             gatewayName,
             model,

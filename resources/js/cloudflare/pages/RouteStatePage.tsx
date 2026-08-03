@@ -17,6 +17,8 @@ import {
     useRouteError,
 } from 'react-router';
 
+import { useDocumentTitle } from '../documentTitle';
+
 export interface RouteErrorDescription {
     readonly title: string;
     readonly message: string;
@@ -32,14 +34,14 @@ export function describeRouteError(error: unknown): RouteErrorDescription {
             message:
                 error.status === 404
                     ? 'The requested page does not exist.'
-                    : error.statusText || 'The request could not be completed.',
+                    : 'The request could not be completed.',
         };
     }
 
     if (error instanceof Error) {
         return {
             title: 'Something went wrong',
-            message: error.message || 'The page could not be loaded.',
+            message: 'The page could not be loaded.',
         };
     }
 
@@ -75,6 +77,7 @@ function BackAndHomeActions() {
 export function RouteErrorPage() {
     const description = describeRouteError(useRouteError());
     const revalidator = useRevalidator();
+    useDocumentTitle(description.title);
 
     return (
         <Container component="main" size="sm" py="xl">
@@ -102,6 +105,8 @@ export function RouteErrorPage() {
 }
 
 export function NotFoundPage() {
+    useDocumentTitle('Page not found');
+
     return (
         <Container component="main" size="sm" py="xl">
             <Center mih="70dvh">

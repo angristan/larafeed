@@ -2,11 +2,19 @@ import { Effect } from 'effect';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AuthenticatedSession } from '../auth/service';
-import { AccountForbidden, AccountValidationError } from './errors';
+import {
+    AccountForbidden,
+    AccountFreshAuthenticationRequired,
+    AccountValidationError,
+} from './errors';
 import type { AccountRepository } from './repository';
-import { makeAccountService } from './service';
+import { FRESH_AUTHENTICATION_WINDOW_MS, makeAccountService } from './service';
 
-const session = (isAdmin = false): AuthenticatedSession => ({
+const currentTime = 2_000_000_000_000;
+const session = (
+    isAdmin = false,
+    createdAt: number | null = currentTime,
+): AuthenticatedSession => ({
     sessionId: 1,
     user: {
         id: 7,
@@ -14,7 +22,8 @@ const session = (isAdmin = false): AuthenticatedSession => ({
         displayName: 'Reader',
         isAdmin,
     },
-    expiresAt: 2_000_000_000_000,
+    expiresAt: 2_100_000_000_000,
+    ...(createdAt === null ? {} : { createdAt }),
     csrfTokenHash: new Uint8Array(32),
 });
 const profile = {
@@ -101,8 +110,10 @@ describe('account service', () => {
     it('requires the exact username before destructive actions', async () => {
         const accountRepository = repository();
         const wipe = vi.spyOn(accountRepository, 'wipeReaderData');
+        const remove = vi.spyOn(accountRepository, 'deleteAccount');
         const service = makeAccountService({
             repository: accountRepository,
+            now: () => currentTime,
             safeId: () => Effect.succeed(11),
         });
 
@@ -110,8 +121,27 @@ describe('account service', () => {
             Effect.runPromise(service.wipeReaderData(session(), 'wrong')),
         ).rejects.toBeInstanceOf(AccountValidationError);
         expect(wipe).not.toHaveBeenCalled();
+
+        const stale = session(
+            false,
+            currentTime - FRESH_AUTHENTICATION_WINDOW_MS - 1,
+        );
+        await expect(
+            Effect.runPromise(service.wipeReaderData(stale, 'reader')),
+        ).rejects.toBeInstanceOf(AccountFreshAuthenticationRequired);
+        await expect(
+            Effect.runPromise(
+                service.deleteAccount(session(false, null), 'reader'),
+            ),
+        ).rejects.toBeInstanceOf(AccountFreshAuthenticationRequired);
+        expect(wipe).not.toHaveBeenCalled();
+        expect(remove).not.toHaveBeenCalled();
+
         await expect(
             Effect.runPromise(service.wipeReaderData(session(), ' reader ')),
+        ).resolves.toMatchObject({ success: true });
+        await expect(
+            Effect.runPromise(service.deleteAccount(session(), 'reader')),
         ).resolves.toMatchObject({ success: true });
     });
 

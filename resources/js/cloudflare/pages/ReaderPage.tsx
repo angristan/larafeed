@@ -15,6 +15,7 @@ import classes from '../components/reader/Reader.module.css';
 import { ReaderEntryDetail } from '../components/reader/ReaderEntryDetail';
 import { ReaderEntryList } from '../components/reader/ReaderEntryList';
 import { ReaderSidebar } from '../components/reader/ReaderSidebar';
+import { useDocumentTitle } from '../documentTitle';
 import { authSessionQueryOptions } from '../queries/auth';
 import {
     categoryListQueryOptions,
@@ -40,6 +41,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 export function ReaderPage() {
+    useDocumentTitle('Feeds');
     const [searchParams] = useSearchParams();
     const state = useMemo(() => parseReaderState(searchParams), [searchParams]);
     const navigate = useNavigate();

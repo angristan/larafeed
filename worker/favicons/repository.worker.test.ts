@@ -65,6 +65,7 @@ describe('favicon D1 repository', () => {
             feedId,
             siteUrl: 'https://favicon.example.test/articles',
             faviconUrl: null,
+            faviconIsDark: null,
         });
         await expect(
             Effect.runPromise(repository.findOwnedTarget(otherId, feedId)),
@@ -77,6 +78,7 @@ describe('favicon D1 repository', () => {
                 feedUrl: 'https://favicon.example.test/feed.xml',
                 siteUrl: 'https://favicon.example.test/articles',
                 faviconUrl: null,
+                faviconIsDark: null,
             },
         ]);
 
@@ -84,9 +86,16 @@ describe('favicon D1 repository', () => {
             repository.update(
                 feedId,
                 'https://favicon.example.test/icon.png',
+                true,
                 now + 1,
             ),
         );
+        await expect(
+            Effect.runPromise(repository.findOwnedTarget(userId, feedId)),
+        ).resolves.toMatchObject({
+            faviconUrl: 'https://favicon.example.test/icon.png',
+            faviconIsDark: true,
+        });
         await expect(
             Effect.runPromise(
                 d1.first({
@@ -97,7 +106,7 @@ describe('favicon D1 repository', () => {
             ),
         ).resolves.toEqual({
             favicon_url: 'https://favicon.example.test/icon.png',
-            favicon_is_dark: null,
+            favicon_is_dark: 1,
             favicon_updated_at: now + 1,
         });
     });

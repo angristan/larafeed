@@ -6,7 +6,11 @@ import type { AuthConfig } from '../auth/config';
 import { CsrfInvalid } from '../auth/errors';
 import type { AuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession, AuthService } from '../auth/service';
-import { SummaryGenerationInProgress, SummaryNotFound } from './errors';
+import {
+    SummaryFeatureDisabled,
+    SummaryGenerationInProgress,
+    SummaryNotFound,
+} from './errors';
 import { registerSummaryRoutes } from './routes';
 import type { SummaryService } from './service';
 
@@ -166,6 +170,30 @@ describe('summary routes', () => {
         expect(result.status).toBe(429);
         expect(limit).toHaveBeenCalledWith({ key: 'summary:7' });
         expect(generate).not.toHaveBeenCalled();
+    });
+
+    it('returns a safe unavailable response when generation is disabled', async () => {
+        const limit = vi.fn(() => Promise.resolve({ success: true }));
+        const app = makeApp(
+            makeSummaryService({
+                generate: () => Effect.fail(new SummaryFeatureDisabled()),
+            }),
+        );
+        const result = await app.request(
+            '/api/entries/31/summary',
+            post,
+            envWithLimit(limit),
+        );
+
+        expect(result.status).toBe(503);
+        expect(
+            Schema.decodeUnknownSync(ApiErrorResponse)(await result.json()),
+        ).toEqual({
+            error: {
+                code: 'service_unavailable',
+                message: 'AI summaries are disabled',
+            },
+        });
     });
 
     it('returns a safe conflict while the same summary is generating', async () => {

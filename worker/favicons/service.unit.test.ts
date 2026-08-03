@@ -10,6 +10,7 @@ const target = {
     feedUrl: 'https://example.test/feed.xml',
     siteUrl: 'https://example.test/articles',
     faviconUrl: null,
+    faviconIsDark: null,
 };
 const repository = () =>
     ({
@@ -52,9 +53,11 @@ describe('favicon service', () => {
                     headers: { 'content-type': 'image/png' },
                 }),
             );
+        const analyzeDarkness = vi.fn().mockResolvedValue(true);
         const service = makeFaviconService({
             repository: accountRepository,
             fetch: fetchMock,
+            analyzeDarkness,
             now: () => 1_900_000_000_000,
         });
 
@@ -67,8 +70,10 @@ describe('favicon service', () => {
         expect(update).toHaveBeenCalledWith(
             target.feedId,
             'https://example.test/icon.png',
+            true,
             1_900_000_000_000,
         );
+        expect(analyzeDarkness).toHaveBeenCalledWith(new Uint8Array([1, 2, 3]));
         expect(fetchMock).toHaveBeenNthCalledWith(
             1,
             new URL('https://example.test/articles'),
@@ -80,6 +85,7 @@ describe('favicon service', () => {
         const current = {
             ...target,
             faviconUrl: 'https://example.test/current.png',
+            faviconIsDark: true,
         };
         const accountRepository: FaviconRepository = {
             findOwnedTarget: () => Effect.succeed(current),
@@ -110,7 +116,95 @@ describe('favicon service', () => {
         expect(update).toHaveBeenCalledWith(
             target.feedId,
             current.faviconUrl,
+            true,
             99,
+        );
+    });
+
+    it('persists light analysis and clears stale darkness for inconclusive new icons', async () => {
+        for (const [analysis, expected] of [
+            [false, false],
+            [null, null],
+        ] as const) {
+            const current = {
+                ...target,
+                faviconUrl: 'https://example.test/old.png',
+                faviconIsDark: true,
+            };
+            const accountRepository: FaviconRepository = {
+                findOwnedTarget: () => Effect.succeed(current),
+                listStaleTargets: () => Effect.succeed([current]),
+                update: () => Effect.void,
+            };
+            const update = vi.spyOn(accountRepository, 'update');
+            const fetchMock = vi
+                .fn()
+                .mockResolvedValueOnce(
+                    new Response('<link rel="icon" href="/replacement.png">', {
+                        headers: { 'content-type': 'text/html' },
+                    }),
+                )
+                .mockResolvedValueOnce(
+                    new Response(new Uint8Array([4, 5, 6]), {
+                        headers: { 'content-type': 'image/png' },
+                    }),
+                );
+            const service = makeFaviconService({
+                repository: accountRepository,
+                fetch: fetchMock,
+                analyzeDarkness: vi.fn().mockResolvedValue(analysis),
+                now: () => 101,
+            });
+
+            await Effect.runPromise(service.refreshOwned(1, target.feedId));
+
+            expect(update).toHaveBeenCalledWith(
+                target.feedId,
+                'https://example.test/replacement.png',
+                expected,
+                101,
+            );
+        }
+    });
+
+    it('preserves known darkness when same-URL analysis fails', async () => {
+        const current = {
+            ...target,
+            faviconUrl: 'https://example.test/current.png',
+            faviconIsDark: true,
+        };
+        const accountRepository: FaviconRepository = {
+            findOwnedTarget: () => Effect.succeed(current),
+            listStaleTargets: () => Effect.succeed([current]),
+            update: () => Effect.void,
+        };
+        const update = vi.spyOn(accountRepository, 'update');
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                new Response('<link rel="icon" href="/current.png">', {
+                    headers: { 'content-type': 'text/html' },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(new Uint8Array([7, 8, 9]), {
+                    headers: { 'content-type': 'image/png' },
+                }),
+            );
+        const service = makeFaviconService({
+            repository: accountRepository,
+            fetch: fetchMock,
+            analyzeDarkness: vi.fn().mockRejectedValue(new Error('failed')),
+            now: () => 102,
+        });
+
+        await Effect.runPromise(service.refreshOwned(1, target.feedId));
+
+        expect(update).toHaveBeenCalledWith(
+            target.feedId,
+            current.faviconUrl,
+            true,
+            102,
         );
     });
 
@@ -134,7 +228,7 @@ describe('favicon service', () => {
         await expect(
             Effect.runPromise(service.refreshStale(1)),
         ).resolves.toEqual([{ feedId: target.feedId, faviconUrl: null }]);
-        expect(update).toHaveBeenCalledWith(target.feedId, null, 100);
+        expect(update).toHaveBeenCalledWith(target.feedId, null, null, 100);
         expect(fetchMock).toHaveBeenCalledTimes(4);
     });
 });

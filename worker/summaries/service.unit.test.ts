@@ -12,6 +12,7 @@ import type { SummaryProvider } from './provider';
 import type { OwnedSummaryEntry, SummaryRepository } from './repository';
 import {
     makeSummaryService,
+    SUMMARY_EMPTY_CONTENT_HTML,
     SUMMARY_MAX_ARTICLE_BYTES,
     SUMMARY_MAX_HTML_BYTES,
 } from './service';
@@ -59,13 +60,14 @@ const makeProvider = (html: string): SummaryProvider => ({
 });
 
 describe('summary service', () => {
-    it('honors the kill switch before storage or provider work', async () => {
+    it('honors the kill switch without constructing a provider', async () => {
         const repository = makeRepository(entry);
-        const provider = makeProvider('<p>Unused</p>');
         const service = makeSummaryService({
-            config: { ...config, enabled: false },
+            config: {
+                enabled: false,
+                promptVersion: 'entry-summary-v1',
+            },
             repository,
-            provider,
         });
 
         const error = await Effect.runPromise(service.generate(7, 31)).catch(
@@ -73,7 +75,26 @@ describe('summary service', () => {
         );
         expect(error).toBeInstanceOf(SummaryFeatureDisabled);
         expect(repository.findOwnedEntry).not.toHaveBeenCalled();
-        expect(provider.generate).not.toHaveBeenCalled();
+    });
+
+    it('reads the latest cached summary while generation is disabled', async () => {
+        const repository = makeRepository({ ...entry, summary: cached });
+        const service = makeSummaryService({
+            config: {
+                enabled: false,
+                promptVersion: 'entry-summary-v1',
+            },
+            repository,
+        });
+
+        await expect(Effect.runPromise(service.get(7, 31))).resolves.toEqual({
+            summary: cached,
+        });
+        expect(repository.findOwnedEntry).toHaveBeenCalledWith(
+            7,
+            31,
+            undefined,
+        );
     });
 
     it('uses content hash, model, and prompt version cache before provider calls', async () => {
@@ -182,6 +203,39 @@ describe('summary service', () => {
                 html: '<p><strong>Safe</strong> text</p>',
             }),
         );
+    });
+
+    it('persists the legacy explanation without a provider for empty content', async () => {
+        const repository = makeRepository({
+            ...entry,
+            contentHtml: '<script>not article content</script>',
+        });
+        const provider = makeProvider('<p>Unused</p>');
+        const service = makeSummaryService({
+            config,
+            repository,
+            provider,
+            now: () => 1_900_000_000_100,
+            generateId: () => Effect.succeed(42),
+        });
+
+        await expect(
+            Effect.runPromise(service.generate(7, 31)),
+        ).resolves.toMatchObject({
+            summary: {
+                id: 42,
+                html: SUMMARY_EMPTY_CONTENT_HTML,
+            },
+        });
+        expect(provider.generate).not.toHaveBeenCalled();
+        expect(repository.claimGeneration).toHaveBeenCalledTimes(1);
+        expect(repository.saveSummary).toHaveBeenCalledWith(
+            expect.objectContaining({
+                contentHash: entry.contentHash,
+                html: SUMMARY_EMPTY_CONTENT_HTML,
+            }),
+        );
+        expect(repository.releaseGeneration).toHaveBeenCalledTimes(1);
     });
 
     it('rejects sanitized output above the persistence bound', async () => {

@@ -1,6 +1,6 @@
 import { Effect, Schema } from 'effect';
 
-import type { SummaryConfig } from './config';
+import type { EnabledSummaryConfig } from './config';
 import { SummaryProviderError } from './errors';
 
 export const SUMMARY_PROVIDER_DEADLINE_MS = 15_000;
@@ -61,7 +61,7 @@ const isAttemptFailure = (value: unknown): value is AttemptFailure =>
     typeof Reflect.get(value, 'kind') === 'string' &&
     typeof Reflect.get(value, 'retryable') === 'boolean';
 
-const gatewayUrl = (config: SummaryConfig): string =>
+const gatewayUrl = (config: EnabledSummaryConfig): string =>
     `https://gateway.ai.cloudflare.com/v1/${encodeURIComponent(config.accountId)}/${encodeURIComponent(config.gatewayName)}/google-ai-studio/v1beta/models/${encodeURIComponent(config.model)}:generateContent`;
 
 const prompt = (
@@ -119,7 +119,7 @@ const readBoundedText = async (
 };
 
 const requestAttempt = async (
-    config: SummaryConfig,
+    config: EnabledSummaryConfig,
     input: GenerateSummaryInput,
     outerSignal: AbortSignal,
     deadline: number,
@@ -206,7 +206,7 @@ const requestAttempt = async (
 };
 
 export const makeSummaryProvider = (
-    config: SummaryConfig,
+    config: EnabledSummaryConfig,
 ): SummaryProvider => ({
     generate: (input) =>
         Effect.tryPromise({

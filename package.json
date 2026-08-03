@@ -1,10 +1,14 @@
 {
     "private": true,
     "type": "module",
+    "packageManager": "npm@11.17.0",
+    "engines": {
+        "node": ">=24 <27"
+    },
     "scripts": {
         "dev": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vite",
-        "build": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vite build",
-        "build:test": "CLOUDFLARE_ENV=test CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vite build",
+        "build": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false bun scripts/cloudflare-build.ts",
+        "build:test": "CLOUDFLARE_ENV=test CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false bun scripts/cloudflare-build.ts",
         "preview": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vite preview",
         "dev:cloudflare": "npm run dev",
         "build:cloudflare": "npm run build",
@@ -20,13 +24,14 @@
         "auth:access-link": "bun scripts/auth-access-link.ts",
         "d1:validate": "bun scripts/cloudflare-validation/run.ts --profile ci --output-dir scripts/cloudflare-validation/output",
         "d1:validate:large": "bun scripts/cloudflare-validation/run.ts --profile large --output-dir scripts/cloudflare-validation/output",
-        "deploy:check": "npm run build && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --dry-run",
-        "deploy:check:test": "npm run build:test && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --dry-run",
-        "deploy:test": "npm run d1:migrate:test && npm run build:test && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy",
+        "deploy:check": "npm run build && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --dry-run --config dist/larafeed/wrangler.json",
+        "deploy:check:test": "npm run build:test && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --dry-run --config dist/larafeed/wrangler.json",
+        "deploy:test": "npm run d1:migrate:test && npm run build:test && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --config dist/larafeed/wrangler.json",
         "deploy:check:cloudflare": "npm run deploy:check",
         "test": "vitest run --config vitest.config.ts && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vitest run --config vitest.worker.config.ts",
         "test:browser": "playwright test",
-        "test:cloudflare": "npm test"
+        "test:cloudflare": "npm test",
+        "validate": "npm run lint-check && npm run typecheck && npm run types:check:cloudflare && npm test && npm run test:browser && npm run d1:validate && npm run deploy:check && npm run deploy:check:test"
     },
     "devDependencies": {
         "@biomejs/biome": "^2.4.16",

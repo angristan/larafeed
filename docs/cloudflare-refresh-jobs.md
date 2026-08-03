@@ -26,6 +26,8 @@ Cron reconciliation
 - A refresh commits at most 400 unique, valid, non-future entries. Larger feeds fail before persistence instead of committing a truncated result; parsing rejects source documents above 1,000 items. Sanitized article HTML is stored only below 1.8 MB.
 - Parser source IDs remain canonical. On the first post-migration refresh, an exact source-less legacy URL identity is promoted in place so entry IDs and interactions remain stable.
 - Jobs use leased, conditional state transitions and at most 8 processing attempts.
+- One non-terminal refresh job (`pending`, `queued`, `running`, or `failed`) is admitted per feed. Manual and scheduled commands share this D1-atomic guard, even when their idempotency keys differ.
+- Manual API refreshes are rejected for five minutes after the last successful refresh. Reusing the same idempotency key still returns its original command. Gone feeds are excluded from scheduled admission, while an explicit manual refresh remains available as the bounded recovery path.
 - Queue messages contain only an operation ID. Retries and redrives reload feed and job state from D1.
 - Refresh processing snapshots subscription filter revisions. The atomic refresh
   commit aborts every feed, entry, interaction, history, and job mutation if the
@@ -34,6 +36,7 @@ Cron reconciliation
 - Cron checks at most the configured due-feed limit for stranded deliveries per run. A queued or failed job must be available and unchanged for at least 15 minutes before redrive.
 - Queue-send failures and lost-delivery redrives share the existing 10-attempt outbox recovery budget.
 - Detailed refresh history older than 90 days is deleted in bounded batches, and the newest row for each feed is always retained. Daily refresh aggregates preserve complete 365-day charts without retaining every attempt row.
+- Terminal jobs older than 7 days and their outbox rows are deleted in bounded Cron batches. Refresh history, OPML items, and summary audit rows remain intact; their nullable job reference is cleared by the database. Active jobs, leased outbox rows, and newer terminal state are never selected.
 
 ## Failure behavior
 
@@ -55,7 +58,7 @@ These non-secret Worker variables bound or stop new work:
 - `REFRESH_DISPATCH_ENABLED` — send leased outbox messages.
 - `REFRESH_DUE_LIMIT` — maximum due feeds reserved per run, from 1 to 100.
 
-Disabling scheduling stops new scheduled jobs. Reconciliation still records stranded delivery work, because it protects already accepted commands. Disabling dispatch keeps both new and reopened commands durable in the outbox. Subscription creation still creates its refresh command but does not send it to the Queue. Existing Queue deliveries continue so already accepted work can reach an authoritative terminal state.
+Disabling scheduling stops new scheduled jobs. Reconciliation and bounded retention still run because they protect accepted commands and keep durable state bounded. Disabling dispatch keeps both new and reopened commands durable in the outbox. Subscription creation still creates its refresh command but does not send it to the Queue. Existing Queue deliveries continue so already accepted work can reach an authoritative terminal state.
 
 ## Provisioning
 

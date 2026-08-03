@@ -1,19 +1,33 @@
 import { MantineProvider } from '@mantine/core';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, UNSAFE_ErrorResponseImpl } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
 import { describeRouteError, NotFoundPage } from './RouteStatePage';
 
 describe('route state pages', () => {
     it('describes ordinary and unknown route failures', () => {
-        expect(describeRouteError(new Error('Network unavailable'))).toEqual({
+        expect(
+            describeRouteError(new Error('private infrastructure detail')),
+        ).toEqual({
             title: 'Something went wrong',
-            message: 'Network unavailable',
+            message: 'The page could not be loaded.',
         });
         expect(describeRouteError(null)).toEqual({
             title: 'Something went wrong',
             message: 'The page could not be loaded.',
+        });
+        expect(
+            describeRouteError(
+                new UNSAFE_ErrorResponseImpl(
+                    500,
+                    'private infrastructure detail',
+                    null,
+                ),
+            ),
+        ).toEqual({
+            title: 'Request failed (500)',
+            message: 'The request could not be completed.',
         });
     });
 

@@ -97,8 +97,8 @@ describe('refresh runtime adapter', () => {
         expect(result).toMatchObject({
             type: 'success',
             entries: [
-                { sourceId: 'entry-1', filteredUserIds: [7] },
                 { sourceId: 'entry-2', filteredUserIds: [] },
+                { sourceId: 'entry-1', filteredUserIds: [7] },
             ],
         });
     });

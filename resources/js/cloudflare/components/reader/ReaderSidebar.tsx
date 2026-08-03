@@ -549,6 +549,15 @@ const notifyActionError = (title: string, error: Error) => {
     });
 };
 
+export function feedMarkedReadNotification(feedName: string) {
+    return {
+        title: 'Feed marked as read',
+        message: `${feedName} was marked as read`,
+        color: 'green' as const,
+        withBorder: true,
+    };
+}
+
 export function FeedActions({
     subscription,
     managed,
@@ -802,6 +811,13 @@ export function FeedActions({
                             leftSection={<IconCheck size={14} />}
                             onClick={() =>
                                 markRead.mutate(undefined, {
+                                    onSuccess: () =>
+                                        notifications.show(
+                                            feedMarkedReadNotification(
+                                                subscription.customFeedName ??
+                                                    subscription.feedName,
+                                            ),
+                                        ),
                                     onError: (error) =>
                                         notifyActionError(
                                             'Failed to mark feed as read',

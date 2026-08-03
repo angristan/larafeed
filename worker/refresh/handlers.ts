@@ -60,5 +60,6 @@ export const handleRefreshCron = async (
         staleLeaseLimit: runtime.config.dueLimit,
         redriveLimit: runtime.config.dueLimit,
         cleanupLimit: 100,
+        jobCleanupLimit: 100,
     });
 };

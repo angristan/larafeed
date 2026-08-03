@@ -12,6 +12,7 @@ import {
     type ClaimRefreshJobResult,
     type CommitRefreshInput,
     type CreateRefreshJobInput,
+    type CreateRefreshJobResult,
     DEFAULT_REFRESH_INTERVAL_MS,
     type DueFeed,
     FEED_REFRESH_JOB_KIND,
@@ -27,6 +28,7 @@ import {
     MAX_HISTORY_CLEANUP,
     MAX_OUTBOX_ATTEMPTS,
     MAX_OUTBOX_MESSAGES,
+    MAX_TERMINAL_JOB_CLEANUP,
     type RecordRefreshFailureInput,
     type RefreshFailureRecord,
     type RefreshJob,
@@ -49,6 +51,11 @@ interface JobRow {
 interface DueFeedRow {
     readonly id: number;
     readonly next_refresh_at: number;
+}
+
+interface FeedAdmissionRow {
+    readonly is_gone: number;
+    readonly last_successful_refresh_at: number | null;
 }
 
 interface OutboxRow {
@@ -81,7 +88,7 @@ interface JobPayload {
 export interface JobRepository {
     readonly createRefreshJob: (
         input: CreateRefreshJobInput,
-    ) => Promise<{ readonly job: RefreshJob; readonly created: boolean }>;
+    ) => Promise<CreateRefreshJobResult>;
     readonly listDueFeeds: (
         now: number,
         limit: number,
@@ -130,6 +137,10 @@ export interface JobRepository {
         readonly limit: number;
     }) => Promise<RefreshRedriveResult>;
     readonly cleanupRefreshHistory: (
+        cutoff: number,
+        limit: number,
+    ) => Promise<number>;
+    readonly cleanupTerminalJobs: (
         cutoff: number,
         limit: number,
     ) => Promise<number>;
@@ -338,21 +349,36 @@ const directLeasePredicate = `operation_id = ?
 export const makeJobRepository = (d1: D1): JobRepository => ({
     async createRefreshJob(input) {
         const operation = 'createRefreshJob';
+        const cooldownMs = Math.max(0, Math.trunc(input.manualCooldownMs ?? 0));
         const jobPayload = JSON.stringify({
             feedId: input.feedId,
             trigger: input.trigger,
         });
         const queuePayload = JSON.stringify({ operationId: input.operationId });
+        const activeRefresh = `kind = '${FEED_REFRESH_JOB_KIND}'
+            AND state IN ('pending', 'queued', 'running', 'failed')`;
         const results = await run(
             operation,
-            d1.batch<JobRow>([
+            d1.batch<JobRow | FeedAdmissionRow>([
                 {
                     sql: `INSERT INTO jobs (
                             id, operation_id, kind, state, payload_json,
                             max_attempts, available_at, created_at, updated_at
                         )
                         SELECT ?, ?, ?, 'pending', ?, ?, ?, ?, ?
-                        FROM feeds WHERE id = ?
+                        FROM feeds f WHERE f.id = ?
+                          AND (? = 'manual' OR f.is_gone = 0)
+                          AND (
+                            ? = 0 OR f.last_successful_refresh_at IS NULL
+                            OR f.last_successful_refresh_at <= ?
+                          )
+                          AND NOT EXISTS (
+                            SELECT 1 FROM jobs active
+                            WHERE ${activeRefresh}
+                              AND CAST(json_extract(
+                                active.payload_json, '$.feedId'
+                              ) AS INTEGER) = f.id
+                          )
                         ON CONFLICT(operation_id) DO NOTHING`,
                     bindings: [
                         input.jobId,
@@ -364,6 +390,9 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         input.now,
                         input.now,
                         input.feedId,
+                        input.trigger,
+                        cooldownMs,
+                        Math.max(0, input.now - cooldownMs),
                     ],
                 },
                 {
@@ -396,6 +425,23 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     bindings: [input.operationId, FEED_REFRESH_JOB_KIND],
                 },
                 {
+                    sql: `SELECT id, operation_id, payload_json, state,
+                            attempt_count, max_attempts, available_at,
+                            lease_expires_at
+                        FROM jobs
+                        WHERE ${activeRefresh}
+                          AND CAST(json_extract(
+                            payload_json, '$.feedId'
+                          ) AS INTEGER) = ?
+                        ORDER BY updated_at, id LIMIT 1`,
+                    bindings: [input.feedId],
+                },
+                {
+                    sql: `SELECT is_gone, last_successful_refresh_at
+                        FROM feeds WHERE id = ?`,
+                    bindings: [input.feedId],
+                },
+                {
                     sql: `SELECT COUNT(*) AS count FROM outbox_messages o
                         JOIN jobs j ON j.id = o.job_id
                         WHERE j.operation_id = ? AND j.kind = ?
@@ -413,7 +459,6 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
         if (jobChanges > 1) {
             throw new JobInvariantError(operation, 'created multiple jobs');
         }
-        const created = jobChanges === 1;
         const outboxChanges = changeCount(operation, results[1]);
         if (outboxChanges > 1) {
             throw new JobInvariantError(
@@ -421,20 +466,52 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 'created multiple outbox rows',
             );
         }
-        const row = resultRows<JobRow>(results[2])[0];
+
+        const requestedRow = resultRows<JobRow>(results[2])[0];
+        const activeRow = resultRows<JobRow>(results[3])[0];
+        const feedRow = resultRows<FeedAdmissionRow>(results[4])[0];
         const outboxCount = resultRows<{ readonly count: number }>(
-            results[3],
+            results[5],
         )[0]?.count;
-        if (row === undefined) {
+        if (feedRow === undefined) {
             throw new FeedNotFoundError(input.feedId);
         }
-        if (outboxCount !== 1) {
-            throw new JobInvariantError(
-                operation,
-                'job does not have one outbox row',
-            );
+        if (requestedRow !== undefined) {
+            const job = jobFromRow(operation, requestedRow);
+            if (job.feedId !== input.feedId || job.trigger !== input.trigger) {
+                throw new JobInvariantError(
+                    operation,
+                    'operation ID belongs to a different refresh command',
+                );
+            }
+            if (outboxCount !== 1) {
+                throw new JobInvariantError(
+                    operation,
+                    'job does not have one outbox row',
+                );
+            }
+            return {
+                type: jobChanges === 1 ? 'created' : 'idempotent',
+                job,
+            };
         }
-        return { job: jobFromRow(operation, row), created };
+        if (input.trigger === 'scheduled' && feedRow.is_gone === 1) {
+            return { type: 'gone' };
+        }
+        if (
+            cooldownMs > 0 &&
+            feedRow.last_successful_refresh_at !== null &&
+            feedRow.last_successful_refresh_at > input.now - cooldownMs
+        ) {
+            return {
+                type: 'cooldown',
+                retryAt: feedRow.last_successful_refresh_at + cooldownMs,
+            };
+        }
+        if (activeRow !== undefined) {
+            return { type: 'active', job: jobFromRow(operation, activeRow) };
+        }
+        throw new JobInvariantError(operation, 'refresh admission was lost');
     },
 
     async listDueFeeds(now, limit) {
@@ -1175,6 +1252,42 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             );
         }
         return deleted;
+    },
+
+    async cleanupTerminalJobs(cutoff, limit) {
+        const operation = 'cleanupTerminalJobs';
+        const bounded = boundedLimit(limit, MAX_TERMINAL_JOB_CLEANUP);
+        const result = await run(
+            operation,
+            d1.run({
+                sql: `DELETE FROM jobs
+                    WHERE id IN (
+                        SELECT j.id FROM jobs j
+                        WHERE j.state IN (
+                            'succeeded', 'dead_lettered', 'canceled'
+                        )
+                          AND j.completed_at < ?
+                          AND NOT EXISTS (
+                            SELECT 1 FROM outbox_messages o
+                            WHERE o.job_id = j.id AND o.state = 'leased'
+                          )
+                        ORDER BY j.completed_at, j.id LIMIT ?
+                    )
+                    RETURNING id`,
+                bindings: [cutoff, bounded],
+            }),
+        );
+        const deleted = resultRows<{ readonly id: number }>(result);
+        if (
+            deleted.length > bounded ||
+            deleted.some(({ id }) => !isSafeId(id))
+        ) {
+            throw new JobInvariantError(
+                operation,
+                'deleted beyond terminal job cleanup limit',
+            );
+        }
+        return deleted.length;
     },
 
     async commitRefresh(input) {

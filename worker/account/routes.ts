@@ -208,6 +208,12 @@ const safeError = (error: unknown): SafeError => {
                 message: 'Request verification failed',
                 status: 403,
             };
+        case 'AccountFreshAuthenticationRequired':
+            return {
+                code: 'forbidden',
+                message: 'Fresh authentication required',
+                status: 403,
+            };
         case 'AccountForbidden':
         case 'Forbidden':
             return { code: 'forbidden', message: 'Forbidden', status: 403 };

@@ -1,6 +1,8 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { readdir, readFile, mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { Database } from 'bun:sqlite';
 
 import {
     renderMarkdownReport,
@@ -15,6 +17,100 @@ const profile = profileFlag === -1 ? 'ci' : Bun.argv[profileFlag + 1];
 if (profile !== 'ci' && profile !== 'large') {
     throw new Error('--profile must be ci or large');
 }
+const validateRefreshAdmissionMigration = async (): Promise<void> => {
+    const database = new Database(':memory:', { strict: true });
+    try {
+        database.exec('PRAGMA foreign_keys = ON');
+        const migrationsDirectory = resolve(repositoryRoot, 'migrations');
+        const migrations = (await readdir(migrationsDirectory))
+            .filter((name) => /^\d{4}_.+\.sql$/u.test(name))
+            .toSorted();
+        for (const migration of migrations.filter(
+            (name) => name < '0013_terminal_job_retention.sql',
+        )) {
+            database.exec(
+                await readFile(resolve(migrationsDirectory, migration), 'utf8'),
+            );
+        }
+
+        database.exec(`
+            INSERT INTO jobs (
+                id, operation_id, kind, state, payload_json, max_attempts,
+                available_at, created_at, updated_at
+            ) VALUES
+                (101, 'refresh:pending', 'feed_refresh', 'pending',
+                 '{"feedId":1,"trigger":"scheduled"}', 8, 100, 100, 100),
+                (102, 'refresh:queued', 'feed_refresh', 'queued',
+                 '{"feedId":1,"trigger":"scheduled"}', 8, 90, 90, 90);
+            INSERT INTO outbox_messages (
+                id, job_id, topic, payload_json, state, available_at,
+                created_at, updated_at
+            ) VALUES (
+                201, 101, 'feed_refresh',
+                '{"operationId":"refresh:pending"}', 'pending', 100, 100, 100
+            );
+        `);
+        for (const migration of migrations.filter(
+            (name) => name >= '0013_terminal_job_retention.sql',
+        )) {
+            database.exec(
+                await readFile(resolve(migrationsDirectory, migration), 'utf8'),
+            );
+        }
+
+        const active = database
+            .query<{ count: number }, []>(`SELECT COUNT(*) AS count FROM jobs
+                WHERE kind = 'feed_refresh'
+                  AND state IN ('pending', 'queued', 'running', 'failed')
+                  AND CAST(json_extract(payload_json, '$.feedId') AS INTEGER) = 1`)
+            .get();
+        const canceled = database
+            .query<{ state: string }, []>('SELECT state FROM jobs WHERE id = 101')
+            .get();
+        const outbox = database
+            .query<{ state: string }, []>(
+                'SELECT state FROM outbox_messages WHERE job_id = 101',
+            )
+            .get();
+        if (
+            active?.count !== 1 ||
+            canceled?.state !== 'canceled' ||
+            outbox?.state !== 'dead_lettered'
+        ) {
+            throw new Error('active refresh migration did not reconcile duplicates');
+        }
+        let duplicateRejected = false;
+        try {
+            database.exec(`INSERT INTO jobs (
+                    id, operation_id, kind, state, payload_json, max_attempts,
+                    available_at, created_at, updated_at
+                ) VALUES (
+                    103, 'refresh:third', 'feed_refresh', 'pending',
+                    '{"feedId":1,"trigger":"manual"}', 8, 110, 110, 110
+                )`);
+        } catch (error) {
+            if (
+                error instanceof Error &&
+                error.message.includes('UNIQUE constraint failed')
+            ) {
+                duplicateRejected = true;
+            } else {
+                throw error;
+            }
+        }
+        if (!duplicateRejected)
+            throw new Error('active refresh uniqueness fence accepted a duplicate');
+        const foreignKeys = database.query('PRAGMA foreign_key_check').all();
+        if (foreignKeys.length !== 0)
+            throw new Error('migration upgrade introduced foreign-key violations');
+        console.log('Active refresh migration upgrade: passed');
+    } finally {
+        database.close();
+    }
+};
+
+await validateRefreshAdmissionMigration();
+
 const outputDirectory = resolve(
     outputFlag === -1
         ? resolve(scriptDirectory, 'output')

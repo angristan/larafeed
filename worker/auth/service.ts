@@ -34,6 +34,12 @@ export const SESSION_IDLE_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1_000;
 export const SESSION_LAST_SEEN_THROTTLE_MS = 15 * 60 * 1_000;
 export const ACCESS_LINK_TTL_MS = 30 * 60 * 1_000;
 export const APP_TOKEN_LAST_USED_THROTTLE_MS = 15 * 60 * 1_000;
+export const AUTH_CLEANUP_BATCH_SIZE = 100;
+export const EXPIRED_SESSION_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
+export const REVOKED_SESSION_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
+export const WEBAUTHN_CHALLENGE_RETENTION_MS = 24 * 60 * 60 * 1_000;
+export const ACCESS_LINK_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
+export const SECURITY_EVENT_RETENTION_MS = 365 * 24 * 60 * 60 * 1_000;
 
 export const TURNSTILE_ACTIONS = {
     authenticationOptions: 'authentication_options',
@@ -63,6 +69,8 @@ export interface AuthenticatedSession {
     readonly sessionId: number;
     readonly user: AuthUser;
     readonly expiresAt: number;
+    /** Server-owned session issue time. Missing values must fail freshness checks. */
+    readonly createdAt?: number;
     /** Internal verifier material. HTTP adapters must not serialize this field. */
     readonly csrfTokenHash: Uint8Array;
 }
@@ -254,6 +262,16 @@ export const makeAuthService = (dependencies: AuthServiceDependencies) => {
             ...(remoteIp === undefined ? {} : { remoteIp }),
         });
 
+    const cleanupRetainedRecords = (now: number) =>
+        repository.cleanupRetainedRecords({
+            expiredSessionCutoff: now - EXPIRED_SESSION_RETENTION_MS,
+            revokedSessionCutoff: now - REVOKED_SESSION_RETENTION_MS,
+            challengeCutoff: now - WEBAUTHN_CHALLENGE_RETENTION_MS,
+            accessLinkCutoff: now - ACCESS_LINK_RETENTION_MS,
+            securityEventCutoff: now - SECURITY_EVENT_RETENTION_MS,
+            batchSize: AUTH_CLEANUP_BATCH_SIZE,
+        });
+
     const authenticationOptions = Effect.fn('auth.authentication.options')(
         function* (input: {
             readonly turnstileToken: string;
@@ -264,11 +282,12 @@ export const makeAuthService = (dependencies: AuthServiceDependencies) => {
                 TURNSTILE_ACTIONS.authenticationOptions,
                 input.remoteIp,
             );
+            const now = currentTime();
+            yield* cleanupRetainedRecords(now);
             const options = yield* webAuthn.authenticationOptions({
                 rpId: config.rpId,
             });
             const plaintextChallenge = yield* challenge(options);
-            const now = currentTime();
             const challengeId = yield* safeId();
             yield* repository.issueAuthenticationChallenge({
                 id: challengeId,
@@ -344,13 +363,14 @@ export const makeAuthService = (dependencies: AuthServiceDependencies) => {
             TURNSTILE_ACTIONS.accessRegistrationOptions,
             input.remoteIp,
         );
+        const now = currentTime();
+        yield* cleanupRetainedRecords(now);
         const context = yield* repository.findAccessContext({
             tokenHash: yield* hash(input.accessToken),
-            now: currentTime(),
+            now,
         });
         const options = yield* registrationOptions(webAuthn, config, context);
         const plaintextChallenge = yield* challenge(options);
-        const now = currentTime();
         const challengeId = yield* safeId();
         yield* repository.issueAccessChallenge({
             id: challengeId,
@@ -429,13 +449,14 @@ export const makeAuthService = (dependencies: AuthServiceDependencies) => {
             TURNSTILE_ACTIONS.passkeyRegistrationOptions,
             input.remoteIp,
         );
+        const now = currentTime();
+        yield* cleanupRetainedRecords(now);
         const context = yield* repository.findUserRegistrationContext(
             session.user.id,
         );
         const options = yield* registrationOptions(webAuthn, config, context);
         const plaintextChallenge = yield* challenge(options);
         const challengeId = yield* safeId();
-        const now = currentTime();
         yield* repository.issueAuthenticatedRegistrationChallenge({
             linkId: yield* safeId(),
             linkTokenHash: yield* token().pipe(Effect.flatMap(hash)),
@@ -521,12 +542,14 @@ export const makeAuthService = (dependencies: AuthServiceDependencies) => {
                 idleCutoff: now - SESSION_IDLE_TIMEOUT_MS,
                 lastSeenThrottleCutoff: now - SESSION_LAST_SEEN_THROTTLE_MS,
             });
-            return {
+            const authenticated: AuthenticatedSession = {
                 sessionId: session.id,
                 user: authUser(session.user),
                 expiresAt: session.expiresAt,
+                createdAt: session.createdAt,
                 csrfTokenHash: session.csrfTokenHash,
-            } satisfies AuthenticatedSession;
+            };
+            return authenticated;
         },
     );
 

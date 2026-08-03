@@ -35,6 +35,7 @@ import {
     TurnstileError,
     type TurnstileHandle,
 } from '../components/Turnstile';
+import { useDocumentTitle } from '../documentTitle';
 import { authConfigQueryOptions, authKeys } from '../queries/auth';
 
 interface AccessRegistrationPageProps {
@@ -87,6 +88,11 @@ function errorPresentation(error: Error): {
 export function AccessRegistrationPage({
     purpose,
 }: AccessRegistrationPageProps): ReactElement {
+    useDocumentTitle(
+        purpose === 'enrollment'
+            ? 'Create your passkey'
+            : 'Recover your account',
+    );
     const configQuery = useQuery(authConfigQueryOptions);
     const queryClient = useQueryClient();
     const navigate = useNavigate();

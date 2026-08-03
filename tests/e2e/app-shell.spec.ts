@@ -19,3 +19,20 @@ test('serves the original Larafeed favicon', async ({ page, request }) => {
         LEGACY_FAVICON_SHA256,
     );
 });
+
+test('marks every application route as private', async ({ page, request }) => {
+    await page.goto('/login');
+
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+        'content',
+        'noindex, nofollow, noarchive',
+    );
+    await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+        'content',
+        'Larafeed is a private feed reader.',
+    );
+
+    const robots = await request.get('/robots.txt');
+    expect(robots.ok()).toBe(true);
+    expect(await robots.text()).toBe('User-agent: *\nDisallow: /\n');
+});

@@ -14,10 +14,12 @@ const SafeId = Schema.Int.check(
     Schema.isBetween({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER }),
 );
 const Timestamp = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
+const ContentStatus = Schema.Literals(['stored', 'empty', 'oversized']);
 const OwnedEntryRow = Schema.Struct({
     entry_id: SafeId,
     title: Schema.String,
     url: Schema.NullOr(Schema.String),
+    content_status: ContentStatus,
     content_html: Schema.NullOr(Schema.String),
     content_hash: Schema.Unknown,
     summary_id: Schema.NullOr(SafeId),
@@ -64,7 +66,7 @@ export interface SummaryRepository {
     readonly findOwnedEntry: (
         userId: number,
         entryId: number,
-        key: SummaryCacheKey,
+        key?: SummaryCacheKey,
     ) => Effect.Effect<
         OwnedSummaryEntry,
         SummaryNotFound | SummaryStorageError | SummaryInvariantError
@@ -156,7 +158,17 @@ const fromRow = (
 ): Effect.Effect<OwnedSummaryEntry, SummaryInvariantError> =>
     Effect.gen(function* () {
         const contentHash = yield* blob(operation, row.content_hash);
-        if ((row.content_html === null) !== (contentHash === null)) {
+        const validContent =
+            (row.content_status === 'stored' &&
+                row.content_html !== null &&
+                contentHash !== null) ||
+            (row.content_status === 'empty' &&
+                row.content_html === null &&
+                contentHash !== null) ||
+            (row.content_status === 'oversized' &&
+                row.content_html === null &&
+                contentHash === null);
+        if (!validContent) {
             return yield* Effect.fail(invariant(operation));
         }
 
@@ -203,11 +215,30 @@ export const makeSummaryRepository = (d1: D1): SummaryRepository => {
     ) =>
         Effect.gen(function* () {
             const operation = 'summaries.entry.find';
+            const currentContentHash = `CASE
+                WHEN e.content_status = 'empty' THEN zeroblob(32)
+                ELSE ec.content_hash END`;
+            const summaryJoin =
+                key === undefined
+                    ? `LEFT JOIN entry_summaries es ON es.id = (
+                        SELECT candidate.id FROM entry_summaries candidate
+                        WHERE candidate.entry_id = e.id
+                          AND candidate.content_hash = ${currentContentHash}
+                        ORDER BY candidate.created_at DESC, candidate.id DESC
+                        LIMIT 1
+                    )`
+                    : `LEFT JOIN entry_summaries es
+                        ON es.entry_id = e.id
+                        AND es.content_hash = ${currentContentHash}
+                        AND es.model = ? AND es.prompt_version = ?`;
             const value = yield* withStorageError(
                 operation,
                 d1.first({
                     sql: `SELECT e.id AS entry_id, e.title, e.url,
-                        ec.content_html, ec.content_hash,
+                        e.content_status,
+                        CASE WHEN e.content_status = 'stored'
+                            THEN ec.content_html ELSE NULL END AS content_html,
+                        ${currentContentHash} AS content_hash,
                         es.id AS summary_id, es.summary_html,
                         es.model AS summary_model,
                         es.prompt_version AS summary_prompt_version,
@@ -218,12 +249,15 @@ export const makeSummaryRepository = (d1: D1): SummaryRepository => {
                     LEFT JOIN entry_interactions ei
                         ON ei.user_id = fs.user_id AND ei.entry_id = e.id
                     LEFT JOIN entry_contents ec ON ec.entry_id = e.id
-                    LEFT JOIN entry_summaries es
-                        ON es.entry_id = e.id
-                        AND es.content_hash = ec.content_hash
-                        AND es.model = ? AND es.prompt_version = ?
+                    ${summaryJoin}
                     WHERE e.id = ? AND ei.filtered_at IS NULL`,
-                    bindings: [userId, key.model, key.promptVersion, entryId],
+                    bindings: [
+                        userId,
+                        ...(key === undefined
+                            ? []
+                            : [key.model, key.promptVersion]),
+                        entryId,
+                    ],
                 }),
             );
             if (value === null)
@@ -246,19 +280,27 @@ export const makeSummaryRepository = (d1: D1): SummaryRepository => {
                             entry_id, content_hash, model, prompt_version,
                             lease_token, lease_expires_at, created_at, updated_at
                         )
-                        SELECT e.id, ec.content_hash, ?, ?, ?, ?, ?, ?
+                        SELECT e.id, CASE
+                            WHEN e.content_status = 'empty' THEN zeroblob(32)
+                            ELSE ec.content_hash END, ?, ?, ?, ?, ?, ?
                         FROM entries e
                         JOIN feed_subscriptions fs
                             ON fs.feed_id = e.feed_id AND fs.user_id = ?
-                        JOIN entry_contents ec ON ec.entry_id = e.id
+                        LEFT JOIN entry_contents ec ON ec.entry_id = e.id
                         LEFT JOIN entry_interactions ei
                             ON ei.user_id = fs.user_id AND ei.entry_id = e.id
-                        WHERE e.id = ? AND ec.content_hash = ?
+                        WHERE e.id = ?
+                          AND CASE
+                              WHEN e.content_status = 'empty' THEN zeroblob(32)
+                              ELSE ec.content_hash END = ?
                           AND ei.filtered_at IS NULL
                           AND NOT EXISTS (
                               SELECT 1 FROM entry_summaries es
                               WHERE es.entry_id = e.id
-                                AND es.content_hash = ec.content_hash
+                                AND es.content_hash = CASE
+                                    WHEN e.content_status = 'empty'
+                                        THEN zeroblob(32)
+                                    ELSE ec.content_hash END
                                 AND es.model = ? AND es.prompt_version = ?
                           )
                         ON CONFLICT(entry_id, content_hash, model, prompt_version)
@@ -328,20 +370,27 @@ export const makeSummaryRepository = (d1: D1): SummaryRepository => {
                             model, prompt_version, summary_html,
                             created_at, updated_at
                         )
-                        SELECT ?, e.id, ?, ec.content_hash, ?, ?, ?, ?, ?
+                        SELECT ?, e.id, ?, CASE
+                            WHEN e.content_status = 'empty' THEN zeroblob(32)
+                            ELSE ec.content_hash END, ?, ?, ?, ?, ?
                         FROM entries e
                         JOIN feed_subscriptions fs
                             ON fs.feed_id = e.feed_id AND fs.user_id = ?
-                        JOIN entry_contents ec ON ec.entry_id = e.id
+                        LEFT JOIN entry_contents ec ON ec.entry_id = e.id
                         JOIN entry_summary_generation_leases lease
                             ON lease.entry_id = e.id
-                           AND lease.content_hash = ec.content_hash
+                           AND lease.content_hash = CASE
+                               WHEN e.content_status = 'empty' THEN zeroblob(32)
+                               ELSE ec.content_hash END
                            AND lease.model = ? AND lease.prompt_version = ?
                            AND lease.lease_token = ?
                            AND lease.lease_expires_at > ?
                         LEFT JOIN entry_interactions ei
                             ON ei.user_id = fs.user_id AND ei.entry_id = e.id
-                        WHERE e.id = ? AND ec.content_hash = ?
+                        WHERE e.id = ?
+                          AND CASE
+                              WHEN e.content_status = 'empty' THEN zeroblob(32)
+                              ELSE ec.content_hash END = ?
                           AND ei.filtered_at IS NULL
                         ON CONFLICT(entry_id, content_hash, model, prompt_version)
                         DO NOTHING`,

@@ -759,7 +759,10 @@ const entriesFromCandidates = async (
             deduplicationKey,
         });
     }
-    return entries;
+    // D1 assigns sequence IDs in iteration order. Reverse only after selecting
+    // and deduplicating newest-first so duplicate precedence stays unchanged,
+    // while newer entries receive higher IDs within each refresh batch.
+    return entries.reverse();
 };
 
 export const parseFeedDocument = async (

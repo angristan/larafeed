@@ -1,6 +1,11 @@
 import { Effect } from 'effect';
 
 import { generateRandomToken, generateSafeId } from '../auth/crypto';
+import {
+    JobInvariantError,
+    ManualRefreshCooldownError,
+    RefreshAlreadyActiveError,
+} from './errors';
 import type { JobRepository } from './repository';
 import {
     DEFAULT_JOB_LEASE_MS,
@@ -9,10 +14,12 @@ import {
     DEFAULT_REFRESH_INTERVAL_MS,
     DEFAULT_REFRESH_REDRIVE_AGE_MS,
     FEED_REFRESH_RETENTION_MS,
+    MANUAL_REFRESH_COOLDOWN_MS,
     MAX_BACKOFF_MS,
     MAX_DUE_FEEDS,
     MAX_HISTORY_CLEANUP,
     MAX_OUTBOX_MESSAGES,
+    MAX_TERMINAL_JOB_CLEANUP,
     type QueueDecision,
     type QueueSender,
     type RefreshJob,
@@ -20,6 +27,7 @@ import {
     type RefreshProcessor,
     type RefreshProcessorResult,
     type RefreshQueueMessage,
+    TERMINAL_JOB_RETENTION_MS,
 } from './types';
 
 export interface JobOrchestratorDependencies {
@@ -48,10 +56,19 @@ export interface CronResult {
     readonly reservedJobs: number;
     readonly dispatched: DispatchResult;
     readonly refreshHistoryDeleted: number;
+    readonly terminalJobsDeleted: number;
 }
 
 export interface JobOrchestrator {
     readonly createManualRefresh: (
+        feedId: number,
+        operationId?: string,
+    ) => Promise<{
+        readonly operationId: string;
+        readonly created: boolean;
+        readonly job: RefreshJob;
+    }>;
+    readonly requestManualRefresh: (
         feedId: number,
         operationId?: string,
     ) => Promise<{
@@ -81,6 +98,7 @@ export interface JobOrchestrator {
         readonly staleLeaseLimit?: number;
         readonly redriveLimit?: number;
         readonly cleanupLimit?: number;
+        readonly jobCleanupLimit?: number;
     }) => Promise<CronResult>;
 }
 
@@ -153,6 +171,7 @@ export const makeJobOrchestrator = (
         operationId: string,
         trigger: 'manual' | 'scheduled',
         currentTime: number,
+        manualCooldownMs = 0,
     ) => {
         const [jobId, outboxId] = await Promise.all([
             generateId(),
@@ -166,23 +185,54 @@ export const makeJobOrchestrator = (
             trigger,
             maxAttempts,
             now: currentTime,
+            manualCooldownMs,
         });
     };
 
-    const createManualRefresh = async (
+    const manualRefresh = async (
         feedId: number,
-        requestedOperationId?: string,
+        requestedOperationId: string | undefined,
+        strict: boolean,
     ) => {
         const operationId =
             requestedOperationId ??
             `feed-refresh:manual:${await generateToken()}`;
-        const result = await createJob(feedId, operationId, 'manual', now());
+        const result = await createJob(
+            feedId,
+            operationId,
+            'manual',
+            now(),
+            strict ? MANUAL_REFRESH_COOLDOWN_MS : 0,
+        );
+        if (result.type === 'cooldown') {
+            throw new ManualRefreshCooldownError(feedId, result.retryAt);
+        }
+        if (result.type === 'active' && strict) {
+            throw new RefreshAlreadyActiveError(feedId);
+        }
+        if (result.type === 'gone') {
+            throw new JobInvariantError(
+                'manualRefresh',
+                'manual admission rejected a gone feed',
+            );
+        }
+        const job = result.job;
         return {
-            operationId: result.job.operationId,
-            created: result.created,
-            job: result.job,
+            operationId: job.operationId,
+            created: result.type === 'created',
+            job,
         };
     };
+
+    const createManualRefresh = (
+        feedId: number,
+        requestedOperationId?: string,
+    ) => manualRefresh(feedId, requestedOperationId, false);
+
+    const requestManualRefresh = (
+        feedId: number,
+        requestedOperationId?: string,
+    ) => manualRefresh(feedId, requestedOperationId, true);
 
     const reserveDueRefreshes = async (requestedLimit = MAX_DUE_FEEDS) => {
         const currentTime = now();
@@ -200,7 +250,10 @@ export const makeJobOrchestrator = (
                 'scheduled',
                 currentTime,
             );
-            if (result.created) reserved += 1;
+            if (result.type === 'gone' || result.type === 'cooldown') {
+                continue;
+            }
+            if (result.type === 'created') reserved += 1;
             operations.push(result.job.operationId);
         }
         return { reserved, operations };
@@ -434,6 +487,7 @@ export const makeJobOrchestrator = (
             readonly staleLeaseLimit?: number;
             readonly redriveLimit?: number;
             readonly cleanupLimit?: number;
+            readonly jobCleanupLimit?: number;
         } = {},
     ): Promise<CronResult> => {
         const currentTime = now();
@@ -453,6 +507,10 @@ export const makeJobOrchestrator = (
             Math.max(0, currentTime - FEED_REFRESH_RETENTION_MS),
             limit(input.cleanupLimit, MAX_HISTORY_CLEANUP),
         );
+        const terminalJobsDeleted = await repository.cleanupTerminalJobs(
+            Math.max(0, currentTime - TERMINAL_JOB_RETENTION_MS),
+            limit(input.jobCleanupLimit, MAX_TERMINAL_JOB_CLEANUP),
+        );
         const reserved =
             input.reserve === false
                 ? { reserved: 0, operations: [] }
@@ -468,11 +526,13 @@ export const makeJobOrchestrator = (
             reservedJobs: reserved.reserved,
             dispatched,
             refreshHistoryDeleted,
+            terminalJobsDeleted,
         };
     };
 
     return {
         createManualRefresh,
+        requestManualRefresh,
         reserveDueRefreshes,
         dispatchOutbox,
         processQueueMessage,

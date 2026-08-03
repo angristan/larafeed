@@ -7,6 +7,10 @@ import { type AuthRuntime, defaultAuthRuntimeFactory } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
 import { makeD1 } from '../infrastructure/d1';
 import { faviconRefreshEnabled } from './cron';
+import {
+    faviconDarknessEnabled,
+    makeFaviconDarknessAnalyzer,
+} from './darkness';
 import { makeFaviconRepository } from './repository';
 import { type FaviconService, makeFaviconService } from './service';
 
@@ -33,6 +37,9 @@ export const defaultFaviconRuntimeFactory: FaviconRuntimeFactory = (env) =>
             auth,
             service: makeFaviconService({
                 repository: makeFaviconRepository(makeD1(env.DB)),
+                analyzeDarkness: faviconDarknessEnabled(env)
+                    ? makeFaviconDarknessAnalyzer(env.IMAGES)
+                    : undefined,
             }),
             rateLimit: (key: string) => env.AUTH_RATE_LIMITER.limit({ key }),
         })),

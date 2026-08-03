@@ -21,6 +21,10 @@ Worker + Static Assets
 
 D1 is authoritative for users, sessions, reader data, durable jobs, outbox commands, imports, and summaries. Queue messages contain operation identifiers only. Production and test use separate D1 databases, queues, rate-limit namespaces, origins, RP IDs, Turnstile keys, and passkeys.
 
+### Perimeter decision
+
+Cloudflare Access is not placed in front of the whole hostname. Whole-host Access would break Google Reader/Fever clients and public liveness checks, while the application already enforces passkeys, Turnstile, scoped app tokens, CSRF, and ownership at its boundaries. A future path-scoped Access policy may add defense in depth for `/admin/*`, but it must preserve `/up`, authentication ceremonies, and machine APIs. Any such durable account/zone policy belongs in `cloudflare-tf` and requires a separate reviewed rollout.
+
 ## Declared resources
 
 `wrangler.jsonc` declares:
@@ -53,16 +57,13 @@ Do not put production secrets in `wrangler.jsonc`, `.dev.vars`, shell history, o
 
 ```bash
 npm ci
-npm run lint-check
-npm run typecheck
-npm run types:check:cloudflare
-npm test
+npm run validate
 npm run d1:validate:large
-npm run deploy:check
-npm run deploy:check:test
 npm run d1:migrations:list:test
 npm audit
 ```
+
+Review [the capacity and cost model](cloudflare-cost-model.md) before changing a rollout limit, sampling rate, retention period, or metered feature.
 
 The Vite plugin selects named Cloudflare environments at build time. `npm run build:test` sets `CLOUDFLARE_ENV=test`; the following Wrangler command then uses the generated flattened test configuration. Do not add `--env test` to the post-build deploy command.
 
@@ -105,7 +106,21 @@ Do not run these actions until the operator approves production writes.
 9. Apply production D1 migrations.
 10. Deploy and complete smoke tests before traffic cutover.
 
-Wrangler declarations remain the source of truth after identifiers are known.
+After steps 1–8 are reviewed and complete, use the pinned project tools from a clean signed revision:
+
+```bash
+CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false \
+  npm exec -- wrangler d1 migrations list DB --remote
+CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false \
+  npm exec -- wrangler d1 migrations apply DB --remote
+npm run build
+CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false \
+  npm exec -- wrangler deploy --dry-run --config dist/larafeed/wrangler.json
+CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false \
+  npm exec -- wrangler deploy --config dist/larafeed/wrangler.json
+```
+
+The migration list must be empty after application. The dry run must name only production resources and keep every initial rollout control disabled. The final command is a production write and requires explicit approval. Wrangler declarations remain the source of truth after identifiers are known.
 
 ## Fresh database bootstrap
 
@@ -119,7 +134,7 @@ REFRESH_DISPATCH_ENABLED=false
 AI_SUMMARY_ENABLED=false
 ```
 
-Apply every D1 migration, deploy, and enroll the first administrator. Import subscriptions through the authenticated OPML workflow. Enable Queue dispatch and inspect initial refresh jobs before enabling scheduled refreshes. Enable AI summaries only after provider credentials and cost controls are verified.
+Apply every D1 migration, deploy, and enroll the first administrator. Keep `OPML_IMPORT_ENABLED=false` until the operator approves a bounded bootstrap window. In a reviewed revision, enable only OPML import, deploy, import the subscription file, then restore `false` and deploy before enabling Queue dispatch. Inspect initial refresh jobs before enabling scheduled refreshes. Enable AI summaries only after provider credentials and cost controls are verified.
 
 ## Initial and recovery access
 
@@ -144,7 +159,9 @@ Enabled administrators use `/admin/users` for ordinary operations:
 - Disable or reactivate accounts. Disabling revokes active sessions and outstanding links.
 - Review recent D1 security events. The final active administrator and the current administrator's own account are protected from dashboard disablement.
 
-Users use `/settings/security` to edit profile fields, add or remove passkeys, clear reader data, or delete their account. Destructive operations require a fresh passkey ceremony and exact username confirmation. Account deletion clears session cookies, preserves shared feeds, removes orphan feeds, and refuses to remove the final active administrator.
+Users use `/settings/security` to edit profile fields, add or remove passkeys, clear reader data, or delete their account. Destructive operations require a server-verified session created by a passkey ceremony within five minutes and exact username confirmation. Account deletion clears session cookies, preserves shared feeds, removes orphan feeds, and refuses to remove the final active administrator.
+
+Authentication maintenance removes expired or revoked sessions after 30 days, consumed or expired challenges after one day, consumed/expired/revoked access links after 30 days, and security events after 365 days. Every cleanup query is index-backed and limited to 100 rows; live credentials, links, sessions, and challenges are excluded.
 
 ## Rollout controls
 
@@ -160,11 +177,11 @@ Users use `/settings/security` to edit profile fields, add or remove passkeys, c
 | `AI_SUMMARY_ENABLED=false` | Reject new summary generation without deleting cached summaries. |
 | AI Gateway budget/rate limit | Bound provider spend independently of application limits. |
 
-There is no telemetry SDK kill switch because the application relies on native Workers logs and traces. Sampling is configured at the Cloudflare environment level.
+There is no telemetry SDK kill switch because the application relies on native Workers logs and traces. Sampling is configured at the Cloudflare environment level. The Worker creates one privacy-safe custom span at each Queue-batch and scheduled-subsystem boundary: `app.refresh.queue.consume`, `app.opml.queue.consume`, `app.opml.queue.dead_letter`, `app.refresh.cron`, `app.opml.cron`, and `app.favicon.cron`. Failures emit one bounded `app.operation.failed` event without raw errors, URLs, identifiers, or payloads. Persisted logs remain disabled until their volume and cost are separately approved.
 
 ## Health checks
 
-The unauthenticated `GET /up` endpoint returns `200 OK` with a plain-text `OK` body for uptime monitors. `GET /api/health` remains the JSON application-health endpoint.
+The unauthenticated `GET /up` endpoint returns `200 OK` with a plain-text `OK` body for process and routing liveness. `GET /api/health` performs a D1 readiness query and returns `503 service_unavailable` without internal details when D1 cannot be reached.
 
 ## Dashboards and alerts
 
@@ -200,8 +217,8 @@ the recent versions, and select an explicit known-good version:
 
 ```bash
 npm run build:test
-wrangler deployments list --config dist/larafeed/wrangler.json
-wrangler rollback VERSION_ID --config dist/larafeed/wrangler.json \
+npm exec -- wrangler deployments list --config dist/larafeed/wrangler.json
+npm exec -- wrangler rollback VERSION_ID --config dist/larafeed/wrangler.json \
   --message "rollback test deployment"
 ```
 
@@ -210,6 +227,31 @@ identifiers are provisioned. Never use a test version ID for production. A code
 rollback does not reverse D1 migrations or Queue deliveries. If a migration
 needs repair, ship a new forward migration and keep background rollout controls
 disabled until it is verified.
+
+## D1 data recovery
+
+The private-service recovery objective is **RPO ≤ 1 hour** and **RTO ≤ 2 hours**. These are operator targets until a production recovery drill proves them. D1 Time Travel supports a timestamp or bookmark within its platform retention window; confirm the current window before relying on it.
+
+An in-place restore is destructive and requires explicit approval:
+
+1. Set every background rollout control to `false` and pause Queue consumers.
+2. Record the current Worker version, D1 Time Travel bookmark, Queue backlog, and incident timestamp.
+3. Inspect the target without changing data:
+
+   ```bash
+   npm exec -- wrangler d1 time-travel info DB --timestamp RFC3339_TIMESTAMP
+   ```
+
+4. After approval, restore the exact reviewed bookmark or timestamp:
+
+   ```bash
+   npm exec -- wrangler d1 time-travel restore DB --bookmark BOOKMARK
+   ```
+
+5. Reapply only migrations newer than the restored point, deploy a schema-compatible Worker version, and verify `/up`, `/api/health`, migration state, foreign keys, account access, and sampled reader data.
+6. Reconcile D1 jobs/outbox with Queue and DLQ state before resuming dispatch. Resume low-concurrency dispatch before scheduling.
+
+Time Travel does not undo external feed requests, Queue deliveries, Images transformations, or AI provider calls. If recovery cannot meet the target without losing accepted user mutations, keep traffic disabled and escalate instead of guessing.
 
 ## Incident procedures
 

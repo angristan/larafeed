@@ -7,10 +7,16 @@ import { Effect } from 'effect';
 
 import { generateSafeId } from '../auth/crypto';
 import type { AuthenticatedSession } from '../auth/service';
-import { AccountForbidden, AccountValidationError } from './errors';
+import {
+    AccountForbidden,
+    AccountFreshAuthenticationRequired,
+    AccountValidationError,
+} from './errors';
 import type { AccountRepository } from './repository';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
+
+export const FRESH_AUTHENTICATION_WINDOW_MS = 5 * 60 * 1_000;
 
 export interface AccountServiceDependencies {
     readonly repository: AccountRepository;
@@ -28,6 +34,15 @@ export const makeAccountService = (
         session.user.isAdmin
             ? Effect.succeed(session)
             : Effect.fail(new AccountForbidden());
+    const requireFreshAuthentication = (
+        session: AuthenticatedSession,
+        actionTime: number,
+    ) =>
+        session.createdAt !== undefined &&
+        session.createdAt <= actionTime &&
+        session.createdAt >= actionTime - FRESH_AUTHENTICATION_WINDOW_MS
+            ? Effect.void
+            : Effect.fail(new AccountFreshAuthenticationRequired());
     const confirm = (session: AuthenticatedSession, confirmation: string) =>
         confirmation.trim() === session.user.username
             ? Effect.void
@@ -70,24 +85,28 @@ export const makeAccountService = (
 
         wipeReaderData: (session: AuthenticatedSession, confirmation: string) =>
             Effect.gen(function* () {
+                const actionTime = now();
+                yield* requireFreshAuthentication(session, actionTime);
                 yield* confirm(session, confirmation);
                 yield* dependencies.repository.wipeReaderData({
                     userId: session.user.id,
                     sessionId: session.sessionId,
                     eventId: yield* event(),
-                    now: now(),
+                    now: actionTime,
                 });
                 return AccountActionResponse.make({ success: true });
             }),
 
         deleteAccount: (session: AuthenticatedSession, confirmation: string) =>
             Effect.gen(function* () {
+                const actionTime = now();
+                yield* requireFreshAuthentication(session, actionTime);
                 yield* confirm(session, confirmation);
                 yield* dependencies.repository.deleteAccount({
                     userId: session.user.id,
                     sessionId: session.sessionId,
                     eventId: yield* event(),
-                    now: now(),
+                    now: actionTime,
                 });
                 return AccountActionResponse.make({ success: true });
             }),

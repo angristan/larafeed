@@ -12,7 +12,20 @@ const valid = {
 } as unknown as Env;
 
 describe('summary config', () => {
-    it('accepts only exact trusted Gateway configuration', async () => {
+    it('accepts disabled summaries without provider configuration', async () => {
+        await expect(
+            Effect.runPromise(
+                parseSummaryConfig({
+                    AI_SUMMARY_ENABLED: 'false',
+                } as unknown as Env),
+            ),
+        ).resolves.toEqual({
+            enabled: false,
+            promptVersion: SUMMARY_PROMPT_VERSION,
+        });
+    });
+
+    it('accepts only exact trusted Gateway configuration when enabled', async () => {
         await expect(
             Effect.runPromise(parseSummaryConfig(valid)),
         ).resolves.toEqual({
@@ -24,15 +37,19 @@ describe('summary config', () => {
             apiKey: 'secret-key',
         });
 
-        for (const override of [
-            { AI_SUMMARY_ENABLED: 'TRUE' },
-            { AI_GATEWAY_ACCOUNT_ID: '../account' },
-            { AI_GATEWAY_NAME: 'gateway/name' },
-            { AI_MODEL: 'models/gemini' },
-            { GEMINI_API_KEY: ' secret-key' },
+        for (const candidate of [
+            { ...valid, AI_SUMMARY_ENABLED: 'TRUE' },
+            { ...valid, AI_GATEWAY_ACCOUNT_ID: '../account' },
+            { ...valid, AI_GATEWAY_NAME: 'gateway/name' },
+            { ...valid, AI_MODEL: 'models/gemini' },
+            { ...valid, GEMINI_API_KEY: ' secret-key' },
+            { ...valid, AI_GATEWAY_ACCOUNT_ID: undefined },
+            { ...valid, AI_GATEWAY_NAME: undefined },
+            { ...valid, AI_MODEL: undefined },
+            { ...valid, GEMINI_API_KEY: undefined },
         ]) {
             const error = await Effect.runPromise(
-                parseSummaryConfig({ ...valid, ...override }),
+                parseSummaryConfig(candidate as unknown as Env),
             ).catch((cause: unknown) => cause);
             expect(error).toBeInstanceOf(SummaryConfigError);
         }
