@@ -107,6 +107,15 @@ export interface FeedRefreshInput extends RefreshJobClaim {
     readonly subscriptionFilters: readonly FeedSubscriptionFilter[];
 }
 
+export interface RefreshEntryUpdateMask {
+    readonly title: boolean;
+    readonly url: boolean;
+    readonly author: boolean;
+    readonly publishedAt: boolean;
+    readonly sourceUpdatedAt: boolean;
+    readonly content: boolean;
+}
+
 export type RefreshEntryContent =
     | {
           readonly type: 'stored';
@@ -124,6 +133,7 @@ export interface ProcessedRefreshEntry {
     readonly author: string | null;
     readonly publishedAt: number;
     readonly sourceUpdatedAt: number | null;
+    readonly updateMask: RefreshEntryUpdateMask;
     readonly content: RefreshEntryContent;
     readonly filteredUserIds: readonly number[];
 }

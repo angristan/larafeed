@@ -91,6 +91,7 @@ const normalizedEntry = async (
         author: entry.author,
         publishedAt: entry.publishedAt,
         sourceUpdatedAt: entry.sourceUpdatedAt,
+        updateMask: entry.updateMask,
         content:
             entry.contentStatus === 'stored' && entry.contentHtml !== null
                 ? {

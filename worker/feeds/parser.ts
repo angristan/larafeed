@@ -8,6 +8,15 @@ export const MAX_FUTURE_DATE_SKEW_MS = 24 * 60 * 60 * 1_000;
 
 export type ContentStatus = 'stored' | 'empty' | 'oversized';
 
+export interface EntryUpdateMask {
+    readonly title: boolean;
+    readonly url: boolean;
+    readonly author: boolean;
+    readonly publishedAt: boolean;
+    readonly sourceUpdatedAt: boolean;
+    readonly content: boolean;
+}
+
 export interface NormalizedFeedMetadata {
     readonly title: string;
     readonly siteUrl: string | null;
@@ -29,6 +38,7 @@ export interface NormalizedFeedEntry {
     readonly contentHtml: string | null;
     readonly contentEncodedSize: number;
     readonly contentStatus: ContentStatus;
+    readonly updateMask: EntryUpdateMask;
 }
 
 export interface ParsedFeed {
@@ -65,6 +75,7 @@ interface EntryCandidate {
     readonly contentHtml: string | null;
     readonly contentEncodedSize: number;
     readonly contentStatus: ContentStatus;
+    readonly updateMask: EntryUpdateMask;
     readonly sourceIndex: number;
 }
 
@@ -436,6 +447,8 @@ const candidateFromJsonItem = (
             (contentText === undefined ? undefined : escaped(contentText)),
         finalUrl,
     );
+    const rawTitle = boundedText(jsonText(item.title), 2_000);
+    const itemAuthor = jsonAuthor(item);
     const rawPublished = jsonText(item.date_published);
     const rawUpdated = jsonText(item.date_modified);
     const published = parseDate(rawPublished, fetchedAt);
@@ -447,13 +460,21 @@ const candidateFromJsonItem = (
     return {
         sourceIdentity: `id:${sourceId}`,
         sourceId,
-        title: boundedText(jsonText(item.title), 2_000) ?? 'Untitled',
+        title: rawTitle ?? 'Untitled',
         url,
-        author: jsonAuthor(item) ?? feedAuthor ?? null,
+        author: itemAuthor ?? feedAuthor ?? null,
         publishedAt: published ?? sourceUpdatedAt ?? fetchedAt,
         sourceUpdatedAt,
         sortTimestamp: published ?? sourceUpdatedAt,
         ...content,
+        updateMask: {
+            title: rawTitle !== undefined,
+            url: url !== null,
+            author: itemAuthor !== undefined,
+            publishedAt: published !== null,
+            sourceUpdatedAt: sourceUpdatedAt !== null,
+            content: true,
+        },
         sourceIndex,
     };
 };
@@ -524,8 +545,15 @@ const candidateFromItem = (
         firstText(item, 'guid', 'id') ?? scalarText(item['@_about']) ?? null;
     const sourceId = boundedText(rawSourceId ?? undefined, 4_096) ?? null;
     const url = itemLink(kind, item, finalUrl);
-    const title = boundedText(firstText(item, 'title'), 2_000) ?? 'Untitled';
+    const rawTitle = boundedText(firstText(item, 'title'), 2_000);
+    const title = rawTitle ?? 'Untitled';
     const rawContent = contentForItem(item);
+    const contentProvided = [
+        'encoded',
+        'content',
+        'description',
+        'summary',
+    ].some((key) => Object.hasOwn(item, key));
     const content = normalizedContent(rawContent, finalUrl);
     const rawPublished = firstText(item, 'pubdate', 'published', 'date');
     const rawUpdated = firstText(item, 'updated', 'modified');
@@ -558,21 +586,29 @@ const candidateFromItem = (
               ? `url:${url}`
               : `fallback:${fallback}`;
 
+    const author = boundedText(
+        firstText(item, 'author', 'creator') ??
+            scalarText(firstRecord(item.author)?.name),
+        1_000,
+    );
     return {
         sourceIdentity,
         sourceId,
         title,
         url,
-        author:
-            boundedText(
-                firstText(item, 'author', 'creator') ??
-                    scalarText(firstRecord(item.author)?.name),
-                1_000,
-            ) ?? null,
+        author: author ?? null,
         publishedAt: published ?? sourceUpdatedAt ?? feedUpdatedAt ?? fetchedAt,
         sourceUpdatedAt,
         sortTimestamp: published ?? sourceUpdatedAt,
         ...content,
+        updateMask: {
+            title: rawTitle !== undefined,
+            url: url !== null,
+            author: author !== undefined,
+            publishedAt: published !== null,
+            sourceUpdatedAt: sourceUpdatedAt !== null,
+            content: contentProvided,
+        },
         sourceIndex,
     };
 };

@@ -99,6 +99,33 @@ describe('feed parser', () => {
         });
     });
 
+    it('marks fallback values as omitted for sparse repeated entries', async () => {
+        const feed = await parse(`<rss><channel>
+            <title>Sparse feed</title>
+            <lastBuildDate>Sat, 18 Jul 2026 10:00:00 GMT</lastBuildDate>
+            <item><guid>sparse-entry</guid></item>
+        </channel></rss>`);
+
+        expect(feed.entries).toHaveLength(1);
+        expect(feed.entries[0]).toMatchObject({
+            sourceIdentity: 'id:sparse-entry',
+            title: 'Untitled',
+            url: null,
+            author: null,
+            publishedAt: Date.parse('2026-07-18T10:00:00Z'),
+            sourceUpdatedAt: null,
+            contentStatus: 'empty',
+            updateMask: {
+                title: false,
+                url: false,
+                author: false,
+                publishedAt: false,
+                sourceUpdatedAt: false,
+                content: false,
+            },
+        });
+    });
+
     it('normalizes RSS 1 RDF namespaced feeds', async () => {
         const feed =
             await parse(`<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/">

@@ -947,12 +947,19 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         SELECT 1 FROM jobs j WHERE ${leasePredicate}
                     )
                     ON CONFLICT(feed_id, deduplication_key) DO UPDATE SET
-                        source_id = excluded.source_id,
-                        title = excluded.title, url = excluded.url,
-                        author = excluded.author,
-                        published_at = excluded.published_at,
-                        source_updated_at = excluded.source_updated_at,
-                        content_status = excluded.content_status,
+                        source_id = COALESCE(excluded.source_id, entries.source_id),
+                        title = CASE WHEN ? = 1
+                            THEN excluded.title ELSE entries.title END,
+                        url = CASE WHEN ? = 1
+                            THEN excluded.url ELSE entries.url END,
+                        author = CASE WHEN ? = 1
+                            THEN excluded.author ELSE entries.author END,
+                        published_at = CASE WHEN ? = 1
+                            THEN excluded.published_at ELSE entries.published_at END,
+                        source_updated_at = CASE WHEN ? = 1
+                            THEN excluded.source_updated_at ELSE entries.source_updated_at END,
+                        content_status = CASE WHEN ? = 1
+                            THEN excluded.content_status ELSE entries.content_status END,
                         updated_at = excluded.updated_at`,
                 bindings: [
                     input.claim.feedId,
@@ -967,11 +974,17 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     input.completedAt,
                     input.completedAt,
                     ...conditionBindings,
+                    entry.updateMask.title ? 1 : 0,
+                    entry.updateMask.url ? 1 : 0,
+                    entry.updateMask.author ? 1 : 0,
+                    entry.updateMask.publishedAt ? 1 : 0,
+                    entry.updateMask.sourceUpdatedAt ? 1 : 0,
+                    entry.updateMask.content ? 1 : 0,
                 ],
             });
             mutationKinds.push('exactlyOne');
 
-            if (entry.content.type === 'stored') {
+            if (entry.updateMask.content && entry.content.type === 'stored') {
                 const encodedSize = new TextEncoder().encode(
                     entry.content.html,
                 ).byteLength;
@@ -1008,7 +1021,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     ],
                 });
                 mutationKinds.push('exactlyOne');
-            } else {
+            } else if (entry.updateMask.content) {
                 statements.push({
                     sql: `DELETE FROM entry_contents
                         WHERE entry_id = (

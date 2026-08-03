@@ -17,6 +17,14 @@ const d1 = makeD1(env.DB);
 const repository = makeJobRepository(d1);
 const bytes = (value: number, length = 32) =>
     new Uint8Array(length).fill(value % 255 || 1);
+const allEntryFields = {
+    title: true,
+    url: true,
+    author: true,
+    publishedAt: true,
+    sourceUpdatedAt: true,
+    content: true,
+} as const;
 
 const run = <A>(effect: Effect.Effect<A, unknown>) => Effect.runPromise(effect);
 
@@ -191,6 +199,7 @@ describe('durable feed refresh jobs', () => {
                         author: null,
                         publishedAt,
                         sourceUpdatedAt: null,
+                        updateMask: allEntryFields,
                         filteredUserIds: [],
                         content: { type: 'empty' },
                     },
@@ -486,6 +495,7 @@ describe('durable feed refresh jobs', () => {
                         author: null,
                         publishedAt: now,
                         sourceUpdatedAt: null,
+                        updateMask: allEntryFields,
                         filteredUserIds: [],
                         content: { type: 'empty' },
                     },
@@ -497,6 +507,7 @@ describe('durable feed refresh jobs', () => {
                         author: null,
                         publishedAt: now,
                         sourceUpdatedAt: null,
+                        updateMask: allEntryFields,
                         filteredUserIds: [],
                         content: { type: 'empty' },
                     },
@@ -552,6 +563,7 @@ describe('durable feed refresh jobs', () => {
                     author: null,
                     publishedAt: now,
                     sourceUpdatedAt: null,
+                    updateMask: allEntryFields,
                     filteredUserIds: [],
                     content: {
                         type: 'stored',
@@ -567,6 +579,7 @@ describe('durable feed refresh jobs', () => {
                     author: null,
                     publishedAt: now - 1,
                     sourceUpdatedAt: null,
+                    updateMask: allEntryFields,
                     filteredUserIds: [],
                     content: { type: 'oversized' },
                 },
@@ -624,6 +637,109 @@ describe('durable feed refresh jobs', () => {
             { source_id: 'stored', content_status: 'stored' },
             { source_id: 'oversized', content_status: 'oversized' },
         ]);
+    });
+
+    it('preserves metadata and content omitted by sparse updates', async () => {
+        const now = 2_100_005_250_000;
+        const feedId = 364_001;
+        const deduplicationKey = bytes(64);
+        await insertFeed(feedId, now);
+        await createJob(feedId, 364_101, now);
+        const firstClaim = await claim('operation-364101', now);
+        await repository.commitRefresh({
+            claim: firstClaim,
+            historyId: 364_103,
+            completedAt: now + 1,
+            etag: null,
+            lastModified: null,
+            nextRefreshAt: now + 60_000,
+            httpStatus: 200,
+            durationMs: 1,
+            notModified: false,
+            entries: [
+                {
+                    deduplicationKey,
+                    sourceId: 'stable-guid',
+                    title: 'Complete title',
+                    url: 'https://jobs.example.test/complete',
+                    author: 'Complete author',
+                    publishedAt: now - 10_000,
+                    sourceUpdatedAt: now - 5_000,
+                    updateMask: allEntryFields,
+                    filteredUserIds: [],
+                    content: {
+                        type: 'stored',
+                        html: '<p>Complete article</p>',
+                        hash: bytes(65),
+                    },
+                },
+            ],
+        });
+        const before = await first<{
+            id: number;
+            title: string;
+            url: string | null;
+            author: string | null;
+            published_at: number;
+            source_updated_at: number | null;
+            content_status: string;
+            content_html: string | null;
+            content_hash: string | null;
+        }>(
+            `SELECT e.id, e.title, e.url, e.author, e.published_at,
+                e.source_updated_at, e.content_status, ec.content_html,
+                hex(ec.content_hash) AS content_hash
+             FROM entries e
+             LEFT JOIN entry_contents ec ON ec.entry_id = e.id
+             WHERE e.feed_id = ?`,
+            [feedId],
+        );
+
+        await createJob(feedId, 364_201, now + 2);
+        const sparseClaim = await claim('operation-364201', now + 2);
+        await repository.commitRefresh({
+            claim: sparseClaim,
+            historyId: 364_203,
+            completedAt: now + 3,
+            etag: null,
+            lastModified: null,
+            nextRefreshAt: now + 60_000,
+            httpStatus: 200,
+            durationMs: 1,
+            notModified: false,
+            entries: [
+                {
+                    deduplicationKey,
+                    sourceId: 'stable-guid',
+                    title: 'Untitled',
+                    url: null,
+                    author: null,
+                    publishedAt: now + 3,
+                    sourceUpdatedAt: null,
+                    updateMask: {
+                        title: false,
+                        url: false,
+                        author: false,
+                        publishedAt: false,
+                        sourceUpdatedAt: false,
+                        content: false,
+                    },
+                    filteredUserIds: [],
+                    content: { type: 'empty' },
+                },
+            ],
+        });
+        await expect(
+            first(
+                `SELECT e.id, e.title, e.url, e.author, e.published_at,
+                    e.source_updated_at, e.content_status, ec.content_html,
+                    hex(ec.content_hash) AS content_hash
+                 FROM entries e
+                 LEFT JOIN entry_contents ec ON ec.entry_id = e.id
+                 WHERE e.feed_id = ?`,
+                [feedId],
+            ),
+        ).resolves.toEqual(before);
     });
 
     it('updates sparse filter matches without clearing starred state', async () => {
@@ -707,6 +823,7 @@ describe('durable feed refresh jobs', () => {
                     author: null,
                     publishedAt: now,
                     sourceUpdatedAt: null,
+                    updateMask: allEntryFields,
                     filteredUserIds: [userId],
                     content: { type: 'empty' },
                 },
@@ -753,6 +870,7 @@ describe('durable feed refresh jobs', () => {
                     author: null,
                     publishedAt: now,
                     sourceUpdatedAt: null,
+                    updateMask: allEntryFields,
                     filteredUserIds: [],
                     content: { type: 'empty' },
                 },
