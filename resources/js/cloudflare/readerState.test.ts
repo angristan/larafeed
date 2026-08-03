@@ -58,7 +58,7 @@ describe('reader URL state', () => {
         ).toBe('feed=7&filter=all&order_by=published_at&page=1');
     });
 
-    it('resets the page but preserves the selected entry when list inputs change', () => {
+    it('resets the page and selected detail when list scope changes', () => {
         const current = parseReaderState(
             new URLSearchParams(
                 'category=4&filter=unread&order_by=published_at&page=5&entry=11&summarize=true',
@@ -71,12 +71,30 @@ describe('reader URL state', () => {
             filter: 'unread',
             orderBy: 'published_at',
             page: 1,
-            entryId: 11,
-            summarize: true,
+            entryId: null,
+            summarize: false,
         });
         expect(readerHref(current, { filter: 'favorites' })).toBe(
-            '/feeds?category=4&filter=favorites&order_by=published_at&page=1&entry=11&summarize=true',
+            '/feeds?category=4&filter=favorites&order_by=published_at&page=1',
         );
+        expect(readerHref(current, { orderBy: 'created_at' })).toBe(
+            '/feeds?category=4&filter=unread&order_by=created_at&page=1',
+        );
+    });
+
+    it('clears the selected detail when only the list page changes', () => {
+        const current = parseReaderState(
+            new URLSearchParams(
+                'feed=7&filter=all&order_by=published_at&page=2&entry=11&summarize=true',
+            ),
+        );
+
+        expect(patchReaderState(current, { page: 3 })).toEqual({
+            ...current,
+            page: 3,
+            entryId: null,
+            summarize: false,
+        });
     });
 
     it('keeps list inputs and resets summary mode when the entry changes', () => {
@@ -94,6 +112,20 @@ describe('reader URL state', () => {
         expect(patchReaderState(current, { entryId: null })).toEqual({
             ...current,
             entryId: null,
+            summarize: false,
+        });
+        expect(
+            patchReaderState(current, {
+                entryId: 12,
+                summarize: true,
+            }),
+        ).toEqual({
+            ...current,
+            entryId: 12,
+            summarize: true,
+        });
+        expect(patchReaderState(current, { summarize: false })).toEqual({
+            ...current,
             summarize: false,
         });
     });

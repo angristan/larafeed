@@ -93,15 +93,6 @@ export function patchReaderState(
     current: ReaderState,
     patch: ReaderStatePatch,
 ): ReaderState {
-    const changesList =
-        'feedId' in patch ||
-        'categoryId' in patch ||
-        'filter' in patch ||
-        'orderBy' in patch ||
-        'page' in patch;
-    const changesEntry =
-        'entryId' in patch && patch.entryId !== current.entryId;
-
     let feedId = 'feedId' in patch ? (patch.feedId ?? null) : current.feedId;
     let categoryId =
         'categoryId' in patch ? (patch.categoryId ?? null) : current.categoryId;
@@ -112,19 +103,36 @@ export function patchReaderState(
         feedId = null;
     }
 
+    const filter = patch.filter ?? current.filter;
+    const orderBy = patch.orderBy ?? current.orderBy;
+    const changesScope =
+        feedId !== current.feedId ||
+        categoryId !== current.categoryId ||
+        filter !== current.filter ||
+        orderBy !== current.orderBy;
+    const page = patch.page ?? (changesScope ? 1 : current.page);
+    const changesList = changesScope || page !== current.page;
+    const entryId = changesList
+        ? null
+        : 'entryId' in patch
+          ? (patch.entryId ?? null)
+          : current.entryId;
+    const changesEntry = entryId !== current.entryId;
+
     return {
         feedId,
         categoryId,
-        filter: patch.filter ?? current.filter,
-        orderBy: patch.orderBy ?? current.orderBy,
-        page: patch.page ?? (changesList ? 1 : current.page),
-        entryId: 'entryId' in patch ? (patch.entryId ?? null) : current.entryId,
-        summarize:
-            'summarize' in patch
-                ? (patch.summarize ?? false)
-                : changesEntry
-                  ? false
-                  : current.summarize,
+        filter,
+        orderBy,
+        page,
+        entryId,
+        summarize: changesList
+            ? false
+            : 'summarize' in patch
+              ? (patch.summarize ?? false)
+              : changesEntry
+                ? false
+                : current.summarize,
     };
 }
 

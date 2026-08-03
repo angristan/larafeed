@@ -240,6 +240,7 @@ test('keeps the unread page stable and generates a summary with one click', asyn
     await expect(entryLink).toBeVisible();
     await entryLink.click();
     await expect(page.locator('h1')).toHaveText('First unread entry');
+    await expect(page.locator('h1')).not.toBeFocused();
     await expect.poll(() => state.readPuts).toBe(1);
     await expect(entryLink).toBeVisible();
     expect(state.entryListRequests).toBe(1);
@@ -258,16 +259,44 @@ test('uses a single list or detail pane on mobile with working back navigation',
     await mockReaderApi(page);
     await page.goto('/feeds?filter=all&order_by=published_at&page=1');
 
-    const entryLink = page.getByText('First unread entry', { exact: true }).first();
+    const entryLink = page
+        .getByText('First unread entry', { exact: true })
+        .first();
+    const entryRow = page.locator('#reader-entry-41');
+    const detailHeading = page.getByRole('heading', {
+        name: 'First unread entry',
+    });
     await expect(entryLink).toBeVisible();
     await entryLink.click();
 
     const back = page.getByRole('button', { name: 'Back to entry list' });
     await expect(back).toBeVisible();
-    await expect(page.locator('h1')).toHaveText('First unread entry');
+    await expect(detailHeading).toBeVisible();
+    await expect(detailHeading).toBeFocused();
     await expect(entryLink).toBeHidden();
 
     await back.click();
+    await expect(entryLink).toBeVisible();
+    await expect(entryRow).toBeFocused();
+    await expect(back).toBeHidden();
+
+    await entryRow.click();
+    await expect(detailHeading).toBeFocused();
+    await page.getByLabel('AI summary').click();
+    await expect(page).toHaveURL(/summarize=true/u);
+    await page.getByRole('button', { name: 'Toggle navigation' }).click();
+    await page.getByRole('link', { name: /Unread/u }).click();
+
+    await expect
+        .poll(() => {
+            const search = new URL(page.url()).searchParams;
+            return {
+                entry: search.get('entry'),
+                filter: search.get('filter'),
+                summarize: search.get('summarize'),
+            };
+        })
+        .toEqual({ entry: null, filter: 'unread', summarize: null });
     await expect(entryLink).toBeVisible();
     await expect(back).toBeHidden();
 });

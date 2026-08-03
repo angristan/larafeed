@@ -212,6 +212,8 @@ export function ReaderEntryDetail({
         (subscription) => subscription.feedId === entry?.feedId,
     );
     const articleContent = useRef<HTMLDivElement>(null);
+    const detailHeading = useRef<HTMLHeadingElement>(null);
+    const focusedEntry = useRef<number | null>(null);
     const viewport = useRef<HTMLDivElement>(null);
     const readingTime = useMemo(
         () =>
@@ -242,6 +244,27 @@ export function ReaderEntryDetail({
             anchor.rel = [...rel].join(' ');
         }
     }, [entry, scrollToTop]);
+
+    useEffect(() => {
+        if (!selected) {
+            focusedEntry.current = null;
+            return;
+        }
+        if (
+            entry === undefined ||
+            focusedEntry.current === entry.id ||
+            typeof window === 'undefined' ||
+            !window.matchMedia('(max-width: 47.99em)').matches
+        ) {
+            return;
+        }
+
+        const heading = detailHeading.current;
+        if (heading !== null) {
+            focusedEntry.current = entry.id;
+            heading.focus();
+        }
+    }, [entry, selected]);
 
     if (!selected) {
         return (
@@ -535,7 +558,11 @@ export function ReaderEntryDetail({
             <ScrollArea style={{ height: '100%' }} viewportRef={viewport}>
                 <Box pl={20} pr={20}>
                     <Typography className={classes.articleTypography}>
-                        <Title className={classes.entryTitle}>
+                        <Title
+                            ref={detailHeading}
+                            className={classes.entryTitle}
+                            tabIndex={-1}
+                        >
                             {entry.title || 'Untitled entry'}
                         </Title>
                         <Flex justify="space-between">

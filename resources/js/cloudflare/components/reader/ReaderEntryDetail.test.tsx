@@ -116,7 +116,10 @@ describe('ReaderEntryDetail summaries', () => {
         expect(missing).not.toContain('Generate summary');
     });
 
-    it('keeps the mobile back action in the detail pane', () => {
-        expect(renderDetail()).toContain('aria-label="Back to entry list"');
+    it('keeps mobile navigation and a stable detail focus target', () => {
+        const markup = renderDetail();
+
+        expect(markup).toContain('aria-label="Back to entry list"');
+        expect(markup).toMatch(/<h1[^>]*tabindex="-1"[^>]*>Article<\/h1>/u);
     });
 });

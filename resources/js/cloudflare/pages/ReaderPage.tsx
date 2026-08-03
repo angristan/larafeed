@@ -72,6 +72,7 @@ export function ReaderPage() {
     });
     const entryMutations = useEntryInteractionMutations(selectedEntryId);
     const openedReadAttempt = useRef<number | null>(null);
+    const returnFocusEntryId = useRef<number | null>(null);
 
     useEffect(() => {
         const entry = entryDetailQuery.data;
@@ -96,6 +97,18 @@ export function ReaderPage() {
                 }),
         });
     }, [entryDetailQuery.data, entryMutations.read, state.entryId]);
+
+    useEffect(() => {
+        if (state.entryId !== null || returnFocusEntryId.current === null) {
+            return;
+        }
+
+        const entryId = returnFocusEntryId.current;
+        returnFocusEntryId.current = null;
+        window.requestAnimationFrame(() => {
+            document.getElementById(`reader-entry-${entryId}`)?.focus();
+        });
+    }, [state.entryId]);
 
     useEffect(() => {
         const pagination = entryPageQuery.data?.pagination;
@@ -190,16 +203,9 @@ export function ReaderPage() {
     );
 
     const backToList = () => {
-        const previousEntryId = state.entryId;
+        returnFocusEntryId.current = state.entryId;
         openedReadAttempt.current = null;
         void navigate(readerHref(state, { entryId: null }));
-        if (previousEntryId !== null) {
-            window.setTimeout(() => {
-                document
-                    .getElementById(`reader-entry-${previousEntryId}`)
-                    ?.focus();
-            }, 0);
-        }
     };
 
     return (
