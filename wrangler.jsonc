@@ -126,7 +126,7 @@
                 "REFRESH_DUE_LIMIT": "5",
                 "OPML_IMPORT_ENABLED": "false",
                 "FAVICON_REFRESH_ENABLED": "false",
-                "IMAGES_ENABLED": "true"
+                "IMAGES_ENABLED": "false"
             },
             "routes": [
                 {
