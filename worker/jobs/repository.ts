@@ -753,7 +753,11 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     ), '[]') AS subscription_filters_json
                     FROM jobs j
                     JOIN feeds f ON f.id = json_extract(j.payload_json, '$.feedId')
-                    WHERE ${leasePredicate} AND f.id = ? AND f.is_gone = 0`,
+                    WHERE ${leasePredicate} AND f.id = ?
+                      AND (
+                        f.is_gone = 0
+                        OR json_extract(j.payload_json, '$.trigger') = 'manual'
+                      )`,
                 bindings: [
                     claim.operationId,
                     claim.leaseOwner,
@@ -896,7 +900,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         ELSE favicon_updated_at END,
                     favicon_url = CASE WHEN ? = 1 THEN ? ELSE favicon_url END,
                     etag = ?, last_modified = ?, consecutive_failures = 0,
-                    is_gone = 0,
+                    consecutive_not_found_failures = 0, is_gone = 0,
                     last_attempt_at = ?, last_successful_refresh_at = ?,
                     latest_entry_at = CASE
                         WHEN ? IS NULL THEN latest_entry_at
@@ -1188,7 +1192,13 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             {
                 sql: `UPDATE feeds
                     SET consecutive_failures = consecutive_failures + 1,
-                        is_gone = CASE WHEN ? = 1 THEN 1 ELSE is_gone END,
+                        consecutive_not_found_failures = CASE
+                            WHEN ? = 1 THEN consecutive_not_found_failures + 1
+                            ELSE 0 END,
+                        is_gone = CASE
+                            WHEN ? = 1 AND ? = 1
+                              AND consecutive_not_found_failures + 1 >= 3
+                            THEN 1 ELSE is_gone END,
                         last_attempt_at = ?, last_failed_refresh_at = ?,
                         next_refresh_at = CASE WHEN ? = 1 THEN
                             MAX(?, ? + CASE
@@ -1206,6 +1216,8 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     )`,
                 bindings: [
                     input.markGone === true ? 1 : 0,
+                    input.markGone === true ? 1 : 0,
+                    terminal ? 1 : 0,
                     input.failedAt,
                     input.failedAt,
                     terminal ? 1 : 0,

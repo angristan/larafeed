@@ -142,10 +142,11 @@ const classifiedFailure = (
     }
 
     const status = cause instanceof FeedHttpError ? cause.status : undefined;
+    const missing = status === 404 || status === 410;
     return {
         type: 'failure',
-        retryable: cause.retryable,
-        ...(status === 404 || status === 410 ? { markGone: true } : {}),
+        retryable: missing || cause.retryable,
+        ...(missing ? { markGone: true } : {}),
         ...(cause instanceof FeedHttpError && cause.retryAfterMs !== undefined
             ? { retryAfterMs: cause.retryAfterMs }
             : {}),

@@ -773,6 +773,106 @@ describe('durable feed refresh jobs', () => {
         });
     });
 
+    it('requires repeated missing responses and permits manual recovery', async () => {
+        const now = 2_100_005_750_000;
+        const feedId = 368_001;
+        const operationId = 'operation-368101';
+        await insertFeed(feedId, now);
+        await createJob(feedId, 368_101, now, {
+            operationId,
+            maxAttempts: 3,
+            trigger: 'scheduled',
+        });
+
+        let attemptAt = now;
+        for (let attempt = 1; attempt <= 3; attempt += 1) {
+            const jobClaim = await claim(
+                operationId,
+                attemptAt,
+                `missing-attempt-${attempt}`,
+            );
+            const failedAt = attemptAt + 1;
+            const retryAt = failedAt + 1;
+            await expect(
+                repository.recordRefreshFailure({
+                    claim: jobClaim,
+                    historyId: 368_200 + attempt,
+                    failedAt,
+                    retryable: true,
+                    markGone: true,
+                    errorClass: 'FeedHttpError',
+                    errorMessage: 'Feed returned HTTP 410',
+                    httpStatus: 410,
+                    durationMs: 1,
+                    retryAt,
+                }),
+            ).resolves.toEqual(
+                attempt === 3
+                    ? { terminal: true, availableAt: null }
+                    : { terminal: false, availableAt: retryAt },
+            );
+            await expect(
+                first<{
+                    is_gone: number;
+                    consecutive_not_found_failures: number;
+                }>(
+                    `SELECT is_gone, consecutive_not_found_failures
+                     FROM feeds WHERE id = ?`,
+                    [feedId],
+                ),
+            ).resolves.toEqual({
+                is_gone: attempt === 3 ? 1 : 0,
+                consecutive_not_found_failures: attempt,
+            });
+            attemptAt = retryAt;
+        }
+
+        await expect(
+            repository.listDueFeeds(
+                attemptAt + DEFAULT_REFRESH_INTERVAL_MS,
+                100,
+            ),
+        ).resolves.not.toContainEqual(expect.objectContaining({ id: feedId }));
+
+        await createJob(feedId, 368_301, attemptAt + 1, {
+            operationId: 'operation-368301',
+            trigger: 'manual',
+        });
+        const recoveryClaim = await claim(
+            'operation-368301',
+            attemptAt + 1,
+            'manual-recovery',
+        );
+        await expect(
+            repository.loadFeedInput(recoveryClaim, attemptAt + 1),
+        ).resolves.toMatchObject({ feedId, trigger: 'manual' });
+        await repository.commitRefresh({
+            claim: recoveryClaim,
+            historyId: 368_303,
+            completedAt: attemptAt + 2,
+            etag: null,
+            lastModified: null,
+            nextRefreshAt: attemptAt + DEFAULT_REFRESH_INTERVAL_MS,
+            httpStatus: 304,
+            durationMs: 1,
+            notModified: true,
+            entries: [],
+        });
+        await expect(
+            first<{
+                is_gone: number;
+                consecutive_not_found_failures: number;
+            }>(
+                `SELECT is_gone, consecutive_not_found_failures
+                 FROM feeds WHERE id = ?`,
+                [feedId],
+            ),
+        ).resolves.toEqual({
+            is_gone: 0,
+            consecutive_not_found_failures: 0,
+        });
+    });
+
     it('records bounded retry backoff then terminates at max attempts', async () => {
         const now = 2_100_006_000_000;
         const feedId = 370_001;
@@ -841,7 +941,7 @@ describe('durable feed refresh jobs', () => {
             state: 'dead_lettered',
             class_length: 17,
             message_length: 14,
-            is_gone: 1,
+            is_gone: 0,
             last_failed_refresh_at: retryAt + 1,
         });
     });

@@ -139,7 +139,7 @@ describe('refresh runtime adapter', () => {
         ).toBeNull();
     });
 
-    it('marks terminal gone responses without persisting provider details', async () => {
+    it('retries missing responses as gone candidates without provider details', async () => {
         const processor = makeRefreshProcessor({
             now: () => 1_900_000_000_000,
             fetch: async () => new Response('gone', { status: 410 }),
@@ -147,7 +147,7 @@ describe('refresh runtime adapter', () => {
 
         await expect(processor(input)).resolves.toEqual({
             type: 'failure',
-            retryable: false,
+            retryable: true,
             markGone: true,
             errorClass: 'FeedHttpError',
             errorMessage: 'Feed returned HTTP 410',
