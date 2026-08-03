@@ -66,6 +66,30 @@ describe('feed parser', () => {
         expect(feed.entries[0].deduplicationKey).toHaveLength(32);
     });
 
+    it('decodes RSS title entities once and skips future entries', async () => {
+        const feed = await parse(`<rss><channel>
+            <title>Here&#8217;s &amp; RSS &amp;amp; &amp;mdash;</title>
+            <item>
+              <guid>present</guid>
+              <title>Here&#x2019;s &amp; present &amp;amp; &amp;lt;b&amp;gt;</title>
+              <pubDate>2026-07-18T12:00:00Z</pubDate>
+            </item>
+            <item>
+              <guid>future</guid>
+              <title>Future RSS</title>
+              <pubDate>2026-07-18T12:00:00.001Z</pubDate>
+            </item>
+        </channel></rss>`);
+
+        expect(feed.metadata.title).toBe('Here’s & RSS & —');
+        expect(feed.entries).toHaveLength(1);
+        expect(feed.entries[0]).toMatchObject({
+            sourceId: 'present',
+            title: 'Here’s & present & <b>',
+            publishedAt: fetchedAt,
+        });
+    });
+
     it('normalizes Atom scalar entries, links, authors, and updated dates', async () => {
         const feed = await parse(`<feed xmlns="http://www.w3.org/2005/Atom">
             <title>Atom Feed</title>
@@ -99,6 +123,30 @@ describe('feed parser', () => {
         });
     });
 
+    it('decodes Atom title entities once and skips future updated entries', async () => {
+        const feed = await parse(`<feed xmlns="http://www.w3.org/2005/Atom">
+            <title>Here&#8217;s &amp; Atom &amp;amp; &amp;mdash;</title>
+            <entry>
+              <id>present</id>
+              <title>Here&#x2019;s &amp; present &amp;amp;</title>
+              <updated>2026-07-18T11:00:00Z</updated>
+            </entry>
+            <entry>
+              <id>future</id>
+              <title>Future Atom</title>
+              <updated>2026-07-18T12:00:00.001Z</updated>
+            </entry>
+        </feed>`);
+
+        expect(feed.metadata.title).toBe('Here’s & Atom & —');
+        expect(feed.entries).toHaveLength(1);
+        expect(feed.entries[0]).toMatchObject({
+            sourceId: 'present',
+            title: 'Here’s & present &',
+            publishedAt: Date.parse('2026-07-18T11:00:00Z'),
+        });
+    });
+
     it('marks fallback values as omitted for sparse repeated entries', async () => {
         const feed = await parse(`<rss><channel>
             <title>Sparse feed</title>
@@ -112,7 +160,7 @@ describe('feed parser', () => {
             title: 'Untitled',
             url: null,
             author: null,
-            publishedAt: Date.parse('2026-07-18T10:00:00Z'),
+            publishedAt: fetchedAt,
             sourceUpdatedAt: null,
             contentStatus: 'empty',
             updateMask: {
@@ -185,6 +233,37 @@ describe('feed parser', () => {
             contentStatus: 'stored',
             contentHtml:
                 '<p>Read <a href="https://feeds.example.com/path/images/full">more</a></p>',
+        });
+    });
+
+    it('decodes JSON titles once and skips future entries', async () => {
+        const feed = await parse(
+            JSON.stringify({
+                version: 'https://jsonfeed.org/version/1.1',
+                title: 'Here&#8217;s &amp; JSON &amp;amp; &mdash; AT&T',
+                items: [
+                    {
+                        id: 'present',
+                        title: 'Here&#x2019;s &amp; present &amp;amp; &lt;b&gt;',
+                        date_published: '2026-07-18T11:00:00Z',
+                        content_text: 'Present',
+                    },
+                    {
+                        id: 'future',
+                        title: 'Future JSON',
+                        date_published: '2999-01-01T00:00:00Z',
+                        content_text: 'Future',
+                    },
+                ],
+            }),
+        );
+
+        expect(feed.metadata.title).toBe('Here’s & JSON &amp; — AT&T');
+        expect(feed.entries).toHaveLength(1);
+        expect(feed.entries[0]).toMatchObject({
+            sourceId: 'present',
+            title: 'Here’s & present &amp; <b>',
+            publishedAt: Date.parse('2026-07-18T11:00:00Z'),
         });
     });
 
@@ -337,12 +416,35 @@ describe('feed parser', () => {
         expect(feed.entries.at(-1)?.sourceId).toBe('49');
     });
 
-    it('uses a bounded fetch-time fallback for invalid source dates', async () => {
-        const feed = await parse(`<rss><channel><title>x</title><item>
-            <guid>future</guid><title>Future</title><pubDate>2999-01-01T00:00:00Z</pubDate>
-        </item></channel></rss>`);
+    it('uses fetch time for missing or invalid dates without feed-date leakage', async () => {
+        const feed = await parse(`<rss><channel>
+            <title>x</title>
+            <lastBuildDate>2026-07-18T10:00:00Z</lastBuildDate>
+            <item><guid>missing</guid><title>Missing date</title></item>
+            <item><guid>invalid</guid><title>Invalid date</title><pubDate>not-a-date</pubDate></item>
+            <item><guid>pre-epoch</guid><title>Pre-epoch date</title><pubDate>1960-01-01T00:00:00Z</pubDate></item>
+            <item><guid>updated</guid><title>Updated fallback</title><updated>2026-07-18T11:00:00Z</updated></item>
+        </channel></rss>`);
 
+        expect(feed.entries.map((entry) => entry.sourceId)).toEqual([
+            'updated',
+            'missing',
+            'invalid',
+            'pre-epoch',
+        ]);
         expect(feed.entries[0]).toMatchObject({
+            publishedAt: Date.parse('2026-07-18T11:00:00Z'),
+            sourceUpdatedAt: Date.parse('2026-07-18T11:00:00Z'),
+        });
+        expect(feed.entries[1]).toMatchObject({
+            publishedAt: fetchedAt,
+            sourceUpdatedAt: null,
+        });
+        expect(feed.entries[2]).toMatchObject({
+            publishedAt: fetchedAt,
+            sourceUpdatedAt: null,
+        });
+        expect(feed.entries[3]).toMatchObject({
             publishedAt: fetchedAt,
             sourceUpdatedAt: null,
         });

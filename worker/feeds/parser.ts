@@ -1,10 +1,10 @@
+import { ALL_ENTITIES, COMMON_HTML } from '@nodable/entities';
 import { XMLParser } from 'fast-xml-parser';
 
 import { FeedParseError } from './errors';
 import { MAX_CONTENT_BYTES, sanitizeArticleHtml } from './sanitize';
 
 export const MAX_FEED_ENTRIES = 50;
-export const MAX_FUTURE_DATE_SKEW_MS = 24 * 60 * 60 * 1_000;
 
 export type ContentStatus = 'stored' | 'empty' | 'oversized';
 
@@ -62,6 +62,10 @@ interface FeedShape {
     readonly metadata: XmlRecord;
     readonly items: readonly unknown[];
 }
+
+type ParsedSourceDate =
+    | { readonly kind: 'missing' | 'invalid' | 'future' }
+    | { readonly kind: 'valid'; readonly timestamp: number };
 
 interface EntryCandidate {
     readonly sourceIdentity: string;
@@ -155,6 +159,45 @@ const boundedText = (
     maximum: number,
 ): string | undefined => value?.slice(0, maximum);
 
+const titleEntities: Readonly<Record<string, string>> = {
+    ...ALL_ENTITIES,
+    ...COMMON_HTML,
+};
+
+const decodedCodePoint = (value: string, radix: 10 | 16): string => {
+    const codePoint = Number.parseInt(value, radix);
+    return codePoint === 0 ||
+        codePoint > 0x10ffff ||
+        (codePoint >= 0xd800 && codePoint <= 0xdfff)
+        ? '\ufffd'
+        : String.fromCodePoint(codePoint);
+};
+
+/** Decode one bounded entity layer. Markup is returned as literal text only. */
+const plainTextTitle = (
+    value: string | undefined,
+    maximum: number,
+): string | undefined =>
+    boundedText(value, maximum)?.replace(
+        /&(?:#(\d{1,7})|#[xX]([\da-fA-F]{1,6})|([A-Za-z][A-Za-z0-9]{1,31}));/gu,
+        (
+            match,
+            decimal: string | undefined,
+            hexadecimal: string | undefined,
+            named: string | undefined,
+        ) => {
+            if (decimal !== undefined) {
+                return decodedCodePoint(decimal, 10);
+            }
+            if (hexadecimal !== undefined) {
+                return decodedCodePoint(hexadecimal, 16);
+            }
+            return named === undefined
+                ? match
+                : (titleEntities[named] ?? match);
+        },
+    );
+
 const escaped = (value: string): string =>
     value
         .replaceAll('&', '&amp;')
@@ -202,16 +245,53 @@ const htmlFromValue = (value: unknown): string | undefined => {
     return output.length === 0 ? undefined : output.join('');
 };
 
-const parseDate = (value: string | undefined, now: number): number | null => {
-    if (value === undefined || value.length > 256) {
-        return null;
+const parseSourceDate = (
+    value: string | undefined,
+    now: number,
+): ParsedSourceDate => {
+    if (value === undefined) {
+        return { kind: 'missing' };
     }
-    const parsed = Date.parse(value);
-    return Number.isFinite(parsed) &&
-        parsed >= 0 &&
-        parsed <= now + MAX_FUTURE_DATE_SKEW_MS
-        ? parsed
-        : null;
+    if (value.length > 256) {
+        return { kind: 'invalid' };
+    }
+
+    const timestamp = Date.parse(value);
+    if (!Number.isFinite(timestamp) || timestamp < 0) {
+        return { kind: 'invalid' };
+    }
+    return timestamp > now ? { kind: 'future' } : { kind: 'valid', timestamp };
+};
+
+const validTimestamp = (date: ParsedSourceDate): number | null =>
+    date.kind === 'valid' ? date.timestamp : null;
+
+const entryDateSelection = (
+    rawPublished: string | undefined,
+    rawUpdated: string | undefined,
+    fetchedAt: number,
+):
+    | {
+          readonly published: number | null;
+          readonly sourceUpdatedAt: number | null;
+      }
+    | undefined => {
+    const publishedDate = parseSourceDate(rawPublished, fetchedAt);
+    const updatedDate = parseSourceDate(rawUpdated, fetchedAt);
+
+    // Legacy ingestion selects published, then updated, then fetch time. A
+    // selected explicit future date drops the entry instead of using fetch time.
+    if (
+        publishedDate.kind === 'future' ||
+        (publishedDate.kind !== 'valid' && updatedDate.kind === 'future')
+    ) {
+        return undefined;
+    }
+
+    return {
+        published: validTimestamp(publishedDate),
+        sourceUpdatedAt: validTimestamp(updatedDate),
+    };
 };
 
 const resolveHttpUrl = (
@@ -306,15 +386,17 @@ const metadataFromShape = (
     fetchedAt: number,
 ): NormalizedFeedMetadata => {
     const title =
-        boundedText(firstText(shape.metadata, 'title'), 500) ??
+        plainTextTitle(firstText(shape.metadata, 'title'), 500) ??
         finalUrl.hostname;
     const siteUrl =
         shape.kind === 'atom'
             ? atomLink(shape.metadata.link, finalUrl, 'alternate')
             : resolveHttpUrl(firstText(shape.metadata, 'link'), finalUrl);
-    const sourceUpdatedAt = parseDate(
-        firstText(shape.metadata, 'updated', 'lastbuilddate', 'date'),
-        fetchedAt,
+    const sourceUpdatedAt = validTimestamp(
+        parseSourceDate(
+            firstText(shape.metadata, 'updated', 'lastbuilddate', 'date'),
+            fetchedAt,
+        ),
     );
 
     return {
@@ -447,12 +529,15 @@ const candidateFromJsonItem = (
             (contentText === undefined ? undefined : escaped(contentText)),
         finalUrl,
     );
-    const rawTitle = boundedText(jsonText(item.title), 2_000);
+    const rawTitle = plainTextTitle(jsonText(item.title), 2_000);
     const itemAuthor = jsonAuthor(item);
     const rawPublished = jsonText(item.date_published);
     const rawUpdated = jsonText(item.date_modified);
-    const published = parseDate(rawPublished, fetchedAt);
-    const sourceUpdatedAt = parseDate(rawUpdated, fetchedAt);
+    const dates = entryDateSelection(rawPublished, rawUpdated, fetchedAt);
+    if (dates === undefined) {
+        return undefined;
+    }
+    const { published, sourceUpdatedAt } = dates;
     const url =
         resolveHttpUrl(jsonText(item.url), finalUrl) ??
         resolveHttpUrl(jsonText(item.external_url), finalUrl);
@@ -501,7 +586,7 @@ const jsonFeed = (
     }
 
     const metadata: NormalizedFeedMetadata = {
-        title: boundedText(title, 500) ?? finalUrl.hostname,
+        title: plainTextTitle(title, 500) ?? finalUrl.hostname,
         siteUrl: resolveHttpUrl(jsonText(feed.home_page_url), finalUrl),
         faviconUrl:
             resolveHttpUrl(jsonText(feed.favicon), finalUrl) ??
@@ -534,7 +619,6 @@ const candidateFromItem = (
     sourceIndex: number,
     finalUrl: URL,
     fetchedAt: number,
-    feedUpdatedAt: number | null,
 ): EntryCandidate | undefined => {
     const item = record(value);
     if (item === undefined) {
@@ -545,7 +629,7 @@ const candidateFromItem = (
         firstText(item, 'guid', 'id') ?? scalarText(item['@_about']) ?? null;
     const sourceId = boundedText(rawSourceId ?? undefined, 4_096) ?? null;
     const url = itemLink(kind, item, finalUrl);
-    const rawTitle = boundedText(firstText(item, 'title'), 2_000);
+    const rawTitle = plainTextTitle(firstText(item, 'title'), 2_000);
     const title = rawTitle ?? 'Untitled';
     const rawContent = contentForItem(item);
     const contentProvided = [
@@ -557,8 +641,11 @@ const candidateFromItem = (
     const content = normalizedContent(rawContent, finalUrl);
     const rawPublished = firstText(item, 'pubdate', 'published', 'date');
     const rawUpdated = firstText(item, 'updated', 'modified');
-    const published = parseDate(rawPublished, fetchedAt);
-    const sourceUpdatedAt = parseDate(rawUpdated, fetchedAt);
+    const dates = entryDateSelection(rawPublished, rawUpdated, fetchedAt);
+    if (dates === undefined) {
+        return undefined;
+    }
+    const { published, sourceUpdatedAt } = dates;
 
     if (
         sourceId === null &&
@@ -597,7 +684,7 @@ const candidateFromItem = (
         title,
         url,
         author: author ?? null,
-        publishedAt: published ?? sourceUpdatedAt ?? feedUpdatedAt ?? fetchedAt,
+        publishedAt: published ?? sourceUpdatedAt ?? fetchedAt,
         sourceUpdatedAt,
         sortTimestamp: published ?? sourceUpdatedAt,
         ...content,
@@ -730,7 +817,6 @@ export const parseFeedDocument = async (
                         sourceIndex,
                         options.finalUrl,
                         options.fetchedAt,
-                        metadata.sourceUpdatedAt,
                     );
                 } catch {
                     return undefined;
