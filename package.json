@@ -45,9 +45,6 @@
             "AUTH_OPERATOR_SECRET": {
                 "description": "Generate a private bootstrap credential with `openssl rand -hex 32`."
             },
-            "AUTH_RP_ID": {
-                "description": "Exact public hostname only, for example `reader.example.com`. It must match the AUTH_ORIGIN hostname."
-            },
             "AUTH_ORIGIN": {
                 "description": "Exact HTTPS origin without a path or trailing slash, for example `https://reader.example.com`."
             },

@@ -78,12 +78,11 @@ The default Wrangler environment is portable and provisions D1 and the three Que
 
 During setup:
 
-1. Set `AUTH_RP_ID` to the final public hostname only.
-2. Set `AUTH_ORIGIN` to its exact HTTPS origin without a trailing slash.
-3. Keep the three Queue-name variables synchronized with their Queue resource names.
-4. Generate and save a strong `AUTH_OPERATOR_SECRET`.
+1. Set `AUTH_ORIGIN` to the exact public HTTPS origin without a trailing slash.
+2. Keep the three Queue-name variables synchronized with their Queue resource names.
+3. Generate and save a strong `AUTH_OPERATOR_SECRET`.
 
-The RP ID and origin hostname must match. Larafeed never derives authentication trust from the request `Host` header. After deployment, create the first administrator enrollment link with `npm run auth:access-link` and the same operator secret.
+Larafeed derives the WebAuthn RP ID from the configured origin, never from the request `Host` header. After deployment, create the first administrator enrollment link with `npm run auth:access-link` and the same operator secret.
 
 ## Operations
 

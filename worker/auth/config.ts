@@ -4,7 +4,6 @@ export type AuthEnvironment = 'development' | 'test' | 'preview' | 'production';
 
 export interface AuthConfigBindings {
     readonly AUTH_ENVIRONMENT: string;
-    readonly AUTH_RP_ID: string;
     readonly AUTH_ORIGIN: string;
     readonly AUTH_RP_NAME: string;
     readonly AUTH_CHALLENGE_TTL_SECONDS: string;
@@ -37,7 +36,6 @@ export interface AuthConfig {
 
 const ConfigField = Schema.Literals([
     'bindings',
-    'AUTH_RP_ID',
     'AUTH_ORIGIN',
     'AUTH_RP_NAME',
     'TURNSTILE_SITE_KEY',
@@ -47,7 +45,6 @@ const ConfigField = Schema.Literals([
 const ConfigReason = Schema.Literals([
     'invalid',
     'not_canonical',
-    'rp_origin_mismatch',
     'insecure_origin',
 ]);
 
@@ -78,7 +75,6 @@ const AuthConfigBindingsSchema = Schema.Struct({
         'preview',
         'production',
     ]),
-    AUTH_RP_ID: NonEmptyConfigString,
     AUTH_ORIGIN: NonEmptyConfigString,
     AUTH_RP_NAME: NonEmptyConfigString,
     AUTH_CHALLENGE_TTL_SECONDS: ChallengeTtlSeconds,
@@ -98,11 +94,7 @@ const configError = (
 ) => new AuthConfigError({ field, reason });
 
 const requireCanonicalValue = (
-    field:
-        | 'AUTH_RP_ID'
-        | 'AUTH_RP_NAME'
-        | 'TURNSTILE_SITE_KEY'
-        | 'TURNSTILE_SECRET_KEY',
+    field: 'AUTH_RP_NAME' | 'TURNSTILE_SITE_KEY' | 'TURNSTILE_SECRET_KEY',
     value: string,
 ) =>
     value.length > 0 && value.trim() === value
@@ -145,10 +137,6 @@ export const parseAuthConfig = Effect.fn('auth.config.parse')(function* (
         Effect.mapError(() => configError('bindings', 'invalid')),
     );
 
-    const rpId = yield* requireCanonicalValue(
-        'AUTH_RP_ID',
-        bindings.AUTH_RP_ID,
-    );
     const rpName = yield* requireCanonicalValue(
         'AUTH_RP_NAME',
         bindings.AUTH_RP_NAME,
@@ -167,12 +155,7 @@ export const parseAuthConfig = Effect.fn('auth.config.parse')(function* (
           )
         : null;
     const origin = yield* parseExactOrigin(bindings.AUTH_ORIGIN);
-
-    if (origin.hostname !== rpId) {
-        return yield* Effect.fail(
-            configError('AUTH_ORIGIN', 'rp_origin_mismatch'),
-        );
-    }
+    const rpId = origin.hostname;
 
     if (
         bindings.AUTH_ENVIRONMENT !== 'development' &&

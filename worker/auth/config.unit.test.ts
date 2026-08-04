@@ -14,7 +14,6 @@ const productionBindings = (
     overrides: Partial<AuthConfigBindings> = {},
 ): AuthConfigBindings => ({
     AUTH_ENVIRONMENT: 'production',
-    AUTH_RP_ID: PRODUCTION_RP_ID,
     AUTH_ORIGIN: PRODUCTION_ORIGIN,
     AUTH_RP_NAME: 'Larafeed',
     AUTH_CHALLENGE_TTL_SECONDS: '300',
@@ -95,11 +94,10 @@ describe('authentication configuration', () => {
         });
     });
 
-    it('accepts an installer-defined exact production identity', async () => {
+    it('derives the RP ID from an installer-defined exact origin', async () => {
         const config = await Effect.runPromise(
             parseAuthConfig(
                 productionBindings({
-                    AUTH_RP_ID: 'reader.example.com',
                     AUTH_ORIGIN: 'https://reader.example.com',
                 }),
             ),
@@ -117,7 +115,6 @@ describe('authentication configuration', () => {
             parseAuthConfig(
                 productionBindings({
                     AUTH_ENVIRONMENT: 'preview',
-                    AUTH_RP_ID: 'preview.larafeed.example',
                     AUTH_ORIGIN: 'https://preview.larafeed.example',
                 }),
             ),
@@ -135,13 +132,13 @@ describe('authentication configuration', () => {
             parseAuthConfig(
                 productionBindings({
                     AUTH_ENVIRONMENT: 'development',
-                    AUTH_RP_ID: 'localhost',
                     AUTH_ORIGIN: 'http://localhost:8787',
                 }),
             ),
         );
 
         expect(config.origin).toBe('http://localhost:8787');
+        expect(config.rpId).toBe('localhost');
         expect(config.sessionCookie).toMatchObject({
             name: 'larafeed-development-session',
             secure: false,
@@ -160,15 +157,9 @@ describe('authentication configuration', () => {
             'not_canonical',
         ],
         [
-            'an RP mismatch',
-            { AUTH_RP_ID: 'other.stanislas.cloud' },
-            'rp_origin_mismatch',
-        ],
-        [
             'an insecure preview',
             {
                 AUTH_ENVIRONMENT: 'preview',
-                AUTH_RP_ID: 'preview.local',
                 AUTH_ORIGIN: 'http://preview.local',
             },
             'insecure_origin',

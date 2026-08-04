@@ -123,9 +123,9 @@ The migration list must be empty after application. The production build must im
 
 ## Deploy-to-Cloudflare template
 
-The portable top-level environment is separate from owner production. During installation, the user must provide an exact HTTPS `AUTH_ORIGIN`, its matching hostname-only `AUTH_RP_ID`, and `AUTH_OPERATOR_SECRET`. D1 and Queues are provisioned automatically. If Queue resources are renamed, the three `*_QUEUE_NAME` variables must be changed to the same exact names; duplicate or unknown names fail closed.
+The portable top-level environment is separate from owner production. During installation, the user must provide an exact HTTPS `AUTH_ORIGIN` and `AUTH_OPERATOR_SECRET`. The Worker derives the WebAuthn RP ID from the configured origin hostname. D1 and Queues are provisioned automatically. If Queue resources are renamed, the three `*_QUEUE_NAME` variables must be changed to the same exact names; duplicate or unknown names fail closed.
 
-Workers Builds runs `npm run build` and then `npm run deploy`. The deploy script deliberately rebuilds the portable artifact to replace any stale named-environment redirect, applies D1 migrations by binding name, and then follows the fresh Vite-generated deployment redirect. Disabled Turnstile and AI credentials are not requested. Publish the README button only after the Cloudflare branch is merged to the default branch and a disposable-account installation is reviewed.
+Workers Builds runs `npm run build` and then `npm run deploy`. The deploy script deliberately rebuilds the portable artifact to replace any stale named-environment redirect, applies D1 migrations by binding name, and then follows the fresh Vite-generated deployment redirect. Disabled Turnstile and AI credentials are not requested.
 
 ## Fresh database bootstrap
 

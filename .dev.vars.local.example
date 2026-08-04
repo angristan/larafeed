@@ -1,6 +1,5 @@
 # Copy to .dev.vars for local Worker development only.
 AUTH_ENVIRONMENT="development"
-AUTH_RP_ID="localhost"
 AUTH_ORIGIN="http://localhost:5173"
 AUTH_RP_NAME="Larafeed Local"
 AUTH_CHALLENGE_TTL_SECONDS="300"

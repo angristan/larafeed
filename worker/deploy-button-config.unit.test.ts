@@ -78,9 +78,11 @@ describe('Deploy-to-Cloudflare configuration', () => {
 
     it('describes every installer value that must stay synchronized', () => {
         const descriptions = packageConfig.cloudflare?.bindings ?? {};
+        expect(descriptions.AUTH_RP_ID).toBeUndefined();
+        expect(JSON.stringify(wrangler)).not.toContain('AUTH_RP_ID');
+
         for (const binding of [
             'AUTH_OPERATOR_SECRET',
-            'AUTH_RP_ID',
             'AUTH_ORIGIN',
             'FEED_REFRESH_QUEUE_NAME',
             'OPML_IMPORT_QUEUE_NAME',
