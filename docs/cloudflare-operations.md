@@ -41,7 +41,7 @@ Cloudflare Access is not placed in front of the whole hostname. Whole-host Acces
 - Native traces at 10% in production and 100% in test. Persisted and invocation
   logs remain disabled in both environments.
 
-The test environment uses the checked-in D1 ID and rate-limit namespace. Production identifiers remain placeholders until an operator provisions production. Resource creation is an explicit one-time operator action.
+The top-level Wrangler environment is the portable Deploy-to-Cloudflare template. It uses placeholder D1 identifiers that the installer replaces and exposes a `workers.dev` hostname. Owner production and test settings are isolated under `env.production` and `env.test`; both explicitly disable `workers.dev` and preview URLs. The test environment uses the checked-in D1 ID and rate-limit namespace. Owner production identifiers remain placeholders until an operator provisions production.
 
 ## Secrets
 
@@ -67,7 +67,7 @@ npm audit
 
 Review [the capacity and cost model](cloudflare-cost-model.md) before changing a rollout limit, sampling rate, retention period, or metered feature.
 
-The Vite plugin selects named Cloudflare environments at build time. `npm run build:test` sets `CLOUDFLARE_ENV=test`; the following Wrangler command then uses the generated flattened test configuration. Do not add `--env test` to the post-build deploy command.
+The Vite plugin selects named Cloudflare environments at build time. `npm run build` creates the portable artifact, `npm run build:production` sets `CLOUDFLARE_ENV=production`, and `npm run build:test` sets `CLOUDFLARE_ENV=test`. The following config-less Wrangler deploy command uses the generated flattened configuration. Never add `--env` after the build.
 
 The Vite large-chunk warning is advisory. Review bundle composition before accepting a material increase.
 
@@ -110,18 +110,22 @@ Do not run these actions until the operator approves production writes.
 After steps 1–7 are reviewed and complete, use the pinned project tools from a clean signed revision:
 
 ```bash
+npm run d1:migrations:list:production
+npm run d1:migrate:production
+npm run build:production
 CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false \
-  npm exec -- wrangler d1 migrations list DB --remote
+  npm exec -- wrangler deploy --dry-run
 CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false \
-  npm exec -- wrangler d1 migrations apply DB --remote
-npm run build
-CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false \
-  npm exec -- wrangler deploy --dry-run --config dist/larafeed/wrangler.json
-CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false \
-  npm exec -- wrangler deploy --config dist/larafeed/wrangler.json
+  npm exec -- wrangler deploy
 ```
 
-The migration list must be empty after application. The dry run must name only production resources and keep every initial rollout control disabled. The final command is a production write and requires explicit approval. Wrangler declarations remain the source of truth after identifiers are known.
+The migration list must be empty after application. The production build must immediately precede each config-less Wrangler command so `.wrangler/deploy/config.json` cannot point at a stale environment. The dry run must name only owner production resources and keep every initial rollout control disabled. The final command is a production write and requires explicit approval. Wrangler declarations remain the source of truth after identifiers are known.
+
+## Deploy-to-Cloudflare template
+
+The portable top-level environment is separate from owner production. During installation, the user must provide an exact HTTPS `AUTH_ORIGIN`, its matching hostname-only `AUTH_RP_ID`, and `AUTH_OPERATOR_SECRET`. D1 and Queues are provisioned automatically. If Queue resources are renamed, the three `*_QUEUE_NAME` variables must be changed to the same exact names; duplicate or unknown names fail closed.
+
+Workers Builds runs `npm run build` and then `npm run deploy`. The deploy script deliberately rebuilds the portable artifact to replace any stale named-environment redirect, applies D1 migrations by binding name, and then follows the fresh Vite-generated deployment redirect. Disabled Turnstile and AI credentials are not requested. Publish the README button only after the Cloudflare branch is merged to the default branch and a disposable-account installation is reviewed.
 
 ## Fresh database bootstrap
 
@@ -219,8 +223,8 @@ the recent versions, and select an explicit known-good version:
 
 ```bash
 npm run build:test
-npm exec -- wrangler deployments list --config dist/larafeed/wrangler.json
-npm exec -- wrangler rollback VERSION_ID --config dist/larafeed/wrangler.json \
+npm exec -- wrangler deployments list
+npm exec -- wrangler rollback VERSION_ID \
   --message "rollback test deployment"
 ```
 
@@ -241,14 +245,16 @@ An in-place restore is destructive and requires explicit approval:
 3. Inspect the target without changing data:
 
    ```bash
-   npm exec -- wrangler d1 time-travel info DB --timestamp RFC3339_TIMESTAMP
+   npm exec -- wrangler d1 time-travel info DB --timestamp RFC3339_TIMESTAMP --config wrangler.jsonc --env production
    ```
 
 4. After approval, restore the exact reviewed bookmark or timestamp:
 
    ```bash
-   npm exec -- wrangler d1 time-travel restore DB --bookmark BOOKMARK
+   npm exec -- wrangler d1 time-travel restore DB --bookmark BOOKMARK --config wrangler.jsonc --env production
    ```
+
+Use `--env test` instead for an isolated test recovery drill. Never omit the explicit source config and environment.
 
 5. Reapply only migrations newer than the restored point, deploy a schema-compatible Worker version, and verify `/up`, `/api/health`, migration state, foreign keys, account access, and sampled reader data.
 6. Reconcile D1 jobs/outbox with the main Queue backlog before resuming dispatch. Resume low-concurrency dispatch before scheduling.

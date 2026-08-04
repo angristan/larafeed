@@ -4,10 +4,11 @@ import { describe, expect, it } from 'vitest';
 import {
     type AuthConfigBindings,
     AuthConfigError,
-    PRODUCTION_ORIGIN,
-    PRODUCTION_RP_ID,
     parseAuthConfig,
 } from './config';
+
+const PRODUCTION_RP_ID = 'larafeed.stanislas.cloud';
+const PRODUCTION_ORIGIN = `https://${PRODUCTION_RP_ID}`;
 
 const productionBindings = (
     overrides: Partial<AuthConfigBindings> = {},
@@ -94,6 +95,23 @@ describe('authentication configuration', () => {
         });
     });
 
+    it('accepts an installer-defined exact production identity', async () => {
+        const config = await Effect.runPromise(
+            parseAuthConfig(
+                productionBindings({
+                    AUTH_RP_ID: 'reader.example.com',
+                    AUTH_ORIGIN: 'https://reader.example.com',
+                }),
+            ),
+        );
+
+        expect(config).toMatchObject({
+            environment: 'production',
+            rpId: 'reader.example.com',
+            origin: 'https://reader.example.com',
+        });
+    });
+
     it('isolates secure preview cookies by environment', async () => {
         const config = await Effect.runPromise(
             parseAuthConfig(
@@ -154,14 +172,6 @@ describe('authentication configuration', () => {
                 AUTH_ORIGIN: 'http://preview.local',
             },
             'insecure_origin',
-        ],
-        [
-            'a production alias',
-            {
-                AUTH_RP_ID: 'www.larafeed.stanislas.cloud',
-                AUTH_ORIGIN: 'https://www.larafeed.stanislas.cloud',
-            },
-            'production_identity_mismatch',
         ],
     ] satisfies ReadonlyArray<
         readonly [string, Partial<AuthConfigBindings>, string]

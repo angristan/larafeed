@@ -8,6 +8,7 @@
     "scripts": {
         "dev": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vite",
         "build": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false bun scripts/cloudflare-build.ts",
+        "build:production": "CLOUDFLARE_ENV=production CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false bun scripts/cloudflare-build.ts",
         "build:test": "CLOUDFLARE_ENV=test CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false bun scripts/cloudflare-build.ts",
         "preview": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vite preview",
         "dev:cloudflare": "npm run dev",
@@ -18,20 +19,60 @@
         "typecheck:cloudflare": "npm run typecheck",
         "types:cloudflare": "wrangler types --env-file .dev.vars.example --strict-vars false",
         "types:check:cloudflare": "wrangler types --env-file .dev.vars.example --strict-vars false --check",
-        "d1:migrate:local": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler d1 migrations apply DB --local --env-file .dev.vars.example",
-        "d1:migrations:list:test": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler d1 migrations list DB --remote --env test",
-        "d1:migrate:test": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler d1 migrations apply DB --remote --env test",
+        "d1:migrate:local": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler d1 migrations apply DB --local --config wrangler.jsonc --env=\"\" --env-file .dev.vars.local.example",
+        "d1:migrate": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler d1 migrations apply DB --remote --config wrangler.jsonc --env=\"\"",
+        "d1:migrations:list:production": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler d1 migrations list DB --remote --config wrangler.jsonc --env production",
+        "d1:migrate:production": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler d1 migrations apply DB --remote --config wrangler.jsonc --env production",
+        "d1:migrations:list:test": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler d1 migrations list DB --remote --config wrangler.jsonc --env test",
+        "d1:migrate:test": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler d1 migrations apply DB --remote --config wrangler.jsonc --env test",
         "auth:access-link": "bun scripts/auth-access-link.ts",
         "d1:validate": "bun scripts/cloudflare-validation/run.ts --profile ci --output-dir scripts/cloudflare-validation/output",
         "d1:validate:large": "bun scripts/cloudflare-validation/run.ts --profile large --output-dir scripts/cloudflare-validation/output",
-        "deploy:check": "npm run build && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --dry-run --config dist/larafeed/wrangler.json",
-        "deploy:check:test": "npm run build:test && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --dry-run --config dist/larafeed/wrangler.json",
-        "deploy:test": "npm run d1:migrate:test && npm run build:test && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --config dist/larafeed/wrangler.json",
+        "deploy": "npm run build && npm run d1:migrate && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy",
+        "deploy:production": "npm run d1:migrate:production && npm run build:production && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy",
+        "deploy:test": "npm run d1:migrate:test && npm run build:test && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy",
+        "deploy:check": "npm run build && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --dry-run",
+        "deploy:check:production": "npm run build:production && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --dry-run",
+        "deploy:check:test": "npm run build:test && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --dry-run",
         "deploy:check:cloudflare": "npm run deploy:check",
         "test": "vitest run --config vitest.config.ts && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vitest run --config vitest.worker.config.ts",
         "test:browser": "playwright test",
         "test:cloudflare": "npm test",
-        "validate": "npm run lint-check && npm run typecheck && npm run types:check:cloudflare && npm test && npm run test:browser && npm run d1:validate && npm run deploy:check && npm run deploy:check:test"
+        "validate": "npm run lint-check && npm run typecheck && npm run types:check:cloudflare && npm test && npm run test:browser && npm run d1:validate && npm run deploy:check && npm run deploy:check:production && npm run deploy:check:test"
+    },
+    "cloudflare": {
+        "bindings": {
+            "AUTH_OPERATOR_SECRET": {
+                "description": "Generate a private bootstrap credential with `openssl rand -hex 32`."
+            },
+            "AUTH_RP_ID": {
+                "description": "Exact public hostname only, for example `reader.example.com`. It must match the AUTH_ORIGIN hostname."
+            },
+            "AUTH_ORIGIN": {
+                "description": "Exact HTTPS origin without a path or trailing slash, for example `https://reader.example.com`."
+            },
+            "FEED_REFRESH_QUEUE_NAME": {
+                "description": "Must exactly match the Queue configured for FEED_REFRESH_QUEUE. Keep both default names or change both together."
+            },
+            "OPML_IMPORT_QUEUE_NAME": {
+                "description": "Must exactly match the Queue configured for OPML_IMPORT_QUEUE. Keep both default names or change both together."
+            },
+            "FAVICON_REFRESH_QUEUE_NAME": {
+                "description": "Must exactly match the Queue configured for FAVICON_REFRESH_QUEUE. Keep both default names or change both together."
+            },
+            "FEED_REFRESH_QUEUE": {
+                "description": "Carries one durable feed-refresh operation ID per message. Keep its resource name synchronized with FEED_REFRESH_QUEUE_NAME."
+            },
+            "OPML_IMPORT_QUEUE": {
+                "description": "Carries one durable OPML-discovery operation ID per message. Keep its resource name synchronized with OPML_IMPORT_QUEUE_NAME."
+            },
+            "FAVICON_REFRESH_QUEUE": {
+                "description": "Carries one durable favicon-refresh operation ID per message. Keep its resource name synchronized with FAVICON_REFRESH_QUEUE_NAME."
+            },
+            "DB": {
+                "description": "Authoritative Larafeed D1 database. All migrations are applied during deployment."
+            }
+        }
     },
     "devDependencies": {
         "@biomejs/biome": "^2.4.16",

@@ -1,22 +1,3 @@
-# Copy to .dev.vars for local Worker development.
-# Values below are local-only placeholders and are not production secrets.
-AUTH_ENVIRONMENT="development"
-AUTH_RP_ID="localhost"
-AUTH_ORIGIN="http://localhost:5173"
-AUTH_RP_NAME="Larafeed Local"
-AUTH_CHALLENGE_TTL_SECONDS="300"
-AUTH_SESSION_TTL_SECONDS="2592000"
-AUTH_OPERATOR_SECRET="local-operator-secret-change-me"
-AI_SUMMARY_ENABLED="false"
-AI_GATEWAY_ACCOUNT_ID="00000000000000000000000000000000"
-AI_GATEWAY_NAME="larafeed-local"
-AI_MODEL="gemini-2.5-flash"
-GEMINI_API_KEY="local-gemini-key-change-me"
-REFRESH_SCHEDULER_ENABLED="true"
-REFRESH_DISPATCH_ENABLED="true"
-REFRESH_DUE_LIMIT="5"
-OPML_IMPORT_ENABLED="true"
-FAVICON_REFRESH_ENABLED="true"
-IMAGES_ENABLED="true"
-# Turnstile is disabled by default. When enabled in wrangler.jsonc, add the
-# matching environment hostname's TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY.
+# Deploy-to-Cloudflare and production secret template.
+# Generate with: openssl rand -hex 32
+AUTH_OPERATOR_SECRET="replace-with-a-random-operator-secret"

@@ -1,20 +1,15 @@
 {
     "$schema": "./node_modules/wrangler/config-schema.json",
-    "name": "larafeed",
+    "name": "larafeed-template",
     "main": "./worker/index.ts",
     "compatibility_date": "2026-07-18",
     "compatibility_flags": ["nodejs_compat"],
-    "workers_dev": false,
-    "routes": [
-        {
-            "pattern": "larafeed.stanislas.cloud",
-            "custom_domain": true
-        }
-    ],
+    "workers_dev": true,
+    "preview_urls": true,
     "vars": {
         "AUTH_ENVIRONMENT": "production",
-        "AUTH_RP_ID": "larafeed.stanislas.cloud",
-        "AUTH_ORIGIN": "https://larafeed.stanislas.cloud",
+        "AUTH_RP_ID": "larafeed.example.com",
+        "AUTH_ORIGIN": "https://larafeed.example.com",
         "AUTH_RP_NAME": "Larafeed",
         "AUTH_CHALLENGE_TTL_SECONDS": "300",
         "AUTH_SESSION_TTL_SECONDS": "2592000",
@@ -22,12 +17,15 @@
         "AI_SUMMARY_ENABLED": "false",
         "AI_GATEWAY_NAME": "larafeed",
         "AI_MODEL": "gemini-2.5-flash",
-        "REFRESH_SCHEDULER_ENABLED": "false",
-        "REFRESH_DISPATCH_ENABLED": "false",
-        "REFRESH_DUE_LIMIT": "10",
-        "OPML_IMPORT_ENABLED": "false",
+        "REFRESH_SCHEDULER_ENABLED": "true",
+        "REFRESH_DISPATCH_ENABLED": "true",
+        "REFRESH_DUE_LIMIT": "5",
+        "OPML_IMPORT_ENABLED": "true",
         "FAVICON_REFRESH_ENABLED": "false",
-        "IMAGES_ENABLED": "false"
+        "IMAGES_ENABLED": "false",
+        "FEED_REFRESH_QUEUE_NAME": "larafeed-template-feed-refresh",
+        "OPML_IMPORT_QUEUE_NAME": "larafeed-template-opml-import",
+        "FAVICON_REFRESH_QUEUE_NAME": "larafeed-template-favicon-refresh"
     },
     "assets": {
         "not_found_handling": "single-page-application",
@@ -37,15 +35,15 @@
     "d1_databases": [
         {
             "binding": "DB",
-            "database_name": "larafeed",
-            "database_id": "00000000-0000-0000-0000-000000000001",
+            "database_name": "larafeed-template",
+            "database_id": "00000000-0000-0000-0000-000000000010",
             "migrations_dir": "migrations"
         }
     ],
     "ratelimits": [
         {
             "name": "AUTH_RATE_LIMITER",
-            "namespace_id": "1001",
+            "namespace_id": "9001",
             "simple": { "limit": 20, "period": 60 }
         }
     ],
@@ -53,34 +51,34 @@
         "producers": [
             {
                 "binding": "FEED_REFRESH_QUEUE",
-                "queue": "larafeed-feed-refresh"
+                "queue": "larafeed-template-feed-refresh"
             },
             {
                 "binding": "OPML_IMPORT_QUEUE",
-                "queue": "larafeed-opml-import"
+                "queue": "larafeed-template-opml-import"
             },
             {
                 "binding": "FAVICON_REFRESH_QUEUE",
-                "queue": "larafeed-favicon-refresh"
+                "queue": "larafeed-template-favicon-refresh"
             }
         ],
         "consumers": [
             {
-                "queue": "larafeed-feed-refresh",
+                "queue": "larafeed-template-feed-refresh",
                 "max_batch_size": 1,
                 "max_batch_timeout": 1,
                 "max_retries": 5,
-                "max_concurrency": 3
+                "max_concurrency": 2
             },
             {
-                "queue": "larafeed-opml-import",
+                "queue": "larafeed-template-opml-import",
                 "max_batch_size": 1,
                 "max_batch_timeout": 1,
                 "max_retries": 5,
                 "max_concurrency": 1
             },
             {
-                "queue": "larafeed-favicon-refresh",
+                "queue": "larafeed-template-favicon-refresh",
                 "max_batch_size": 1,
                 "max_batch_timeout": 1,
                 "max_retries": 5,
@@ -88,7 +86,7 @@
             }
         ]
     },
-    "triggers": { "crons": ["*/5 * * * *"] },
+    "triggers": { "crons": ["*/10 * * * *"] },
     "observability": {
         "enabled": true,
         "logs": {
@@ -104,7 +102,112 @@
         }
     },
     "env": {
+        "production": {
+            "name": "larafeed",
+            "workers_dev": false,
+            "preview_urls": false,
+            "vars": {
+                "AUTH_ENVIRONMENT": "production",
+                "AUTH_RP_ID": "larafeed.stanislas.cloud",
+                "AUTH_ORIGIN": "https://larafeed.stanislas.cloud",
+                "AUTH_RP_NAME": "Larafeed",
+                "AUTH_CHALLENGE_TTL_SECONDS": "300",
+                "AUTH_SESSION_TTL_SECONDS": "2592000",
+                "TURNSTILE_ENABLED": "false",
+                "AI_SUMMARY_ENABLED": "false",
+                "AI_GATEWAY_NAME": "larafeed",
+                "AI_MODEL": "gemini-2.5-flash",
+                "REFRESH_SCHEDULER_ENABLED": "false",
+                "REFRESH_DISPATCH_ENABLED": "false",
+                "REFRESH_DUE_LIMIT": "10",
+                "OPML_IMPORT_ENABLED": "false",
+                "FAVICON_REFRESH_ENABLED": "false",
+                "IMAGES_ENABLED": "false",
+                "FEED_REFRESH_QUEUE_NAME": "larafeed-feed-refresh",
+                "OPML_IMPORT_QUEUE_NAME": "larafeed-opml-import",
+                "FAVICON_REFRESH_QUEUE_NAME": "larafeed-favicon-refresh"
+            },
+            "routes": [
+                {
+                    "pattern": "larafeed.stanislas.cloud",
+                    "custom_domain": true
+                }
+            ],
+            "images": { "binding": "IMAGES" },
+            "d1_databases": [
+                {
+                    "binding": "DB",
+                    "database_name": "larafeed",
+                    "database_id": "00000000-0000-0000-0000-000000000001",
+                    "migrations_dir": "migrations"
+                }
+            ],
+            "ratelimits": [
+                {
+                    "name": "AUTH_RATE_LIMITER",
+                    "namespace_id": "1001",
+                    "simple": { "limit": 20, "period": 60 }
+                }
+            ],
+            "queues": {
+                "producers": [
+                    {
+                        "binding": "FEED_REFRESH_QUEUE",
+                        "queue": "larafeed-feed-refresh"
+                    },
+                    {
+                        "binding": "OPML_IMPORT_QUEUE",
+                        "queue": "larafeed-opml-import"
+                    },
+                    {
+                        "binding": "FAVICON_REFRESH_QUEUE",
+                        "queue": "larafeed-favicon-refresh"
+                    }
+                ],
+                "consumers": [
+                    {
+                        "queue": "larafeed-feed-refresh",
+                        "max_batch_size": 1,
+                        "max_batch_timeout": 1,
+                        "max_retries": 5,
+                        "max_concurrency": 3
+                    },
+                    {
+                        "queue": "larafeed-opml-import",
+                        "max_batch_size": 1,
+                        "max_batch_timeout": 1,
+                        "max_retries": 5,
+                        "max_concurrency": 1
+                    },
+                    {
+                        "queue": "larafeed-favicon-refresh",
+                        "max_batch_size": 1,
+                        "max_batch_timeout": 1,
+                        "max_retries": 5,
+                        "max_concurrency": 1
+                    }
+                ]
+            },
+            "triggers": { "crons": ["*/5 * * * *"] },
+            "observability": {
+                "enabled": true,
+                "logs": {
+                    "enabled": false,
+                    "head_sampling_rate": 0,
+                    "invocation_logs": false,
+                    "persist": false
+                },
+                "traces": {
+                    "enabled": true,
+                    "head_sampling_rate": 0.1,
+                    "persist": true
+                }
+            }
+        },
         "test": {
+            "name": "larafeed-test",
+            "workers_dev": false,
+            "preview_urls": false,
             "vars": {
                 "AUTH_ENVIRONMENT": "test",
                 "AUTH_RP_ID": "larafeedcf.stanislas.cloud",
@@ -121,7 +224,10 @@
                 "REFRESH_DUE_LIMIT": "5",
                 "OPML_IMPORT_ENABLED": "true",
                 "FAVICON_REFRESH_ENABLED": "true",
-                "IMAGES_ENABLED": "true"
+                "IMAGES_ENABLED": "true",
+                "FEED_REFRESH_QUEUE_NAME": "larafeed-test-feed-refresh",
+                "OPML_IMPORT_QUEUE_NAME": "larafeed-test-opml-import",
+                "FAVICON_REFRESH_QUEUE_NAME": "larafeed-test-favicon-refresh"
             },
             "routes": [
                 {
@@ -129,20 +235,6 @@
                     "custom_domain": true
                 }
             ],
-            "observability": {
-                "enabled": true,
-                "logs": {
-                    "enabled": false,
-                    "head_sampling_rate": 0,
-                    "invocation_logs": false,
-                    "persist": false
-                },
-                "traces": {
-                    "enabled": true,
-                    "head_sampling_rate": 1,
-                    "persist": true
-                }
-            },
             "images": { "binding": "IMAGES" },
             "d1_databases": [
                 {
@@ -198,7 +290,21 @@
                     }
                 ]
             },
-            "triggers": { "crons": ["*/10 * * * *"] }
+            "triggers": { "crons": ["*/10 * * * *"] },
+            "observability": {
+                "enabled": true,
+                "logs": {
+                    "enabled": false,
+                    "head_sampling_rate": 0,
+                    "invocation_logs": false,
+                    "persist": false
+                },
+                "traces": {
+                    "enabled": true,
+                    "head_sampling_rate": 1,
+                    "persist": true
+                }
+            }
         }
     }
 }

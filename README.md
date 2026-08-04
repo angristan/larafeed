@@ -52,7 +52,7 @@ Requirements: Node.js 24, npm, and Bun.
 ```bash
 npm ci
 npx playwright install chromium
-cp .dev.vars.example .dev.vars
+cp .dev.vars.local.example .dev.vars
 npm run types:check:cloudflare
 npm run d1:migrate:local
 npm run dev
@@ -68,7 +68,22 @@ Run the complete local validation path:
 npm run validate
 ```
 
-This runs formatting, types, generated-binding checks, unit and Workerd tests, browser tests, representative D1 validation, and production/test deployment dry runs. Use `npm run d1:validate:large` before production provisioning. Deployment checks are dry runs. They do not deploy.
+This runs formatting, types, generated-binding checks, unit and Workerd tests, browser tests, representative D1 validation, and portable/production/test deployment dry runs. Use `npm run d1:validate:large` before production provisioning. Deployment checks are dry runs. They do not deploy.
+
+## Deploy to Cloudflare
+
+The default Wrangler environment is portable and provisions D1 and the three Queues. The deployment command applies every D1 migration before deploying the Worker.
+
+During setup:
+
+1. Set `AUTH_RP_ID` to the final public hostname only.
+2. Set `AUTH_ORIGIN` to its exact HTTPS origin without a trailing slash.
+3. Keep the three Queue-name variables synchronized with their Queue resource names.
+4. Generate and save a strong `AUTH_OPERATOR_SECRET`.
+
+The RP ID and origin hostname must match. Larafeed never derives authentication trust from the request `Host` header. After deployment, create the first administrator enrollment link with `npm run auth:access-link` and the same operator secret.
+
+The README button will be published after the Cloudflare branch becomes the default branch and a disposable-account installation passes.
 
 ## Operations
 

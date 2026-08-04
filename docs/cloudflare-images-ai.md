@@ -71,8 +71,8 @@ AI summaries are disabled by default:
 Required production secrets:
 
 ```bash
-wrangler secret put AI_GATEWAY_ACCOUNT_ID
-wrangler secret put GEMINI_API_KEY
+npm exec -- wrangler secret put AI_GATEWAY_ACCOUNT_ID --config wrangler.jsonc --env production
+npm exec -- wrangler secret put GEMINI_API_KEY --config wrangler.jsonc --env production
 ```
 
 Non-secret variables select the gateway and model:

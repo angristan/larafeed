@@ -29,8 +29,10 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser parity tests
         run: npm run test:browser
-      - name: Production build and deployment dry run
+      - name: Portable build and deployment dry run
         run: npm run deploy:check
+      - name: Production build and deployment dry run
+        run: npm run deploy:check:production
       - name: Test build and deployment dry run
         run: npm run deploy:check:test
       - name: Representative D1 validation

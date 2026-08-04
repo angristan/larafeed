@@ -19,15 +19,21 @@ export { app, createApp } from './app';
 export default {
     fetch: app.fetch,
     queue: async (batch, env) => {
-        const queuePrefix =
-            env.AUTH_ENVIRONMENT === 'test'
-                ? 'larafeed-test'
-                : env.AUTH_ENVIRONMENT === 'production'
-                  ? 'larafeed'
-                  : null;
-        if (queuePrefix === null) throw new Error('Unknown Queue environment');
+        const queueNames = [
+            env.FEED_REFRESH_QUEUE_NAME,
+            env.OPML_IMPORT_QUEUE_NAME,
+            env.FAVICON_REFRESH_QUEUE_NAME,
+        ] as const;
+        if (
+            queueNames.some(
+                (name) => name.length === 0 || name.trim() !== name,
+            ) ||
+            new Set(queueNames).size !== queueNames.length
+        ) {
+            throw new Error('Invalid Queue configuration');
+        }
 
-        if (batch.queue === `${queuePrefix}-favicon-refresh`) {
+        if (batch.queue === env.FAVICON_REFRESH_QUEUE_NAME) {
             await traceOperation(
                 operationNames.faviconQueue,
                 'queue',
@@ -36,7 +42,7 @@ export default {
             );
             return;
         }
-        if (batch.queue === `${queuePrefix}-opml-import`) {
+        if (batch.queue === env.OPML_IMPORT_QUEUE_NAME) {
             await traceOperation(
                 operationNames.opmlQueue,
                 'queue',
@@ -45,7 +51,7 @@ export default {
             );
             return;
         }
-        if (batch.queue === `${queuePrefix}-feed-refresh`) {
+        if (batch.queue === env.FEED_REFRESH_QUEUE_NAME) {
             await traceOperation(
                 operationNames.refreshQueue,
                 'queue',

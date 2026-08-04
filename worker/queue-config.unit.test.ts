@@ -7,12 +7,15 @@ interface Consumer {
     readonly dead_letter_queue?: string;
 }
 
-interface QueueConfig {
+interface EnvironmentConfig {
+    readonly vars?: Readonly<Record<string, string>>;
     readonly queues?: { readonly consumers?: readonly Consumer[] };
+}
+
+interface QueueConfig extends EnvironmentConfig {
     readonly env?: {
-        readonly test?: {
-            readonly queues?: { readonly consumers?: readonly Consumer[] };
-        };
+        readonly production?: EnvironmentConfig;
+        readonly test?: EnvironmentConfig;
     };
 }
 
@@ -20,31 +23,46 @@ const config = JSON.parse(
     readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8'),
 ) as QueueConfig;
 
+const environments = [
+    ['portable', config],
+    ['production', config.env?.production],
+    ['test', config.env?.test],
+] as const;
+
+const queueVariableNames = [
+    'FEED_REFRESH_QUEUE_NAME',
+    'OPML_IMPORT_QUEUE_NAME',
+    'FAVICON_REFRESH_QUEUE_NAME',
+] as const;
+
 describe('Queue consumer configuration', () => {
     it('uses one message per invocation in every environment', () => {
-        const production = config.queues?.consumers ?? [];
-        const test = config.env?.test?.queues?.consumers ?? [];
-        expect(production).toHaveLength(3);
-        expect(test).toHaveLength(3);
-        for (const consumer of [...production, ...test]) {
-            expect(consumer.max_batch_size, consumer.queue).toBe(1);
-            expect(consumer.dead_letter_queue, consumer.queue).toBeUndefined();
-            expect(consumer.queue.endsWith('-dlq'), consumer.queue).toBe(false);
+        for (const [environment, settings] of environments) {
+            const consumers = settings?.queues?.consumers ?? [];
+            expect(consumers, environment).toHaveLength(3);
+            for (const consumer of consumers) {
+                expect(consumer.max_batch_size, consumer.queue).toBe(1);
+                expect(
+                    consumer.dead_letter_queue,
+                    consumer.queue,
+                ).toBeUndefined();
+                expect(consumer.queue.endsWith('-dlq'), consumer.queue).toBe(
+                    false,
+                );
+            }
         }
     });
 
-    it('has one main consumer for each feed-scoped task', () => {
-        expect(config.queues?.consumers?.map(({ queue }) => queue)).toEqual([
-            'larafeed-feed-refresh',
-            'larafeed-opml-import',
-            'larafeed-favicon-refresh',
-        ]);
-        expect(
-            config.env?.test?.queues?.consumers?.map(({ queue }) => queue),
-        ).toEqual([
-            'larafeed-test-feed-refresh',
-            'larafeed-test-opml-import',
-            'larafeed-test-favicon-refresh',
-        ]);
+    it('keeps exact runtime Queue names synchronized and distinct', () => {
+        for (const [environment, settings] of environments) {
+            const consumers = settings?.queues?.consumers ?? [];
+            const configuredNames = queueVariableNames.map(
+                (name) => settings?.vars?.[name],
+            );
+            const consumerNames = consumers.map(({ queue }) => queue);
+
+            expect(configuredNames, environment).toEqual(consumerNames);
+            expect(new Set(configuredNames).size, environment).toBe(3);
+        }
     });
 });

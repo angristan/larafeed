@@ -1,8 +1,5 @@
 import { Effect, Schema } from 'effect';
 
-export const PRODUCTION_RP_ID = 'larafeed.stanislas.cloud';
-export const PRODUCTION_ORIGIN = 'https://larafeed.stanislas.cloud';
-
 export type AuthEnvironment = 'development' | 'test' | 'preview' | 'production';
 
 export interface AuthConfigBindings {
@@ -52,7 +49,6 @@ const ConfigReason = Schema.Literals([
     'not_canonical',
     'rp_origin_mismatch',
     'insecure_origin',
-    'production_identity_mismatch',
 ]);
 
 export class AuthConfigError extends Schema.TaggedErrorClass<AuthConfigError>()(
@@ -196,15 +192,6 @@ export const parseAuthConfig = Effect.fn('auth.config.parse')(function* (
     ) {
         return yield* Effect.fail(
             configError('AUTH_ORIGIN', 'insecure_origin'),
-        );
-    }
-
-    if (
-        bindings.AUTH_ENVIRONMENT === 'production' &&
-        (rpId !== PRODUCTION_RP_ID || origin.origin !== PRODUCTION_ORIGIN)
-    ) {
-        return yield* Effect.fail(
-            configError('AUTH_ORIGIN', 'production_identity_mismatch'),
         );
     }
 
