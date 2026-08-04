@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { FeedParseError } from '../feeds/errors';
+import { FeedHttpError, FeedParseError } from '../feeds/errors';
 import { makeOpmlOrchestrator } from './orchestration';
+import { parseOpml } from './parser';
 import type { OpmlRepository } from './repository';
 
 const repositoryStub = (overrides: Partial<OpmlRepository>): OpmlRepository =>
@@ -123,16 +124,9 @@ describe('OPML orchestration', () => {
         );
     });
 
-    it('persists discovery and immediately hands off the initial refresh', async () => {
-        const refreshOperationId = 'feed-refresh:opml:verified-feed';
+    it('persists initial discovery without creating refresh work', async () => {
         const completeItem = vi.fn(() =>
-            Promise.resolve({
-                state: 'succeeded' as const,
-                refreshOperationId,
-            }),
-        );
-        const dispatchRefresh = vi.fn(() =>
-            Promise.reject(new Error('Queue temporarily unavailable')),
+            Promise.resolve({ state: 'succeeded' as const }),
         );
         const repository = repositoryStub({
             claimJob: vi.fn(() =>
@@ -159,13 +153,12 @@ describe('OPML orchestration', () => {
             ),
             completeItem,
         });
-        const generatedIds = [10, 11, 12];
+        const generatedIds = [10, 11];
         const orchestrator = makeOpmlOrchestrator({
             repository,
             queue: { sendBatch: async () => undefined },
             now: () => 1_000,
             generateId: async () => generatedIds.shift() ?? Number.NaN,
-            dispatchRefresh,
             discoverFeed: async () => ({
                 kind: 'updated',
                 finalUrl: 'https://site.example.test/feed.xml',
@@ -192,16 +185,95 @@ describe('OPML orchestration', () => {
         expect(completeItem).toHaveBeenCalledWith(
             expect.objectContaining({
                 categoryId: 10,
-                refreshJobId: 11,
-                refreshOutboxId: 12,
+                historyId: 11,
                 feedUrl: 'https://site.example.test/feed.xml',
                 feedName: 'Discovered feed',
                 categoryName: 'Tech',
                 siteUrl: 'https://site.example.test/',
                 faviconUrl: 'https://site.example.test/favicon.ico',
+                entries: [],
+                nextRefreshAt: 901_000,
             }),
         );
-        expect(dispatchRefresh).toHaveBeenCalledWith(refreshOperationId);
+    });
+
+    it('recovers an unavailable xmlUrl through its distinct htmlUrl', async () => {
+        const completeItem = vi.fn(() =>
+            Promise.resolve({ state: 'succeeded' as const }),
+        );
+        const discoverFeed = vi
+            .fn()
+            .mockRejectedValueOnce(
+                new FeedHttpError({
+                    status: 404,
+                    retryable: false,
+                }),
+            )
+            .mockResolvedValueOnce({
+                kind: 'updated' as const,
+                finalUrl: 'https://site.example.test/index.xml',
+                etag: null,
+                lastModified: null,
+                httpStatus: 200,
+                feed: {
+                    title: 'Recovered feed',
+                    description: null,
+                    siteUrl: 'https://site.example.test/',
+                    faviconUrl: null,
+                    sourceUpdatedAt: null,
+                },
+                entries: [],
+            });
+        const repository = repositoryStub({
+            claimJob: vi.fn(() =>
+                Promise.resolve({
+                    type: 'claimed' as const,
+                    claim: {
+                        itemId: 1,
+                        importId: 2,
+                        userId: 3,
+                        jobId: 4,
+                        operationId: 'stale-feed-url',
+                        title: null,
+                        customTitle: null,
+                        feedUrl: 'https://feed.example.test/old.xml',
+                        normalizedFeedUrl: 'https://feed.example.test/old.xml',
+                        siteUrl: 'https://site.example.test/',
+                        categoryPath: [],
+                        attemptCount: 1,
+                        maxAttempts: 5,
+                        leaseOwner: 'consumer',
+                        leaseExpiresAt: 6_000,
+                    },
+                }),
+            ),
+            completeItem,
+        });
+        const ids = [20, 21];
+        const orchestrator = makeOpmlOrchestrator({
+            repository,
+            queue: { sendBatch: async () => undefined },
+            now: () => 1_000,
+            generateId: async () => ids.shift() ?? Number.NaN,
+            discoverFeed,
+        });
+
+        await expect(
+            orchestrator.processQueueMessage(
+                { operationId: 'stale-feed-url' },
+                'consumer',
+            ),
+        ).resolves.toEqual({ action: 'ack', reason: 'succeeded' });
+        expect(discoverFeed.mock.calls.map(([url]) => url)).toEqual([
+            'https://feed.example.test/old.xml',
+            'https://site.example.test/',
+        ]);
+        expect(completeItem).toHaveBeenCalledWith(
+            expect.objectContaining({
+                feedUrl: 'https://site.example.test/index.xml',
+                siteUrl: 'https://site.example.test/',
+            }),
+        );
     });
 
     it('does not mark an unparseable OPML URL as added', async () => {
@@ -223,7 +295,7 @@ describe('OPML orchestration', () => {
                         customTitle: null,
                         feedUrl: 'https://site.example.test/page',
                         normalizedFeedUrl: 'https://site.example.test/page',
-                        siteUrl: null,
+                        siteUrl: 'https://fallback.example.test/',
                         categoryPath: [],
                         attemptCount: 1,
                         maxAttempts: 5,
@@ -235,14 +307,14 @@ describe('OPML orchestration', () => {
             completeItem,
             recordFailure,
         });
+        const discoverFeed = vi.fn(() =>
+            Promise.reject(new FeedParseError({ reason: 'unsupported_feed' })),
+        );
         const orchestrator = makeOpmlOrchestrator({
             repository,
             queue: { sendBatch: async () => undefined },
             now: () => 1_000,
-            discoverFeed: async () =>
-                Promise.reject(
-                    new FeedParseError({ reason: 'unsupported_feed' }),
-                ),
+            discoverFeed,
         });
 
         await expect(
@@ -252,6 +324,7 @@ describe('OPML orchestration', () => {
             ),
         ).resolves.toEqual({ action: 'dead', reason: 'terminal_failure' });
         expect(completeItem).not.toHaveBeenCalled();
+        expect(discoverFeed).toHaveBeenCalledTimes(1);
         expect(recordFailure).toHaveBeenCalledWith(
             expect.objectContaining({
                 retryable: false,
@@ -290,10 +363,22 @@ describe('OPML orchestration', () => {
         const document = await orchestrator.exportOpml(1);
         expect(document).toContain('A &amp; B');
         expect(document).toContain(
-            'text="Feed &quot;One&quot;" title="Feed &quot;One&quot;" customTitle="My &lt;Feed&gt;"',
+            'text="My &lt;Feed&gt;" title="My &lt;Feed&gt;" customTitle="My &lt;Feed&gt;"',
         );
         expect(document).toContain('a=1&amp;b=2');
         expect(document).toContain('text="Feed Two" title="Feed Two" xmlUrl=');
         expect(document).not.toContain('customTitle="Feed Two"');
+        expect(parseOpml(document)).toEqual([
+            expect.objectContaining({
+                title: 'My <Feed>',
+                customTitle: 'My <Feed>',
+                feedUrl: 'https://one.example.test/rss?a=1&b=2',
+            }),
+            expect.objectContaining({
+                title: 'Feed Two',
+                customTitle: null,
+                feedUrl: 'https://two.example.test/rss',
+            }),
+        ]);
     });
 });

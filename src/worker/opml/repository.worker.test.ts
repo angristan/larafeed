@@ -3,8 +3,6 @@ import { Effect } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import { makeD1 } from '../infrastructure/d1';
-import { makeJobRepository } from '../jobs/repository';
-import { FEED_REFRESH_JOB_KIND, FEED_REFRESH_TOPIC } from '../jobs/types';
 import { makeOpmlRepository } from './repository';
 import {
     MAX_OUTBOX_ATTEMPTS,
@@ -41,6 +39,16 @@ const scalar = (sql: string, bindings: readonly unknown[] = []) =>
 
 const first = <T>(sql: string, bindings: readonly unknown[] = []) =>
     run(d1.first<T>({ sql, bindings }));
+
+const discovery = (historyId: number, completedAt: number) => ({
+    historyId,
+    etag: '"opml-etag"',
+    lastModified: 'Sat, 18 Jul 2026 10:00:00 GMT',
+    httpStatus: 200,
+    durationMs: 25,
+    entries: [],
+    nextRefreshAt: completedAt + 15 * 60_000,
+});
 
 describe('OPML D1 repository', () => {
     it('creates one command per feed and completes exact progress atomically', async () => {
@@ -119,8 +127,32 @@ describe('OPML D1 repository', () => {
             repository.completeItem({
                 claim: claimed.claim,
                 categoryId: 716_001,
-                refreshJobId: 717_001,
-                refreshOutboxId: 718_001,
+                ...discovery(717_001, now + 1),
+                entries: [
+                    {
+                        deduplicationKey: handle(91),
+                        sourceId: 'opml-entry',
+                        title: 'Initial OPML post',
+                        url: 'https://opml-workerd.example.test/post',
+                        author: 'Author',
+                        publishedAt: now,
+                        sourceUpdatedAt: now,
+                        updateMask: {
+                            title: true,
+                            url: true,
+                            author: true,
+                            publishedAt: true,
+                            sourceUpdatedAt: true,
+                            content: true,
+                        },
+                        content: {
+                            type: 'stored' as const,
+                            html: '<p>Initial OPML content</p>',
+                            hash: handle(92),
+                        },
+                        filteredUserIds: [],
+                    },
+                ],
                 feedUrl: 'https://opml-workerd.example.test/feed.xml',
                 feedName: 'Example feed',
                 categoryName: 'Tech / Web',
@@ -128,10 +160,7 @@ describe('OPML D1 repository', () => {
                 faviconUrl: 'https://opml-workerd.example.test/favicon.ico',
                 completedAt: now + 1,
             }),
-        ).resolves.toEqual({
-            state: 'succeeded',
-            refreshOperationId: 'feed-refresh:opml:opml-workerd-operation',
-        });
+        ).resolves.toEqual({ state: 'succeeded' });
 
         const feedId = await scalar(
             'SELECT id AS value FROM feeds WHERE feed_url = ?',
@@ -171,57 +200,33 @@ describe('OPML D1 repository', () => {
         ).resolves.toEqual({ custom_feed_name: 'My Example' });
         await expect(
             first<{
-                operation_id: string;
-                kind: string;
-                state: string;
-                payload_json: string;
-                topic: string;
-                outbox_state: string;
-                outbox_payload: string;
+                title: string;
+                content_html: string;
+                history_entries: number;
+                history_job_id: number | null;
             }>(
-                `SELECT j.operation_id, j.kind, j.state, j.payload_json,
-                    o.topic, o.state AS outbox_state,
-                    o.payload_json AS outbox_payload
-                 FROM jobs j JOIN outbox_messages o ON o.job_id = j.id
-                 WHERE j.id = ?`,
-                [717_001],
+                `SELECT e.title, content.content_html,
+                    history.entries_created AS history_entries,
+                    history.job_id AS history_job_id
+                 FROM entries e
+                 JOIN entry_contents content ON content.entry_id = e.id
+                 JOIN feed_refreshes history ON history.feed_id = e.feed_id
+                 WHERE e.feed_id = ?`,
+                [feedId],
             ),
         ).resolves.toEqual({
-            operation_id: 'feed-refresh:opml:opml-workerd-operation',
-            kind: FEED_REFRESH_JOB_KIND,
-            state: 'pending',
-            payload_json: JSON.stringify({
-                feedId,
-                trigger: 'scheduled',
-            }),
-            topic: FEED_REFRESH_TOPIC,
-            outbox_state: 'pending',
-            outbox_payload: JSON.stringify({
-                operationId: 'feed-refresh:opml:opml-workerd-operation',
-            }),
+            title: 'Initial OPML post',
+            content_html: '<p>Initial OPML content</p>',
+            history_entries: 1,
+            history_job_id: null,
         });
-        const refreshRepository = makeJobRepository(d1);
-        const refreshOutbox = await refreshRepository.leaseOutbox({
-            owner: 'refresh-dispatcher',
-            now: now + 2,
-            leaseMs: 10_000,
-            limit: 1,
-        });
-        expect(refreshOutbox).toHaveLength(1);
-        const refreshMessage = refreshOutbox[0];
-        if (refreshMessage === undefined) {
-            throw new Error('Expected refresh outbox message');
-        }
-        expect(refreshMessage.operationId).toBe(
-            'feed-refresh:opml:opml-workerd-operation',
-        );
-        await refreshRepository.markDispatched(refreshMessage, now + 2);
         await expect(
-            first<{ state: string }>(
-                'SELECT state FROM jobs WHERE id = ?',
-                [717_001],
+            first<{ jobs: number; outbox: number }>(
+                `SELECT
+                    (SELECT COUNT(*) FROM jobs) AS jobs,
+                    (SELECT COUNT(*) FROM outbox_messages) AS outbox`,
             ),
-        ).resolves.toEqual({ state: 'queued' });
+        ).resolves.toEqual({ jobs: 1, outbox: 1 });
         await expect(
             repository.claimJob({
                 operationId: 'opml-workerd-operation',
@@ -397,8 +402,7 @@ describe('OPML D1 repository', () => {
         await repository.completeItem({
             claim: retried.claim,
             categoryId: 719_502,
-            refreshJobId: 719_503,
-            refreshOutboxId: 719_504,
+            ...discovery(719_503, now + 3),
             feedUrl: sharedFeedUrl,
             feedName: 'Canonical shared feed',
             categoryName: 'Uncategorized',
@@ -446,8 +450,7 @@ describe('OPML D1 repository', () => {
             repository.completeItem({
                 claim: sharedClaim.claim,
                 categoryId: 719_602,
-                refreshJobId: 719_603,
-                refreshOutboxId: 719_604,
+                ...discovery(719_603, now + 5),
                 feedUrl: sharedFeedUrl,
                 feedName: 'Replacement canonical title',
                 categoryName: 'Uncategorized',
@@ -455,26 +458,25 @@ describe('OPML D1 repository', () => {
                 faviconUrl: null,
                 completedAt: now + 5,
             }),
-        ).resolves.toEqual({
-            state: 'succeeded',
-            refreshOperationId: null,
-        });
+        ).resolves.toEqual({ state: 'succeeded' });
 
         await expect(
             scalar(
-                `SELECT COUNT(*) AS value FROM jobs
-                 WHERE kind = ? AND json_extract(payload_json, '$.feedId') = ?`,
-                [FEED_REFRESH_JOB_KIND, sharedFeedId],
+                `SELECT COUNT(*) AS value FROM feed_refreshes
+                 WHERE feed_id = ? AND job_id IS NULL`,
+                [sharedFeedId],
             ),
         ).resolves.toBe(1);
         await expect(
-            scalar(
-                `SELECT COUNT(*) AS value FROM outbox_messages o
-                 JOIN jobs j ON j.id = o.job_id
-                 WHERE j.kind = ? AND json_extract(j.payload_json, '$.feedId') = ?`,
-                [FEED_REFRESH_JOB_KIND, sharedFeedId],
+            first<{ jobs: number; outbox: number }>(
+                `SELECT
+                    (SELECT COUNT(*) FROM jobs
+                        WHERE kind <> ?) AS jobs,
+                    (SELECT COUNT(*) FROM outbox_messages
+                        WHERE topic <> ?) AS outbox`,
+                [OPML_IMPORT_JOB_KIND, OPML_IMPORT_TOPIC],
             ),
-        ).resolves.toBe(1);
+        ).resolves.toEqual({ jobs: 0, outbox: 0 });
         await expect(
             repository.listExportSubscriptions(secondUserId),
         ).resolves.toEqual([
@@ -552,8 +554,7 @@ describe('OPML D1 repository', () => {
             return repository.completeItem({
                 claim: claim.claim,
                 categoryId: idBase + 4,
-                refreshJobId: idBase + 5,
-                refreshOutboxId: idBase + 6,
+                ...discovery(idBase + 5, completedAt),
                 feedUrl,
                 feedName: 'Replacement title',
                 categoryName: 'Uncategorized',
@@ -571,37 +572,15 @@ describe('OPML D1 repository', () => {
                 727_110,
                 now + 1,
             ),
-        ).resolves.toEqual({
-            state: 'succeeded',
-            refreshOperationId: 'feed-refresh:opml:opml-existing-empty',
-        });
+        ).resolves.toEqual({ state: 'succeeded' });
         await expect(
-            first<{ payload_json: string }>(
-                `SELECT payload_json FROM jobs WHERE id = ? AND kind = ?`,
-                [727_115, FEED_REFRESH_JOB_KIND],
+            scalar(
+                `SELECT COUNT(*) AS value FROM feed_refreshes
+                 WHERE feed_id = ? AND job_id IS NULL`,
+                [emptyFeedId],
             ),
-        ).resolves.toEqual({
-            payload_json: JSON.stringify({
-                feedId: emptyFeedId,
-                trigger: 'scheduled',
-            }),
-        });
+        ).resolves.toBe(1);
 
-        await run(
-            d1.batch([
-                {
-                    sql: `UPDATE jobs SET state = 'succeeded', completed_at = ?,
-                            updated_at = ?
-                        WHERE id = ?`,
-                    bindings: [now + 2, now + 2, 727_115],
-                },
-                {
-                    sql: `UPDATE feeds SET last_successful_refresh_at = ?,
-                            updated_at = ? WHERE id = ?`,
-                    bindings: [now + 2, now + 2, emptyFeedId],
-                },
-            ]),
-        );
         await expect(
             importExistingFeed(
                 secondUserId,
@@ -610,17 +589,14 @@ describe('OPML D1 repository', () => {
                 727_210,
                 now + 3,
             ),
-        ).resolves.toEqual({
-            state: 'succeeded',
-            refreshOperationId: 'feed-refresh:opml:opml-existing-populated',
-        });
+        ).resolves.toEqual({ state: 'succeeded' });
         await expect(
             scalar(
-                `SELECT COUNT(*) AS value FROM jobs
-                 WHERE kind = ? AND json_extract(payload_json, '$.feedId') = ?`,
-                [FEED_REFRESH_JOB_KIND, emptyFeedId],
+                `SELECT COUNT(*) AS value FROM feed_refreshes
+                 WHERE feed_id = ? AND job_id IS NULL`,
+                [emptyFeedId],
             ),
-        ).resolves.toBe(2);
+        ).resolves.toBe(1);
     });
 
     it('never leases another topic and hides imports from other users', async () => {

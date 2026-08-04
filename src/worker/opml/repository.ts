@@ -1,12 +1,8 @@
 import type { OpmlImportResponse } from '@shared/http';
 import { Effect } from 'effect';
 
+import { MAX_CONTENT_BYTES } from '../feeds/sanitize';
 import type { D1, D1Statement } from '../infrastructure/d1';
-import {
-    DEFAULT_MAX_ATTEMPTS as DEFAULT_REFRESH_MAX_ATTEMPTS,
-    FEED_REFRESH_JOB_KIND,
-    FEED_REFRESH_TOPIC,
-} from '../jobs/types';
 import {
     OpmlInvariantError,
     OpmlLeaseLostError,
@@ -15,6 +11,7 @@ import {
 } from './errors';
 import {
     type ClaimOpmlJobResult,
+    type CompleteOpmlItemInput,
     type CreateImportInput,
     type LeasedOpmlOutboxMessage,
     MAX_FLATTENED_CATEGORY_LENGTH,
@@ -271,21 +268,9 @@ export interface OpmlRepository {
         readonly now: number;
         readonly leaseMs: number;
     }) => Promise<ClaimOpmlJobResult>;
-    readonly completeItem: (input: {
-        readonly claim: OpmlItemClaim;
-        readonly categoryId: number;
-        readonly refreshJobId: number;
-        readonly refreshOutboxId: number;
-        readonly feedUrl: string;
-        readonly feedName: string;
-        readonly categoryName: string;
-        readonly siteUrl: string | null;
-        readonly faviconUrl: string | null;
-        readonly completedAt: number;
-    }) => Promise<{
-        readonly state: 'succeeded' | 'skipped';
-        readonly refreshOperationId: string | null;
-    }>;
+    readonly completeItem: (
+        input: CompleteOpmlItemInput,
+    ) => Promise<{ readonly state: 'succeeded' | 'skipped' }>;
     readonly recordFailure: (input: {
         readonly claim: OpmlItemClaim;
         readonly failedAt: number;
@@ -1037,184 +1022,337 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
 
     async completeItem(input) {
         const operation = 'opml.completeItem';
-        const refreshOperationId = `feed-refresh:opml:${input.claim.operationId}`;
-        const refreshQueuePayload = JSON.stringify({
-            operationId: refreshOperationId,
-        });
         const condition = [
             input.claim.operationId,
             input.claim.leaseOwner,
             input.completedAt,
         ] as const;
-        const results = await run(
-            operation,
-            d1.batch([
-                {
-                    sql: `INSERT INTO subscription_categories (id, user_id, name, created_at, updated_at)
-                    SELECT ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})
+        const latestEntryAt = input.entries.reduce<number | null>(
+            (latest, entry) =>
+                latest === null
+                    ? entry.publishedAt
+                    : Math.max(latest, entry.publishedAt),
+            null,
+        );
+        const statements: D1Statement[] = [
+            {
+                sql: `INSERT INTO subscription_categories (
+                        id, user_id, name, created_at, updated_at
+                    )
+                    SELECT ?, ?, ?, ?, ?
+                    WHERE EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})
                     ON CONFLICT(user_id, name COLLATE NOCASE) DO NOTHING`,
-                    bindings: [
-                        input.categoryId,
-                        input.claim.userId,
-                        input.categoryName,
-                        input.completedAt,
-                        input.completedAt,
-                        ...condition,
-                    ],
-                },
-                {
-                    sql: `INSERT INTO feeds (id, name, feed_url, site_url, favicon_url, next_refresh_at, created_at, updated_at)
-                    SELECT sequence.next_id, ?, ?, ?, ?, ?, ?, ?
+                bindings: [
+                    input.categoryId,
+                    input.claim.userId,
+                    input.categoryName,
+                    input.completedAt,
+                    input.completedAt,
+                    ...condition,
+                ],
+            },
+            {
+                sql: `INSERT INTO feeds (
+                        id, name, feed_url, site_url, favicon_url,
+                        etag, last_modified, is_gone, consecutive_failures,
+                        next_refresh_at, created_at, updated_at
+                    )
+                    SELECT sequence.next_id, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?
                     FROM feed_id_sequence sequence
                     WHERE sequence.singleton = 1
                         AND EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})
                     ON CONFLICT(feed_url) DO NOTHING`,
-                    bindings: [
-                        input.feedName,
-                        input.feedUrl,
-                        input.siteUrl,
-                        input.faviconUrl,
-                        input.completedAt,
-                        input.completedAt,
-                        input.completedAt,
-                        ...condition,
-                    ],
-                },
-                {
-                    sql: `INSERT INTO jobs (
-                            id, operation_id, kind, state, payload_json,
-                            max_attempts, available_at, created_at, updated_at
-                        )
-                        SELECT ?, ?, ?, 'pending',
-                            json_object('feedId', f.id, 'trigger', 'scheduled'),
-                            ?, ?, ?, ?
-                        FROM feeds f
-                        WHERE f.feed_url = ?
-                            AND EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})
-                            AND NOT EXISTS (
-                                SELECT 1 FROM jobs active
-                                WHERE active.kind = ?
-                                    AND active.state IN ('pending', 'queued', 'running', 'failed')
-                                    AND CAST(json_extract(
-                                        active.payload_json, '$.feedId'
-                                    ) AS INTEGER) = f.id
-                            )
-                        ON CONFLICT(operation_id) DO NOTHING`,
-                    bindings: [
-                        input.refreshJobId,
-                        refreshOperationId,
-                        FEED_REFRESH_JOB_KIND,
-                        DEFAULT_REFRESH_MAX_ATTEMPTS,
-                        input.completedAt,
-                        input.completedAt,
-                        input.completedAt,
-                        input.feedUrl,
-                        ...condition,
-                        FEED_REFRESH_JOB_KIND,
-                    ],
-                },
-                {
-                    sql: `INSERT INTO outbox_messages (
-                            id, job_id, topic, payload_json, state,
-                            available_at, created_at, updated_at
-                        )
-                        SELECT ?, j.id, ?, ?, 'pending', ?, ?, ?
-                        FROM jobs j
-                        WHERE j.operation_id = ? AND j.kind = ?
-                            AND changes() = 1
-                            AND EXISTS (SELECT 1 FROM jobs lease WHERE ${leasePredicate.replaceAll('j.', 'lease.')})
-                            AND NOT EXISTS (SELECT 1 FROM outbox_messages o
-                                WHERE o.job_id = j.id)
-                        ON CONFLICT(job_id) DO NOTHING`,
-                    bindings: [
-                        input.refreshOutboxId,
-                        FEED_REFRESH_TOPIC,
-                        refreshQueuePayload,
-                        input.completedAt,
-                        input.completedAt,
-                        input.completedAt,
-                        refreshOperationId,
-                        FEED_REFRESH_JOB_KIND,
-                        ...condition,
-                    ],
-                },
-                {
-                    sql: `INSERT INTO feed_subscriptions (user_id, feed_id, category_id, custom_feed_name, created_at, updated_at)
-                    SELECT ?, f.id, c.id, ?, ?, ? FROM feeds f, subscription_categories c
-                    WHERE f.feed_url = ? AND c.user_id = ? AND c.name = ? COLLATE NOCASE
+                bindings: [
+                    input.feedName,
+                    input.feedUrl,
+                    input.siteUrl,
+                    input.faviconUrl,
+                    input.etag,
+                    input.lastModified,
+                    input.nextRefreshAt,
+                    input.completedAt,
+                    input.completedAt,
+                    ...condition,
+                ],
+            },
+            {
+                sql: `INSERT INTO feed_refreshes (
+                        id, feed_id, job_id, refreshed_at,
+                        was_successful, was_not_modified, http_status,
+                        entries_seen, entries_created, entries_updated,
+                        duration_ms, created_at
+                    )
+                    SELECT ?, f.id, NULL, ?, 1, 0, ?, ?, 0, 0, ?, ?
+                    FROM feeds f
+                    WHERE f.feed_url = ?
                         AND EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})
-                    ON CONFLICT(user_id, feed_id) DO NOTHING`,
+                        AND (
+                            changes() = 1
+                            OR (
+                                f.last_successful_refresh_at IS NULL
+                                AND NOT EXISTS (
+                                    SELECT 1 FROM entries e
+                                    WHERE e.feed_id = f.id
+                                )
+                                AND NOT EXISTS (
+                                    SELECT 1 FROM feed_refreshes prior
+                                    WHERE prior.feed_id = f.id
+                                      AND prior.was_successful = 1
+                                )
+                            )
+                        )`,
+                bindings: [
+                    input.historyId,
+                    input.completedAt,
+                    input.httpStatus,
+                    input.entries.length,
+                    input.durationMs,
+                    input.completedAt,
+                    input.feedUrl,
+                    ...condition,
+                ],
+            },
+        ];
+        const initialMutationIndices: number[] = [];
+
+        for (const entry of input.entries) {
+            statements.push({
+                sql: `INSERT INTO entries (
+                        id, feed_id, deduplication_key, source_id,
+                        title, url, author, published_at,
+                        source_updated_at, content_status,
+                        created_at, updated_at
+                    )
+                    SELECT sequence.next_id, f.id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    FROM entry_id_sequence sequence
+                    JOIN feeds f ON f.feed_url = ?
+                    WHERE sequence.singleton = 1
+                        AND EXISTS (
+                            SELECT 1 FROM feed_refreshes history
+                            WHERE history.id = ? AND history.feed_id = f.id
+                              AND history.job_id IS NULL
+                        )
+                    ON CONFLICT(feed_id, deduplication_key) DO NOTHING`,
+                bindings: [
+                    entry.deduplicationKey,
+                    entry.sourceId,
+                    entry.title,
+                    entry.url,
+                    entry.author,
+                    entry.publishedAt,
+                    entry.sourceUpdatedAt,
+                    entry.content.type,
+                    input.completedAt,
+                    input.completedAt,
+                    input.feedUrl,
+                    input.historyId,
+                ],
+            });
+            initialMutationIndices.push(statements.length - 1);
+
+            if (entry.content.type === 'stored') {
+                const encodedSize = new TextEncoder().encode(
+                    entry.content.html,
+                ).byteLength;
+                if (encodedSize > MAX_CONTENT_BYTES) {
+                    throw new OpmlInvariantError(
+                        operation,
+                        'entry content exceeds storage bound',
+                    );
+                }
+                statements.push({
+                    sql: `INSERT INTO entry_contents (
+                            entry_id, content_html, content_hash,
+                            encoded_size_bytes, created_at, updated_at
+                        )
+                        SELECT e.id, ?, ?, ?, ?, ?
+                        FROM entries e
+                        JOIN feeds f ON f.id = e.feed_id
+                        WHERE f.feed_url = ?
+                          AND e.deduplication_key = ?
+                          AND EXISTS (
+                            SELECT 1 FROM feed_refreshes history
+                            WHERE history.id = ?
+                              AND history.feed_id = f.id
+                              AND history.job_id IS NULL
+                          )
+                        ON CONFLICT(entry_id) DO NOTHING`,
                     bindings: [
-                        input.claim.userId,
-                        input.claim.customTitle,
+                        entry.content.html,
+                        entry.content.hash,
+                        encodedSize,
                         input.completedAt,
                         input.completedAt,
                         input.feedUrl,
-                        input.claim.userId,
-                        input.categoryName,
-                        ...condition,
+                        entry.deduplicationKey,
+                        input.historyId,
                     ],
-                },
-                {
-                    sql: `UPDATE opml_import_items SET
-                        state = CASE WHEN changes() = 1 THEN 'succeeded' ELSE 'skipped' END,
-                        feed_id = (SELECT id FROM feeds WHERE feed_url = ?),
-                        category_id = (SELECT id FROM subscription_categories WHERE user_id = ? AND name = ? COLLATE NOCASE),
-                        completed_at = ?, error_class = NULL, error_message = NULL, updated_at = ?
-                    WHERE id = ? AND operation_id = ? AND state = 'running' AND completed_at IS NULL
-                        AND EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})`,
-                    bindings: [
-                        input.feedUrl,
-                        input.claim.userId,
-                        input.categoryName,
-                        input.completedAt,
-                        input.completedAt,
-                        input.claim.itemId,
-                        input.claim.operationId,
-                        ...condition,
-                    ],
-                },
-                recountImport(input.claim.importId, input.completedAt),
-                {
-                    sql: `UPDATE jobs SET state = 'succeeded', lease_owner = NULL, lease_expires_at = NULL,
-                        completed_at = ?, updated_at = ? WHERE ${directLeasePredicate}`,
-                    bindings: [
-                        input.completedAt,
-                        input.completedAt,
-                        ...condition,
-                    ],
-                },
-                {
-                    sql: `SELECT state FROM opml_import_items WHERE id = ?`,
-                    bindings: [input.claim.itemId],
-                },
-            ]),
-        );
+                });
+                initialMutationIndices.push(statements.length - 1);
+            }
+        }
+
+        const feedUpdateIndex = statements.length;
+        statements.push({
+            sql: `UPDATE feeds
+                SET name = ?, site_url = COALESCE(?, site_url),
+                    favicon_url = COALESCE(?, favicon_url),
+                    etag = ?, last_modified = ?, is_gone = 0,
+                    consecutive_failures = 0,
+                    last_attempt_at = ?, last_successful_refresh_at = ?,
+                    latest_entry_at = ?, next_refresh_at = ?,
+                    last_error_class = NULL, last_error_message = NULL,
+                    updated_at = ?
+                WHERE feed_url = ? AND EXISTS (
+                    SELECT 1 FROM feed_refreshes history
+                    WHERE history.id = ? AND history.feed_id = feeds.id
+                      AND history.job_id IS NULL
+                )`,
+            bindings: [
+                input.feedName,
+                input.siteUrl,
+                input.faviconUrl,
+                input.etag,
+                input.lastModified,
+                input.completedAt,
+                input.completedAt,
+                latestEntryAt,
+                input.nextRefreshAt,
+                input.completedAt,
+                input.feedUrl,
+                input.historyId,
+            ],
+        });
+        const historyUpdateIndex = statements.length;
+        statements.push({
+            sql: `UPDATE feed_refreshes
+                SET entries_created = ?, entries_updated = 0
+                WHERE id = ? AND job_id IS NULL`,
+            bindings: [input.entries.length, input.historyId],
+        });
+        const chartIndex = statements.length;
+        statements.push({
+            sql: `INSERT INTO chart_daily_refreshes (
+                    feed_id, day_start, attempts_count,
+                    successes_count, failures_count,
+                    entries_created_count, created_at, updated_at
+                )
+                SELECT feed_id,
+                    refreshed_at - (refreshed_at % 86400000),
+                    1, 1, 0, entries_created, refreshed_at, refreshed_at
+                FROM feed_refreshes
+                WHERE id = ? AND changes() = 1
+                ON CONFLICT(feed_id, day_start) DO UPDATE SET
+                    attempts_count = attempts_count + 1,
+                    successes_count = successes_count + 1,
+                    entries_created_count = entries_created_count
+                        + excluded.entries_created_count,
+                    updated_at = excluded.updated_at`,
+            bindings: [input.historyId],
+        });
+        const subscriptionIndex = statements.length;
+        statements.push({
+            sql: `INSERT INTO feed_subscriptions (
+                    user_id, feed_id, category_id, custom_feed_name,
+                    created_at, updated_at
+                )
+                SELECT ?, f.id, c.id, ?, ?, ?
+                FROM feeds f, subscription_categories c
+                WHERE f.feed_url = ? AND c.user_id = ?
+                    AND c.name = ? COLLATE NOCASE
+                    AND EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})
+                ON CONFLICT(user_id, feed_id) DO NOTHING`,
+            bindings: [
+                input.claim.userId,
+                input.claim.customTitle,
+                input.completedAt,
+                input.completedAt,
+                input.feedUrl,
+                input.claim.userId,
+                input.categoryName,
+                ...condition,
+            ],
+        });
+        const itemIndex = statements.length;
+        statements.push({
+            sql: `UPDATE opml_import_items SET
+                state = CASE WHEN changes() = 1 THEN 'succeeded' ELSE 'skipped' END,
+                feed_id = (SELECT id FROM feeds WHERE feed_url = ?),
+                category_id = (SELECT id FROM subscription_categories
+                    WHERE user_id = ? AND name = ? COLLATE NOCASE),
+                completed_at = ?, error_class = NULL, error_message = NULL,
+                updated_at = ?
+                WHERE id = ? AND operation_id = ?
+                    AND state = 'running' AND completed_at IS NULL
+                    AND EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})`,
+            bindings: [
+                input.feedUrl,
+                input.claim.userId,
+                input.categoryName,
+                input.completedAt,
+                input.completedAt,
+                input.claim.itemId,
+                input.claim.operationId,
+                ...condition,
+            ],
+        });
+        const importIndex = statements.length;
+        statements.push(recountImport(input.claim.importId, input.completedAt));
+        const jobIndex = statements.length;
+        statements.push({
+            sql: `UPDATE jobs SET state = 'succeeded', lease_owner = NULL,
+                lease_expires_at = NULL, completed_at = ?, updated_at = ?
+                WHERE ${directLeasePredicate}`,
+            bindings: [input.completedAt, input.completedAt, ...condition],
+        });
+        const stateIndex = statements.length;
+        statements.push({
+            sql: `SELECT state FROM opml_import_items WHERE id = ?`,
+            bindings: [input.claim.itemId],
+        });
+
+        const results = await run(operation, d1.batch(statements));
         const feedChanges = changes(operation, results[1]);
-        const bootstrappedJobs = changes(operation, results[2]);
+        const historyChanges = changes(operation, results[2]);
+        const bootstrapped = historyChanges === 1;
         if (
             changes(operation, results[0]) > 1 ||
             (feedChanges !== 0 && feedChanges !== 2) ||
-            bootstrappedJobs > 1 ||
-            changes(operation, results[3]) !== bootstrappedJobs ||
-            changes(operation, results[4]) > 1 ||
-            changes(operation, results[5]) !== 1 ||
-            changes(operation, results[6]) !== 1 ||
-            changes(operation, results[7]) !== 1
+            historyChanges > 1 ||
+            (feedChanges > 0 && !bootstrapped) ||
+            changes(operation, results[subscriptionIndex]) > 1 ||
+            changes(operation, results[itemIndex]) !== 1 ||
+            changes(operation, results[importIndex]) !== 1 ||
+            changes(operation, results[jobIndex]) !== 1
         ) {
             throw new OpmlLeaseLostError(input.claim.operationId);
         }
-        const state = rows<{ state: string }>(results[8])[0]?.state;
-        if (state !== 'succeeded' && state !== 'skipped')
+        for (const index of initialMutationIndices) {
+            const count = changes(operation, results[index]);
+            if (bootstrapped ? count !== 1 && count !== 2 : count !== 0) {
+                throw new OpmlInvariantError(
+                    operation,
+                    'invalid initial entry mutation',
+                );
+            }
+        }
+        for (const index of [feedUpdateIndex, historyUpdateIndex, chartIndex]) {
+            if (changes(operation, results[index]) !== (bootstrapped ? 1 : 0)) {
+                throw new OpmlInvariantError(
+                    operation,
+                    'invalid initial refresh mutation',
+                );
+            }
+        }
+
+        const state = rows<{ state: string }>(results[stateIndex])[0]?.state;
+        if (state !== 'succeeded' && state !== 'skipped') {
             throw new OpmlInvariantError(
                 operation,
                 'invalid terminal item state',
             );
-        return {
-            state,
-            refreshOperationId:
-                bootstrappedJobs === 1 ? refreshOperationId : null,
-        };
+        }
+        return { state };
     },
 
     async recordFailure(input) {

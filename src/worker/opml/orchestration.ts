@@ -8,6 +8,8 @@ import {
     type FeedUpdatedResult,
     makeFeedRefreshService,
 } from '../feeds/service';
+import { DEFAULT_REFRESH_INTERVAL_MS } from '../jobs';
+import { prepareRefreshEntry } from '../refresh/entries';
 import { OpmlValidationError } from './errors';
 import { parseOpml } from './parser';
 import { flattenCategoryPath, type OpmlRepository } from './repository';
@@ -89,6 +91,23 @@ const safeSiteUrl = (value: string | null): string | null => {
     }
 };
 
+const shouldTrySiteUrl = (cause: unknown): boolean => {
+    if (!isFeedRefreshError(cause)) return false;
+    switch (cause._tag) {
+        case 'FeedNetworkError':
+        case 'FeedTimeoutError':
+            return true;
+        case 'FeedHttpError':
+            return (
+                cause.status === 404 ||
+                cause.status === 410 ||
+                cause.status >= 500
+            );
+        default:
+            return false;
+    }
+};
+
 const classifyFailure = (cause: unknown) => {
     if (isFeedRefreshError(cause)) {
         return {
@@ -137,7 +156,6 @@ export interface OpmlOrchestratorDependencies {
     readonly generateId?: () => Promise<number>;
     readonly generateToken?: () => Promise<string>;
     readonly discoverFeed?: (url: string) => Promise<FeedUpdatedResult>;
-    readonly dispatchRefresh?: (operationId: string) => Promise<unknown>;
     readonly maxAttempts?: number;
     readonly jobLeaseMs?: number;
     readonly outboxLeaseMs?: number;
@@ -338,22 +356,42 @@ export const makeOpmlOrchestrator = (
                 if (validated.href !== claim.normalizedFeedUrl) {
                     throw new OpmlValidationError('noncanonical_feed_url');
                 }
-                const discovered = await discoverFeed(validated.href);
+
+                const startedAt = now();
+                let discovered: FeedUpdatedResult;
+                try {
+                    discovered = await discoverFeed(validated.href);
+                } catch (cause) {
+                    if (!shouldTrySiteUrl(cause) || claim.siteUrl === null) {
+                        throw cause;
+                    }
+                    let siteUrl: URL;
+                    try {
+                        siteUrl = validateFeedUrl(claim.siteUrl);
+                    } catch {
+                        throw cause;
+                    }
+                    if (siteUrl.href === validated.href) throw cause;
+                    discovered = await discoverFeed(siteUrl.href);
+                }
+
                 const canonicalFeedUrl = validateFeedUrl(
                     discovered.finalUrl,
                 ).href;
+                const entries = await Effect.runPromise(
+                    Effect.forEach(discovered.entries, (entry) =>
+                        prepareRefreshEntry(entry, []),
+                    ),
+                );
                 const completedAt = now();
-                const [categoryId, refreshJobId, refreshOutboxId] =
-                    await Promise.all([
-                        generateId(),
-                        generateId(),
-                        generateId(),
-                    ]);
+                const [categoryId, historyId] = await Promise.all([
+                    generateId(),
+                    generateId(),
+                ]);
                 const completion = await repository.completeItem({
                     claim,
                     categoryId,
-                    refreshJobId,
-                    refreshOutboxId,
+                    historyId,
                     feedUrl: canonicalFeedUrl,
                     feedName:
                         discovered.feed.title ||
@@ -364,21 +402,14 @@ export const makeOpmlOrchestrator = (
                         discovered.feed.siteUrl ?? claim.siteUrl,
                     ),
                     faviconUrl: safeSiteUrl(discovered.feed.faviconUrl),
+                    etag: discovered.etag,
+                    lastModified: discovered.lastModified,
+                    httpStatus: discovered.httpStatus,
+                    durationMs: Math.max(0, completedAt - startedAt),
+                    entries,
                     completedAt,
+                    nextRefreshAt: completedAt + DEFAULT_REFRESH_INTERVAL_MS,
                 });
-                if (
-                    completion.refreshOperationId !== null &&
-                    dependencies.dispatchRefresh !== undefined
-                ) {
-                    try {
-                        await dependencies.dispatchRefresh(
-                            completion.refreshOperationId,
-                        );
-                    } catch {
-                        // The committed refresh outbox row remains authoritative.
-                        // Cron safely retries failed or ambiguous handoffs.
-                    }
-                }
                 return { action: 'ack', reason: completion.state };
             } catch (cause) {
                 const failure = classifyFailure(cause);
@@ -423,18 +454,19 @@ export const makeOpmlOrchestrator = (
             .map(
                 ([category, feeds]) =>
                     `    <outline text="${xmlEscape(category)}" title="${xmlEscape(category)}">\n${feeds
-                        .map(
-                            (feed) =>
-                                `      <outline type="rss" text="${xmlEscape(feed.canonicalTitle)}" title="${xmlEscape(feed.canonicalTitle)}"${
-                                    feed.customTitle === null
-                                        ? ''
-                                        : ` customTitle="${xmlEscape(feed.customTitle)}"`
-                                } xmlUrl="${xmlEscape(feed.feedUrl)}"${
-                                    feed.siteUrl === null
-                                        ? ''
-                                        : ` htmlUrl="${xmlEscape(feed.siteUrl)}"`
-                                } />`,
-                        )
+                        .map((feed) => {
+                            const displayTitle =
+                                feed.customTitle ?? feed.canonicalTitle;
+                            return `      <outline type="rss" text="${xmlEscape(displayTitle)}" title="${xmlEscape(displayTitle)}"${
+                                feed.customTitle === null
+                                    ? ''
+                                    : ` customTitle="${xmlEscape(feed.customTitle)}"`
+                            } xmlUrl="${xmlEscape(feed.feedUrl)}"${
+                                feed.siteUrl === null
+                                    ? ''
+                                    : ` htmlUrl="${xmlEscape(feed.siteUrl)}"`
+                            } />`;
+                        })
                         .join('\n')}\n    </outline>`,
             )
             .join('\n');

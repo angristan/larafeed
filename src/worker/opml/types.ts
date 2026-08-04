@@ -1,5 +1,7 @@
 import type { OpmlImportResponse } from '@shared/http';
 
+import type { ProcessedRefreshEntry } from '../jobs';
+
 export const OPML_IMPORT_JOB_KIND = 'opml_import_feed';
 export const OPML_IMPORT_TOPIC = 'opml_import_feed';
 export const MAX_OPML_CHARACTERS = 2_000_000;
@@ -136,4 +138,22 @@ export interface OpmlExportSubscription {
     readonly customTitle: string | null;
     readonly feedUrl: string;
     readonly siteUrl: string | null;
+}
+
+export interface CompleteOpmlItemInput {
+    readonly claim: OpmlItemClaim;
+    readonly categoryId: number;
+    readonly historyId: number;
+    readonly feedUrl: string;
+    readonly feedName: string;
+    readonly categoryName: string;
+    readonly siteUrl: string | null;
+    readonly faviconUrl: string | null;
+    readonly etag: string | null;
+    readonly lastModified: string | null;
+    readonly httpStatus: number;
+    readonly durationMs: number;
+    readonly entries: readonly ProcessedRefreshEntry[];
+    readonly completedAt: number;
+    readonly nextRefreshAt: number;
 }

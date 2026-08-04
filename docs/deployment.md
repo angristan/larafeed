@@ -60,7 +60,7 @@ Administrators can invite and recover other users from `/admin/users`.
 
 ## Import subscriptions
 
-Open `/settings/opml` and upload an OPML file. Imports are asynchronous and can partially succeed. The current limits are 2 MB, 500 unique feed URLs, and 50 outline levels.
+Open `/settings/opml` and upload an OPML file. Imports are asynchronous and can partially succeed. A stale `xmlUrl` can recover through its safe `htmlUrl`; the first discovered posts are stored before the item succeeds. Exports use canonical feed URLs and preserve categories and custom titles. The current limits are 2 MB, 500 unique feed URLs, and 50 outline levels.
 
 ## Optional features
 
