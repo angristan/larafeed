@@ -7,6 +7,7 @@
     "workers_dev": true,
     "preview_urls": true,
     "placement": { "mode": "smart" },
+    "secrets": { "required": ["AUTH_OPERATOR_SECRET"] },
     "vars": {
         "AUTH_ENVIRONMENT": "production",
         "AUTH_ORIGIN": "https://larafeed.example.com",
@@ -107,6 +108,7 @@
             "workers_dev": false,
             "preview_urls": false,
             "placement": { "mode": "smart" },
+            "secrets": { "required": ["AUTH_OPERATOR_SECRET"] },
             "vars": {
                 "AUTH_ENVIRONMENT": "production",
                 "AUTH_ORIGIN": "https://larafeed.stanislas.cloud",
@@ -117,12 +119,12 @@
                 "AI_SUMMARY_ENABLED": "false",
                 "AI_GATEWAY_NAME": "larafeed",
                 "AI_MODEL": "gemini-2.5-flash",
-                "REFRESH_SCHEDULER_ENABLED": "false",
-                "REFRESH_DISPATCH_ENABLED": "false",
+                "REFRESH_SCHEDULER_ENABLED": "true",
+                "REFRESH_DISPATCH_ENABLED": "true",
                 "REFRESH_DUE_LIMIT": "10",
-                "OPML_IMPORT_ENABLED": "false",
-                "FAVICON_REFRESH_ENABLED": "false",
-                "IMAGES_ENABLED": "false",
+                "OPML_IMPORT_ENABLED": "true",
+                "FAVICON_REFRESH_ENABLED": "true",
+                "IMAGES_ENABLED": "true",
                 "FEED_REFRESH_QUEUE_NAME": "larafeed-feed-refresh",
                 "OPML_IMPORT_QUEUE_NAME": "larafeed-opml-import",
                 "FAVICON_REFRESH_QUEUE_NAME": "larafeed-favicon-refresh"
@@ -138,7 +140,7 @@
                 {
                     "binding": "DB",
                     "database_name": "larafeed",
-                    "database_id": "00000000-0000-0000-0000-000000000001",
+                    "database_id": "f22a3327-4f5f-4a5c-9aa9-3ede8ba03796",
                     "migrations_dir": "migrations"
                 }
             ],
@@ -209,6 +211,7 @@
             "workers_dev": false,
             "preview_urls": false,
             "placement": { "mode": "smart" },
+            "secrets": { "required": ["AUTH_OPERATOR_SECRET"] },
             "vars": {
                 "AUTH_ENVIRONMENT": "test",
                 "AUTH_ORIGIN": "https://larafeedcf.stanislas.cloud",

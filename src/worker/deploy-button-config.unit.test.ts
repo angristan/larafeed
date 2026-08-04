@@ -6,6 +6,8 @@ interface DeploymentEnvironment {
     readonly workers_dev?: boolean;
     readonly preview_urls?: boolean;
     readonly placement?: { readonly mode?: string };
+    readonly secrets?: { readonly required?: readonly string[] };
+    readonly vars?: Readonly<Record<string, string>>;
     readonly routes?: readonly { readonly pattern: string }[];
 }
 
@@ -59,6 +61,14 @@ describe('Deploy-to-Cloudflare configuration', () => {
         });
         expect(wrangler.env?.production?.placement).toEqual({ mode: 'smart' });
         expect(wrangler.env?.test?.placement).toEqual({ mode: 'smart' });
+        expect(wrangler.env?.production?.vars).toMatchObject({
+            REFRESH_SCHEDULER_ENABLED: 'true',
+            REFRESH_DISPATCH_ENABLED: 'true',
+            OPML_IMPORT_ENABLED: 'true',
+            FAVICON_REFRESH_ENABLED: 'true',
+            IMAGES_ENABLED: 'true',
+            AI_SUMMARY_ENABLED: 'false',
+        });
     });
 
     it('applies D1 migrations before the button deployment', () => {
@@ -70,7 +80,7 @@ describe('Deploy-to-Cloudflare configuration', () => {
         );
     });
 
-    it('requests only the required operator secret', () => {
+    it('requires only the operator secret in every environment', () => {
         const configuredKeys = secretTemplate
             .split('\n')
             .map((line) => line.trim())
@@ -78,6 +88,13 @@ describe('Deploy-to-Cloudflare configuration', () => {
             .map((line) => line.split('=', 1)[0]);
 
         expect(configuredKeys).toEqual(['AUTH_OPERATOR_SECRET']);
+        expect(wrangler.secrets?.required).toEqual(['AUTH_OPERATOR_SECRET']);
+        expect(wrangler.env?.production?.secrets?.required).toEqual([
+            'AUTH_OPERATOR_SECRET',
+        ]);
+        expect(wrangler.env?.test?.secrets?.required).toEqual([
+            'AUTH_OPERATOR_SECRET',
+        ]);
     });
 
     it('describes every installer value that must stay synchronized', () => {
