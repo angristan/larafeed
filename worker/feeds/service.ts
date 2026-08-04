@@ -10,6 +10,7 @@ import {
     FeedTimeoutError,
     isFeedRefreshError,
 } from './errors';
+import { MAX_FEED_RESPONSE_BYTES } from './limits';
 import {
     type NormalizedFeedEntry,
     type NormalizedFeedMetadata,
@@ -17,8 +18,9 @@ import {
 } from './parser';
 import { validateFeedUrl } from './policy';
 
+export { MAX_FEED_RESPONSE_BYTES } from './limits';
+
 export const FEED_FETCH_TIMEOUT_MS = 15_000;
-export const MAX_FEED_RESPONSE_BYTES = 5 * 1024 * 1024;
 export const MAX_FEED_REDIRECTS = 5;
 export const MAX_FEED_DISCOVERY_CANDIDATES = 4;
 export const COMMON_FEED_DISCOVERY_PATHS = [
@@ -508,8 +510,11 @@ export const makeFeedRefreshService = (
                           new FeedParseError({ reason: 'unsupported_feed' }),
                       ),
             ),
-            Effect.catchTag('FeedParseError', () =>
-                Effect.tryPromise({
+            Effect.catchTag('FeedParseError', (error) => {
+                if (error.reason !== 'unsupported_feed') {
+                    return Effect.fail(error);
+                }
+                return Effect.tryPromise({
                     try: async (signal) => {
                         const page = await fetchDiscoveryPage(
                             url,
@@ -550,8 +555,8 @@ export const makeFeedRefreshService = (
                         isFeedRefreshError(cause)
                             ? cause
                             : new FeedNetworkError(),
-                }),
-            ),
+                });
+            }),
         );
 
     return { refresh, discover };

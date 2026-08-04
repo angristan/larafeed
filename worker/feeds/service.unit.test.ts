@@ -266,6 +266,42 @@ describe('feed refresh service', () => {
         });
     });
 
+    it('accepts entity-heavy direct feeds without discovery fallback', async () => {
+        const description = '&amp;'.repeat(50_000);
+        const fetchMock = vi.fn(
+            async () =>
+                new Response(
+                    `<rss><channel><title>Large feed</title><description>${description}</description><item><guid>one</guid><title>One</title></item></channel></rss>`,
+                    { headers: { 'content-type': 'application/rss+xml' } },
+                ),
+        );
+        const service = makeFeedRefreshService({ fetch: fetchMock });
+
+        const result = await Effect.runPromise(service.discover(source.url));
+
+        expect(result.feed.title).toBe('Large feed');
+        expect(result.entries).toHaveLength(1);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('preserves malformed direct-feed diagnostics without HTML fallback', async () => {
+        const fetchMock = vi.fn(
+            async () =>
+                new Response('<rss><channel>', {
+                    headers: { 'content-type': 'application/rss+xml' },
+                }),
+        );
+        const service = makeFeedRefreshService({ fetch: fetchMock });
+
+        const error = await failure(service.discover(source.url));
+
+        expect(error).toMatchObject({
+            _tag: 'FeedParseError',
+            reason: 'malformed_xml',
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
     it('discovers and validates a JSON Feed alternate from an HTML page', async () => {
         const html = `<html><head>
             <link rel="alternate" type="application/feed+json" href="/feed.json">

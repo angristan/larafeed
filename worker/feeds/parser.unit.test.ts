@@ -370,6 +370,19 @@ describe('feed parser', () => {
         }
     });
 
+    it('parses bounded feeds with many built-in entity references', async () => {
+        const description = '&amp;'.repeat(50_000);
+        const feed = await parse(`<rss><channel>
+            <title>Entity-heavy feed</title>
+            <description>${description}</description>
+            <item><guid>one</guid><title>One</title></item>
+        </channel></rss>`);
+
+        expect(feed.metadata.title).toBe('Entity-heavy feed');
+        expect(feed.metadata.description).toBe('&'.repeat(4_000));
+        expect(feed.entries).toHaveLength(1);
+    });
+
     it('rejects DTD and external entity declarations before parsing', async () => {
         await expect(
             parse(

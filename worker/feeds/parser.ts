@@ -2,6 +2,7 @@ import { ALL_ENTITIES, COMMON_HTML } from '@nodable/entities';
 import { XMLParser } from 'fast-xml-parser';
 
 import { FeedParseError } from './errors';
+import { MAX_XML_ENTITY_EXPANSIONS } from './limits';
 import { MAX_CONTENT_BYTES, sanitizeArticleHtml } from './sanitize';
 
 // Refresh persistence uses at most two D1 statements per entry plus fixed
@@ -100,7 +101,7 @@ const parser = new XMLParser({
         maxEntityCount: 0,
         maxEntitySize: 0,
         maxExpandedLength: 100_000,
-        maxTotalExpansions: 1_000,
+        maxTotalExpansions: MAX_XML_ENTITY_EXPANSIONS,
     },
     removeNSPrefix: true,
     transformAttributeName: (name) =>
@@ -807,7 +808,12 @@ export const parseFeedDocument = async (
         try {
             document = parser.parse(source, true);
         } catch {
-            throw new FeedParseError({ reason: 'malformed_xml' });
+            const reason =
+                contentType === 'text/html' ||
+                contentType === 'application/xhtml+xml'
+                    ? 'unsupported_feed'
+                    : 'malformed_xml';
+            throw new FeedParseError({ reason });
         }
 
         const shape = feedShape(document);
