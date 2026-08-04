@@ -25,13 +25,13 @@ interface PackageConfig {
 }
 
 const wrangler = JSON.parse(
-    readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8'),
+    readFileSync(new URL('../../wrangler.jsonc', import.meta.url), 'utf8'),
 ) as WranglerConfig;
 const packageConfig = JSON.parse(
-    readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+    readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
 ) as PackageConfig;
 const secretTemplate = readFileSync(
-    new URL('../.dev.vars.example', import.meta.url),
+    new URL('../../.dev.vars.example', import.meta.url),
     'utf8',
 );
 

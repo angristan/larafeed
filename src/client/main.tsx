@@ -5,7 +5,7 @@ import '@mantine/spotlight/styles.css';
 
 import '@gfazioli/mantine-split-pane/styles.css';
 
-import '../../css/app.css';
+import './app.css';
 
 import { localStorageColorSchemeManager, MantineProvider } from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';

@@ -8,7 +8,9 @@ const migrationsDirectory = fileURLToPath(
 );
 
 const field = (row: unknown, name: string): unknown =>
-    typeof row === 'object' && row !== null ? Reflect.get(row, name) : undefined;
+    typeof row === 'object' && row !== null
+        ? Reflect.get(row, name)
+        : undefined;
 
 describe('D1 migration upgrades', () => {
     it('reconciles duplicate active refresh jobs before adding the fence', async () => {
@@ -24,7 +26,10 @@ describe('D1 migration upgrades', () => {
             )) {
                 database.exec(
                     await readFile(
-                        new URL(`../../migrations/${migration}`, import.meta.url),
+                        new URL(
+                            `../../migrations/${migration}`,
+                            import.meta.url,
+                        ),
                         'utf8',
                     ),
                 );
@@ -54,7 +59,10 @@ describe('D1 migration upgrades', () => {
             )) {
                 database.exec(
                     await readFile(
-                        new URL(`../../migrations/${migration}`, import.meta.url),
+                        new URL(
+                            `../../migrations/${migration}`,
+                            import.meta.url,
+                        ),
                         'utf8',
                     ),
                 );
@@ -85,9 +93,9 @@ describe('D1 migration upgrades', () => {
                     '{"feedId":1,"trigger":"manual"}', 8, 110, 110, 110
                 )`),
             ).toThrow('UNIQUE constraint failed');
-            expect(
-                database.prepare('PRAGMA foreign_key_check').all(),
-            ).toEqual([]);
+            expect(database.prepare('PRAGMA foreign_key_check').all()).toEqual(
+                [],
+            );
         } finally {
             database.close();
         }

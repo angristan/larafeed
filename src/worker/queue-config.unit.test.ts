@@ -20,7 +20,7 @@ interface QueueConfig extends EnvironmentConfig {
 }
 
 const config = JSON.parse(
-    readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8'),
+    readFileSync(new URL('../../wrangler.jsonc', import.meta.url), 'utf8'),
 ) as QueueConfig;
 
 const environments = [

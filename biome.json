@@ -7,10 +7,9 @@
     },
     "files": {
         "includes": [
-            "resources/js/**/*.ts",
-            "resources/js/**/*.tsx",
-            "worker/**/*.ts",
-            "shared/**/*.ts",
+            "src/**/*.ts",
+            "src/**/*.tsx",
+            "validation/**/*.ts",
             "vite.config.ts",
             "vitest.config.ts",
             "vitest.worker.config.ts"

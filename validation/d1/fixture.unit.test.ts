@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    generateRepresentativeFixture,
-    resolveFixtureConfig,
-} from './fixture';
+import { generateRepresentativeFixture, resolveFixtureConfig } from './fixture';
 
 describe('representative D1 fixture generator', () => {
     it('generates deterministic target-schema rows', async () => {

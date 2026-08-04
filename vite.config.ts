@@ -5,12 +5,11 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
     plugins: [react(), cloudflare()],
-    envDir: 'cloudflare-env',
-    publicDir: 'cloudflare-public',
+    envDir: false,
     resolve: {
         alias: {
-            '@': fileURLToPath(new URL('./resources/js', import.meta.url)),
-            '@shared': fileURLToPath(new URL('./shared', import.meta.url)),
+            '@': fileURLToPath(new URL('./src/client', import.meta.url)),
+            '@shared': fileURLToPath(new URL('./src/shared', import.meta.url)),
             '@tabler/icons-react':
                 '@tabler/icons-react/dist/esm/icons/index.mjs',
         },

@@ -1,7 +1,7 @@
 {
     "$schema": "./node_modules/wrangler/config-schema.json",
     "name": "larafeed-template",
-    "main": "./worker/index.ts",
+    "main": "./src/worker/index.ts",
     "compatibility_date": "2026-07-18",
     "compatibility_flags": ["nodejs_compat"],
     "workers_dev": true,

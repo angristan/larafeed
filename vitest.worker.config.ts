@@ -30,14 +30,14 @@ export default defineConfig({
     ],
     resolve: {
         alias: {
-            '@shared': fileURLToPath(new URL('./shared', import.meta.url)),
+            '@shared': fileURLToPath(new URL('./src/shared', import.meta.url)),
         },
     },
     test: {
         include: [
+            'src/worker/**/*.worker.test.ts',
             'validation/**/*.worker.test.ts',
-            'worker/**/*.worker.test.ts',
         ],
-        setupFiles: ['./worker/test/apply-migrations.ts'],
+        setupFiles: ['./src/worker/test/apply-migrations.ts'],
     },
 });

@@ -4,17 +4,17 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
     resolve: {
         alias: {
-            '@': fileURLToPath(new URL('./resources/js', import.meta.url)),
-            '@shared': fileURLToPath(new URL('./shared', import.meta.url)),
+            '@': fileURLToPath(new URL('./src/client', import.meta.url)),
+            '@shared': fileURLToPath(new URL('./src/shared', import.meta.url)),
         },
     },
     test: {
         include: [
-            'shared/**/*.test.ts',
+            'src/client/**/*.test.ts',
+            'src/client/**/*.test.tsx',
+            'src/shared/**/*.test.ts',
+            'src/worker/**/*.unit.test.ts',
             'validation/**/*.unit.test.ts',
-            'worker/**/*.unit.test.ts',
-            'resources/js/cloudflare/**/*.test.ts',
-            'resources/js/cloudflare/**/*.test.tsx',
         ],
     },
 });

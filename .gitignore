@@ -13,9 +13,6 @@ tmp/
 .dev.vars.*
 !.dev.vars.example
 !.dev.vars.local.example
-cloudflare-env/.env*
-!cloudflare-env/.env.example
-
 # Validation artifacts
 artifacts/
 

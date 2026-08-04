@@ -8,5 +8,5 @@ pre-commit:
       glob: "*.{ts,tsx}"
       run: npm run typecheck
     cloudflare-test:
-      glob: "{worker,shared,resources/js/cloudflare}/**/*.{ts,tsx}"
+      glob: "{src,validation}/**/*.{ts,tsx}"
       run: npm test

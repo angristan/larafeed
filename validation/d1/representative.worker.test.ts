@@ -7,10 +7,7 @@ import {
     generateRepresentativeFixture,
     type RepresentativeFixture,
 } from './fixture';
-import {
-    planUsesRequiredIndexes,
-    queryPlanSpecs,
-} from './query-plans';
+import { planUsesRequiredIndexes, queryPlanSpecs } from './query-plans';
 
 interface ValidationCheck {
     readonly name: string;
