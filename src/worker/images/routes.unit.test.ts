@@ -215,7 +215,7 @@ describe('feed image routes', () => {
         expect(transformFeedImage).not.toHaveBeenCalled();
     });
 
-    it('returns one bounded placeholder for missing, upstream, and transform failures', async () => {
+    it('returns an opaque error that activates the client fallback for feed image failures', async () => {
         const cases: ImageRuntime[] = [
             makeRuntime({
                 repository: {
@@ -248,12 +248,15 @@ describe('feed image routes', () => {
                 '/api/images/feeds/21/small',
                 get,
             );
-            expect(response.status).toBe(200);
-            expect(response.headers.get('content-type')).toBe('image/png');
+            expect(response.status).toBe(404);
+            expect(response.headers.get('content-type')).toBeNull();
             expect(response.headers.get('cache-control')).toBe(
                 'private, no-store',
             );
-            expect((await response.arrayBuffer()).byteLength).toBeLessThan(256);
+            expect(response.headers.get('x-content-type-options')).toBe(
+                'nosniff',
+            );
+            expect((await response.arrayBuffer()).byteLength).toBe(0);
         }
     });
 

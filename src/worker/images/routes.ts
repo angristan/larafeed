@@ -102,6 +102,13 @@ const placeholderResponse = (): Response =>
         },
     });
 
+// A non-success response activates FeedFavicon's existing RSS fallback.
+const unavailableFeedImageResponse = (): Response =>
+    new Response(null, {
+        status: 404,
+        headers: PRIVATE_IMAGE_HEADERS,
+    });
+
 const jsonError = (status: number, code: string, message: string): Response =>
     new Response(JSON.stringify({ error: { code, message } }), {
         status,
@@ -136,7 +143,10 @@ const parsePreset = (value: string): FeedImagePreset | null =>
 
 const transformedResponse = (
     source: Response,
-    cacheControl: string = PRIVATE_IMAGE_HEADERS['cache-control'],
+    options: {
+        readonly cacheControl?: string;
+        readonly unavailable?: () => Response;
+    } = {},
 ): Response => {
     const contentType = source.headers.get('content-type');
     if (
@@ -144,13 +154,14 @@ const transformedResponse = (
         contentType === null ||
         !/^image\/(?:avif|webp|png)(?:;|$)/iu.test(contentType)
     ) {
-        return placeholderResponse();
+        return (options.unavailable ?? placeholderResponse)();
     }
     return new Response(source.body, {
         status: 200,
         headers: {
             ...PRIVATE_IMAGE_HEADERS,
-            'cache-control': cacheControl,
+            'cache-control':
+                options.cacheControl ?? PRIVATE_IMAGE_HEADERS['cache-control'],
             'content-type': contentType,
             vary: 'Accept',
         },
@@ -220,7 +231,7 @@ export const registerImageRoutes = (
         if (source === null) {
             return jsonError(404, 'not_found', 'Not found');
         }
-        if (source.faviconUrl === null) return placeholderResponse();
+        if (source.faviconUrl === null) return unavailableFeedImageResponse();
 
         try {
             return transformedResponse(
@@ -229,9 +240,10 @@ export const registerImageRoutes = (
                     preset,
                     accept: context.req.header('Accept') ?? null,
                 }),
+                { unavailable: unavailableFeedImageResponse },
             );
         } catch {
-            return placeholderResponse();
+            return unavailableFeedImageResponse();
         }
     });
 
@@ -311,7 +323,7 @@ export const registerImageRoutes = (
                     sourceUrl,
                     accept: context.req.header('Accept') ?? null,
                 }),
-                ARTICLE_IMAGE_CACHE_CONTROL,
+                { cacheControl: ARTICLE_IMAGE_CACHE_CONTROL },
             );
         } catch {
             return placeholderResponse();
