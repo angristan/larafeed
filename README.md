@@ -72,6 +72,8 @@ This runs formatting, types, generated-binding checks, unit and Workerd tests, b
 
 ## Deploy to Cloudflare
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/angristan/larafeed/tree/cloudflare)
+
 The default Wrangler environment is portable and provisions D1 and the three Queues. The deployment command applies every D1 migration before deploying the Worker.
 
 During setup:
@@ -82,8 +84,6 @@ During setup:
 4. Generate and save a strong `AUTH_OPERATOR_SECRET`.
 
 The RP ID and origin hostname must match. Larafeed never derives authentication trust from the request `Host` header. After deployment, create the first administrator enrollment link with `npm run auth:access-link` and the same operator secret.
-
-The README button will be published after the Cloudflare branch becomes the default branch and a disposable-account installation passes.
 
 ## Operations
 
