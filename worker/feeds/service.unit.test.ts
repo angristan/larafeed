@@ -172,7 +172,21 @@ describe('feed refresh service', () => {
         });
     });
 
-    it('rejects Content-Length and streamed bodies above five MiB', async () => {
+    it('accepts ten MiB and rejects larger declared or streamed bodies', async () => {
+        expect(MAX_FEED_RESPONSE_BYTES).toBe(10 * 1024 * 1024);
+
+        const boundaryService = makeFeedRefreshService({
+            fetch: async () =>
+                new Response(rss, {
+                    headers: {
+                        'content-length': String(MAX_FEED_RESPONSE_BYTES),
+                    },
+                }),
+        });
+        await expect(
+            Effect.runPromise(boundaryService.refresh(source)),
+        ).resolves.toMatchObject({ kind: 'updated' });
+
         const contentLengthService = makeFeedRefreshService({
             fetch: async () =>
                 new Response('small', {
@@ -187,8 +201,8 @@ describe('feed refresh service', () => {
 
         const stream = new ReadableStream<Uint8Array>({
             start(controller) {
-                controller.enqueue(new Uint8Array(4 * 1024 * 1024));
-                controller.enqueue(new Uint8Array(2 * 1024 * 1024));
+                controller.enqueue(new Uint8Array(8 * 1024 * 1024));
+                controller.enqueue(new Uint8Array(3 * 1024 * 1024));
                 controller.close();
             },
         });

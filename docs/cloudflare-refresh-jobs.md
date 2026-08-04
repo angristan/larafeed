@@ -22,7 +22,7 @@ Cron reconciliation
 - Cron runs every five minutes in production and every ten minutes in the test environment.
 - Production reserves at most 10 due feeds per Cron run. The test environment reserves 5.
 - Every Queue message represents one feed operation, and `max_batch_size=1` guarantees one consumer invocation per feed. Production consumer concurrency is capped at 3; test concurrency is capped at 2.
-- A feed fetch has one 15-second deadline, at most 5 manually validated redirects, and a 5 MiB response limit.
+- A feed fetch has one 15-second deadline, at most 5 manually validated redirects, and a 10 MiB response limit.
 - A refresh commits at most the newest 20 unique, valid, non-future entries, even when the source contains more than 1,000 items. Sanitized article HTML is stored only below 1.8 MB.
 - Parser source IDs remain canonical. On the first post-migration refresh, an exact source-less legacy URL identity is promoted in place so entry IDs and interactions remain stable.
 - Jobs use leased, conditional state transitions and at most 8 processing attempts.
