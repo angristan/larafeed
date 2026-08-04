@@ -1,51 +1,92 @@
 # Larafeed
 
-Larafeed is a private feed reader built on Cloudflare Workers.
+<!-- badges -->
 
-![Larafeed reader](.github/readme/reader.png)
+![Larafeed logo](.github/readme/logo.png)
+
+Larafeed is a simple feed reader.
 
 ## Features
 
-- Original Larafeed React and Mantine interface preserved with resizable panes, theme control, shortcuts, feed/category scopes, and stable pagination
-- Read watermarks, sparse read exceptions, favorites, archives, and filtered-state preservation
-- RSS, Atom, RDF, and JSON Feed ingestion with secure bounded fetching and sanitization
-- Durable feed refresh, OPML, and favicon jobs with one feed per Queue invocation, bounded retries, and authoritative D1 failure history
-- Passkey-only authentication with mandatory rate limits, optional Turnstile, passkey management, private enrollment, recovery, and opaque sessions
-- Profile, account-data, and administrator access management with a D1 security-event audit
-- Revocable app tokens for Google Reader and Fever clients
-- Direct feed or website discovery, category management, subscription editing, sparse regex filters, refresh audit, and unsubscribe
-- Bounded UTC charts for entry cohorts, real reader transitions, and refresh health
-- OPML import, progress, retry, and export
-- Ownership-bound Cloudflare Images transformations
-- Cached Gemini summaries through Cloudflare AI Gateway
-- Fresh D1 bootstrap with OPML subscription import
+- A pleasant and snappy UI
+  - Entries are marked as read when you view them
+  - Entry links open in a new tab
+  - Keyboard shortcuts and quick feed navigation
+- RSS, Atom, RDF, and JSON Feed support
+- Background feed updates
+  - Failures are stored and displayed in the UI
+- Custom feed names and categories
+- Entry filtering per subscription by title, content, or author
+- Read, starred, and archived entries
+- AI-generated summaries
+- Favicon display with automatic dark-mode styling
+- OPML import and export
+- Google Reader and Fever API support with revocable app tokens
+  - Support is partial, but works with [Reeder Classic](https://reederapp.com/classic/)
+- Passkey-only private access
+- Estimated reading time for each entry
 
-See [the feature inventory](docs/cloudflare-feature-inventory.md) for implemented, replaced, and intentionally removed legacy behavior.
+### Screenshots & demo
 
-## Architecture
+#### Reader view
 
-```text
-React + Mantine + React Router + TanStack Query
-                       |
-                 typed JSON APIs
-                       |
-             Hono + Effect Worker
-              /       |        \
-            D1     Queues/Cron  Images
-             \          |       /
-              durable jobs/outbox
-                       |
-                  AI Gateway
+![Reader view screenshot](.github/readme/reader.png)
+
+#### Demo of the LLM summary generation
+
+<https://github.com/user-attachments/assets/0553f893-cc5a-4efa-b098-1b1e10545698>
+
+#### Demo of the feed refreshing UX
+
+<https://github.com/user-attachments/assets/a420f8cd-d306-4a0d-afe3-d391852055ad>
+
+#### Demo of the quick add feed from a bookmark
+
+<https://github.com/user-attachments/assets/bb266745-5d16-4d06-9534-653df38212bc>
+
+## Technical overview
+
+```mermaid
+flowchart LR
+    Browser["React + Mantine<br/>React Router + TanStack Query"]
+    Worker["Cloudflare Worker<br/>Hono + Effect"]
+    D1[(D1)]
+    Queues[Cloudflare Queues]
+    Cron[Cron Triggers]
+    Images[Cloudflare Images]
+    AI[AI Gateway]
+    Gemini[Gemini]
+    Feeds[Feed publishers]
+
+    Browser <--> Worker
+    Worker <--> D1
+    Worker <--> Queues
+    Cron --> Worker
+    Worker --> Images
+    Worker --> AI --> Gemini
+    Worker --> Feeds
 ```
 
-- `worker/` contains the Worker routes, services, repositories, and host handlers.
-- `resources/js/cloudflare/` contains the browser application.
-- `shared/` contains Effect Schema wire contracts.
-- `migrations/` contains D1 migrations.
+- The TypeScript backend runs on [Cloudflare Workers](https://workers.cloudflare.com/) with [Hono](https://hono.dev/) for routing and [Effect](https://effect.website/) for application logic.
+- The frontend uses React with the amazing [Mantine](https://mantine.dev/) components and hooks, React Router, and TanStack Query.
+- D1 stores users, subscriptions, entries, sessions, and durable job state.
+- Queues process feed discovery, refreshes, and favicons one feed at a time.
+- Feed requests use conditional HTTP headers to avoid downloading unchanged content.
+- Cloudflare Images proxies article images for privacy and performance.
+- AI summaries use Gemini through Cloudflare AI Gateway and are cached in D1.
+- Google Reader and Fever APIs are implemented from scratch.
+  - I relied heavily on the implementations in [FreshRSS](https://github.com/FreshRSS/FreshRSS/tree/edge/p/api) and [Miniflux](https://github.com/miniflux/v2/tree/main/internal).
+  - Using [Reeder Classic](https://reederapp.com/classic/) with Miniflux as a backend, I inspected the API calls with [mitmproxy](https://mitmproxy.org/) to reverse-engineer the protocols.
 
-The application does not use Inertia, Ziggy, passwords, TOTP, River, or a PostgreSQL production runtime.
+## Deploy to Cloudflare
 
-## Local development
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/angristan/larafeed/tree/cloudflare)
+
+The installer provisions the Worker, D1 database, and Queues, then applies all D1 migrations. It asks for the public HTTPS origin and a private operator secret used to create the first administrator enrollment link.
+
+See the [operations guide](docs/cloudflare-operations.md) for initial administrator enrollment and optional integrations.
+
+## Development
 
 Requirements: Node.js 24, npm, and Bun.
 
@@ -53,50 +94,11 @@ Requirements: Node.js 24, npm, and Bun.
 npm ci
 npx playwright install chromium
 cp .dev.vars.local.example .dev.vars
-npm run types:check:cloudflare
 npm run d1:migrate:local
 npm run dev
 ```
 
-The development server uses Cloudflare's local Worker runtime and Vite HMR. `.dev.vars` is local-only. Browser-exposed variables belong in `cloudflare-env/.env.local`.
-
-## Validation
-
-Run the complete local validation path:
-
-```bash
-npm run validate
-```
-
-This runs formatting, types, generated-binding checks, unit and Workerd tests, browser tests, representative D1 validation, and portable/production/test deployment dry runs. Use `npm run d1:validate:large` before production provisioning. Deployment checks are dry runs. They do not deploy.
-
-## Deploy to Cloudflare
-
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/angristan/larafeed/tree/cloudflare)
-
-The default Wrangler environment is portable and provisions D1 and the three Queues. The deployment command applies every D1 migration before deploying the Worker.
-
-During setup:
-
-1. Set `AUTH_ORIGIN` to the exact public HTTPS origin without a trailing slash.
-2. Keep the three Queue-name variables synchronized with their Queue resource names.
-3. Generate and save a strong `AUTH_OPERATOR_SECRET`.
-
-Larafeed derives the WebAuthn RP ID from the configured origin, never from the request `Host` header. After deployment, create the first administrator enrollment link with `npm run auth:access-link` and the same operator secret.
-
-## Operations
-
-- [Rebuild architecture and decisions](docs/cloudflare-rebuild-plan.md)
-- [Operations, provisioning, alerts, and incidents](docs/cloudflare-operations.md)
-- [Capacity and cost model](docs/cloudflare-cost-model.md)
-- [Refresh jobs](docs/cloudflare-refresh-jobs.md)
-- [OPML](docs/cloudflare-opml.md)
-- [Google Reader and Fever](docs/cloudflare-compatibility-apis.md)
-- [Images and AI](docs/cloudflare-images-ai.md)
-
-Production uses `larafeed.stanislas.cloud`. The isolated test deployment uses `larafeedcf.stanislas.cloud` with its own WebAuthn RP ID, passkeys, D1 database, queues, and rate-limit namespace. Turnstile is optional and disabled by default.
-
-No command should create resources, import production data, set secrets, or deploy without explicit operator approval.
+Run the complete validation suite with `npm run validate`.
 
 ## License
 
