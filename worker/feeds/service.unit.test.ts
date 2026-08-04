@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     FeedHttpError,
     FeedNetworkError,
-    FeedParseError,
     FeedPolicyError,
     FeedSizeError,
     FeedTimeoutError,
@@ -243,27 +242,32 @@ describe('feed refresh service', () => {
         });
     });
 
-    it('fails refresh instead of returning a partial oversized feed', async () => {
-        const items = Array.from(
-            { length: MAX_FEED_ENTRIES + 1 },
-            (_, index) =>
-                `<item><guid>${index}</guid><title>${index}</title></item>`,
-        ).join('');
+    it('refreshes oversized source lists with only the newest twenty entries', async () => {
+        const count = 1_005;
+        const items = Array.from({ length: count }, (_, index) => {
+            const date = new Date(
+                Date.parse('2026-07-18T11:00:00Z') - index * 60_000,
+            ).toISOString();
+            return `<item><guid>${index}</guid><title>${index}</title><pubDate>${date}</pubDate></item>`;
+        })
+            .reverse()
+            .join('');
         const service = makeFeedRefreshService({
             fetch: async () =>
                 new Response(
-                    `<rss><channel><title>Oversized</title>${items}</channel></rss>`,
+                    `<rss><channel><title>Large source</title>${items}</channel></rss>`,
                     { headers: { 'content-type': 'application/rss+xml' } },
                 ),
+            now: () => Date.parse('2026-07-18T12:00:00Z'),
         });
 
-        const error = await failure(service.refresh(source));
+        const result = await Effect.runPromise(service.refresh(source));
 
-        expect(error).toBeInstanceOf(FeedParseError);
-        expect(error).toMatchObject({
-            reason: 'too_many_entries',
-            retryable: false,
-        });
+        expect(result).toMatchObject({ kind: 'updated' });
+        if (result.kind !== 'updated') throw new Error('Expected updated feed');
+        expect(result.entries).toHaveLength(MAX_FEED_ENTRIES);
+        expect(result.entries[0]?.sourceId).toBe('19');
+        expect(result.entries.at(-1)?.sourceId).toBe('0');
     });
 
     it('accepts entity-heavy direct feeds without discovery fallback', async () => {

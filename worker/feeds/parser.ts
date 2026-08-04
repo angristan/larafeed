@@ -5,11 +5,9 @@ import { FeedParseError } from './errors';
 import { MAX_XML_ENTITY_EXPANSIONS } from './limits';
 import { MAX_CONTENT_BYTES, sanitizeArticleHtml } from './sanitize';
 
-// Refresh persistence uses at most two D1 statements per entry plus fixed
-// bookkeeping statements. This leaves headroom below the paid Workers limit of
-// 1,000 D1 queries per invocation while allowing complete normal feed refreshes.
-export const MAX_FEED_ENTRIES = 400;
-export const MAX_FEED_ITEMS_TO_PARSE = 1_000;
+// Keep initial imports and refreshes bounded while retaining the newest posts.
+// D1 sequence IDs are assigned oldest-to-newest within this selected window.
+export const MAX_FEED_ENTRIES = 20;
 
 export type ContentStatus = 'stored' | 'empty' | 'oversized';
 
@@ -588,10 +586,6 @@ const jsonFeed = (
         throw new FeedParseError({ reason: 'unsupported_feed' });
     }
 
-    if (feed.items.length > MAX_FEED_ITEMS_TO_PARSE) {
-        throw new FeedParseError({ reason: 'too_many_entries' });
-    }
-
     const metadata: NormalizedFeedMetadata = {
         title: plainTextTitle(title, 500) ?? finalUrl.hostname,
         siteUrl: resolveHttpUrl(jsonText(feed.home_page_url), finalUrl),
@@ -739,6 +733,8 @@ const entriesFromCandidates = async (
     const entries: NormalizedFeedEntry[] = [];
     const seen = new Set<string>();
     for (const candidate of sorted) {
+        if (entries.length === MAX_FEED_ENTRIES) break;
+
         const deduplicationKey = await digestIdentity(
             candidate.sourceIdentity,
             webCrypto,
@@ -752,9 +748,6 @@ const entriesFromCandidates = async (
         seen.add(key);
 
         const { sortTimestamp: _, sourceIndex: __, ...entry } = candidate;
-        if (entries.length === MAX_FEED_ENTRIES) {
-            throw new FeedParseError({ reason: 'too_many_entries' });
-        }
         entries.push({
             ...entry,
             deduplicationKey,
@@ -821,9 +814,6 @@ export const parseFeedDocument = async (
         }
 
         const shape = feedShape(document);
-        if (shape.items.length > MAX_FEED_ITEMS_TO_PARSE) {
-            throw new FeedParseError({ reason: 'too_many_entries' });
-        }
         metadata = metadataFromShape(
             shape,
             options.finalUrl,
