@@ -27,6 +27,7 @@
         "resources/js/cloudflare/**/*.ts",
         "resources/js/cloudflare/**/*.tsx",
         "resources/js/types/**/*.d.ts",
+        "validation/**/*.ts",
         "worker-configuration.d.ts",
         "vite.config.ts",
         "vitest.config.ts",

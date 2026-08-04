@@ -34,7 +34,10 @@ export default defineConfig({
         },
     },
     test: {
-        include: ['worker/**/*.worker.test.ts'],
+        include: [
+            'validation/**/*.worker.test.ts',
+            'worker/**/*.worker.test.ts',
+        ],
         setupFiles: ['./worker/test/apply-migrations.ts'],
     },
 });

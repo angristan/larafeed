@@ -35,5 +35,3 @@ jobs:
         run: npm run deploy:check:production
       - name: Test build and deployment dry run
         run: npm run deploy:check:test
-      - name: Representative D1 validation
-        run: npm run d1:validate

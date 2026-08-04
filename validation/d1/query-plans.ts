@@ -7,50 +7,6 @@ export interface QueryPlanSpec {
     readonly required: readonly string[];
 }
 
-export interface PlanResult {
-    readonly name: string;
-    readonly details: readonly string[];
-    readonly required: readonly string[];
-    readonly passed: boolean;
-}
-
-export interface MeasurementResult {
-    readonly name: string;
-    readonly iterations: number;
-    readonly databaseOperations: number;
-    readonly rowsAffected: number;
-    readonly elapsedMs: number;
-}
-
-export interface ValidationCheck {
-    readonly name: string;
-    readonly passed: boolean;
-    readonly detail: string;
-}
-
-export interface ValidationReport {
-    readonly schemaVersion: 1;
-    readonly generatedAt: string;
-    readonly fixture: RepresentativeFixture['config'];
-    readonly rowCounts: Readonly<Record<string, number>>;
-    readonly databaseSize: {
-        readonly method: 'payload_plus_row_overhead';
-        readonly measuredPayloadBytes: number;
-        readonly assumedRowOverheadBytes: number;
-        readonly estimatedBytes: number;
-        readonly bytesPerEntry: number;
-    };
-    readonly sparseInteractions: {
-        readonly interactionRows: number;
-        readonly logicalUserEntries: number;
-        readonly amplificationRatio: number;
-    };
-    readonly checks: readonly ValidationCheck[];
-    readonly plans: readonly PlanResult[];
-    readonly measurements: readonly MeasurementResult[];
-    readonly passed: boolean;
-}
-
 const effectiveRead =
     'COALESCE(ei.read_override, CASE WHEN fs.read_through_entry_id IS NOT NULL AND e.id <= fs.read_through_entry_id THEN 1 ELSE 0 END)';
 
@@ -170,87 +126,10 @@ export const queryPlanSpecs = (
     ];
 };
 
-export const planPasses = (
+export const planUsesRequiredIndexes = (
     details: readonly string[],
     required: readonly string[],
 ): boolean => {
     const joined = details.join('\n');
     return required.every((index) => joined.includes(index));
 };
-
-const status = (passed: boolean): string => (passed ? 'PASS' : 'FAIL');
-const table = (headers: readonly string[], rows: readonly string[][]): string =>
-    [
-        `| ${headers.join(' | ')} |`,
-        `| ${headers.map(() => '---').join(' | ')} |`,
-        ...rows.map((row) => `| ${row.join(' | ')} |`),
-    ].join('\n');
-
-export const renderMarkdownReport = (
-    report: ValidationReport,
-): string => `# Larafeed D1 representative validation
-
-**Result:** ${status(report.passed)}
-
-**Generated:** ${report.generatedAt}
-
-**Fixture:** ${report.fixture.profile} (${report.fixture.users} users, ${report.fixture.feeds} feeds, ${report.fixture.entriesPerFeed} entries/feed)
-
-## Integrity and semantics
-
-${table(
-    ['Check', 'Result', 'Detail'],
-    report.checks.map((check) => [
-        check.name,
-        status(check.passed),
-        check.detail.replaceAll('|', '\\|'),
-    ]),
-)}
-
-## Query plans
-
-${table(
-    ['Query', 'Result', 'Required indexes'],
-    report.plans.map((plan) => [
-        plan.name,
-        status(plan.passed),
-        plan.required.join(', '),
-    ]),
-)}
-
-## Measurements
-
-Elapsed times are metadata only. Validation has no latency threshold.
-
-${table(
-    ['Operation', 'Iterations', 'DB operations', 'Rows affected', 'Elapsed ms'],
-    report.measurements.map((measurement) => [
-        measurement.name,
-        String(measurement.iterations),
-        String(measurement.databaseOperations),
-        String(measurement.rowsAffected),
-        measurement.elapsedMs.toFixed(3),
-    ]),
-)}
-
-## Capacity indicators
-
-- Estimate method: ${report.databaseSize.method}
-- Measured payload bytes: ${report.databaseSize.measuredPayloadBytes}
-- Assumed row overhead bytes: ${report.databaseSize.assumedRowOverheadBytes}
-- Estimated D1 bytes: ${report.databaseSize.estimatedBytes}
-- Estimated bytes per entry: ${report.databaseSize.bytesPerEntry.toFixed(2)}
-- Sparse interaction rows: ${report.sparseInteractions.interactionRows}
-- Logical user-entry rows: ${report.sparseInteractions.logicalUserEntries}
-- Sparse amplification ratio: ${report.sparseInteractions.amplificationRatio.toFixed(6)}
-
-## Row counts
-
-${table(
-    ['Table', 'Rows'],
-    Object.entries(report.rowCounts).map(([name, count]) => [
-        name,
-        String(count),
-    ]),
-)}
-`;

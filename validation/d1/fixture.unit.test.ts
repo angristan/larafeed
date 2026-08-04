@@ -1,18 +1,12 @@
-import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 
 import {
-    fixtureToNdjson,
-    fixtureToSql,
     generateRepresentativeFixture,
     resolveFixtureConfig,
 } from './fixture';
 
-const digest = (value: string): string =>
-    createHash('sha256').update(value).digest('hex');
-
 describe('representative D1 fixture generator', () => {
-    it('generates deterministic target-schema SQL and NDJSON', async () => {
+    it('generates deterministic target-schema rows', async () => {
         const config = resolveFixtureConfig('ci', {
             users: 1,
             feeds: 2,
@@ -22,11 +16,7 @@ describe('representative D1 fixture generator', () => {
         const first = await generateRepresentativeFixture(config);
         const second = await generateRepresentativeFixture(config);
 
-        expect(digest(fixtureToSql(first))).toBe(digest(fixtureToSql(second)));
-        expect(digest(fixtureToNdjson(first))).toBe(
-            digest(fixtureToNdjson(second)),
-        );
-        expect(first.expectedCounts).toEqual(second.expectedCounts);
+        expect(first).toEqual(second);
     });
 
     it('classifies near-limit, oversized, equal-time, late-old, and sparse states', async () => {

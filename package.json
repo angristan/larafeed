@@ -26,8 +26,8 @@
         "d1:migrations:list:test": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler d1 migrations list DB --remote --config wrangler.jsonc --env test",
         "d1:migrate:test": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler d1 migrations apply DB --remote --config wrangler.jsonc --env test",
         "auth:access-link": "bun scripts/auth-access-link.ts",
-        "d1:validate": "bun scripts/cloudflare-validation/run.ts --profile ci --output-dir scripts/cloudflare-validation/output",
-        "d1:validate:large": "bun scripts/cloudflare-validation/run.ts --profile large --output-dir scripts/cloudflare-validation/output",
+        "d1:validate": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vitest run --config vitest.config.ts validation/d1 && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vitest run --config vitest.worker.config.ts validation/d1/representative.worker.test.ts",
+        "d1:validate:large": "LARAFEED_D1_FIXTURE_PROFILE=large npm run d1:validate",
         "deploy": "npm run build && npm run d1:migrate && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy",
         "deploy:production": "npm run d1:migrate:production && npm run build:production && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy",
         "deploy:test": "npm run d1:migrate:test && npm run build:test && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy",
@@ -38,7 +38,7 @@
         "test": "vitest run --config vitest.config.ts && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vitest run --config vitest.worker.config.ts",
         "test:browser": "playwright test",
         "test:cloudflare": "npm test",
-        "validate": "npm run lint-check && npm run typecheck && npm run types:check:cloudflare && npm test && npm run test:browser && npm run d1:validate && npm run deploy:check && npm run deploy:check:production && npm run deploy:check:test"
+        "validate": "npm run lint-check && npm run typecheck && npm run types:check:cloudflare && npm test && npm run test:browser && npm run deploy:check && npm run deploy:check:production && npm run deploy:check:test"
     },
     "cloudflare": {
         "bindings": {

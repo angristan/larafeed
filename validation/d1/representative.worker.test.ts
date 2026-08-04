@@ -8,12 +8,15 @@ import {
     type RepresentativeFixture,
 } from './fixture';
 import {
-    type MeasurementResult,
-    planPasses,
+    planUsesRequiredIndexes,
     queryPlanSpecs,
-    type ValidationCheck,
-    type ValidationReport,
-} from './validation';
+} from './query-plans';
+
+interface ValidationCheck {
+    readonly name: string;
+    readonly passed: boolean;
+    readonly detail: string;
+}
 
 const chunk = <A>(values: readonly A[], size: number): readonly A[][] => {
     const result: A[][] = [];
@@ -65,175 +68,8 @@ const check = (
 const effectiveRead =
     'COALESCE(ei.read_override, CASE WHEN fs.read_through_entry_id IS NOT NULL AND e.id <= fs.read_through_entry_id THEN 1 ELSE 0 END)';
 
-const measure = async (
-    name: string,
-    iterations: number,
-    databaseOperations: number,
-    operation: () => Promise<number>,
-): Promise<MeasurementResult> => {
-    const startedAt = performance.now();
-    const rowsAffected = await operation();
-    return {
-        name,
-        iterations,
-        databaseOperations,
-        rowsAffected,
-        elapsedMs: performance.now() - startedAt,
-    };
-};
-
-const readerMeasurement = async (
-    fixture: RepresentativeFixture,
-): Promise<MeasurementResult> => {
-    const iterations = 5;
-    const userId = fixture.semantics.primaryUserId;
-    const from = `FROM entries e
-        JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id
-        LEFT JOIN entry_interactions ei
-            ON ei.user_id = fs.user_id AND ei.entry_id = e.id
-        WHERE fs.user_id = ? AND ei.filtered_at IS NULL`;
-    return measure(
-        'reader.list_and_count',
-        iterations,
-        iterations * 2,
-        async () => {
-            let returned = 0;
-            for (let iteration = 0; iteration < iterations; iteration += 1) {
-                const results = await env.DB.batch([
-                    env.DB.prepare(`SELECT COUNT(*) AS total ${from}`).bind(
-                        userId,
-                    ),
-                    env.DB.prepare(
-                        `SELECT e.id ${from}
-                    ORDER BY e.published_at DESC, e.id DESC LIMIT 50 OFFSET ?`,
-                    ).bind(userId, iteration * 10),
-                ]);
-                returned += results[0]?.results.length ?? 0;
-                returned += results[1]?.results.length ?? 0;
-            }
-            return returned;
-        },
-    );
-};
-
-const readThroughMeasurement = async (
-    fixture: RepresentativeFixture,
-): Promise<MeasurementResult> => {
-    const iterations = Math.min(5, fixture.config.feeds);
-    const userId = fixture.semantics.primaryUserId;
-    return measure(
-        'reader.read_through_batch',
-        iterations,
-        iterations * 4,
-        async () => {
-            let changes = 0;
-            for (let index = 0; index < iterations; index += 1) {
-                const feedId = 10_000 + index;
-                const now = fixture.generatedAt + 10_000 + index;
-                const results = await env.DB.batch([
-                    env.DB.prepare(
-                        `UPDATE feed_subscriptions
-                        SET read_through_entry_id = (
-                            SELECT MAX(id) FROM entries WHERE feed_id = ?),
-                            updated_at = ?
-                        WHERE user_id = ? AND feed_id = ?`,
-                    ).bind(feedId, now, userId, feedId),
-                    env.DB.prepare(
-                        `DELETE FROM entry_interactions
-                        WHERE user_id = ? AND feed_id = ?
-                            AND read_override IS NOT NULL
-                            AND starred_at IS NULL AND archived_at IS NULL
-                            AND filtered_at IS NULL
-                            AND entry_id <= COALESCE((
-                                SELECT read_through_entry_id
-                                FROM feed_subscriptions
-                                WHERE user_id = ? AND feed_id = ?), 0)`,
-                    ).bind(userId, feedId, userId, feedId),
-                    env.DB.prepare(
-                        `UPDATE entry_interactions
-                        SET read_override = NULL, read_changed_at = NULL,
-                            updated_at = ?
-                        WHERE user_id = ? AND feed_id = ?
-                            AND read_override IS NOT NULL
-                            AND entry_id <= COALESCE((
-                                SELECT read_through_entry_id
-                                FROM feed_subscriptions
-                                WHERE user_id = ? AND feed_id = ?), 0)`,
-                    ).bind(now, userId, feedId, userId, feedId),
-                    env.DB.prepare(
-                        `SELECT feed_id, read_through_entry_id
-                        FROM feed_subscriptions
-                        WHERE user_id = ? AND feed_id = ?`,
-                    ).bind(userId, feedId),
-                ]);
-                changes += results.reduce(
-                    (total, result) => total + (result.meta.changes ?? 0),
-                    0,
-                );
-            }
-            return changes;
-        },
-    );
-};
-
-const ingestionMeasurement = async (
-    fixture: RepresentativeFixture,
-): Promise<MeasurementResult> => {
-    const iterations = 1;
-    const entries = 8;
-    const feedId = fixture.semantics.primaryFeedId;
-    const statements: D1PreparedStatement[] = [];
-    for (let index = 0; index < entries; index += 1) {
-        const id = 8_000_000 + index;
-        const content = `<article><p>Deterministic ingestion batch ${id} ${'x'.repeat(1_024)}</p></article>`;
-        statements.push(
-            env.DB.prepare(
-                `INSERT INTO entries (
-                    id, feed_id, deduplication_key, source_id, title, url,
-                    published_at, content_status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'stored', ?, ?)`,
-            ).bind(
-                id,
-                feedId,
-                new Uint8Array(32).fill(index + 1),
-                `benchmark:${id}`,
-                `Ingestion benchmark ${id}`,
-                `https://benchmark.example.test/${id}`,
-                fixture.generatedAt + index,
-                fixture.generatedAt + index,
-                fixture.generatedAt + index,
-            ),
-            env.DB.prepare(
-                `INSERT INTO entry_contents (
-                    entry_id, content_html, content_hash, encoded_size_bytes,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?)`,
-            ).bind(
-                id,
-                content,
-                new Uint8Array(32).fill(index + 101),
-                new TextEncoder().encode(content).byteLength,
-                fixture.generatedAt + index,
-                fixture.generatedAt + index,
-            ),
-        );
-    }
-    return measure(
-        'feed.ingestion_batch',
-        iterations,
-        statements.length,
-        async () => {
-            const results = await env.DB.batch(statements);
-            return results.reduce(
-                (total, result) => total + (result.meta.changes ?? 0),
-                0,
-            );
-        },
-    );
-};
-
 describe('production-shaped D1 validation', () => {
-    it('validates integrity, semantics, plans, and bounded operation metadata', async () => {
+    it('validates integrity, semantics, and query plans', async () => {
         const fixture = await generateRepresentativeFixture(
             FIXTURE_PROFILES[env.D1_VALIDATION_PROFILE],
         );
@@ -478,7 +314,7 @@ describe('production-shaped D1 validation', () => {
                 name: spec.name,
                 details,
                 required: spec.required,
-                passed: planPasses(details, spec.required),
+                passed: planUsesRequiredIndexes(details, spec.required),
             });
             const queryResult = await env.DB.prepare(spec.sql)
                 .bind(...spec.bindings)
@@ -533,63 +369,6 @@ describe('production-shaped D1 validation', () => {
             ),
         );
 
-        const measurements = [
-            await readerMeasurement(fixture),
-            await readThroughMeasurement(fixture),
-            await ingestionMeasurement(fixture),
-        ];
-        const measuredPayloadBytes = await scalar(
-            `SELECT CAST(
-                COALESCE((SELECT SUM(encoded_size_bytes) FROM entry_contents), 0)
-                + COALESCE((SELECT SUM(
-                    length(title) + COALESCE(length(url), 0)
-                    + COALESCE(length(author), 0)
-                    + COALESCE(length(source_id), 0)
-                    + length(deduplication_key)) FROM entries), 0)
-                + COALESCE((SELECT SUM(
-                    length(name) + length(feed_url)
-                    + COALESCE(length(site_url), 0)
-                    + COALESCE(length(favicon_url), 0)) FROM feeds), 0)
-                + COALESCE((SELECT SUM(length(summary_html))
-                    FROM entry_summaries), 0)
-                AS INTEGER) AS value`,
-        );
-        const entryCount = await scalar(
-            'SELECT COUNT(*) AS value FROM entries',
-        );
-        const totalRows =
-            Object.values(rowCounts).reduce(
-                (total, count) => total + count,
-                0,
-            ) + 16;
-        const assumedRowOverheadBytes = totalRows * 128;
-        const estimatedBytes = measuredPayloadBytes + assumedRowOverheadBytes;
-        const report: ValidationReport = {
-            schemaVersion: 1,
-            generatedAt: new Date(fixture.generatedAt).toISOString(),
-            fixture: fixture.config,
-            rowCounts,
-            databaseSize: {
-                method: 'payload_plus_row_overhead',
-                measuredPayloadBytes,
-                assumedRowOverheadBytes,
-                estimatedBytes,
-                bytesPerEntry: estimatedBytes / entryCount,
-            },
-            sparseInteractions: {
-                interactionRows,
-                logicalUserEntries,
-                amplificationRatio,
-            },
-            checks,
-            plans,
-            measurements,
-            passed:
-                checks.every(({ passed }) => passed) &&
-                plans.every(({ passed }) => passed),
-        };
-
-        console.log(`LARAFEED_D1_VALIDATION_REPORT=${JSON.stringify(report)}`);
         expect(
             checks.filter(({ passed }) => !passed),
             'integrity and semantic checks',
@@ -598,9 +377,5 @@ describe('production-shaped D1 validation', () => {
             plans.filter(({ passed }) => !passed),
             `query plans: ${JSON.stringify(plans, null, 2)}`,
         ).toEqual([]);
-        expect(report.passed).toBe(true);
-        expect(
-            measurements.map(({ databaseOperations }) => databaseOperations),
-        ).toEqual([10, Math.min(5, fixture.config.feeds) * 4, 16]);
     }, 60_000);
 });

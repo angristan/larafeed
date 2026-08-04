@@ -11,6 +11,7 @@ export default defineConfig({
     test: {
         include: [
             'shared/**/*.test.ts',
+            'validation/**/*.unit.test.ts',
             'worker/**/*.unit.test.ts',
             'resources/js/cloudflare/**/*.test.ts',
             'resources/js/cloudflare/**/*.test.tsx',
