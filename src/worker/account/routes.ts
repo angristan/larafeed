@@ -12,7 +12,7 @@ import { Cause, Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 
-import { type AuthRuntime, defaultAuthRuntimeFactory } from '../auth/routes';
+import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
 import { makeD1 } from '../infrastructure/d1';
 import { AccountValidationError } from './errors';
@@ -42,15 +42,17 @@ export type AccountRuntimeFactory = (
 export interface AccountRouteDependencies {
     readonly runtimeFactory?: AccountRuntimeFactory;
 }
-export const defaultAccountRuntimeFactory: AccountRuntimeFactory = (env) =>
-    defaultAuthRuntimeFactory(env).pipe(
+export const defaultAccountRuntimeFactory: AccountRuntimeFactory = (env) => {
+    const d1 = makeD1(env.DB);
+    return makeDefaultAuthRuntime(env, d1).pipe(
         Effect.map((auth) => ({
             auth,
             service: makeAccountService({
-                repository: makeAccountRepository(makeD1(env.DB)),
+                repository: makeAccountRepository(d1),
             }),
         })),
     );
+};
 
 const decodeJson = <S extends Schema.ConstraintDecoder<unknown>>(
     request: Request,

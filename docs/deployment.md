@@ -13,7 +13,9 @@ During setup:
 3. Keep each `*_QUEUE_NAME` value identical to its Queue resource name.
 4. Deploy.
 
-The deployment builds the application, applies every D1 migration, and deploys the Worker. The WebAuthn RP ID is derived from `AUTH_ORIGIN`; it never comes from the request `Host` header.
+The deployment builds the application, applies every D1 migration, and deploys the Worker with Smart Placement. The WebAuthn RP ID is derived from `AUTH_ORIGIN`; it never comes from the request `Host` header.
+
+After the first deployment, open the D1 database settings and enable Read Replication. Larafeed uses D1 Sessions so authenticated requests start with current primary state and later reads can use sequentially consistent replicas.
 
 ## Manual deployment
 

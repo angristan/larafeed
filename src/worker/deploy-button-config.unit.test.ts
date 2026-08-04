@@ -5,6 +5,7 @@ interface DeploymentEnvironment {
     readonly name?: string;
     readonly workers_dev?: boolean;
     readonly preview_urls?: boolean;
+    readonly placement?: { readonly mode?: string };
     readonly routes?: readonly { readonly pattern: string }[];
 }
 
@@ -43,6 +44,7 @@ describe('Deploy-to-Cloudflare configuration', () => {
             preview_urls: true,
         });
         expect(wrangler.routes).toBeUndefined();
+        expect(wrangler.placement).toEqual({ mode: 'smart' });
         expect(wrangler.env?.production).toMatchObject({
             name: 'larafeed',
             workers_dev: false,
@@ -55,6 +57,8 @@ describe('Deploy-to-Cloudflare configuration', () => {
             preview_urls: false,
             routes: [{ pattern: 'larafeedcf.stanislas.cloud' }],
         });
+        expect(wrangler.env?.production?.placement).toEqual({ mode: 'smart' });
+        expect(wrangler.env?.test?.placement).toEqual({ mode: 'smart' });
     });
 
     it('applies D1 migrations before the button deployment', () => {

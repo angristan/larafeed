@@ -3,7 +3,7 @@ import { Cause, Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 
-import { type AuthRuntime, defaultAuthRuntimeFactory } from '../auth/routes';
+import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
 import { type D1, makeD1 } from '../infrastructure/d1';
 import type { RefreshRuntime } from './runtime';
@@ -43,19 +43,21 @@ export interface RefreshRouteDependencies {
 
 export const defaultRefreshRouteRuntimeFactory: RefreshRouteRuntimeFactory = (
     env,
-) =>
-    defaultAuthRuntimeFactory(env).pipe(
+) => {
+    const d1 = makeD1(env.DB);
+    return makeDefaultAuthRuntime(env, d1).pipe(
         Effect.flatMap((auth) =>
             Effect.try({
                 try: () => ({
                     auth,
                     refresh: makeRefreshRuntime(env),
-                    d1: makeD1(env.DB),
+                    d1,
                 }),
                 catch: () => new RefreshRouteUnavailable(),
             }),
         ),
     );
+};
 
 const tag = (error: unknown): string | undefined =>
     typeof error === 'object' && error !== null

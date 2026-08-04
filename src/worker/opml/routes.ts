@@ -8,9 +8,9 @@ import { Cause, Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 
-import { type AuthRuntime, defaultAuthRuntimeFactory } from '../auth/routes';
+import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
-import { makeD1 } from '../infrastructure/d1';
+import { type D1, makeD1 } from '../infrastructure/d1';
 import { makeRefreshRuntime } from '../refresh/runtime';
 import {
     OpmlFeatureDisabled,
@@ -65,10 +65,13 @@ const queueFromEnv = (env: Env): OpmlQueueSender => ({
     },
 });
 
-export const makeDefaultOpmlOrchestrator = (env: Env): OpmlOrchestrator => {
+export const makeDefaultOpmlOrchestrator = (
+    env: Env,
+    d1: D1 = makeD1(env.DB),
+): OpmlOrchestrator => {
     const refresh = makeRefreshRuntime(env);
     return makeOpmlOrchestrator({
-        repository: makeOpmlRepository(makeD1(env.DB)),
+        repository: makeOpmlRepository(d1),
         queue: queueFromEnv(env),
         ...(refresh.config.dispatchEnabled
             ? {
@@ -83,14 +86,18 @@ export const opmlImportEnabled = (
     env: Pick<Env, 'OPML_IMPORT_ENABLED'>,
 ): boolean => env.OPML_IMPORT_ENABLED === 'true';
 
-export const defaultOpmlRouteRuntimeFactory: OpmlRouteRuntimeFactory = (env) =>
-    defaultAuthRuntimeFactory(env).pipe(
+export const defaultOpmlRouteRuntimeFactory: OpmlRouteRuntimeFactory = (
+    env,
+) => {
+    const d1 = makeD1(env.DB);
+    return makeDefaultAuthRuntime(env, d1).pipe(
         Effect.map((auth) => ({
             auth,
-            orchestrator: makeDefaultOpmlOrchestrator(env),
+            orchestrator: makeDefaultOpmlOrchestrator(env, d1),
             importEnabled: opmlImportEnabled(env),
         })),
     );
+};
 
 const tag = (error: unknown): string | undefined =>
     typeof error === 'object' && error !== null

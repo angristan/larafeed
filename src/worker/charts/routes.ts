@@ -3,7 +3,7 @@ import { Cause, Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 
-import { type AuthRuntime, defaultAuthRuntimeFactory } from '../auth/routes';
+import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import { makeD1 } from '../infrastructure/d1';
 import { ChartValidationError } from './errors';
 import { type ChartScopeInput, makeChartRepository } from './repository';
@@ -38,16 +38,18 @@ export interface ChartRouteDependencies {
     readonly runtimeFactory?: ChartRuntimeFactory;
 }
 
-export const defaultChartRuntimeFactory: ChartRuntimeFactory = (env) =>
-    defaultAuthRuntimeFactory(env).pipe(
+export const defaultChartRuntimeFactory: ChartRuntimeFactory = (env) => {
+    const d1 = makeD1(env.DB);
+    return makeDefaultAuthRuntime(env, d1).pipe(
         Effect.map((auth) => ({
             auth,
             service: makeChartService({
-                repository: makeChartRepository(makeD1(env.DB)),
+                repository: makeChartRepository(d1),
             }),
             now: Date.now,
         })),
     );
+};
 
 export interface ParsedChartQuery {
     readonly startAt: number;

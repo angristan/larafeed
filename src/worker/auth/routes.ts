@@ -25,7 +25,7 @@ import { Cause, Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { generateCookie, getCookie } from 'hono/cookie';
 
-import { makeD1 } from '../infrastructure/d1';
+import { type D1, makeD1 } from '../infrastructure/d1';
 import { type AuthConfig, parseAuthConfig } from './config';
 import {
     type AuthRateLimited,
@@ -110,10 +110,9 @@ export interface AuthRouteDependencies {
     ) => Effect.Effect<void, AuthRateLimited>;
 }
 
-export const defaultAuthRuntimeFactory: AuthRuntimeFactory = (env) =>
+export const makeDefaultAuthRuntime = (env: Env, d1: D1) =>
     parseAuthConfig(env).pipe(
         Effect.map((config) => {
-            const d1 = makeD1(env.DB);
             const repository = makeAuthRepository(d1);
             const webAuthn = makeWebAuthn();
             const turnstile =
@@ -140,6 +139,9 @@ export const defaultAuthRuntimeFactory: AuthRuntimeFactory = (env) =>
             };
         }),
     );
+
+export const defaultAuthRuntimeFactory: AuthRuntimeFactory = (env) =>
+    makeDefaultAuthRuntime(env, makeD1(env.DB));
 
 const appendCookie = (headers: Headers, cookie: CookieValue): void => {
     headers.append(

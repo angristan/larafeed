@@ -68,6 +68,22 @@ export class D1Service extends Context.Service<D1Service, D1>()(
 
 type D1Executor = Pick<D1DatabaseSession, 'prepare' | 'batch'>;
 
+const makeLazySessionExecutor = (
+    database: D1Database,
+    constraint: D1SessionConstraint,
+): D1Executor => {
+    let session: D1DatabaseSession | undefined;
+    const getSession = (): D1DatabaseSession => {
+        session ??= database.withSession(constraint);
+        return session;
+    };
+
+    return {
+        prepare: (query) => getSession().prepare(query),
+        batch: (statements) => getSession().batch(statements),
+    };
+};
+
 const operationError = (operation: D1Operation, cause: unknown) =>
     new D1OperationError({ operation, cause });
 
@@ -140,8 +156,14 @@ const makeSession = (session: D1DatabaseSession): D1Session => ({
     getBookmark: trySync('getBookmark', () => session.getBookmark()),
 });
 
-export const makeD1 = (database: D1Database): D1 => ({
-    ...makeQueries(database),
+export const makeD1 = (
+    database: D1Database,
+    constraint: D1SessionConstraint = 'first-primary',
+): D1 => ({
+    // Authentication and mutations require current state. Starting on the
+    // primary preserves that guarantee, while later reads in the same logical
+    // operation remain eligible for sequentially consistent replicas.
+    ...makeQueries(makeLazySessionExecutor(database, constraint)),
     withSession: (constraintOrBookmark) =>
         trySync('withSession', () =>
             makeSession(

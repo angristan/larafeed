@@ -14,7 +14,7 @@ import { Cause, Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 
-import { type AuthRuntime, defaultAuthRuntimeFactory } from '../auth/routes';
+import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
 import { makeFeedRefreshService } from '../feeds';
 import { makeD1 } from '../infrastructure/d1';
@@ -101,10 +101,10 @@ const logFeedDiscoveryFailure = (rawUrl: string, error: unknown) =>
 
 export const defaultSubscriptionRuntimeFactory: SubscriptionRuntimeFactory = (
     env,
-) =>
-    defaultAuthRuntimeFactory(env).pipe(
+) => {
+    const d1 = makeD1(env.DB);
+    return makeDefaultAuthRuntime(env, d1).pipe(
         Effect.map((auth) => {
-            const d1 = makeD1(env.DB);
             const refresh = makeRefreshRuntime(env);
             const feedService = makeFeedRefreshService();
             return {
@@ -151,6 +151,7 @@ export const defaultSubscriptionRuntimeFactory: SubscriptionRuntimeFactory = (
             };
         }),
     );
+};
 
 interface SafeError {
     readonly code:

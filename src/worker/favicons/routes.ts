@@ -3,7 +3,7 @@ import { Cause, Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 
-import { type AuthRuntime, defaultAuthRuntimeFactory } from '../auth/routes';
+import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
 import { makeD1 } from '../infrastructure/d1';
 import {
@@ -51,10 +51,10 @@ class FaviconSchedulingError extends Schema.TaggedErrorClass<FaviconSchedulingEr
     {},
 ) {}
 
-export const defaultFaviconRuntimeFactory: FaviconRuntimeFactory = (env) =>
-    defaultAuthRuntimeFactory(env).pipe(
+export const defaultFaviconRuntimeFactory: FaviconRuntimeFactory = (env) => {
+    const d1 = makeD1(env.DB);
+    return makeDefaultAuthRuntime(env, d1).pipe(
         Effect.map((auth) => {
-            const d1 = makeD1(env.DB);
             const repository = makeFaviconRepository(d1);
             const orchestrator = makeFaviconRuntime(env).orchestrator;
             return {
@@ -77,6 +77,7 @@ export const defaultFaviconRuntimeFactory: FaviconRuntimeFactory = (env) =>
             };
         }),
     );
+};
 
 const id = (value: string): number | null => {
     if (!/^[1-9]\d*$/u.test(value)) return null;
@@ -244,7 +245,9 @@ export const registerFaviconRoutes = (
         try {
             const repository =
                 dependencies.assetRepository ??
-                makeD1FaviconAssetRepository(makeD1(context.env.DB));
+                makeD1FaviconAssetRepository(
+                    makeD1(context.env.DB, 'first-unconstrained'),
+                );
             const png = await repository.find(hash);
             if (png === null) {
                 return new Response(null, {

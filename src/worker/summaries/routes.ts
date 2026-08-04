@@ -3,7 +3,7 @@ import { Cause, Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 
-import { type AuthRuntime, defaultAuthRuntimeFactory } from '../auth/routes';
+import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
 import { makeD1 } from '../infrastructure/d1';
 import { parseSummaryConfig } from './config';
@@ -35,22 +35,24 @@ export interface SummaryRouteDependencies {
     readonly runtimeFactory?: SummaryRuntimeFactory;
 }
 
-export const defaultSummaryRuntimeFactory: SummaryRuntimeFactory = (env) =>
-    Effect.all({
-        auth: defaultAuthRuntimeFactory(env),
+export const defaultSummaryRuntimeFactory: SummaryRuntimeFactory = (env) => {
+    const d1 = makeD1(env.DB);
+    return Effect.all({
+        auth: makeDefaultAuthRuntime(env, d1),
         config: parseSummaryConfig(env),
     }).pipe(
         Effect.map(({ auth, config }) => ({
             auth,
             service: makeSummaryService({
                 config,
-                repository: makeSummaryRepository(makeD1(env.DB)),
+                repository: makeSummaryRepository(d1),
                 ...(config.enabled
                     ? { provider: makeSummaryProvider(config) }
                     : {}),
             }),
         })),
     );
+};
 
 interface SafeError {
     readonly code:

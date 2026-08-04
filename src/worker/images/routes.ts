@@ -2,7 +2,7 @@ import { Effect } from 'effect';
 import type { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 
-import { type AuthRuntime, defaultAuthRuntimeFactory } from '../auth/routes';
+import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
 import { makeD1 } from '../infrastructure/d1';
 import { findArticleImageSource, MAX_ARTICLE_IMAGES } from './article';
@@ -57,8 +57,9 @@ export const imagesEnabled = (env: Pick<Env, 'IMAGES_ENABLED'>): boolean =>
 
 export const imageRateLimitKey = (userId: number): string => `image:${userId}`;
 
-export const defaultImageRuntimeFactory: ImageRuntimeFactory = (env) =>
-    defaultAuthRuntimeFactory(env).pipe(
+export const defaultImageRuntimeFactory: ImageRuntimeFactory = (env) => {
+    const d1 = makeD1(env.DB);
+    return makeDefaultAuthRuntime(env, d1).pipe(
         Effect.flatMap((auth) =>
             Effect.try({
                 try: () => {
@@ -71,7 +72,7 @@ export const defaultImageRuntimeFactory: ImageRuntimeFactory = (env) =>
                     }
                     return {
                         auth,
-                        repository: makeImageRepository(makeD1(env.DB)),
+                        repository: makeImageRepository(d1),
                         service: makeImageService({
                             images,
                             cache: (
@@ -89,6 +90,7 @@ export const defaultImageRuntimeFactory: ImageRuntimeFactory = (env) =>
             }),
         ),
     );
+};
 
 const placeholderResponse = (): Response =>
     new Response(PLACEHOLDER_BYTES, {

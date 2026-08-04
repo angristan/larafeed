@@ -21,6 +21,7 @@ const makeResult = <T>(marker: string): D1Result<T> => ({
         changed_db: true,
         changes: 6,
         served_by_region: 'WEUR',
+        served_by_primary: false,
         marker,
     },
 });
@@ -171,6 +172,8 @@ class FakeDatabase implements D1Database {
         constraintOrBookmark?: D1SessionBookmark | D1SessionConstraint,
     ): D1DatabaseSession {
         this.sessionAnchors.push(constraintOrBookmark);
+        this.session.rejectedOperation = this.rejectedOperation;
+        this.session.rejection = this.rejection;
         return this.session;
     }
 
@@ -195,7 +198,9 @@ describe('native D1 Effect adapter', () => {
             ),
         );
 
-        expect(database.calls).toEqual([
+        expect(database.sessionAnchors).toEqual(['first-primary']);
+        expect(database.calls).toEqual([]);
+        expect(database.session.calls).toEqual([
             {
                 sql: 'SELECT * FROM feeds',
                 operation: 'first',
@@ -210,10 +215,11 @@ describe('native D1 Effect adapter', () => {
         ]);
     });
 
-    it('returns native all and run results with complete metadata', async () => {
+    it('reuses one lazy primary session and preserves complete metadata', async () => {
         const database = new FakeDatabase();
         const d1 = makeD1(database);
 
+        expect(database.sessionAnchors).toEqual([]);
         const allResult = await Effect.runPromise(
             d1.all({ sql: 'SELECT * FROM feeds' }),
         );
@@ -223,7 +229,13 @@ describe('native D1 Effect adapter', () => {
                 bindings: ['New title', 42],
             }),
         );
+        await Effect.runPromise(
+            d1.first({ sql: 'SELECT title FROM feeds WHERE id = 42' }),
+        );
 
+        expect(database.sessionAnchors).toEqual(['first-primary']);
+        expect(database.calls).toEqual([]);
+        expect(database.session.calls).toHaveLength(3);
         expect(allResult).toEqual(makeResult('all'));
         expect(runResult).toEqual(makeResult('run'));
         expect(runResult.meta).toMatchObject({
@@ -232,6 +244,7 @@ describe('native D1 Effect adapter', () => {
             last_row_id: 5,
             changes: 6,
             served_by_region: 'WEUR',
+            served_by_primary: false,
             marker: 'run',
         });
     });
@@ -245,8 +258,11 @@ describe('native D1 Effect adapter', () => {
             ]),
         );
 
-        expect(database.batchCalls).toBe(1);
-        expect(database.calls).toEqual([
+        expect(database.batchCalls).toBe(0);
+        expect(database.session.batchCalls).toBe(1);
+        expect(database.sessionAnchors).toEqual(['first-primary']);
+        expect(database.calls).toEqual([]);
+        expect(database.session.calls).toEqual([
             {
                 sql: 'INSERT INTO feeds(url) VALUES (?)',
                 bindings: ['a'],
@@ -269,10 +285,29 @@ describe('native D1 Effect adapter', () => {
         );
 
         expect(result.meta.marker).toBe('run');
-        expect(database.calls).toEqual([{ sql: 'SELECT 1', operation: 'run' }]);
+        expect(database.sessionAnchors).toEqual(['first-primary']);
+        expect(database.calls).toEqual([]);
+        expect(database.session.calls).toEqual([
+            { sql: 'SELECT 1', operation: 'run' },
+        ]);
     });
 
-    it('keeps session queries and bookmarks on the native session', async () => {
+    it('allows explicitly unconstrained replica-first operations', async () => {
+        const database = new FakeDatabase();
+        const d1 = makeD1(database, 'first-unconstrained');
+
+        await Effect.runPromise(
+            d1.all({ sql: 'SELECT * FROM favicon_assets' }),
+        );
+        await Effect.runPromise(
+            d1.first({ sql: 'SELECT COUNT(*) FROM feeds' }),
+        );
+
+        expect(database.sessionAnchors).toEqual(['first-unconstrained']);
+        expect(database.session.calls).toHaveLength(2);
+    });
+
+    it('keeps explicit session queries and bookmarks on the native session', async () => {
         const database = new FakeDatabase();
         database.session.bookmark = 'bookmark-after-write';
         const d1 = makeD1(database);

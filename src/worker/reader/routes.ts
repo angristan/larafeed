@@ -15,7 +15,7 @@ import { Cause, Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 
-import { type AuthRuntime, defaultAuthRuntimeFactory } from '../auth/routes';
+import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
 import { makeD1 } from '../infrastructure/d1';
 import { ReaderValidationError } from './errors';
@@ -55,15 +55,17 @@ export interface ReaderRouteDependencies {
     readonly runtimeFactory?: ReaderRuntimeFactory;
 }
 
-export const defaultReaderRuntimeFactory: ReaderRuntimeFactory = (env) =>
-    defaultAuthRuntimeFactory(env).pipe(
+export const defaultReaderRuntimeFactory: ReaderRuntimeFactory = (env) => {
+    const d1 = makeD1(env.DB);
+    return makeDefaultAuthRuntime(env, d1).pipe(
         Effect.map((auth) => ({
             auth,
             service: makeReaderService({
-                repository: makeReaderRepository(makeD1(env.DB)),
+                repository: makeReaderRepository(d1),
             }),
         })),
     );
+};
 
 interface SafeError {
     readonly code:

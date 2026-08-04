@@ -6,6 +6,7 @@
     "compatibility_flags": ["nodejs_compat"],
     "workers_dev": true,
     "preview_urls": true,
+    "placement": { "mode": "smart" },
     "vars": {
         "AUTH_ENVIRONMENT": "production",
         "AUTH_ORIGIN": "https://larafeed.example.com",
@@ -105,6 +106,7 @@
             "name": "larafeed",
             "workers_dev": false,
             "preview_urls": false,
+            "placement": { "mode": "smart" },
             "vars": {
                 "AUTH_ENVIRONMENT": "production",
                 "AUTH_ORIGIN": "https://larafeed.stanislas.cloud",
@@ -206,6 +208,7 @@
             "name": "larafeed-test",
             "workers_dev": false,
             "preview_urls": false,
+            "placement": { "mode": "smart" },
             "vars": {
                 "AUTH_ENVIRONMENT": "test",
                 "AUTH_ORIGIN": "https://larafeedcf.stanislas.cloud",

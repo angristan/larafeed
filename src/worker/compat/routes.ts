@@ -1,7 +1,7 @@
 import { Cause, Effect } from 'effect';
 import type { Context, Hono } from 'hono';
 
-import { type AuthRuntime, defaultAuthRuntimeFactory } from '../auth/routes';
+import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AppTokenAuthenticationResult } from '../auth/service';
 import { makeD1 } from '../infrastructure/d1';
 import {
@@ -52,14 +52,16 @@ export interface CompatibilityRouteDependencies {
 
 export const defaultCompatibilityRuntimeFactory: CompatibilityRuntimeFactory = (
     env,
-) =>
-    defaultAuthRuntimeFactory(env).pipe(
+) => {
+    const d1 = makeD1(env.DB);
+    return makeDefaultAuthRuntime(env, d1).pipe(
         Effect.map((auth) => ({
             auth,
-            repository: makeCompatibilityRepository(makeD1(env.DB)),
+            repository: makeCompatibilityRepository(d1),
             now: Date.now,
         })),
     );
+};
 
 const defaultRateLimit = (
     env: Env,

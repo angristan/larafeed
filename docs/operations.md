@@ -78,7 +78,7 @@ Watch these signals separately for each environment:
 
 - Worker errors, CPU time, and latency.
 - Authentication failures and security events.
-- D1 size, latency, rows read and written, errors, and overload.
+- D1 size, latency, rows read and written, errors, overload, and primary-versus-replica traffic by region.
 - Queue backlog, oldest message age, retries, and consumer errors.
 - D1 outbox age, stale leases, terminal jobs, and oldest due feed.
 - Stalled OPML imports and external fetch failure classes.
