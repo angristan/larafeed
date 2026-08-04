@@ -331,15 +331,24 @@ const darkness = async (bytes: Uint8Array): Promise<boolean | null> => {
     return weightedBrightness / opacityTotal < BRIGHTNESS_THRESHOLD;
 };
 
-export const analyzeNormalizedFavicon = async (
+export interface NormalizedFaviconInspection {
+    readonly valid: boolean;
+    readonly isDark: boolean | null;
+}
+
+export const inspectNormalizedFavicon = async (
     bytes: Uint8Array,
-): Promise<boolean | null> => {
+): Promise<NormalizedFaviconInspection> => {
     try {
-        return await darkness(bytes);
+        return { valid: true, isDark: await darkness(bytes) };
     } catch {
-        return null;
+        return { valid: false, isDark: null };
     }
 };
+
+export const analyzeNormalizedFavicon = async (
+    bytes: Uint8Array,
+): Promise<boolean | null> => (await inspectNormalizedFavicon(bytes)).isDark;
 
 export const faviconDarknessEnabled = (
     env: Pick<Env, 'IMAGES_ENABLED'>,

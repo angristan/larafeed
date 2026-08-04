@@ -14,6 +14,35 @@ const transparentPng = Uint8Array.from(
     ),
     (character) => character.charCodeAt(0),
 );
+const legacyIco = (): Uint8Array => {
+    const width = 32;
+    const height = 32;
+    const xorLength = width * height * 4;
+    const maskLength = Math.floor((width + 31) / 32) * 4 * height;
+    const frame = new Uint8Array(40 + xorLength + maskLength);
+    const frameView = new DataView(frame.buffer);
+    frameView.setUint32(0, 40, true);
+    frameView.setInt32(4, width, true);
+    frameView.setInt32(8, height * 2, true);
+    frameView.setUint16(12, 1, true);
+    frameView.setUint16(14, 32, true);
+    frameView.setUint32(20, xorLength, true);
+    for (let offset = 40; offset < 40 + xorLength; offset += 4)
+        frame.set([0x10, 0x80, 0xf0, 0xff], offset);
+
+    const source = new Uint8Array(22 + frame.byteLength);
+    const sourceView = new DataView(source.buffer);
+    sourceView.setUint16(2, 1, true);
+    sourceView.setUint16(4, 1, true);
+    source[6] = width;
+    source[7] = height;
+    sourceView.setUint16(10, 1, true);
+    sourceView.setUint16(12, 32, true);
+    sourceView.setUint32(14, frame.byteLength, true);
+    sourceView.setUint32(18, 22, true);
+    source.set(frame, 22);
+    return source;
+};
 
 describe('favicon D1 assets', () => {
     it('stores and deduplicates one normalized PNG', async () => {
@@ -45,6 +74,30 @@ describe('favicon D1 assets', () => {
                 ),
             ),
         ).resolves.toBe(1);
+    });
+
+    it('decodes and stores a legacy ICO inside Workerd', async () => {
+        const store = makeFaviconAssetStore({
+            repository,
+            images: env.IMAGES,
+            now: () => 1_900_000_000_001,
+        });
+
+        const asset = await store.persist(legacyIco());
+        const stored = await repository.find(asset.hash);
+
+        expect(stored).not.toBeNull();
+        if (stored === null) throw new Error('Expected stored ICO asset');
+        expect(Array.from(stored.subarray(0, 8))).toEqual([
+            137, 80, 78, 71, 13, 10, 26, 10,
+        ]);
+        expect(
+            new DataView(
+                stored.buffer,
+                stored.byteOffset,
+                stored.byteLength,
+            ).getUint32(16),
+        ).toBe(32);
     });
 
     it('serves a stored asset through the default public route', async () => {

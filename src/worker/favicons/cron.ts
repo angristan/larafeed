@@ -1,6 +1,6 @@
 import { makeFaviconRuntime } from './runtime';
 
-export const FAVICON_CRON_LIMIT = 5;
+export const FAVICON_CRON_LIMIT = 20;
 export const FAVICON_ORPHAN_CLEANUP_LIMIT = 100;
 export const FAVICON_ORPHAN_RETENTION_MS = 30 * 24 * 60 * 60_000;
 

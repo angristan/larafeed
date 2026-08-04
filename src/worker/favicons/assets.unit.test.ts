@@ -10,6 +10,13 @@ import {
 
 const bytes = (values: ArrayLike<number>): ArrayBuffer =>
     Uint8Array.from(values).buffer;
+const supportedSource = Uint8Array.from([0xff, 0xd8, 0xff]);
+const exactPng = Uint8Array.from(
+    atob(
+        'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAL0lEQVR4nO3OIQEAAAgDMCIQmcg0gBg3E/Ornb6kEhAQEBAQEBAQEBAQEBAQSAceDev8iF5+nkAAAAAASUVORK5CYII=',
+    ),
+    (character) => character.charCodeAt(0),
+);
 const normalizedPng = Uint8Array.from(
     atob(
         'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
@@ -97,7 +104,7 @@ describe('favicon assets', () => {
             now: () => 1234,
         });
 
-        const asset = await store.persist(Uint8Array.from([9, 8, 7]));
+        const asset = await store.persist(supportedSource);
 
         expect(asset.hash).toMatch(/^[a-f0-9]{64}$/u);
         expect(asset.isDark).toBe(true);
@@ -108,7 +115,6 @@ describe('favicon assets', () => {
         });
         expect(images.output).toHaveBeenCalledWith({
             format: 'image/png',
-            quality: 80,
             anim: false,
         });
         expect(repository.put).toHaveBeenCalledWith(
@@ -116,6 +122,21 @@ describe('favicon assets', () => {
             normalizedPng,
             1234,
         );
+    });
+
+    it('stores a validated 32x32 PNG without a redundant transform', async () => {
+        const images = makeImages();
+        const repository = makeRepository();
+        const store = makeFaviconAssetStore({
+            repository: repository.repository,
+            images: images.images,
+            now: () => 1234,
+        });
+
+        const asset = await store.persist(exactPng);
+
+        expect(images.input).not.toHaveBeenCalled();
+        expect(repository.put).toHaveBeenCalledWith(asset.hash, exactPng, 1234);
     });
 
     it('fails closed for invalid or oversized Images output', async () => {
@@ -131,16 +152,22 @@ describe('favicon assets', () => {
             makeFaviconAssetStore({
                 repository: repository.repository,
                 images: wrongMime.images,
-            }).persist(Uint8Array.from([1])),
-        ).rejects.toMatchObject({ _tag: 'FaviconAssetStorageError' });
+            }).persist(supportedSource),
+        ).rejects.toMatchObject({
+            _tag: 'FaviconAssetCandidateError',
+            stage: 'output',
+        });
 
         const oversized = makeImages(new Uint8Array(64 * 1024 + 1));
         await expect(
             makeFaviconAssetStore({
                 repository: repository.repository,
                 images: oversized.images,
-            }).persist(Uint8Array.from([1])),
-        ).rejects.toMatchObject({ _tag: 'FaviconAssetStorageError' });
+            }).persist(supportedSource),
+        ).rejects.toMatchObject({
+            _tag: 'FaviconAssetCandidateError',
+            stage: 'output',
+        });
         expect(repository.put).not.toHaveBeenCalled();
     });
 });

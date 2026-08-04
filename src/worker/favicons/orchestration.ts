@@ -1,6 +1,7 @@
 import { Effect } from 'effect';
 
 import { generateRandomToken, generateSafeId } from '../auth/crypto';
+import { FaviconAssetCandidateError } from './assets';
 import type { FaviconJobRepository } from './job-repository';
 import {
     FAVICON_JOB_LEASE_MS,
@@ -109,6 +110,8 @@ const retryDecision = (
 });
 
 const failureClass = (cause: unknown): string => {
+    if (cause instanceof FaviconAssetCandidateError)
+        return `${cause._tag}.${cause.stage}`;
     if (
         typeof cause === 'object' &&
         cause !== null &&

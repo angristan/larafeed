@@ -157,6 +157,7 @@ const errorResponse = (error: unknown): Response => {
                     message: 'Favicon refresh is disabled',
                     status: 503,
                 };
+            case 'FaviconAssetCandidateError':
             case 'FaviconAssetStorageError':
             case 'FaviconSchedulingError':
             case 'FaviconStorageError':

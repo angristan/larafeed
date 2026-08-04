@@ -1,6 +1,7 @@
 import { Effect } from 'effect';
 import { describe, expect, it, vi } from 'vitest';
 
+import { FaviconAssetCandidateError } from './assets';
 import type { FaviconRepository } from './repository';
 import { discoverFaviconLinks, makeFaviconService } from './service';
 
@@ -8,7 +9,7 @@ const bytes = (value: string) => new TextEncoder().encode(value);
 const target = {
     feedId: 7,
     feedUrl: 'https://example.test/feed.xml',
-    siteUrl: 'https://example.test/articles',
+    siteUrl: 'https://example.test/',
     faviconUrl: null,
     faviconAssetHash: null,
     faviconIsDark: null,
@@ -23,7 +24,7 @@ const repository = () =>
     }) satisfies FaviconRepository;
 
 describe('favicon service', () => {
-    it('ranks safe HTML icon candidates and ignores SVG/private targets', () => {
+    it('ranks safe HTML icon candidates including SVG and ignores private targets', () => {
         const links = discoverFaviconLinks(
             bytes(`<head>
                 <link rel="apple-touch-icon" sizes="180x180" href="/apple.png">
@@ -36,6 +37,7 @@ describe('favicon service', () => {
 
         expect(links.map(({ href }) => href)).toEqual([
             'https://example.test/best.png',
+            'https://example.test/vector.svg',
             'https://example.test/apple.png',
         ]);
     });
@@ -83,7 +85,7 @@ describe('favicon service', () => {
         expect(analyzeDarkness).toHaveBeenCalledWith(new Uint8Array([1, 2, 3]));
         expect(fetchMock).toHaveBeenNthCalledWith(
             1,
-            new URL('https://example.test/articles'),
+            new URL('https://example.test/'),
             expect.objectContaining({ redirect: 'manual' }),
         );
     });
@@ -372,7 +374,7 @@ describe('favicon service', () => {
             target.faviconUrl,
             target.faviconUpdatedAt,
         );
-        expect(fetchMock).toHaveBeenCalledTimes(4);
+        expect(fetchMock).toHaveBeenCalledTimes(8);
     });
 
     it('retries a transient HTML outage when fallback images are missing', async () => {
@@ -396,7 +398,190 @@ describe('favicon service', () => {
             Effect.runPromise(service.refreshStale(1)),
         ).rejects.toMatchObject({ _tag: 'FaviconDiscoveryError' });
         expect(update).not.toHaveBeenCalled();
-        expect(fetchMock).toHaveBeenCalledTimes(4);
+        expect(fetchMock).toHaveBeenCalledTimes(8);
+    });
+
+    it('continues after one candidate cannot be normalized', async () => {
+        const accountRepository = repository();
+        const update = vi.spyOn(accountRepository, 'update');
+        const persist = vi
+            .fn()
+            .mockRejectedValueOnce(
+                new FaviconAssetCandidateError({
+                    stage: 'source',
+                    retryable: false,
+                }),
+            )
+            .mockResolvedValueOnce({ hash: 'c'.repeat(64), isDark: false });
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                new Response(
+                    `<link rel="icon" href="/first.ico">
+                    <link rel="icon" href="/second.png">`,
+                    {
+                        headers: { 'content-type': 'text/html' },
+                    },
+                ),
+            )
+            .mockResolvedValueOnce(
+                new Response(new Uint8Array([0, 0, 1, 0]), {
+                    headers: { 'content-type': 'image/x-icon' },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(new Uint8Array([137, 80, 78, 71]), {
+                    headers: { 'content-type': 'image/png' },
+                }),
+            );
+        const service = makeFaviconService({
+            repository: accountRepository,
+            fetch: fetchMock,
+            assetStore: { persist },
+            now: () => 103,
+        });
+
+        await expect(
+            Effect.runPromise(service.refreshOwned(1, target.feedId)),
+        ).resolves.toEqual({
+            feedId: target.feedId,
+            faviconUrl: 'https://example.test/second.png',
+            faviconAssetHash: 'c'.repeat(64),
+        });
+        expect(persist).toHaveBeenCalledTimes(2);
+        expect(update).toHaveBeenCalledWith(
+            target.feedId,
+            'https://example.test/second.png',
+            'c'.repeat(64),
+            false,
+            103,
+            null,
+            null,
+        );
+    });
+
+    it('discovers icons from the canonical root when site metadata is not HTML', async () => {
+        const accountRepository: FaviconRepository = {
+            ...repository(),
+            findOwnedTarget: () =>
+                Effect.succeed({
+                    ...target,
+                    siteUrl: 'https://example.test/feed.xml',
+                }),
+        };
+        const update = vi.spyOn(accountRepository, 'update');
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                new Response('<rss />', {
+                    headers: { 'content-type': 'application/xml' },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response('<link rel="icon" href="/root.png">', {
+                    headers: { 'content-type': 'text/html' },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(new Uint8Array([1, 2, 3]), {
+                    headers: { 'content-type': 'image/png' },
+                }),
+            );
+        const service = makeFaviconService({
+            repository: accountRepository,
+            fetch: fetchMock,
+            analyzeDarkness: vi.fn().mockResolvedValue(false),
+            now: () => 104,
+        });
+
+        await Effect.runPromise(service.refreshOwned(1, target.feedId));
+
+        expect(update).toHaveBeenCalledWith(
+            target.feedId,
+            'https://example.test/root.png',
+            null,
+            false,
+            104,
+            null,
+            null,
+        );
+    });
+
+    it('accepts bounded inline favicon data without another fetch', async () => {
+        const accountRepository = repository();
+        const update = vi.spyOn(accountRepository, 'update');
+        const persist = vi.fn().mockResolvedValue({
+            hash: 'd'.repeat(64),
+            isDark: true,
+        });
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                new Response(
+                    '<link rel="icon" href="data:image/png;base64,AQID">',
+                    { headers: { 'content-type': 'text/html' } },
+                ),
+            );
+        const service = makeFaviconService({
+            repository: accountRepository,
+            fetch: fetchMock,
+            assetStore: { persist },
+            now: () => 105,
+        });
+
+        await Effect.runPromise(service.refreshOwned(1, target.feedId));
+
+        expect(fetchMock).toHaveBeenCalledOnce();
+        expect(persist).toHaveBeenCalledWith(new Uint8Array([1, 2, 3]));
+        expect(update).toHaveBeenCalledWith(
+            target.feedId,
+            null,
+            'd'.repeat(64),
+            true,
+            105,
+            null,
+            null,
+        );
+    });
+
+    it('discovers bounded web manifest icons', async () => {
+        const accountRepository = repository();
+        const update = vi.spyOn(accountRepository, 'update');
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                new Response('<link rel="manifest" href="/manifest.json">', {
+                    headers: { 'content-type': 'text/html' },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(JSON.stringify({ icons: [{ src: '/app.png' }] }), {
+                    headers: { 'content-type': 'application/manifest+json' },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(new Uint8Array([1, 2, 3]), {
+                    headers: { 'content-type': 'image/png' },
+                }),
+            );
+        const service = makeFaviconService({
+            repository: accountRepository,
+            fetch: fetchMock,
+            analyzeDarkness: vi.fn().mockResolvedValue(false),
+            now: () => 106,
+        });
+
+        await Effect.runPromise(service.refreshOwned(1, target.feedId));
+
+        expect(update).toHaveBeenCalledWith(
+            target.feedId,
+            'https://example.test/app.png',
+            null,
+            false,
+            106,
+            null,
+            null,
+        );
     });
 
     it('retries when every image candidate has a transient failure', async () => {
@@ -424,6 +609,6 @@ describe('favicon service', () => {
             Effect.runPromise(service.refreshStale(1)),
         ).rejects.toMatchObject({ _tag: 'FaviconDiscoveryError' });
         expect(update).not.toHaveBeenCalled();
-        expect(fetchMock).toHaveBeenCalledTimes(4);
+        expect(fetchMock).toHaveBeenCalledTimes(8);
     });
 });

@@ -80,11 +80,22 @@ const autoFormat = (accept: string | null): AutoImageFormat => {
     return 'image/png';
 };
 
-const imageMime = (response: Response): string | null => {
+const imageMime = (
+    response: Response,
+    options: {
+        readonly allowSvg?: boolean;
+        readonly allowGeneric?: boolean;
+    } = {},
+): string | null => {
     const value = response.headers.get('content-type');
     if (value === null) return null;
     const mime = value.split(';', 1)[0]?.trim().toLowerCase() ?? '';
-    return ALLOWED_IMAGE_MIME.test(mime) && mime !== SVG_MIME ? mime : null;
+    if (options.allowGeneric === true && mime === 'application/octet-stream')
+        return mime;
+    return ALLOWED_IMAGE_MIME.test(mime) &&
+        (options.allowSvg === true || mime !== SVG_MIME)
+        ? mime
+        : null;
 };
 
 const boundedImageBody = async (response: Response): Promise<Uint8Array> => {
@@ -135,10 +146,19 @@ const boundedImageBody = async (response: Response): Promise<Uint8Array> => {
     return bytes;
 };
 
-export const fetchImageBytes = async (
+export interface FetchedImageResource {
+    readonly bytes: Uint8Array;
+    readonly mime: string;
+}
+
+export const fetchImageResource = async (
     sourceUrl: string,
     fetchImplementation: typeof globalThis.fetch,
-): Promise<Uint8Array> => {
+    options: {
+        readonly allowSvg?: boolean;
+        readonly allowGeneric?: boolean;
+    } = {},
+): Promise<FetchedImageResource> => {
     let currentUrl: URL;
     try {
         currentUrl = validateFeedUrl(sourceUrl);
@@ -195,11 +215,12 @@ export const fetchImageBytes = async (
                 await response.body?.cancel();
                 throw unavailable(retryable);
             }
-            if (imageMime(response) === null) {
+            const mime = imageMime(response, options);
+            if (mime === null) {
                 await response.body?.cancel();
                 throw unavailable();
             }
-            return await boundedImageBody(response);
+            return { bytes: await boundedImageBody(response), mime };
         }
     } catch (cause) {
         if (cause instanceof FeedImageUnavailable) throw cause;
@@ -208,6 +229,12 @@ export const fetchImageBytes = async (
         clearTimeout(timeout);
     }
 };
+
+export const fetchImageBytes = async (
+    sourceUrl: string,
+    fetchImplementation: typeof globalThis.fetch,
+): Promise<Uint8Array> =>
+    (await fetchImageResource(sourceUrl, fetchImplementation)).bytes;
 
 const hexDigest = (bytes: ArrayBuffer): string =>
     Array.from(new Uint8Array(bytes), (byte) =>
