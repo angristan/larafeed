@@ -18,7 +18,6 @@ import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
 import { makeFeedRefreshService } from '../feeds';
 import { makeD1 } from '../infrastructure/d1';
-import { makeRefreshRuntime, type RefreshRuntime } from '../refresh/runtime';
 import {
     SubscriptionRateLimited,
     SubscriptionStorageError,
@@ -56,25 +55,6 @@ export interface SubscriptionRouteDependencies {
     readonly runtimeFactory?: SubscriptionRuntimeFactory;
 }
 
-interface SubscriptionRefreshRuntime {
-    readonly config: Pick<RefreshRuntime['config'], 'dispatchEnabled'>;
-    readonly orchestrator: Pick<
-        RefreshRuntime['orchestrator'],
-        'createManualRefresh' | 'dispatchOperation'
-    >;
-}
-
-export const scheduleSubscriptionRefresh = async (
-    refresh: SubscriptionRefreshRuntime,
-    feedId: number,
-): Promise<{ readonly operationId: string }> => {
-    const created = await refresh.orchestrator.createManualRefresh(feedId);
-    if (refresh.config.dispatchEnabled) {
-        await refresh.orchestrator.dispatchOperation(created.operationId);
-    }
-    return { operationId: created.operationId };
-};
-
 const logFeedDiscoveryFailure = (rawUrl: string, error: unknown) =>
     Effect.sync(() => {
         let hostname = 'invalid';
@@ -105,7 +85,6 @@ export const defaultSubscriptionRuntimeFactory: SubscriptionRuntimeFactory = (
     const d1 = makeD1(env.DB);
     return makeDefaultAuthRuntime(env, d1).pipe(
         Effect.map((auth) => {
-            const refresh = makeRefreshRuntime(env);
             const feedService = makeFeedRefreshService();
             return {
                 auth,
@@ -119,16 +98,6 @@ export const defaultSubscriptionRuntimeFactory: SubscriptionRuntimeFactory = (
                                     logFeedDiscoveryFailure(url, error),
                                 ),
                             ),
-                    scheduleRefresh: (feedId) =>
-                        Effect.tryPromise({
-                            try: () =>
-                                scheduleSubscriptionRefresh(refresh, feedId),
-                            catch: (cause) =>
-                                new SubscriptionStorageError({
-                                    operation: 'subscriptions.scheduleRefresh',
-                                    cause,
-                                }),
-                        }),
                 }),
                 limitFeedAdd: (userId) =>
                     Effect.tryPromise({

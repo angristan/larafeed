@@ -7,7 +7,8 @@ import type {
 import { Effect, Schema } from 'effect';
 
 import { feedFaviconUrl } from '../favicons/assets';
-import type { D1, D1OperationError } from '../infrastructure/d1';
+import type { D1, D1OperationError, D1Statement } from '../infrastructure/d1';
+import { MAX_CONTENT_BYTES, type ProcessedRefreshEntry } from '../jobs';
 import {
     SubscriptionConflict,
     SubscriptionInvariantError,
@@ -89,9 +90,16 @@ export interface DiscoveredFeedInput {
     readonly name: string;
     readonly siteUrl: string | null;
     readonly faviconUrl: string | null;
+    readonly etag: string | null;
+    readonly lastModified: string | null;
+    readonly httpStatus: number;
+    readonly durationMs: number;
+    readonly entries: readonly ProcessedRefreshEntry[];
+    readonly historyId: number;
     readonly categoryId: number;
     readonly userId: number;
     readonly now: number;
+    readonly nextRefreshAt: number;
 }
 
 export interface SubscribeDiscoveredResult {
@@ -701,66 +709,266 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
         subscribeDiscovered: (input) =>
             Effect.gen(function* () {
                 const operation = 'subscriptions.subscribe';
+                const latestEntryAt = input.entries.reduce<number | null>(
+                    (latest, entry) =>
+                        latest === null
+                            ? entry.publishedAt
+                            : Math.max(latest, entry.publishedAt),
+                    null,
+                );
+                const statements: D1Statement[] = [
+                    {
+                        sql: `INSERT INTO feeds
+                            (id, name, feed_url, site_url, favicon_url,
+                             etag, last_modified, is_gone,
+                             consecutive_failures, next_refresh_at,
+                             created_at, updated_at)
+                            SELECT sequence.next_id, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?
+                            FROM feed_id_sequence sequence
+                            WHERE sequence.singleton = 1
+                              AND EXISTS (
+                                SELECT 1 FROM subscription_categories c
+                                WHERE c.user_id = ? AND c.id = ?
+                              )
+                            ON CONFLICT(feed_url) DO NOTHING`,
+                        bindings: [
+                            input.name,
+                            input.feedUrl,
+                            input.siteUrl,
+                            input.faviconUrl,
+                            input.etag,
+                            input.lastModified,
+                            input.nextRefreshAt,
+                            input.now,
+                            input.now,
+                            input.userId,
+                            input.categoryId,
+                        ],
+                    },
+                    {
+                        sql: `INSERT INTO feed_refreshes (
+                                id, feed_id, job_id, refreshed_at,
+                                was_successful, was_not_modified, http_status,
+                                entries_seen, entries_created, entries_updated,
+                                duration_ms, created_at
+                            )
+                            SELECT ?, f.id, NULL, ?, 1, 0, ?, ?, 0, 0, ?, ?
+                            FROM feeds f
+                            WHERE f.feed_url = ? AND changes() = 1`,
+                        bindings: [
+                            input.historyId,
+                            input.now,
+                            input.httpStatus,
+                            input.entries.length,
+                            input.durationMs,
+                            input.now,
+                            input.feedUrl,
+                        ],
+                    },
+                    {
+                        sql: `INSERT OR IGNORE INTO feed_subscriptions
+                            (user_id, feed_id, category_id, custom_feed_name,
+                             filter_rules_json, read_through_entry_id,
+                             created_at, updated_at)
+                            SELECT ?, f.id, c.id, NULL, NULL, NULL, ?, ?
+                            FROM feeds f
+                            JOIN subscription_categories c
+                                ON c.user_id = ? AND c.id = ?
+                            WHERE f.feed_url = ?`,
+                        bindings: [
+                            input.userId,
+                            input.now,
+                            input.now,
+                            input.userId,
+                            input.categoryId,
+                            input.feedUrl,
+                        ],
+                    },
+                ];
+                const initialMutationKinds: {
+                    readonly index: number;
+                    readonly kind: 'exactlyOne' | 'oneOrTwo';
+                }[] = [];
+
+                for (const entry of input.entries) {
+                    statements.push({
+                        sql: `INSERT INTO entries (
+                                id, feed_id, deduplication_key, source_id,
+                                title, url, author, published_at,
+                                source_updated_at, content_status,
+                                created_at, updated_at
+                            )
+                            SELECT sequence.next_id, f.id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                            FROM entry_id_sequence sequence
+                            JOIN feeds f ON f.feed_url = ?
+                            WHERE sequence.singleton = 1
+                              AND EXISTS (
+                                SELECT 1 FROM feed_refreshes history
+                                WHERE history.id = ? AND history.feed_id = f.id
+                                  AND history.job_id IS NULL
+                              )
+                            ON CONFLICT(feed_id, deduplication_key) DO NOTHING`,
+                        bindings: [
+                            entry.deduplicationKey,
+                            entry.sourceId,
+                            entry.title,
+                            entry.url,
+                            entry.author,
+                            entry.publishedAt,
+                            entry.sourceUpdatedAt,
+                            entry.content.type,
+                            input.now,
+                            input.now,
+                            input.feedUrl,
+                            input.historyId,
+                        ],
+                    });
+                    initialMutationKinds.push({
+                        index: statements.length - 1,
+                        kind: 'oneOrTwo',
+                    });
+
+                    if (entry.content.type === 'stored') {
+                        const encodedSize = new TextEncoder().encode(
+                            entry.content.html,
+                        ).byteLength;
+                        if (encodedSize > MAX_CONTENT_BYTES) {
+                            return yield* Effect.fail(invariant(operation));
+                        }
+                        statements.push({
+                            sql: `INSERT INTO entry_contents (
+                                    entry_id, content_html, content_hash,
+                                    encoded_size_bytes, created_at, updated_at
+                                )
+                                SELECT e.id, ?, ?, ?, ?, ?
+                                FROM entries e
+                                JOIN feeds f ON f.id = e.feed_id
+                                WHERE f.feed_url = ?
+                                  AND e.deduplication_key = ?
+                                  AND EXISTS (
+                                    SELECT 1 FROM feed_refreshes history
+                                    WHERE history.id = ?
+                                      AND history.feed_id = f.id
+                                      AND history.job_id IS NULL
+                                  )
+                                ON CONFLICT(entry_id) DO NOTHING`,
+                            bindings: [
+                                entry.content.html,
+                                entry.content.hash,
+                                encodedSize,
+                                input.now,
+                                input.now,
+                                input.feedUrl,
+                                entry.deduplicationKey,
+                                input.historyId,
+                            ],
+                        });
+                        initialMutationKinds.push({
+                            index: statements.length - 1,
+                            kind: 'exactlyOne',
+                        });
+                    }
+                }
+
+                statements.push({
+                    sql: `UPDATE feeds
+                        SET last_attempt_at = ?, last_successful_refresh_at = ?,
+                            latest_entry_at = ?, next_refresh_at = ?,
+                            last_error_class = NULL, last_error_message = NULL,
+                            updated_at = ?
+                        WHERE feed_url = ? AND EXISTS (
+                            SELECT 1 FROM feed_refreshes history
+                            WHERE history.id = ? AND history.feed_id = feeds.id
+                              AND history.job_id IS NULL
+                        )`,
+                    bindings: [
+                        input.now,
+                        input.now,
+                        latestEntryAt,
+                        input.nextRefreshAt,
+                        input.now,
+                        input.feedUrl,
+                        input.historyId,
+                    ],
+                });
+                initialMutationKinds.push({
+                    index: statements.length - 1,
+                    kind: 'exactlyOne',
+                });
+                statements.push({
+                    sql: `UPDATE feed_refreshes
+                        SET entries_created = ?, entries_updated = 0
+                        WHERE id = ? AND job_id IS NULL`,
+                    bindings: [input.entries.length, input.historyId],
+                });
+                initialMutationKinds.push({
+                    index: statements.length - 1,
+                    kind: 'exactlyOne',
+                });
+                statements.push({
+                    sql: `INSERT INTO chart_daily_refreshes (
+                            feed_id, day_start, attempts_count,
+                            successes_count, failures_count,
+                            entries_created_count, created_at, updated_at
+                        )
+                        SELECT feed_id,
+                            refreshed_at - (refreshed_at % 86400000),
+                            1, 1, 0, entries_created, refreshed_at, refreshed_at
+                        FROM feed_refreshes
+                        WHERE id = ? AND changes() = 1
+                        ON CONFLICT(feed_id, day_start) DO UPDATE SET
+                            attempts_count = attempts_count + 1,
+                            successes_count = successes_count + 1,
+                            entries_created_count = entries_created_count
+                                + excluded.entries_created_count,
+                            updated_at = excluded.updated_at`,
+                    bindings: [input.historyId],
+                });
+                initialMutationKinds.push({
+                    index: statements.length - 1,
+                    kind: 'exactlyOne',
+                });
+
                 const results = yield* mapStorage(
                     operation,
-                    d1.batch([
-                        {
-                            sql: `INSERT INTO feeds
-                                (id, name, feed_url, site_url, favicon_url,
-                                 is_gone, consecutive_failures, next_refresh_at,
-                                 created_at, updated_at)
-                                SELECT sequence.next_id, ?, ?, ?, ?, 0, 0, ?, ?, ?
-                                FROM feed_id_sequence sequence
-                                WHERE sequence.singleton = 1
-                                  AND EXISTS (
-                                    SELECT 1 FROM subscription_categories c
-                                    WHERE c.user_id = ? AND c.id = ?
-                                  )
-                                ON CONFLICT(feed_url) DO NOTHING`,
-                            bindings: [
-                                input.name,
-                                input.feedUrl,
-                                input.siteUrl,
-                                input.faviconUrl,
-                                input.now,
-                                input.now,
-                                input.now,
-                                input.userId,
-                                input.categoryId,
-                            ],
-                        },
-                        {
-                            sql: `INSERT OR IGNORE INTO feed_subscriptions
-                                (user_id, feed_id, category_id, custom_feed_name,
-                                 filter_rules_json, read_through_entry_id,
-                                 created_at, updated_at)
-                                SELECT ?, f.id, c.id, NULL, NULL, NULL, ?, ?
-                                FROM feeds f
-                                JOIN subscription_categories c
-                                    ON c.user_id = ? AND c.id = ?
-                                WHERE f.feed_url = ?`,
-                            bindings: [
-                                input.userId,
-                                input.now,
-                                input.now,
-                                input.userId,
-                                input.categoryId,
-                                input.feedUrl,
-                            ],
-                        },
-                    ]),
+                    d1.batch(statements),
                 );
-                const createdFeed = yield* changeCount(operation, results[0]);
-                const createdSubscription = yield* changeCount(
+                const feedInsertChanges = yield* changeCount(
+                    operation,
+                    results[0],
+                );
+                const historyChanges = yield* changeCount(
                     operation,
                     results[1],
                 );
+                const createdSubscription = yield* changeCount(
+                    operation,
+                    results[2],
+                );
                 if (
-                    (createdFeed !== 0 && createdFeed !== 2) ||
-                    createdSubscription > 1
+                    feedInsertChanges > 2 ||
+                    historyChanges > 1 ||
+                    createdSubscription > 1 ||
+                    feedInsertChanges > 0 !== (historyChanges === 1)
                 ) {
                     return yield* Effect.fail(invariant(operation));
                 }
+                const createdFeed = historyChanges === 1;
+                for (const mutation of initialMutationKinds) {
+                    const changes = yield* changeCount(
+                        operation,
+                        results[mutation.index],
+                    );
+                    const valid = createdFeed
+                        ? mutation.kind === 'exactlyOne'
+                            ? changes === 1
+                            : changes === 1 || changes === 2
+                        : changes === 0;
+                    if (!valid) {
+                        return yield* Effect.fail(invariant(operation));
+                    }
+                }
+
                 const row = yield* mapStorage(
                     operation,
                     d1.first<{ id: number }>({
@@ -779,7 +987,7 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                 );
                 return {
                     feedId: feedId.id,
-                    createdFeed: createdFeed === 2,
+                    createdFeed,
                     createdSubscription: createdSubscription === 1,
                 };
             }),
@@ -838,9 +1046,9 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                 if ((yield* changeCount(operation, results[0])) !== 1) {
                     return yield* Effect.fail(new SubscriptionNotFound());
                 }
-                const feedChanges = yield* changeCount(operation, results[1]);
-                if (feedChanges > 1)
-                    return yield* Effect.fail(invariant(operation));
+                // D1 includes cascaded history, entries, and aggregates in
+                // change metadata when the final subscription deletes a feed.
+                yield* changeCount(operation, results[1]);
             }),
 
         filterEntryWindow: (userId, feedId) =>

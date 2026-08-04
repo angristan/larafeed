@@ -3,14 +3,47 @@ import { Effect } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import { makeD1 } from '../infrastructure/d1';
+import type { ProcessedRefreshEntry } from '../jobs';
 import { SubscriptionConflict, SubscriptionNotFound } from './errors';
-import { makeSubscriptionRepository } from './repository';
+import {
+    type DiscoveredFeedInput,
+    makeSubscriptionRepository,
+} from './repository';
 import { makeSubscriptionService } from './service';
 
 const d1 = makeD1(env.DB);
 const repository = makeSubscriptionRepository(d1);
 const now = 2_200_000_000_000;
 const bytes = (value: number) => new Uint8Array(32).fill(value % 255 || 1);
+let nextHistoryId = 8_000_000;
+const discoveredInput = (
+    input: Pick<
+        DiscoveredFeedInput,
+        | 'feedUrl'
+        | 'name'
+        | 'siteUrl'
+        | 'faviconUrl'
+        | 'categoryId'
+        | 'userId'
+        | 'now'
+    > & {
+        readonly etag?: string | null;
+        readonly lastModified?: string | null;
+        readonly httpStatus?: number;
+        readonly durationMs?: number;
+        readonly entries?: readonly ProcessedRefreshEntry[];
+        readonly nextRefreshAt?: number;
+    },
+): DiscoveredFeedInput => ({
+    etag: null,
+    lastModified: null,
+    httpStatus: 200,
+    durationMs: 0,
+    entries: [],
+    historyId: nextHistoryId++,
+    nextRefreshAt: input.now + 15 * 60_000,
+    ...input,
+});
 
 const insertUser = (id: number) =>
     Effect.runPromise(
@@ -67,26 +100,30 @@ describe('subscription management D1 repository', () => {
         );
 
         const first = await Effect.runPromise(
-            repository.subscribeDiscovered({
-                feedUrl: 'https://subscriptions.example.test/feed.xml',
-                name: 'Shared feed',
-                siteUrl: 'https://subscriptions.example.test/',
-                faviconUrl: null,
-                categoryId: 811_001,
-                userId: firstUser,
-                now,
-            }),
+            repository.subscribeDiscovered(
+                discoveredInput({
+                    feedUrl: 'https://subscriptions.example.test/feed.xml',
+                    name: 'Shared feed',
+                    siteUrl: 'https://subscriptions.example.test/',
+                    faviconUrl: null,
+                    categoryId: 811_001,
+                    userId: firstUser,
+                    now,
+                }),
+            ),
         );
         const second = await Effect.runPromise(
-            repository.subscribeDiscovered({
-                feedUrl: 'https://subscriptions.example.test/feed.xml',
-                name: 'Ignored duplicate name',
-                siteUrl: null,
-                faviconUrl: null,
-                categoryId: 811_002,
-                userId: secondUser,
-                now,
-            }),
+            repository.subscribeDiscovered(
+                discoveredInput({
+                    feedUrl: 'https://subscriptions.example.test/feed.xml',
+                    name: 'Ignored duplicate name',
+                    siteUrl: null,
+                    faviconUrl: null,
+                    categoryId: 811_002,
+                    userId: secondUser,
+                    now,
+                }),
+            ),
         );
 
         expect(first).toEqual({
@@ -128,7 +165,13 @@ describe('subscription management D1 repository', () => {
                     feedName: 'Shared feed',
                     entryCount: 0,
                     lastFailedRefreshAt: now - 1,
-                    refreshes: [],
+                    lastSuccessfulRefreshAt: now,
+                    refreshes: [
+                        {
+                            successful: true,
+                            entriesCreated: 0,
+                        },
+                    ],
                 },
             ],
         });
@@ -185,21 +228,237 @@ describe('subscription management D1 repository', () => {
 
         await expect(
             Effect.runPromise(
-                repository.subscribeDiscovered({
-                    feedUrl: 'https://subscriptions.example.test/second.xml',
-                    name: 'Second feed',
-                    siteUrl: null,
-                    faviconUrl: null,
-                    categoryId: 811_001,
-                    userId: firstUser,
-                    now: now + 1,
-                }),
+                repository.subscribeDiscovered(
+                    discoveredInput({
+                        feedUrl:
+                            'https://subscriptions.example.test/second.xml',
+                        name: 'Second feed',
+                        siteUrl: null,
+                        faviconUrl: null,
+                        categoryId: 811_001,
+                        userId: firstUser,
+                        now: now + 1,
+                    }),
+                ),
             ),
         ).resolves.toEqual({
             feedId: 2,
             createdFeed: true,
             createdSubscription: true,
         });
+    });
+
+    it('persists initial entries without creating refresh work', async () => {
+        const userId = 816_001;
+        const categoryId = 816_101;
+        const completedAt = now + 10;
+        await insertUser(userId);
+        await Effect.runPromise(
+            repository.createCategory(
+                categoryId,
+                userId,
+                'Inline discovery',
+                completedAt,
+            ),
+        );
+        const nextEntryId = await Effect.runPromise(
+            d1.first<number>(
+                {
+                    sql: `SELECT next_id FROM entry_id_sequence
+                        WHERE singleton = 1`,
+                },
+                'next_id',
+            ),
+        );
+        if (nextEntryId === null) throw new Error('Expected entry sequence');
+        const workBefore = await Effect.runPromise(
+            d1.first<{ jobs: number; outbox: number }>({
+                sql: `SELECT
+                    (SELECT COUNT(*) FROM jobs) AS jobs,
+                    (SELECT COUNT(*) FROM outbox_messages) AS outbox`,
+            }),
+        );
+        const input = discoveredInput({
+            feedUrl: 'https://inline-discovery.example.test/feed.xml',
+            name: 'Inline discovery feed',
+            siteUrl: 'https://inline-discovery.example.test/',
+            faviconUrl: 'https://inline-discovery.example.test/favicon.ico',
+            etag: '"inline"',
+            lastModified: 'Sat, 18 Jul 2026 10:00:00 GMT',
+            durationMs: 125,
+            entries: [
+                {
+                    deduplicationKey: bytes(91),
+                    sourceId: 'stored-entry',
+                    title: 'Stored entry',
+                    url: 'https://inline-discovery.example.test/stored',
+                    author: 'Author',
+                    publishedAt: completedAt - 2,
+                    sourceUpdatedAt: completedAt - 1,
+                    updateMask: {
+                        title: true,
+                        url: true,
+                        author: true,
+                        publishedAt: true,
+                        sourceUpdatedAt: true,
+                        content: true,
+                    },
+                    content: {
+                        type: 'stored',
+                        html: '<p>Stored body</p>',
+                        hash: bytes(92),
+                    },
+                    filteredUserIds: [],
+                },
+                {
+                    deduplicationKey: bytes(93),
+                    sourceId: 'empty-entry',
+                    title: 'Empty entry',
+                    url: null,
+                    author: null,
+                    publishedAt: completedAt,
+                    sourceUpdatedAt: null,
+                    updateMask: {
+                        title: true,
+                        url: true,
+                        author: true,
+                        publishedAt: true,
+                        sourceUpdatedAt: true,
+                        content: true,
+                    },
+                    content: { type: 'empty' },
+                    filteredUserIds: [],
+                },
+            ],
+            categoryId,
+            userId,
+            now: completedAt,
+        });
+
+        await expect(
+            Effect.runPromise(repository.subscribeDiscovered(input)),
+        ).resolves.toMatchObject({
+            createdFeed: true,
+            createdSubscription: true,
+        });
+
+        const feed = await Effect.runPromise(
+            d1.first<{
+                id: number;
+                etag: string | null;
+                last_modified: string | null;
+                last_attempt_at: number | null;
+                last_successful_refresh_at: number | null;
+                latest_entry_at: number | null;
+                next_refresh_at: number;
+            }>({
+                sql: `SELECT id, etag, last_modified, last_attempt_at,
+                        last_successful_refresh_at, latest_entry_at,
+                        next_refresh_at
+                    FROM feeds WHERE feed_url = ?`,
+                bindings: [input.feedUrl],
+            }),
+        );
+        expect(feed).toMatchObject({
+            etag: '"inline"',
+            last_modified: 'Sat, 18 Jul 2026 10:00:00 GMT',
+            last_attempt_at: completedAt,
+            last_successful_refresh_at: completedAt,
+            latest_entry_at: completedAt,
+            next_refresh_at: input.nextRefreshAt,
+        });
+        if (feed === null) throw new Error('Expected feed');
+
+        await expect(
+            Effect.runPromise(
+                d1.all<{
+                    id: number;
+                    source_id: string | null;
+                    content_status: string;
+                }>({
+                    sql: `SELECT id, source_id, content_status FROM entries
+                        WHERE feed_id = ? ORDER BY id`,
+                    bindings: [feed.id],
+                }),
+            ).then((result) => result.results),
+        ).resolves.toEqual([
+            {
+                id: nextEntryId,
+                source_id: 'stored-entry',
+                content_status: 'stored',
+            },
+            {
+                id: nextEntryId + 1,
+                source_id: 'empty-entry',
+                content_status: 'empty',
+            },
+        ]);
+        await expect(
+            Effect.runPromise(
+                d1.first<string>(
+                    {
+                        sql: `SELECT content_html FROM entry_contents
+                            WHERE entry_id = ?`,
+                        bindings: [nextEntryId],
+                    },
+                    'content_html',
+                ),
+            ),
+        ).resolves.toBe('<p>Stored body</p>');
+        await expect(
+            Effect.runPromise(
+                d1.first<{
+                    job_id: number | null;
+                    entries_seen: number;
+                    entries_created: number;
+                    entries_updated: number;
+                }>({
+                    sql: `SELECT job_id, entries_seen, entries_created,
+                            entries_updated
+                        FROM feed_refreshes WHERE id = ?`,
+                    bindings: [input.historyId],
+                }),
+            ),
+        ).resolves.toEqual({
+            job_id: null,
+            entries_seen: 2,
+            entries_created: 2,
+            entries_updated: 0,
+        });
+        await expect(
+            Effect.runPromise(
+                d1.first<number>(
+                    {
+                        sql: `SELECT entries_created_count
+                            FROM chart_daily_refreshes WHERE feed_id = ?`,
+                        bindings: [feed.id],
+                    },
+                    'entries_created_count',
+                ),
+            ),
+        ).resolves.toBe(2);
+        await expect(
+            Effect.runPromise(repository.findSubscription(userId, feed.id)),
+        ).resolves.toMatchObject({
+            entryCount: 2,
+            unreadCount: 2,
+            lastSuccessfulRefreshAt: completedAt,
+            refreshes: [
+                {
+                    successful: true,
+                    entriesCreated: 2,
+                },
+            ],
+        });
+        await expect(
+            Effect.runPromise(
+                d1.first<{ jobs: number; outbox: number }>({
+                    sql: `SELECT
+                        (SELECT COUNT(*) FROM jobs) AS jobs,
+                        (SELECT COUNT(*) FROM outbox_messages) AS outbox`,
+                }),
+            ),
+        ).resolves.toEqual(workBefore);
     });
 
     it('does not allocate a feed ID for an invalid category', async () => {
@@ -216,15 +475,18 @@ describe('subscription management D1 repository', () => {
 
         await expect(
             Effect.runPromise(
-                repository.subscribeDiscovered({
-                    feedUrl: 'https://invalid-category.example.test/feed.xml',
-                    name: 'Invalid category feed',
-                    siteUrl: null,
-                    faviconUrl: null,
-                    categoryId: 815_999,
-                    userId,
-                    now,
-                }),
+                repository.subscribeDiscovered(
+                    discoveredInput({
+                        feedUrl:
+                            'https://invalid-category.example.test/feed.xml',
+                        name: 'Invalid category feed',
+                        siteUrl: null,
+                        faviconUrl: null,
+                        categoryId: 815_999,
+                        userId,
+                        now,
+                    }),
+                ),
             ),
         ).rejects.toBeInstanceOf(SubscriptionNotFound);
         await expect(
@@ -341,15 +603,17 @@ describe('subscription management D1 repository', () => {
         );
         const feedId = (
             await Effect.runPromise(
-                repository.subscribeDiscovered({
-                    feedUrl: 'https://large-filters.example.test/feed.xml',
-                    name: 'Large filter feed',
-                    siteUrl: null,
-                    faviconUrl: null,
-                    categoryId,
-                    userId: owner,
-                    now,
-                }),
+                repository.subscribeDiscovered(
+                    discoveredInput({
+                        feedUrl: 'https://large-filters.example.test/feed.xml',
+                        name: 'Large filter feed',
+                        siteUrl: null,
+                        faviconUrl: null,
+                        categoryId,
+                        userId: owner,
+                        now,
+                    }),
+                ),
             )
         ).feedId;
         await Effect.runPromise(
@@ -415,7 +679,6 @@ describe('subscription management D1 repository', () => {
         const service = makeSubscriptionService({
             repository,
             discoverFeed: () => Effect.die('unused'),
-            scheduleRefresh: () => Effect.die('unused'),
             now: () => now + 1,
         });
         await expect(
@@ -483,15 +746,17 @@ describe('subscription management D1 repository', () => {
         );
         const feedId = (
             await Effect.runPromise(
-                repository.subscribeDiscovered({
-                    feedUrl: 'https://filters.example.test/feed.xml',
-                    name: 'Filter feed',
-                    siteUrl: null,
-                    faviconUrl: null,
-                    categoryId,
-                    userId: owner,
-                    now,
-                }),
+                repository.subscribeDiscovered(
+                    discoveredInput({
+                        feedUrl: 'https://filters.example.test/feed.xml',
+                        name: 'Filter feed',
+                        siteUrl: null,
+                        faviconUrl: null,
+                        categoryId,
+                        userId: owner,
+                        now,
+                    }),
+                ),
             )
         ).feedId;
         await insertEntry(823_001, feedId, 'Sponsored post');
@@ -681,15 +946,18 @@ describe('subscription management D1 repository', () => {
         );
         const feedId = (
             await Effect.runPromise(
-                repository.subscribeDiscovered({
-                    feedUrl: 'https://concurrent-filters.example.test/feed.xml',
-                    name: 'Concurrent filters',
-                    siteUrl: null,
-                    faviconUrl: null,
-                    categoryId,
-                    userId: owner,
-                    now,
-                }),
+                repository.subscribeDiscovered(
+                    discoveredInput({
+                        feedUrl:
+                            'https://concurrent-filters.example.test/feed.xml',
+                        name: 'Concurrent filters',
+                        siteUrl: null,
+                        faviconUrl: null,
+                        categoryId,
+                        userId: owner,
+                        now,
+                    }),
+                ),
             )
         ).feedId;
         await insertEntry(appleEntryId, feedId, 'Apple update');

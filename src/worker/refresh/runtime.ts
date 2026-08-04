@@ -1,20 +1,17 @@
 import { Effect } from 'effect';
 
-import { sha256Bytes } from '../auth/crypto';
 import { faviconRefreshEnabled } from '../favicons/cron';
 import { makeFaviconRuntime } from '../favicons/runtime';
 import {
     FeedHttpError,
     isFeedRefreshError,
     makeFeedRefreshService,
-    type NormalizedFeedEntry,
     validateFeedUrl,
 } from '../feeds';
 import { makeD1 } from '../infrastructure/d1';
 import {
     makeJobOrchestrator,
     makeJobRepository,
-    type ProcessedRefreshEntry,
     type RefreshFailure,
     type RefreshProcessor,
 } from '../jobs';
@@ -22,6 +19,7 @@ import {
     compileFilterRules,
     matchesSubscriptionFilter,
 } from '../subscriptions/filter';
+import { prepareRefreshEntry } from './entries';
 
 export interface RefreshRuntimeConfig {
     readonly schedulerEnabled: boolean;
@@ -67,48 +65,6 @@ export const parseRefreshRuntimeConfig = (env: Env): RefreshRuntimeConfig => ({
     ),
     dueLimit: parseDueLimit(env.REFRESH_DUE_LIMIT),
 });
-
-interface CompiledFeedSubscriptionFilter {
-    readonly userId: number;
-    readonly rules: ReturnType<typeof compileFilterRules>;
-}
-
-const normalizedEntry = async (
-    entry: NormalizedFeedEntry,
-    subscriptionFilters: readonly CompiledFeedSubscriptionFilter[],
-): Promise<ProcessedRefreshEntry> => {
-    const candidate = {
-        title: entry.title,
-        author: entry.author,
-        contentHtml: entry.contentHtml,
-    };
-    const filteredUserIds = subscriptionFilters
-        .filter(({ rules }) => matchesSubscriptionFilter(candidate, rules))
-        .map(({ userId }) => userId);
-    return {
-        deduplicationKey: entry.deduplicationKey,
-        sourceId: entry.sourceId,
-        title: entry.title,
-        url: entry.url,
-        author: entry.author,
-        publishedAt: entry.publishedAt,
-        sourceUpdatedAt: entry.sourceUpdatedAt,
-        updateMask: entry.updateMask,
-        content:
-            entry.contentStatus === 'stored' && entry.contentHtml !== null
-                ? {
-                      type: 'stored',
-                      html: entry.contentHtml,
-                      hash: await Effect.runPromise(
-                          sha256Bytes(entry.contentHtml),
-                      ),
-                  }
-                : entry.contentStatus === 'oversized'
-                  ? { type: 'oversized' }
-                  : { type: 'empty' },
-        filteredUserIds,
-    };
-};
 
 export const resolveFeedFaviconUrl = (
     metadataUrl: string | null,
@@ -212,10 +168,20 @@ export const makeRefreshProcessor = (
                     result.feed.faviconUrl,
                     siteUrl,
                 ),
-                entries: await Promise.all(
-                    result.entries.map((entry) =>
-                        normalizedEntry(entry, subscriptionFilters),
-                    ),
+                entries: await Effect.runPromise(
+                    Effect.forEach(result.entries, (entry) => {
+                        const candidate = {
+                            title: entry.title,
+                            author: entry.author,
+                            contentHtml: entry.contentHtml,
+                        };
+                        const filteredUserIds = subscriptionFilters
+                            .filter(({ rules }) =>
+                                matchesSubscriptionFilter(candidate, rules),
+                            )
+                            .map(({ userId }) => userId);
+                        return prepareRefreshEntry(entry, filteredUserIds);
+                    }),
                 ),
             };
         } catch (cause) {

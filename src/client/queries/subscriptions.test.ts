@@ -78,7 +78,6 @@ describe('subscription management query contracts', () => {
                         subscription,
                         createdFeed: true,
                         createdSubscription: true,
-                        refreshOperationId: 'refresh-7',
                     }),
                 ),
             ),

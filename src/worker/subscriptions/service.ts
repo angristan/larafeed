@@ -11,11 +11,12 @@ import { generateSafeId } from '../auth/crypto';
 import type { FeedRefreshError } from '../feeds/errors';
 import { validateFeedUrl } from '../feeds/policy';
 import type { FeedUpdatedResult } from '../feeds/service';
+import { DEFAULT_REFRESH_INTERVAL_MS } from '../jobs';
+import { prepareRefreshEntry } from '../refresh/entries';
 import {
     SubscriptionConflict,
     SubscriptionFeedError,
     SubscriptionInvariantError,
-    type SubscriptionStorageError,
     SubscriptionValidationError,
 } from './errors';
 import {
@@ -37,12 +38,6 @@ export interface SubscriptionServiceDependencies {
     readonly discoverFeed: (
         url: string,
     ) => Effect.Effect<FeedUpdatedResult, FeedRefreshError>;
-    readonly scheduleRefresh: (
-        feedId: number,
-    ) => Effect.Effect<
-        { readonly operationId: string },
-        SubscriptionStorageError
-    >;
     readonly generateId?: () => Effect.Effect<number, unknown>;
     readonly now?: () => number;
 }
@@ -246,18 +241,43 @@ export const makeSubscriptionService = (
                 const outcome =
                     existingFeedId === null
                         ? yield* Effect.gen(function* () {
+                              const startedAt = now();
                               const discovered = yield* dependencies
                                   .discoverFeed(canonicalRequestedUrl)
                                   .pipe(Effect.mapError(feedDiscoveryError));
+                              const entries = yield* Effect.forEach(
+                                  discovered.entries,
+                                  (entry) => prepareRefreshEntry(entry, []),
+                              ).pipe(
+                                  Effect.mapError(
+                                      () =>
+                                          new SubscriptionInvariantError({
+                                              operation:
+                                                  'subscriptions.prepareEntries',
+                                          }),
+                                  ),
+                              );
+                              const completedAt = now();
                               const feedUrl = discovered.finalUrl;
                               return yield* repository.subscribeDiscovered({
                                   feedUrl,
                                   name: discovered.feed.title || feedUrl,
                                   siteUrl: discovered.feed.siteUrl,
                                   faviconUrl: discovered.feed.faviconUrl,
+                                  etag: discovered.etag,
+                                  lastModified: discovered.lastModified,
+                                  httpStatus: discovered.httpStatus,
+                                  durationMs: Math.max(
+                                      0,
+                                      completedAt - startedAt,
+                                  ),
+                                  entries,
+                                  historyId: yield* nextId(),
                                   categoryId,
                                   userId,
-                                  now: now(),
+                                  now: completedAt,
+                                  nextRefreshAt:
+                                      completedAt + DEFAULT_REFRESH_INTERVAL_MS,
                               });
                           })
                         : {
@@ -271,9 +291,6 @@ export const makeSubscriptionService = (
                                       now(),
                                   ),
                           };
-                const refresh = yield* dependencies.scheduleRefresh(
-                    outcome.feedId,
-                );
                 const subscription = yield* repository.findSubscription(
                     userId,
                     outcome.feedId,
@@ -282,7 +299,6 @@ export const makeSubscriptionService = (
                     subscription,
                     createdFeed: outcome.createdFeed,
                     createdSubscription: outcome.createdSubscription,
-                    refreshOperationId: refresh.operationId,
                 });
             }),
 

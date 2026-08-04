@@ -70,7 +70,6 @@ describe('SubscriptionClient', () => {
                     subscription,
                     createdFeed: true,
                     createdSubscription: true,
-                    refreshOperationId: 'refresh-7',
                 }),
             ),
         );
@@ -84,7 +83,7 @@ describe('SubscriptionClient', () => {
                     csrfToken: 'csrf-token',
                 }),
             ),
-        ).resolves.toMatchObject({ refreshOperationId: 'refresh-7' });
+        ).resolves.toMatchObject({ createdFeed: true });
         expect(fetchMock).toHaveBeenCalledWith(
             '/api/subscriptions',
             expect.objectContaining({
@@ -109,7 +108,6 @@ describe('SubscriptionClient', () => {
                     subscription,
                     createdFeed: true,
                     createdSubscription: true,
-                    refreshOperationId: 'refresh-7',
                 }),
             ),
         );

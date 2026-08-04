@@ -93,7 +93,7 @@ const repository = (
     }) as SubscriptionRepository;
 
 describe('subscription management service', () => {
-    it('discovers, subscribes, and durably schedules a new feed', async () => {
+    it('discovers and persists a new feed before returning', async () => {
         const subscribeDiscovered = vi.fn(() =>
             Effect.succeed({
                 feedId: 21,
@@ -101,17 +101,14 @@ describe('subscription management service', () => {
                 createdSubscription: true,
             }),
         );
-        const scheduleRefresh = vi.fn(() =>
-            Effect.succeed({ operationId: 'refresh-operation' }),
-        );
         const service = makeSubscriptionService({
             repository: repository({ subscribeDiscovered }),
             discoverFeed: () =>
                 Effect.succeed({
                     kind: 'updated' as const,
                     finalUrl: 'https://example.test/discovered.xml',
-                    etag: null,
-                    lastModified: null,
+                    etag: '"first"',
+                    lastModified: 'Sat, 18 Jul 2026 10:00:00 GMT',
                     httpStatus: 200,
                     feed: {
                         title: 'Discovered feed',
@@ -120,9 +117,30 @@ describe('subscription management service', () => {
                         faviconUrl: null,
                         sourceUpdatedAt: null,
                     },
-                    entries: [],
+                    entries: [
+                        {
+                            sourceIdentity: 'entry-1',
+                            deduplicationKey: new Uint8Array(32).fill(1),
+                            sourceId: 'entry-1',
+                            title: 'First post',
+                            url: 'https://example.test/posts/1',
+                            author: 'Author',
+                            publishedAt: 900,
+                            sourceUpdatedAt: null,
+                            contentHtml: '<p>First post</p>',
+                            contentEncodedSize: 17,
+                            contentStatus: 'stored' as const,
+                            updateMask: {
+                                title: true,
+                                url: true,
+                                author: true,
+                                publishedAt: true,
+                                sourceUpdatedAt: true,
+                                content: true,
+                            },
+                        },
+                    ],
                 }),
-            scheduleRefresh,
             generateId: () => Effect.succeed(101),
             now: () => 1_000,
         });
@@ -137,18 +155,36 @@ describe('subscription management service', () => {
         ).resolves.toMatchObject({
             subscription: { feedId: 21 },
             createdFeed: true,
-            refreshOperationId: 'refresh-operation',
         });
-        expect(subscribeDiscovered).toHaveBeenCalledWith({
-            feedUrl: 'https://example.test/discovered.xml',
-            name: 'Discovered feed',
-            siteUrl: 'https://example.test/',
-            faviconUrl: null,
-            categoryId: 11,
-            userId: 7,
-            now: 1_000,
-        });
-        expect(scheduleRefresh).toHaveBeenCalledWith(21);
+        expect(subscribeDiscovered).toHaveBeenCalledWith(
+            expect.objectContaining({
+                feedUrl: 'https://example.test/discovered.xml',
+                name: 'Discovered feed',
+                siteUrl: 'https://example.test/',
+                faviconUrl: null,
+                etag: '"first"',
+                lastModified: 'Sat, 18 Jul 2026 10:00:00 GMT',
+                httpStatus: 200,
+                durationMs: 0,
+                historyId: 101,
+                categoryId: 11,
+                userId: 7,
+                now: 1_000,
+                nextRefreshAt: 901_000,
+                entries: [
+                    expect.objectContaining({
+                        sourceId: 'entry-1',
+                        title: 'First post',
+                        content: expect.objectContaining({
+                            type: 'stored',
+                            html: '<p>First post</p>',
+                            hash: expect.any(Uint8Array),
+                        }),
+                        filteredUserIds: [],
+                    }),
+                ],
+            }),
+        );
     });
 
     it('creates or reuses a category while adding the first feed', async () => {
@@ -166,7 +202,7 @@ describe('subscription management service', () => {
                 createdSubscription: true,
             }),
         );
-        const generatedIds = [10];
+        const generatedIds = [10, 12];
         const service = makeSubscriptionService({
             repository: repository({
                 findOrCreateCategory,
@@ -188,8 +224,6 @@ describe('subscription management service', () => {
                     },
                     entries: [],
                 }),
-            scheduleRefresh: () =>
-                Effect.succeed({ operationId: 'refresh-operation' }),
             generateId: () =>
                 Effect.succeed(generatedIds.shift() ?? Number.NaN),
             now: () => 1_000,
@@ -259,7 +293,6 @@ describe('subscription management service', () => {
         const service = makeSubscriptionService({
             repository: repository(),
             discoverFeed: () => Effect.fail(cause),
-            scheduleRefresh: () => Effect.die('unused'),
         });
 
         await expect(
@@ -277,7 +310,6 @@ describe('subscription management service', () => {
         const service = makeSubscriptionService({
             repository: repository(),
             discoverFeed,
-            scheduleRefresh: () => Effect.die('unused'),
         });
 
         await expect(
@@ -296,7 +328,6 @@ describe('subscription management service', () => {
         const service = makeSubscriptionService({
             repository: repository({ findFeedByUrl }),
             discoverFeed: () => Effect.die('unused'),
-            scheduleRefresh: () => Effect.die('unused'),
         });
 
         await expect(
@@ -327,8 +358,6 @@ describe('subscription management service', () => {
                 subscribeExisting,
             }),
             discoverFeed,
-            scheduleRefresh: () =>
-                Effect.succeed({ operationId: 'cached-refresh' }),
             now: () => 1_000,
         });
 
@@ -342,7 +371,6 @@ describe('subscription management service', () => {
         ).resolves.toMatchObject({
             createdFeed: false,
             createdSubscription: false,
-            refreshOperationId: 'cached-refresh',
         });
         expect(discoverFeed).not.toHaveBeenCalled();
         expect(subscribeExisting).toHaveBeenCalledWith(7, 21, 11, 1_000);
@@ -353,7 +381,6 @@ describe('subscription management service', () => {
         const service = makeSubscriptionService({
             repository: repository({ updateSubscription }),
             discoverFeed: () => Effect.die('unused'),
-            scheduleRefresh: () => Effect.die('unused'),
             now: () => 2_000,
         });
 
@@ -386,7 +413,6 @@ describe('subscription management service', () => {
                     }),
             }),
             discoverFeed: () => Effect.die('unused'),
-            scheduleRefresh: () => Effect.die('unused'),
             now: () => 2_000,
         });
         const rules = {
@@ -446,7 +472,6 @@ describe('subscription management service', () => {
                 listFilterCandidates,
             }),
             discoverFeed: () => Effect.die('unused'),
-            scheduleRefresh: () => Effect.die('unused'),
             now: () => 2_000,
         });
         const input = {
@@ -506,7 +531,6 @@ describe('subscription management service', () => {
                 updateSubscriptionWithFilterRebuild,
             }),
             discoverFeed: () => Effect.die('unused'),
-            scheduleRefresh: () => Effect.die('unused'),
         });
 
         await Effect.runPromise(
@@ -548,7 +572,6 @@ describe('subscription management service', () => {
                 updateSubscriptionWithFilterRebuild,
             }),
             discoverFeed: () => Effect.die('unused'),
-            scheduleRefresh: () => Effect.die('unused'),
         });
 
         await expect(
@@ -575,7 +598,6 @@ describe('subscription management service', () => {
         const service = makeSubscriptionService({
             repository: repository({ updateSubscription }),
             discoverFeed: () => Effect.die('unused'),
-            scheduleRefresh: () => Effect.die('unused'),
         });
 
         await expect(

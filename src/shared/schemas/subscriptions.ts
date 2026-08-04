@@ -112,7 +112,6 @@ export class CreateSubscriptionResponse extends Schema.Class<CreateSubscriptionR
     subscription: ManagedSubscription,
     createdFeed: Schema.Boolean,
     createdSubscription: Schema.Boolean,
-    refreshOperationId: Schema.String,
 }) {}
 
 export class UpdateSubscriptionRequest extends Schema.Class<UpdateSubscriptionRequest>(
