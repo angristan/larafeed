@@ -222,13 +222,43 @@ describe('feed refresh service', () => {
         const service = makeFeedRefreshService({
             fetch: async () =>
                 new Response(new Uint8Array([0, 1, 2]), {
-                    headers: { 'content-type': 'application/octet-stream' },
+                    headers: { 'content-type': 'image/png' },
                 }),
         });
 
         expect(await failure(service.refresh(source))).toMatchObject({
             _tag: 'FeedPolicyError',
             reason: 'binary_content_type',
+        });
+    });
+
+    it('parses valid feeds served as generic octet streams', async () => {
+        const service = makeFeedRefreshService({
+            fetch: async () =>
+                new Response(rss, {
+                    headers: { 'content-type': 'application/octet-stream' },
+                }),
+            now: () => Date.parse('2026-07-18T12:00:00Z'),
+        });
+
+        await expect(
+            Effect.runPromise(service.refresh(source)),
+        ).resolves.toMatchObject({
+            kind: 'updated',
+            feed: { title: 'Example' },
+        });
+    });
+
+    it('rejects malformed generic octet streams through feed parsing', async () => {
+        const service = makeFeedRefreshService({
+            fetch: async () =>
+                new Response(new Uint8Array([0, 1, 2]), {
+                    headers: { 'content-type': 'application/octet-stream' },
+                }),
+        });
+
+        expect(await failure(service.refresh(source))).toMatchObject({
+            _tag: 'FeedParseError',
         });
     });
 

@@ -40,7 +40,6 @@ const RETRYABLE_HTTP_STATUSES = new Set([408, 425, 429]);
 const BINARY_MIME_PREFIXES = ['audio/', 'font/', 'image/', 'video/'];
 const BINARY_MIME_TYPES = new Set([
     'application/gzip',
-    'application/octet-stream',
     'application/pdf',
     'application/rar',
     'application/vnd.rar',
