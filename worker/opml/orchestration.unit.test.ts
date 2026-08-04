@@ -159,7 +159,7 @@ describe('OPML orchestration', () => {
             ),
             completeItem,
         });
-        const generatedIds = [10, 11, 12, 13];
+        const generatedIds = [10, 11, 12];
         const orchestrator = makeOpmlOrchestrator({
             repository,
             queue: { sendBatch: async () => undefined },
@@ -191,10 +191,9 @@ describe('OPML orchestration', () => {
         ).resolves.toEqual({ action: 'ack', reason: 'succeeded' });
         expect(completeItem).toHaveBeenCalledWith(
             expect.objectContaining({
-                feedId: 10,
-                categoryId: 11,
-                refreshJobId: 12,
-                refreshOutboxId: 13,
+                categoryId: 10,
+                refreshJobId: 11,
+                refreshOutboxId: 12,
                 feedUrl: 'https://site.example.test/feed.xml',
                 feedName: 'Discovered feed',
                 categoryName: 'Tech',

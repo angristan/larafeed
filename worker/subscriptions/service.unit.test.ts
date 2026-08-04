@@ -140,7 +140,6 @@ describe('subscription management service', () => {
             refreshOperationId: 'refresh-operation',
         });
         expect(subscribeDiscovered).toHaveBeenCalledWith({
-            proposedId: 101,
             feedUrl: 'https://example.test/discovered.xml',
             name: 'Discovered feed',
             siteUrl: 'https://example.test/',
@@ -167,7 +166,7 @@ describe('subscription management service', () => {
                 createdSubscription: true,
             }),
         );
-        const generatedIds = [10, 101];
+        const generatedIds = [10];
         const service = makeSubscriptionService({
             repository: repository({
                 findOrCreateCategory,
@@ -206,7 +205,7 @@ describe('subscription management service', () => {
         ).resolves.toMatchObject({ subscription: { categoryId: 11 } });
         expect(findOrCreateCategory).toHaveBeenCalledWith(10, 7, 'Tech', 1_000);
         expect(subscribeDiscovered).toHaveBeenCalledWith(
-            expect.objectContaining({ proposedId: 101, categoryId: 11 }),
+            expect.objectContaining({ categoryId: 11 }),
         );
     });
 

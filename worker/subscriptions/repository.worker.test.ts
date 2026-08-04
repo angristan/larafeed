@@ -68,7 +68,6 @@ describe('subscription management D1 repository', () => {
 
         const first = await Effect.runPromise(
             repository.subscribeDiscovered({
-                proposedId: 812_001,
                 feedUrl: 'https://subscriptions.example.test/feed.xml',
                 name: 'Shared feed',
                 siteUrl: 'https://subscriptions.example.test/',
@@ -80,7 +79,6 @@ describe('subscription management D1 repository', () => {
         );
         const second = await Effect.runPromise(
             repository.subscribeDiscovered({
-                proposedId: 812_002,
                 feedUrl: 'https://subscriptions.example.test/feed.xml',
                 name: 'Ignored duplicate name',
                 siteUrl: null,
@@ -92,21 +90,31 @@ describe('subscription management D1 repository', () => {
         );
 
         expect(first).toEqual({
-            feedId: 812_001,
+            feedId: 1,
             createdFeed: true,
             createdSubscription: true,
         });
         expect(second).toEqual({
-            feedId: 812_001,
+            feedId: 1,
             createdFeed: false,
             createdSubscription: true,
         });
+        await expect(
+            Effect.runPromise(
+                d1.first<number>(
+                    {
+                        sql: 'SELECT next_id FROM feed_id_sequence WHERE singleton = 1',
+                    },
+                    'next_id',
+                ),
+            ),
+        ).resolves.toBe(2);
         await Effect.runPromise(
             d1.run({
                 sql: `UPDATE feeds
                     SET last_failed_refresh_at = ?
                     WHERE id = ?`,
-                bindings: [now - 1, 812_001],
+                bindings: [now - 1, first.feedId],
             }),
         );
         await expect(
@@ -115,7 +123,7 @@ describe('subscription management D1 repository', () => {
             categories: [{ subscriptionCount: 1 }],
             subscriptions: [
                 {
-                    feedId: 812_001,
+                    feedId: first.feedId,
                     categoryName: 'Engineering',
                     feedName: 'Shared feed',
                     entryCount: 0,
@@ -133,43 +141,146 @@ describe('subscription management D1 repository', () => {
                 bindings: [
                     'https://publisher.example.test/favicon.ico',
                     hash,
-                    812_001,
+                    first.feedId,
                 ],
             }),
         );
         const assetRepository = makeSubscriptionRepository(d1);
         await expect(
             Effect.runPromise(
-                assetRepository.findSubscription(firstUser, 812_001),
+                assetRepository.findSubscription(firstUser, first.feedId),
             ),
         ).resolves.toMatchObject({
             faviconUrl: `/api/public/favicons/v1/${hash}.png`,
         });
 
-        await Effect.runPromise(repository.unsubscribe(firstUser, 812_001));
+        await Effect.runPromise(
+            repository.unsubscribe(firstUser, first.feedId),
+        );
         await expect(
             Effect.runPromise(
                 d1.first<number>(
                     {
                         sql: 'SELECT COUNT(*) AS total FROM feeds WHERE id = ?',
-                        bindings: [812_001],
+                        bindings: [first.feedId],
                     },
                     'total',
                 ),
             ),
         ).resolves.toBe(1);
-        await Effect.runPromise(repository.unsubscribe(secondUser, 812_001));
+        await Effect.runPromise(
+            repository.unsubscribe(secondUser, first.feedId),
+        );
         await expect(
             Effect.runPromise(
                 d1.first<number>(
                     {
                         sql: 'SELECT COUNT(*) AS total FROM feeds WHERE id = ?',
-                        bindings: [812_001],
+                        bindings: [first.feedId],
                     },
                     'total',
                 ),
             ),
         ).resolves.toBe(0);
+
+        await expect(
+            Effect.runPromise(
+                repository.subscribeDiscovered({
+                    feedUrl: 'https://subscriptions.example.test/second.xml',
+                    name: 'Second feed',
+                    siteUrl: null,
+                    faviconUrl: null,
+                    categoryId: 811_001,
+                    userId: firstUser,
+                    now: now + 1,
+                }),
+            ),
+        ).resolves.toEqual({
+            feedId: 2,
+            createdFeed: true,
+            createdSubscription: true,
+        });
+    });
+
+    it('does not allocate a feed ID for an invalid category', async () => {
+        const userId = 815_001;
+        await insertUser(userId);
+        const nextFeedId = await Effect.runPromise(
+            d1.first<number>(
+                {
+                    sql: 'SELECT next_id FROM feed_id_sequence WHERE singleton = 1',
+                },
+                'next_id',
+            ),
+        );
+
+        await expect(
+            Effect.runPromise(
+                repository.subscribeDiscovered({
+                    feedUrl: 'https://invalid-category.example.test/feed.xml',
+                    name: 'Invalid category feed',
+                    siteUrl: null,
+                    faviconUrl: null,
+                    categoryId: 815_999,
+                    userId,
+                    now,
+                }),
+            ),
+        ).rejects.toBeInstanceOf(SubscriptionNotFound);
+        await expect(
+            Effect.runPromise(
+                d1.first<number>(
+                    {
+                        sql: 'SELECT next_id FROM feed_id_sequence WHERE singleton = 1',
+                    },
+                    'next_id',
+                ),
+            ),
+        ).resolves.toBe(nextFeedId);
+    });
+
+    it('advances past explicit fixture IDs without rewinding', async () => {
+        const nextFeedId = await Effect.runPromise(
+            d1.first<number>(
+                {
+                    sql: 'SELECT next_id FROM feed_id_sequence WHERE singleton = 1',
+                },
+                'next_id',
+            ),
+        );
+        if (nextFeedId === null) throw new Error('Expected feed sequence');
+        const highId = nextFeedId + 10;
+
+        await Effect.runPromise(
+            d1.run({
+                sql: `INSERT INTO feeds (
+                        id, name, feed_url, next_refresh_at, created_at, updated_at
+                    ) VALUES
+                        (?, 'High fixture', 'https://high-fixture.example.test/feed', ?, ?, ?),
+                        (?, 'Lower fixture', 'https://lower-fixture.example.test/feed', ?, ?, ?)`,
+                bindings: [
+                    highId,
+                    now,
+                    now,
+                    now,
+                    nextFeedId + 5,
+                    now,
+                    now,
+                    now,
+                ],
+            }),
+        );
+
+        await expect(
+            Effect.runPromise(
+                d1.first<number>(
+                    {
+                        sql: 'SELECT next_id FROM feed_id_sequence WHERE singleton = 1',
+                    },
+                    'next_id',
+                ),
+            ),
+        ).resolves.toBe(highId + 1);
     });
 
     it('finds or creates a category by case-insensitive name', async () => {
@@ -222,25 +333,25 @@ describe('subscription management D1 repository', () => {
     it('rebuilds all 10,001 entries and preserves sparse state', async () => {
         const owner = 840_001;
         const categoryId = 841_001;
-        const feedId = 842_001;
         const firstEntryId = 8_400_000;
         const lastEntryId = firstEntryId + 10_000;
         await insertUser(owner);
         await Effect.runPromise(
             repository.createCategory(categoryId, owner, 'Large feed', now),
         );
-        await Effect.runPromise(
-            repository.subscribeDiscovered({
-                proposedId: feedId,
-                feedUrl: 'https://large-filters.example.test/feed.xml',
-                name: 'Large filter feed',
-                siteUrl: null,
-                faviconUrl: null,
-                categoryId,
-                userId: owner,
-                now,
-            }),
-        );
+        const feedId = (
+            await Effect.runPromise(
+                repository.subscribeDiscovered({
+                    feedUrl: 'https://large-filters.example.test/feed.xml',
+                    name: 'Large filter feed',
+                    siteUrl: null,
+                    faviconUrl: null,
+                    categoryId,
+                    userId: owner,
+                    now,
+                }),
+            )
+        ).feedId;
         await Effect.runPromise(
             d1.run({
                 sql: `WITH digits(value) AS (
@@ -365,24 +476,24 @@ describe('subscription management D1 repository', () => {
         const owner = 820_001;
         const otherUser = 820_002;
         const categoryId = 821_001;
-        const feedId = 822_001;
         await insertUser(owner);
         await insertUser(otherUser);
         await Effect.runPromise(
             repository.createCategory(categoryId, owner, 'Security', now),
         );
-        await Effect.runPromise(
-            repository.subscribeDiscovered({
-                proposedId: feedId,
-                feedUrl: 'https://filters.example.test/feed.xml',
-                name: 'Filter feed',
-                siteUrl: null,
-                faviconUrl: null,
-                categoryId,
-                userId: owner,
-                now,
-            }),
-        );
+        const feedId = (
+            await Effect.runPromise(
+                repository.subscribeDiscovered({
+                    feedUrl: 'https://filters.example.test/feed.xml',
+                    name: 'Filter feed',
+                    siteUrl: null,
+                    faviconUrl: null,
+                    categoryId,
+                    userId: owner,
+                    now,
+                }),
+            )
+        ).feedId;
         await insertEntry(823_001, feedId, 'Sponsored post');
         await insertEntry(823_002, feedId, 'Ordinary post');
         await Effect.runPromise(
@@ -562,25 +673,25 @@ describe('subscription management D1 repository', () => {
     it('rejects a concurrent rebuild without mixing interaction sets', async () => {
         const owner = 850_001;
         const categoryId = 851_001;
-        const feedId = 852_001;
         const appleEntryId = 853_001;
         const bananaEntryId = 853_002;
         await insertUser(owner);
         await Effect.runPromise(
             repository.createCategory(categoryId, owner, 'Concurrent', now),
         );
-        await Effect.runPromise(
-            repository.subscribeDiscovered({
-                proposedId: feedId,
-                feedUrl: 'https://concurrent-filters.example.test/feed.xml',
-                name: 'Concurrent filters',
-                siteUrl: null,
-                faviconUrl: null,
-                categoryId,
-                userId: owner,
-                now,
-            }),
-        );
+        const feedId = (
+            await Effect.runPromise(
+                repository.subscribeDiscovered({
+                    feedUrl: 'https://concurrent-filters.example.test/feed.xml',
+                    name: 'Concurrent filters',
+                    siteUrl: null,
+                    faviconUrl: null,
+                    categoryId,
+                    userId: owner,
+                    now,
+                }),
+            )
+        ).feedId;
         await insertEntry(appleEntryId, feedId, 'Apple update');
         await insertEntry(bananaEntryId, feedId, 'Banana update');
 

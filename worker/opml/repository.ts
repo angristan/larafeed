@@ -273,7 +273,6 @@ export interface OpmlRepository {
     }) => Promise<ClaimOpmlJobResult>;
     readonly completeItem: (input: {
         readonly claim: OpmlItemClaim;
-        readonly feedId: number;
         readonly categoryId: number;
         readonly refreshJobId: number;
         readonly refreshOutboxId: number;
@@ -1065,10 +1064,12 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                 },
                 {
                     sql: `INSERT INTO feeds (id, name, feed_url, site_url, favicon_url, next_refresh_at, created_at, updated_at)
-                    SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})
+                    SELECT sequence.next_id, ?, ?, ?, ?, ?, ?, ?
+                    FROM feed_id_sequence sequence
+                    WHERE sequence.singleton = 1
+                        AND EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})
                     ON CONFLICT(feed_url) DO NOTHING`,
                     bindings: [
-                        input.feedId,
                         input.feedName,
                         input.feedUrl,
                         input.siteUrl,
@@ -1189,10 +1190,11 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                 },
             ]),
         );
+        const feedChanges = changes(operation, results[1]);
         const bootstrappedJobs = changes(operation, results[2]);
         if (
             changes(operation, results[0]) > 1 ||
-            changes(operation, results[1]) > 1 ||
+            (feedChanges !== 0 && feedChanges !== 2) ||
             bootstrappedJobs > 1 ||
             changes(operation, results[3]) !== bootstrappedJobs ||
             changes(operation, results[4]) > 1 ||

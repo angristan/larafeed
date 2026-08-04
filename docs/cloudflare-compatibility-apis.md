@@ -35,6 +35,8 @@ Google Reader routes include user info, token echo, subscriptions, bounded strea
 
 Fever v3 routes include groups, feed-group mappings, feeds, recent or cursor-bounded items, unread IDs, saved IDs, and read/saved marks. `since_id` and `max_id` are mutually exclusive.
 
+D1 allocates compact monotonic feed IDs while preserving numeric Fever IDs and decimal Google `feed/<id>` stream identifiers.
+
 Both protocols use the same effective read state as the web reader:
 
 ```text

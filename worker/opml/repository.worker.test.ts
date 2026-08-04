@@ -118,7 +118,6 @@ describe('OPML D1 repository', () => {
         await expect(
             repository.completeItem({
                 claim: claimed.claim,
-                feedId: 715_001,
                 categoryId: 716_001,
                 refreshJobId: 717_001,
                 refreshOutboxId: 718_001,
@@ -134,6 +133,18 @@ describe('OPML D1 repository', () => {
             refreshOperationId: 'feed-refresh:opml:opml-workerd-operation',
         });
 
+        const feedId = await scalar(
+            'SELECT id AS value FROM feeds WHERE feed_url = ?',
+            ['https://opml-workerd.example.test/feed.xml'],
+        );
+        if (feedId === null) throw new Error('Expected created feed');
+        expect(feedId).toBe(1);
+        await expect(
+            scalar(
+                'SELECT next_id AS value FROM feed_id_sequence WHERE singleton = 1',
+            ),
+        ).resolves.toBe(2);
+
         await expect(
             repository.getImport(userId, importId),
         ).resolves.toMatchObject({
@@ -148,14 +159,14 @@ describe('OPML D1 repository', () => {
             scalar(
                 `SELECT COUNT(*) AS value FROM feed_subscriptions
                  WHERE user_id = ? AND feed_id = ?`,
-                [userId, 715_001],
+                [userId, feedId],
             ),
         ).resolves.toBe(1);
         await expect(
             first<{ custom_feed_name: string | null }>(
                 `SELECT custom_feed_name FROM feed_subscriptions
                  WHERE user_id = ? AND feed_id = ?`,
-                [userId, 715_001],
+                [userId, feedId],
             ),
         ).resolves.toEqual({ custom_feed_name: 'My Example' });
         await expect(
@@ -180,7 +191,7 @@ describe('OPML D1 repository', () => {
             kind: FEED_REFRESH_JOB_KIND,
             state: 'pending',
             payload_json: JSON.stringify({
-                feedId: 715_001,
+                feedId,
                 trigger: 'scheduled',
             }),
             topic: FEED_REFRESH_TOPIC,
@@ -385,7 +396,6 @@ describe('OPML D1 repository', () => {
         if (retried.type !== 'claimed') throw new Error('Expected retry claim');
         await repository.completeItem({
             claim: retried.claim,
-            feedId: 719_501,
             categoryId: 719_502,
             refreshJobId: 719_503,
             refreshOutboxId: 719_504,
@@ -396,6 +406,12 @@ describe('OPML D1 repository', () => {
             faviconUrl: null,
             completedAt: now + 3,
         });
+
+        const sharedFeedId = await scalar(
+            'SELECT id AS value FROM feeds WHERE feed_url = ?',
+            [sharedFeedUrl],
+        );
+        if (sharedFeedId === null) throw new Error('Expected shared feed');
 
         await repository.createImport({
             id: 719_201,
@@ -429,7 +445,6 @@ describe('OPML D1 repository', () => {
         await expect(
             repository.completeItem({
                 claim: sharedClaim.claim,
-                feedId: 719_601,
                 categoryId: 719_602,
                 refreshJobId: 719_603,
                 refreshOutboxId: 719_604,
@@ -449,7 +464,7 @@ describe('OPML D1 repository', () => {
             scalar(
                 `SELECT COUNT(*) AS value FROM jobs
                  WHERE kind = ? AND json_extract(payload_json, '$.feedId') = ?`,
-                [FEED_REFRESH_JOB_KIND, 719_501],
+                [FEED_REFRESH_JOB_KIND, sharedFeedId],
             ),
         ).resolves.toBe(1);
         await expect(
@@ -457,7 +472,7 @@ describe('OPML D1 repository', () => {
                 `SELECT COUNT(*) AS value FROM outbox_messages o
                  JOIN jobs j ON j.id = o.job_id
                  WHERE j.kind = ? AND json_extract(j.payload_json, '$.feedId') = ?`,
-                [FEED_REFRESH_JOB_KIND, 719_501],
+                [FEED_REFRESH_JOB_KIND, sharedFeedId],
             ),
         ).resolves.toBe(1);
         await expect(
@@ -536,7 +551,6 @@ describe('OPML D1 repository', () => {
             if (claim.type !== 'claimed') throw new Error('Expected claim');
             return repository.completeItem({
                 claim: claim.claim,
-                feedId: idBase + 3,
                 categoryId: idBase + 4,
                 refreshJobId: idBase + 5,
                 refreshOutboxId: idBase + 6,

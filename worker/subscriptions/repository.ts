@@ -85,7 +85,6 @@ const FilterCommitStatusRow = Schema.Struct({
 const FeedIdRow = Schema.Struct({ id: SafeId });
 
 export interface DiscoveredFeedInput {
-    readonly proposedId: number;
     readonly feedUrl: string;
     readonly name: string;
     readonly siteUrl: string | null;
@@ -706,13 +705,19 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                     operation,
                     d1.batch([
                         {
-                            sql: `INSERT OR IGNORE INTO feeds
+                            sql: `INSERT INTO feeds
                                 (id, name, feed_url, site_url, favicon_url,
                                  is_gone, consecutive_failures, next_refresh_at,
                                  created_at, updated_at)
-                                VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, ?)`,
+                                SELECT sequence.next_id, ?, ?, ?, ?, 0, 0, ?, ?, ?
+                                FROM feed_id_sequence sequence
+                                WHERE sequence.singleton = 1
+                                  AND EXISTS (
+                                    SELECT 1 FROM subscription_categories c
+                                    WHERE c.user_id = ? AND c.id = ?
+                                  )
+                                ON CONFLICT(feed_url) DO NOTHING`,
                             bindings: [
-                                input.proposedId,
                                 input.name,
                                 input.feedUrl,
                                 input.siteUrl,
@@ -720,6 +725,8 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                                 input.now,
                                 input.now,
                                 input.now,
+                                input.userId,
+                                input.categoryId,
                             ],
                         },
                         {
@@ -748,7 +755,10 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                     operation,
                     results[1],
                 );
-                if (createdFeed > 1 || createdSubscription > 1) {
+                if (
+                    (createdFeed !== 0 && createdFeed !== 2) ||
+                    createdSubscription > 1
+                ) {
                     return yield* Effect.fail(invariant(operation));
                 }
                 const row = yield* mapStorage(
@@ -769,7 +779,7 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                 );
                 return {
                     feedId: feedId.id,
-                    createdFeed: createdFeed === 1,
+                    createdFeed: createdFeed === 2,
                     createdSubscription: createdSubscription === 1,
                 };
             }),

@@ -251,7 +251,6 @@ export const makeSubscriptionService = (
                                   .pipe(Effect.mapError(feedDiscoveryError));
                               const feedUrl = discovered.finalUrl;
                               return yield* repository.subscribeDiscovered({
-                                  proposedId: yield* nextId(),
                                   feedUrl,
                                   name: discovered.feed.title || feedUrl,
                                   siteUrl: discovered.feed.siteUrl,

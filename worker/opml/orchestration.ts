@@ -343,16 +343,14 @@ export const makeOpmlOrchestrator = (
                     discovered.finalUrl,
                 ).href;
                 const completedAt = now();
-                const [feedId, categoryId, refreshJobId, refreshOutboxId] =
+                const [categoryId, refreshJobId, refreshOutboxId] =
                     await Promise.all([
-                        generateId(),
                         generateId(),
                         generateId(),
                         generateId(),
                     ]);
                 const completion = await repository.completeItem({
                     claim,
-                    feedId,
                     categoryId,
                     refreshJobId,
                     refreshOutboxId,
