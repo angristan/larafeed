@@ -295,12 +295,6 @@ export interface OpmlRepository {
         readonly errorClass: string;
         readonly errorMessage: string;
     }) => Promise<OpmlFailureRecord>;
-    readonly recordDeadLetter: (input: {
-        readonly operationId: string;
-        readonly now: number;
-        readonly errorClass: string;
-        readonly errorMessage: string;
-    }) => Promise<boolean>;
     readonly recoverStaleJobs: (now: number, limit: number) => Promise<number>;
     readonly recoverActiveImports: (
         now: number,
@@ -1257,6 +1251,23 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                 },
                 recountImport(input.claim.importId, input.failedAt),
                 {
+                    sql: `UPDATE outbox_messages SET state = 'dead_lettered', sent_at = NULL,
+                        lease_owner = NULL, lease_expires_at = NULL,
+                        last_error_class = ?, last_error_message = ?, updated_at = ?
+                    WHERE ? = 1 AND job_id = ? AND topic = ? AND state <> 'dead_lettered'
+                        AND EXISTS (SELECT 1 FROM jobs j WHERE j.id = ? AND ${leasePredicate})`,
+                    bindings: [
+                        klass,
+                        message,
+                        input.failedAt,
+                        terminal ? 1 : 0,
+                        input.claim.jobId,
+                        OPML_IMPORT_TOPIC,
+                        input.claim.jobId,
+                        ...condition,
+                    ],
+                },
+                {
                     sql: `UPDATE jobs SET state = ?, available_at = ?, lease_owner = NULL, lease_expires_at = NULL,
                         completed_at = ?, last_error_class = ?, last_error_message = ?, updated_at = ?
                     WHERE ${directLeasePredicate}`,
@@ -1277,7 +1288,8 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
         if (
             changes(operation, results[0]) !== 1 ||
             changes(operation, results[1]) !== 1 ||
-            changes(operation, results[2]) !== 1
+            changes(operation, results[2]) !== (terminal ? 1 : 0) ||
+            changes(operation, results[3]) !== 1
         ) {
             throw new OpmlLeaseLostError(input.claim.operationId);
         }
@@ -1287,67 +1299,6 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                 ? null
                 : Math.max(input.failedAt, input.retryAt),
         };
-    },
-
-    async recordDeadLetter(input) {
-        const operation = 'opml.recordDeadLetter';
-        const klass = boundedText(input.errorClass, MAX_ERROR_CLASS_LENGTH);
-        const message = boundedText(
-            input.errorMessage,
-            MAX_ERROR_MESSAGE_LENGTH,
-        );
-        const result = await run(
-            operation,
-            d1.first<{ import_id: number; item_id: number }>({
-                sql: `SELECT i.import_id, i.id AS item_id FROM opml_import_items i JOIN jobs j ON j.id = i.job_id
-                WHERE j.operation_id = ? AND j.kind = ?`,
-                bindings: [input.operationId, OPML_IMPORT_JOB_KIND],
-            }),
-        );
-        if (result === null) return false;
-        const results = await run(
-            operation,
-            d1.batch([
-                {
-                    sql: `UPDATE outbox_messages SET state = 'dead_lettered', sent_at = NULL,
-                        lease_owner = NULL, lease_expires_at = NULL, last_error_class = ?, last_error_message = ?, updated_at = ?
-                    WHERE job_id = (SELECT id FROM jobs WHERE operation_id = ? AND kind = ?) AND state <> 'dead_lettered'`,
-                    bindings: [
-                        klass,
-                        message,
-                        input.now,
-                        input.operationId,
-                        OPML_IMPORT_JOB_KIND,
-                    ],
-                },
-                {
-                    sql: `UPDATE opml_import_items SET state = 'failed', completed_at = ?, error_class = ?, error_message = ?, updated_at = ?
-                    WHERE id = ? AND completed_at IS NULL`,
-                    bindings: [
-                        input.now,
-                        klass,
-                        message,
-                        input.now,
-                        result.item_id,
-                    ],
-                },
-                recountImport(result.import_id, input.now),
-                {
-                    sql: `UPDATE jobs SET state = 'dead_lettered', lease_owner = NULL, lease_expires_at = NULL,
-                        completed_at = ?, last_error_class = ?, last_error_message = ?, updated_at = ?
-                    WHERE operation_id = ? AND kind = ? AND state NOT IN ('succeeded', 'dead_lettered', 'canceled')`,
-                    bindings: [
-                        input.now,
-                        klass,
-                        message,
-                        input.now,
-                        input.operationId,
-                        OPML_IMPORT_JOB_KIND,
-                    ],
-                },
-            ]),
-        );
-        return changes(operation, results[3]) === 1;
     },
 
     async recoverStaleJobs(now, requestedLimit) {
@@ -1395,8 +1346,35 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                         bindings: [item.operation_id, now, now, item.item_id],
                     },
                     recountImport(item.import_id, now),
+                    {
+                        sql: `UPDATE outbox_messages SET state = 'dead_lettered',
+                            sent_at = NULL, lease_owner = NULL, lease_expires_at = NULL,
+                            last_error_class = 'stale_lease',
+                            last_error_message = 'Worker lease expired', updated_at = ?
+                        WHERE topic = ? AND state <> 'dead_lettered'
+                            AND job_id = (SELECT id FROM jobs
+                                WHERE operation_id = ? AND kind = ?
+                                    AND state = 'dead_lettered'
+                                    AND last_error_class = 'stale_lease'
+                                    AND updated_at = ?)`,
+                        bindings: [
+                            now,
+                            OPML_IMPORT_TOPIC,
+                            item.operation_id,
+                            OPML_IMPORT_JOB_KIND,
+                            now,
+                        ],
+                    },
                 ]),
             );
+            if (
+                changes(operation, results[0]) > 1 ||
+                changes(operation, results[3]) > 1
+            )
+                throw new OpmlInvariantError(
+                    operation,
+                    'recovered multiple stale jobs',
+                );
             if (changes(operation, results[0]) === 1) recovered += 1;
         }
         return recovered;
@@ -1415,17 +1393,24 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                     bindings: [now, now, staleBefore, limit],
                 },
                 {
-                    sql: `UPDATE outbox_messages SET state = 'pending', sent_at = NULL,
-                        lease_owner = NULL, lease_expires_at = NULL, available_at = ?, updated_at = ?
+                    sql: `UPDATE outbox_messages SET
+                        state = CASE WHEN attempt_count + 1 >= ? THEN 'dead_lettered' ELSE 'pending' END,
+                        attempt_count = attempt_count + 1, sent_at = NULL,
+                        lease_owner = NULL, lease_expires_at = NULL, available_at = ?,
+                        last_error_class = CASE WHEN attempt_count + 1 >= ?
+                            THEN 'queue_redrive_exhausted' ELSE 'queue_delivery_lost' END,
+                        last_error_message = 'Queue delivery was not completed', updated_at = ?
                     WHERE id IN (SELECT o.id FROM outbox_messages o
                         JOIN jobs j ON j.id = o.job_id JOIN opml_import_items i ON i.job_id = j.id
                         JOIN opml_imports p ON p.id = i.import_id
                         WHERE o.topic = ? AND j.kind = ? AND p.state = 'processing'
                             AND i.completed_at IS NULL AND j.state IN ('pending', 'queued', 'failed')
-                            AND j.updated_at <= ? AND o.state IN ('sent', 'dead_lettered')
+                            AND j.updated_at <= ? AND o.state = 'sent'
                         ORDER BY j.updated_at, j.id LIMIT ?)`,
                     bindings: [
+                        MAX_OUTBOX_ATTEMPTS,
                         now,
+                        MAX_OUTBOX_ATTEMPTS,
                         now,
                         OPML_IMPORT_TOPIC,
                         OPML_IMPORT_JOB_KIND,
@@ -1434,9 +1419,15 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                     ],
                 },
                 {
-                    sql: `UPDATE jobs SET state = 'pending', available_at = ?, completed_at = NULL, updated_at = ?
-                    WHERE kind = ? AND state IN ('queued', 'failed')
-                        AND EXISTS (SELECT 1 FROM outbox_messages o WHERE o.job_id = jobs.id AND o.topic = ? AND o.state = 'pending' AND o.updated_at = ?)`,
+                    sql: `UPDATE jobs SET state = 'dead_lettered', completed_at = ?,
+                        lease_owner = NULL, lease_expires_at = NULL,
+                        last_error_class = 'queue_redrive_exhausted',
+                        last_error_message = 'Queue delivery was not completed', updated_at = ?
+                    WHERE kind = ? AND state NOT IN ('succeeded', 'dead_lettered', 'canceled')
+                        AND EXISTS (SELECT 1 FROM outbox_messages o
+                            WHERE o.job_id = jobs.id AND o.topic = ?
+                                AND o.state = 'dead_lettered' AND o.updated_at = ?
+                                AND o.last_error_class = 'queue_redrive_exhausted')`,
                     bindings: [
                         now,
                         now,
@@ -1446,15 +1437,60 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                     ],
                 },
                 {
-                    sql: `UPDATE opml_import_items SET state = 'pending', completed_at = NULL, updated_at = ?
-                    WHERE completed_at IS NULL AND job_id IN (SELECT id FROM jobs WHERE kind = ? AND state = 'pending' AND updated_at = ?)`,
+                    sql: `UPDATE opml_import_items SET state = 'failed', completed_at = ?,
+                        error_class = 'queue_redrive_exhausted',
+                        error_message = 'Queue delivery was not completed', updated_at = ?
+                    WHERE completed_at IS NULL AND job_id IN (
+                        SELECT id FROM jobs WHERE kind = ? AND state = 'dead_lettered'
+                            AND updated_at = ? AND last_error_class = 'queue_redrive_exhausted'
+                    )`,
+                    bindings: [now, now, OPML_IMPORT_JOB_KIND, now],
+                },
+                {
+                    sql: `UPDATE opml_imports SET
+                        succeeded_items = (SELECT COUNT(*) FROM opml_import_items WHERE import_id = opml_imports.id AND state = 'succeeded' AND completed_at IS NOT NULL),
+                        failed_items = (SELECT COUNT(*) FROM opml_import_items WHERE import_id = opml_imports.id AND state = 'failed' AND completed_at IS NOT NULL),
+                        skipped_items = (SELECT COUNT(*) FROM opml_import_items WHERE import_id = opml_imports.id AND state = 'skipped' AND completed_at IS NOT NULL),
+                        state = CASE WHEN total_items = (SELECT COUNT(*) FROM opml_import_items WHERE import_id = opml_imports.id AND completed_at IS NOT NULL) THEN 'completed' ELSE state END,
+                        completed_at = CASE WHEN total_items = (SELECT COUNT(*) FROM opml_import_items WHERE import_id = opml_imports.id AND completed_at IS NOT NULL) THEN ? ELSE completed_at END,
+                        updated_at = ?
+                    WHERE id IN (SELECT DISTINCT i.import_id FROM opml_import_items i
+                        JOIN jobs j ON j.id = i.job_id
+                        WHERE j.kind = ? AND j.state = 'dead_lettered'
+                            AND j.updated_at = ? AND j.last_error_class = 'queue_redrive_exhausted')
+                        AND state IN ('pending', 'processing')`,
+                    bindings: [now, now, OPML_IMPORT_JOB_KIND, now],
+                },
+                {
+                    sql: `UPDATE jobs SET state = 'pending', available_at = ?, completed_at = NULL,
+                        last_error_class = 'queue_delivery_lost',
+                        last_error_message = 'Queue delivery was not completed', updated_at = ?
+                    WHERE kind = ? AND state IN ('pending', 'queued', 'failed')
+                        AND EXISTS (SELECT 1 FROM outbox_messages o WHERE o.job_id = jobs.id
+                            AND o.topic = ? AND o.state = 'pending' AND o.updated_at = ?
+                            AND o.last_error_class = 'queue_delivery_lost')`,
+                    bindings: [
+                        now,
+                        now,
+                        OPML_IMPORT_JOB_KIND,
+                        OPML_IMPORT_TOPIC,
+                        now,
+                    ],
+                },
+                {
+                    sql: `UPDATE opml_import_items SET state = 'pending', completed_at = NULL,
+                        error_class = 'queue_delivery_lost',
+                        error_message = 'Queue delivery was not completed', updated_at = ?
+                    WHERE completed_at IS NULL AND job_id IN (SELECT id FROM jobs
+                        WHERE kind = ? AND state = 'pending' AND updated_at = ?
+                            AND last_error_class = 'queue_delivery_lost')`,
                     bindings: [now, OPML_IMPORT_JOB_KIND, now],
                 },
             ]),
         );
         return {
             imports: changes(operation, results[0]),
-            jobs: changes(operation, results[2]),
+            jobs: changes(operation, results[5]),
         };
     },
 });

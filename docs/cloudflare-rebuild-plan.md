@@ -268,7 +268,7 @@ Requirements:
 - Process and acknowledge messages individually unless replaying the complete batch is demonstrably safe. Acknowledge only after authoritative D1 completion commits.
 - Queue delivery owns job retries. Effect retries are limited to short, bounded, idempotent sub-operations with typed classification, jitter, and `Retry-After` handling.
 - Persist backoff beyond Queue's supported delay window in `next_refresh_at` rather than keeping a message alive indefinitely.
-- A dead-letter queue is not durable business state. Its consumer records a terminal job state, bounded failure class, and alert before acknowledging. Redrive is explicit, bounded, and deduplicated.
+- D1 is the durable job ledger. Processing and lost-delivery redrive have bounded attempt budgets, record a terminal job/outbox state and failure class in D1, and never depend on a Queue DLQ.
 - External fetches are bounded by response size, redirect count, timeout, and subrequest count. URL and redirect policy receive a dedicated SSRF review because the current Go DNS-pinning behavior cannot be copied directly to Worker `fetch()`.
 - Await response-critical work. Use `ctx.waitUntil()` only for optional bounded HTTP post-response work whose failure does not require durable Queue semantics; Queue and scheduled handlers await their authoritative processing.
 - Queue messages contain operation identifiers and small metadata, not feed or OPML payloads.
@@ -285,7 +285,7 @@ Requirements:
 - Project per-database storage with headroom and define classified behavior for rows or imports approaching current platform limits.
 - Confirm the chosen Effect v4 packages and Cloudflare runtime compatibility. Pin the resolved Effect v4 beta and aligned `@effect/*` packages exactly; treat upgrades as migrations.
 - Run security spikes for arbitrary feed/image fetching, redirect validation, CSRF, WebAuthn RP/origin validation, invite/recovery token consumption, session revocation, Turnstile verification, and Workers Rate Limiting bindings.
-- Build an expected and plausible worst-case cost model from real traffic assumptions. Include Workers CPU/invocations, D1 rows read/written and storage, Queues/retries/DLQ, Images transformations, telemetry, AI, and external providers.
+- Build an expected and plausible worst-case cost model from real traffic assumptions. Include Workers CPU/invocations, D1 rows read/written and storage, Queue sends/retries, Images transformations, telemetry, AI, and external providers.
 - Define kill switches and rollout bounds for Cron producers, Queue concurrency, imports, Images, AI, and telemetry sampling.
 
 **Gate:** D1 must meet quantitative storage, identifier-safety, latency, concurrency, batch, and cost thresholds. Otherwise choose a separate PostgreSQL/Hyperdrive persistence branch with PostgreSQL-specific repositories and migrations. Hyperdrive is not a transparent D1 fallback; authentication and read-after-write paths must use explicitly safe cache behavior.
@@ -325,7 +325,7 @@ Requirements:
 - Add Cron, durable D1 job/outbox state, and Queues for scheduled/manual refreshes.
 - Add favicon refresh and Cloudflare Images transformations, not Images-hosted storage. Expose fixed transformation presets through signed or opaque application URLs tied to stored source records; do not enable unrestricted arbitrary-origin transformation. Bound source validation, redirects, bytes, dimensions, time, unique transformations, and fallback behavior.
 - Implement OPML imports with D1 import/item rows and Queues only: validate and parse the upload, reject DTD/external entities, deduplicate URLs, preserve categories, enqueue one small item identifier per feed, process with bounded concurrency, record partial failures and progress in D1, allow retrying failed items, and let the frontend poll import status.
-- Add operational controls for queue pause/concurrency, producer disablement, backlog age, oldest due feed, retry classes, and dead-letter reconciliation.
+- Add operational controls for Queue pause/concurrency, producer disablement, backlog age, oldest due feed, retry classes, and terminal D1 job reconciliation.
 
 **Gate:** duplicate and reordered delivery are safe, ambiguous sends recover, failed jobs have durable state, image transformation cannot be used as an open proxy, and refresh scheduling remains polite and bounded under backlog.
 

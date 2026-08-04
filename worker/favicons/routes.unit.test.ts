@@ -8,7 +8,6 @@ import type { AuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession, AuthService } from '../auth/service';
 import type { FaviconAssetRepository } from './assets';
 import { registerFaviconRoutes } from './routes';
-import type { FaviconService } from './service';
 
 const origin = 'https://larafeed-test.stanislas.cloud';
 const config = {
@@ -57,22 +56,19 @@ const app = (
             authorizeMutation: () => Effect.void,
         } as unknown as AuthService,
     };
-    const refreshOwned = vi.fn((_userId: number, feedId: number) =>
+    const scheduleOwned = vi.fn((_userId: number, feedId: number) =>
         Effect.succeed({
             feedId,
             faviconUrl: 'https://publisher.example/icon.png',
             faviconAssetHash: 'a'.repeat(64),
         }),
     );
-    const service = {
-        refreshOwned,
-    } as unknown as FaviconService;
     registerFaviconRoutes(hono, {
         enabled: () => enabled,
         runtimeFactory: () =>
             Effect.succeed({
                 auth,
-                service,
+                scheduleOwned,
                 rateLimit: () => Promise.resolve({ success: rateSuccess }),
             }),
         ...(assets === undefined
@@ -82,7 +78,7 @@ const app = (
                   cache: assets.cache,
               }),
     });
-    return { hono, refreshOwned };
+    return { hono, scheduleOwned };
 };
 const decode = async <S extends Schema.ConstraintDecoder<unknown>>(
     response: Response,
@@ -106,7 +102,7 @@ describe('favicon routes', () => {
             request(),
         );
 
-        expect(response.status).toBe(200);
+        expect(response.status).toBe(202);
         const rawBody = await response.clone().text();
         await expect(decode(response, FaviconRefreshResponse)).resolves.toEqual(
             {
@@ -195,6 +191,6 @@ describe('favicon routes', () => {
                 },
             },
         );
-        expect(disabled.refreshOwned).not.toHaveBeenCalled();
+        expect(disabled.scheduleOwned).not.toHaveBeenCalled();
     });
 });

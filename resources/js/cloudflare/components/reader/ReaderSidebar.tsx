@@ -863,10 +863,10 @@ export function FeedActions({
                                     {
                                         onSuccess: () =>
                                             notifications.show({
-                                                title: 'Favicon refreshed',
+                                                title: 'Favicon refresh queued',
                                                 message:
-                                                    'The feed favicon has been refreshed',
-                                                color: 'green',
+                                                    'The feed favicon will refresh in the background',
+                                                color: 'blue',
                                                 withBorder: true,
                                             }),
                                         onError: (error) =>

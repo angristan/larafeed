@@ -10,13 +10,20 @@ const MAX_HTML_BYTES = 1024 * 1024;
 const MAX_REDIRECTS = 3;
 const MAX_HTML_CANDIDATES = 4;
 const FETCH_TIMEOUT_MS = 5_000;
-const STALE_AFTER_MS = 30 * 24 * 60 * 60_000;
+export const FAVICON_STALE_AFTER_MS = 30 * 24 * 60 * 60_000;
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 
 export class FaviconDiscoveryError extends Schema.TaggedErrorClass<FaviconDiscoveryError>()(
     'FaviconDiscoveryError',
     {},
 ) {}
+
+class FaviconPageUnavailable extends Error {
+    constructor(readonly retryable: boolean) {
+        super('Favicon page is unavailable');
+        this.name = 'FaviconPageUnavailable';
+    }
+}
 
 export interface FaviconServiceDependencies {
     readonly repository: FaviconRepository;
@@ -155,7 +162,11 @@ const fetchPage = async (
                 await response.body?.cancel();
                 if (location === null || redirects === MAX_REDIRECTS)
                     throw new FaviconDiscoveryError();
-                url = validateFeedUrl(new URL(location, url));
+                try {
+                    url = validateFeedUrl(new URL(location, url));
+                } catch {
+                    throw new FaviconDiscoveryError();
+                }
                 redirects += 1;
                 continue;
             }
@@ -164,18 +175,28 @@ const fetchPage = async (
                 ?.split(';', 1)[0]
                 ?.trim()
                 .toLocaleLowerCase();
-            if (
-                !response.ok ||
-                (mime !== 'text/html' && mime !== 'application/xhtml+xml')
-            ) {
+            if (!response.ok) {
+                const retryable =
+                    response.status === 408 ||
+                    response.status === 425 ||
+                    response.status === 429 ||
+                    response.status >= 500;
+                await response.body?.cancel();
+                throw new FaviconPageUnavailable(retryable);
+            }
+            if (mime !== 'text/html' && mime !== 'application/xhtml+xml') {
                 await response.body?.cancel();
                 throw new FaviconDiscoveryError();
             }
             return { url, body: await boundedBody(response) };
         }
     } catch (cause) {
-        if (cause instanceof FaviconDiscoveryError) throw cause;
-        throw new FaviconDiscoveryError();
+        if (
+            cause instanceof FaviconDiscoveryError ||
+            cause instanceof FaviconPageUnavailable
+        )
+            throw cause;
+        throw new FaviconPageUnavailable(true);
     } finally {
         clearTimeout(timeout);
     }
@@ -208,12 +229,16 @@ export const makeFaviconService = (
                 const site = targetPage(target);
                 let links: readonly URL[] = [];
                 let fallbackSite = site;
+                let retryablePageFailure = false;
                 try {
                     const page = await fetchPage(site, fetchImplementation);
                     fallbackSite = page.url;
                     links = discoverFaviconLinks(page.body, page.url);
-                } catch {
+                } catch (cause) {
                     // Common same-origin candidates still provide a safe fallback.
+                    retryablePageFailure =
+                        cause instanceof FaviconPageUnavailable &&
+                        cause.retryable;
                 }
                 const candidates = [
                     ...links,
@@ -225,6 +250,7 @@ export const makeFaviconService = (
                     readonly url: string;
                     readonly bytes: Uint8Array;
                 } | null = null;
+                let retryableImageFailure = false;
                 const seen = new Set<string>();
                 for (const candidate of candidates) {
                     if (seen.has(candidate.href)) continue;
@@ -239,8 +265,14 @@ export const makeFaviconService = (
                     } catch (cause) {
                         if (!(cause instanceof FeedImageUnavailable))
                             throw cause;
+                        retryableImageFailure ||= cause.retryable;
                     }
                 }
+                if (
+                    selected === null &&
+                    (retryablePageFailure || retryableImageFailure)
+                )
+                    throw new FaviconDiscoveryError();
                 const faviconUrl = selected?.url ?? target.faviconUrl;
                 let faviconAssetHash = target.faviconAssetHash;
                 let faviconIsDark = target.faviconIsDark;
@@ -297,7 +329,7 @@ export const makeFaviconService = (
                 .pipe(Effect.flatMap(refreshTarget)),
         refreshIfStale: (feedId: number) =>
             dependencies.repository
-                .findStaleTarget(feedId, now() - STALE_AFTER_MS)
+                .findStaleTarget(feedId, now() - FAVICON_STALE_AFTER_MS)
                 .pipe(
                     Effect.flatMap((target) =>
                         target === null
@@ -308,7 +340,7 @@ export const makeFaviconService = (
         refreshStale: (limit = 1) =>
             dependencies.repository
                 .listStaleTargets(
-                    now() - STALE_AFTER_MS,
+                    now() - FAVICON_STALE_AFTER_MS,
                     Math.max(1, Math.min(limit, 5)),
                 )
                 .pipe(

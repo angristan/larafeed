@@ -6,7 +6,11 @@ import { makeD1 } from '../infrastructure/d1';
 import { makeJobRepository } from '../jobs/repository';
 import { FEED_REFRESH_JOB_KIND, FEED_REFRESH_TOPIC } from '../jobs/types';
 import { makeOpmlRepository } from './repository';
-import { OPML_IMPORT_JOB_KIND, OPML_IMPORT_TOPIC } from './types';
+import {
+    MAX_OUTBOX_ATTEMPTS,
+    OPML_IMPORT_JOB_KIND,
+    OPML_IMPORT_TOPIC,
+} from './types';
 
 const d1 = makeD1(env.DB);
 const repository = makeOpmlRepository(d1);
@@ -698,6 +702,84 @@ describe('OPML D1 repository', () => {
         ).resolves.toEqual({ state: 'pending' });
     });
 
+    it('bounds lost Queue delivery recovery in durable D1 state', async () => {
+        const now = 100_000_000;
+        const userId = 740_001;
+        const importId = 740_101;
+        const operationId = 'opml-lost-delivery';
+        await insertUser(userId, now);
+        await repository.createImport({
+            id: importId,
+            userId,
+            filename: null,
+            maxAttempts: 3,
+            now,
+            items: [
+                {
+                    id: 740_201,
+                    jobId: 740_301,
+                    outboxId: 740_401,
+                    operationId,
+                    position: 0,
+                    title: null,
+                    customTitle: null,
+                    feedUrl: 'https://lost-delivery.example.test/rss',
+                    normalizedFeedUrl: 'https://lost-delivery.example.test/rss',
+                    siteUrl: null,
+                    categoryPath: [],
+                },
+            ],
+        });
+
+        for (let attempt = 1; attempt <= MAX_OUTBOX_ATTEMPTS; attempt += 1) {
+            const dispatchedAt = now + attempt * 10_000;
+            const [message] = await repository.leaseOutbox({
+                owner: `lost-delivery-${attempt}`,
+                now: dispatchedAt,
+                leaseMs: 1_000,
+                limit: 1,
+            });
+            if (message === undefined) throw new Error('Expected outbox lease');
+            await repository.markDispatchedBatch([message], dispatchedAt);
+            const recovered = await repository.recoverActiveImports(
+                dispatchedAt + 1,
+                dispatchedAt,
+                1,
+            );
+            expect(recovered, `recovery attempt ${attempt}`).toEqual({
+                imports: 0,
+                jobs: attempt === MAX_OUTBOX_ATTEMPTS ? 0 : 1,
+            });
+        }
+
+        await expect(
+            first<{
+                job_state: string;
+                outbox_state: string;
+                attempt_count: number;
+                error_class: string | null;
+            }>(
+                `SELECT j.state AS job_state, o.state AS outbox_state,
+                    o.attempt_count, j.last_error_class AS error_class
+                 FROM jobs j JOIN outbox_messages o ON o.job_id = j.id
+                 WHERE j.operation_id = ?`,
+                [operationId],
+            ),
+        ).resolves.toEqual({
+            job_state: 'dead_lettered',
+            outbox_state: 'dead_lettered',
+            attempt_count: MAX_OUTBOX_ATTEMPTS,
+            error_class: 'queue_redrive_exhausted',
+        });
+        await expect(
+            repository.getImport(userId, importId),
+        ).resolves.toMatchObject({
+            state: 'completed',
+            failedItems: 1,
+            errors: [{ errorClass: 'queue_redrive_exhausted' }],
+        });
+    });
+
     it('records terminal URL failures once and exposes bounded error progress', async () => {
         const now = 2_200_002_000_000;
         const userId = 730_001;
@@ -755,13 +837,13 @@ describe('OPML D1 repository', () => {
             ],
         });
         await expect(
-            repository.recordDeadLetter({
+            repository.claimJob({
                 operationId: 'opml-terminal-failure',
+                owner: 'duplicate-consumer',
                 now: now + 2,
-                errorClass: 'queue_dead_letter',
-                errorMessage: 'duplicate delivery',
+                leaseMs: 10_000,
             }),
-        ).resolves.toBe(false);
+        ).resolves.toEqual({ type: 'dead', state: 'dead_lettered' });
         await expect(
             repository.getImport(userId, 731_001),
         ).resolves.toMatchObject({

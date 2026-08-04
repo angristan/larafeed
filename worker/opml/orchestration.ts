@@ -165,11 +165,6 @@ export interface OpmlOrchestrator {
         body: unknown,
         owner?: string,
     ) => Promise<OpmlQueueDecision>;
-    readonly recordDeadLetter: (
-        body: unknown,
-        errorClass?: string,
-        errorMessage?: string,
-    ) => Promise<OpmlQueueDecision>;
     readonly runCron: (input?: {
         readonly dispatch?: boolean;
         readonly dispatchLimit?: number;
@@ -417,34 +412,6 @@ export const makeOpmlOrchestrator = (
         }
     };
 
-    const recordDeadLetter = async (
-        body: unknown,
-        errorClass = 'queue_dead_letter',
-        errorMessage = 'Queue delivery attempts exhausted',
-    ): Promise<OpmlQueueDecision> => {
-        const message = decodeOpmlQueueMessage(body);
-        if (message === null)
-            return { action: 'dead', reason: 'invalid_message' };
-        try {
-            const changed = await repository.recordDeadLetter({
-                operationId: message.operationId,
-                now: now(),
-                errorClass,
-                errorMessage,
-            });
-            return {
-                action: 'dead',
-                reason: changed ? 'dead_lettered' : 'already_terminal',
-            };
-        } catch {
-            return {
-                action: 'retry',
-                reason: 'dead_letter_storage_error',
-                retryDelaySeconds: 30,
-            };
-        }
-    };
-
     const exportOpml = async (userId: number): Promise<string> => {
         const subscriptions = await repository.listExportSubscriptions(userId);
         const grouped = new Map<string, typeof subscriptions>();
@@ -513,7 +480,6 @@ export const makeOpmlOrchestrator = (
         exportOpml,
         dispatchOutbox,
         processQueueMessage,
-        recordDeadLetter,
         runCron,
     };
 };

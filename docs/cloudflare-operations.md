@@ -14,7 +14,7 @@ Worker + Static Assets
  D1    Queues    Images
   ^       |
   |       v
- Cron   feed/OPML consumers
+ Cron   feed/OPML/favicon consumers
   |
   +---- AI Gateway ---- Gemini
 ```
@@ -33,7 +33,7 @@ Cloudflare Access is not placed in front of the whole hostname. Whole-host Acces
 - Static Assets with SPA fallback and Worker-first `/api/*` routing.
 - `DB`, `IMAGES`, and `AUTH_RATE_LIMITER` bindings.
 - Same-origin public content-addressed favicon delivery backed by D1 and Cache API.
-- Feed refresh and OPML import queues, consumers, bounded batches, concurrency, retries, and DLQs.
+- Dedicated feed refresh, OPML import, and favicon refresh Queues with one-message consumer batches, bounded concurrency, retries, and authoritative D1 failure history.
 - Five-minute production Cron and ten-minute test Cron.
 - Exact production and test custom domains with `workers_dev=false`.
 - Refresh and AI rollout variables. Production starts with refresh scheduling,
@@ -76,7 +76,7 @@ The isolated test environment is provisioned:
 
 - Worker and custom domain: `larafeed-test` at `larafeedcf.stanislas.cloud`.
 - D1: `larafeed-test` in Western Europe.
-- Dedicated feed refresh, feed DLQ, OPML import, and OPML DLQ queues.
+- Dedicated feed refresh and OPML import Queues. The favicon Queue is declared but must be provisioned before deploying this revision.
 - A hostname-bound managed Turnstile widget and separate Worker secrets.
 - Refresh scheduling, Queue dispatch, OPML imports, favicon refresh, and Images are enabled for the current isolated test rollout. AI summaries remain disabled until dedicated test Gateway credentials and provider cost controls are configured.
 
@@ -97,7 +97,7 @@ Do not run these actions until the operator approves production writes.
 
 1. Create the isolated production D1 database.
 2. Replace the production placeholder D1 ID in `wrangler.jsonc`.
-3. Create the production feed refresh, feed DLQ, OPML import, and OPML DLQ queues.
+3. Create the production feed refresh, OPML import, and favicon refresh Queues.
 4. Replace the production placeholder rate-limit namespace ID.
 5. Declare the exact production Worker custom domain in Wrangler.
 6. Configure the production Turnstile widget.
@@ -170,14 +170,14 @@ Authentication maintenance removes expired or revoked sessions after 30 days, co
 | `REFRESH_SCHEDULER_ENABLED=false` | Stop creating scheduled refresh commands. Existing durable work remains. |
 | `REFRESH_DISPATCH_ENABLED=false` | Stop every feed-refresh Queue send, including new subscriptions and OPML-created feeds, while retaining outbox commands. |
 | `OPML_IMPORT_ENABLED=false` | Reject new OPML imports before creating durable jobs. Existing jobs remain inspectable. |
-| `FAVICON_REFRESH_ENABLED=false` | Stop post-refresh favicon normalization/D1 writes, stale-favicon Cron maintenance, orphan cleanup, and manual favicon refresh. Existing D1 assets remain readable. |
+| `FAVICON_REFRESH_ENABLED=false` | Stop new post-refresh/Cron favicon jobs, orphan cleanup, and manual favicon refresh. Pause the favicon consumer separately if already accepted jobs must stop. Existing D1 assets and durable work remain. |
 | `IMAGES_ENABLED=false` | Stop favicon normalization and reject ownership-bound article image transforms before using Images. |
 | Lower `REFRESH_DUE_LIMIT` | Reduce each Cron reservation burst. |
-| Queue consumer pause/concurrency | Stop or reduce feed/OPML consumers without losing D1 state. |
+| Queue consumer pause/concurrency | Stop or reduce feed, OPML, or favicon consumers without losing D1 state. |
 | `AI_SUMMARY_ENABLED=false` | Reject new summary generation without deleting cached summaries. |
 | AI Gateway budget/rate limit | Bound provider spend independently of application limits. |
 
-There is no telemetry SDK kill switch because the application relies on native Workers logs and traces. Sampling is configured at the Cloudflare environment level. The Worker creates one privacy-safe custom span at each Queue-batch and scheduled-subsystem boundary: `app.refresh.queue.consume`, `app.opml.queue.consume`, `app.opml.queue.dead_letter`, `app.refresh.cron`, `app.opml.cron`, and `app.favicon.cron`. Failures emit one bounded `app.operation.failed` event without raw errors, URLs, identifiers, or payloads. Persisted logs remain disabled until their volume and cost are separately approved.
+There is no telemetry SDK kill switch because the application relies on native Workers logs and traces. Sampling is configured at the Cloudflare environment level. Every Queue batch contains one message, so the Worker creates one privacy-safe custom span per feed operation: `app.refresh.queue.consume`, `app.opml.queue.consume`, and `app.favicon.queue.consume`. Scheduled spans remain `app.refresh.cron`, `app.opml.cron`, and `app.favicon.cron`. Failures emit one bounded `app.operation.failed` event without raw errors, URLs, identifiers, or payloads. Persisted logs remain disabled until their volume and cost are separately approved.
 
 ## Health checks
 
@@ -192,18 +192,18 @@ Monitor:
 - Worker request rate, status classes, exceptions, CPU time, and tail latency.
 - Authentication failures, Turnstile failures, access-link use, disabled users, and session errors.
 - D1 database size, query latency, rows read/written, errors, and overloads.
-- Queue backlog, oldest message age, retries, consumer errors, and DLQ growth for both domains.
+- Queue backlog, oldest message age, retries, and consumer errors for feed refresh, OPML, and favicon work.
 - D1 outbox pending age, leased rows past expiry, dead-lettered jobs, oldest due feed, and refresh failure classes.
-- OPML active age, failed items, stalled imports, and DLQ growth.
+- OPML active age, failed items, stalled imports, and `queue_redrive_exhausted` terminal state.
 - External feed/image failure classes, timeouts, redirect/policy rejection, and response-size rejection.
 - Images transformations and unique-transform growth.
-- D1 favicon row count and bytes, public favicon route errors, and Cache API cold-miss behavior.
+- D1 favicon job/outbox age, terminal failures, asset row count and bytes, public route errors, and Cache API cold-miss behavior.
 - AI Gateway requests, errors, latency, token/cost budget, rate limiting, and cache hit behavior.
 
 Initial alert policy:
 
 - Page on sustained Worker 5xx/errors, D1 overload, authentication outage, or a growing Queue backlog with no successful consumers.
-- Urgent notification on any DLQ growth, outbox age above 15 minutes, oldest due feed above 60 minutes, or stalled OPML import above 30 minutes.
+- Urgent notification on any new D1 `dead_lettered` job, outbox age above 15 minutes, oldest due feed above 60 minutes, or stalled OPML import above 30 minutes.
 - Budget alert at 50%, 80%, and 100% for AI Gateway and Images usage; alert on unexpected D1 growth.
 - Review security-event spikes and repeated Turnstile failures without logging submitted credentials.
 
@@ -250,7 +250,7 @@ An in-place restore is destructive and requires explicit approval:
    ```
 
 5. Reapply only migrations newer than the restored point, deploy a schema-compatible Worker version, and verify `/up`, `/api/health`, migration state, foreign keys, account access, and sampled reader data.
-6. Reconcile D1 jobs/outbox with Queue and DLQ state before resuming dispatch. Resume low-concurrency dispatch before scheduling.
+6. Reconcile D1 jobs/outbox with the main Queue backlog before resuming dispatch. Resume low-concurrency dispatch before scheduling.
 
 Time Travel does not undo external feed requests, Queue deliveries, Images transformations, Cache API entries, or AI provider calls. If recovery cannot meet the target without losing accepted user mutations, keep traffic disabled and escalate instead of guessing.
 
@@ -263,7 +263,7 @@ Time Travel does not undo external feed requests, Queue deliveries, Images trans
 3. Fix policy/provider/application cause.
 4. Recover stale leases through the scheduled recovery path.
 5. Resume dispatch with low concurrency, then resume the scheduler.
-6. Reconcile DLQ items only after their authoritative D1 state is understood.
+6. Inspect terminal D1 jobs and redrive only reviewed operations with the same stable operation ID.
 
 ### OPML incident
 
@@ -283,8 +283,8 @@ Set `AI_SUMMARY_ENABLED=false` immediately or enforce a Gateway budget. Set `FAV
 - Security headers and SPA deep links work.
 - Passkey login/logout/recovery, user passkey management, fresh-auth account deletion, admin enrollment/recovery, and CSRF rejection work.
 - Reader lists, detail, state mutations, and read-through work on migrated data.
-- Manual/Cron feed refresh, automatic post-refresh favicon analysis, manual/stale favicon refresh, Queue retry, outbox recovery, and DLQ state work.
-- Normal subscription add and OPML import both immediately fetch posts and analyze an unknown or stale favicon; OPML progress/export work.
+- Manual/Cron feed refresh and stale favicon refresh use one feed operation per Queue invocation, with independent retry, outbox recovery, and durable terminal D1 state.
+- Normal subscription add and OPML import both immediately fetch posts and enqueue an unknown or stale favicon; OPML progress/export work.
 - Google Reader and Fever token auth, scope, and revocation work.
 - Content-addressed D1 favicons use the public same-origin route, Cache API, immutable browser headers, and no-store errors; the legacy feed-image route is used only during backfill.
 - Ownership-bound article Images routes enforce fixed presets, one-day private success caching, and no-store failures.

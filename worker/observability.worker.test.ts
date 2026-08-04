@@ -8,7 +8,7 @@ describe('native operation tracing', () => {
             traceOperation(
                 operationNames.refreshQueue,
                 'queue',
-                { batchSize: 2, deadLetter: false },
+                { batchSize: 1 },
                 async () => 'done',
             ),
         ).resolves.toBe('done');

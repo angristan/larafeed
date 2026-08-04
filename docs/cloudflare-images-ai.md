@@ -8,17 +8,19 @@ Larafeed stores normalized favicon PNGs in D1 by their SHA-256 content hash. Rea
 /api/public/favicons/v1/{sha256}.png
 ```
 
-Users can request an ownership-checked refresh with `POST /api/feeds/{ownedFeedId}/favicon/refresh`. The command is CSRF- and rate-limit-protected. It fetches at most 1 MiB of site HTML, ranks at most four non-SVG icon links, probes three same-origin fallback paths, and validates every URL and redirect with the feed SSRF policy. Image probes allow at most three redirects, five seconds, and 2 MiB, require a non-SVG image MIME type, and reject empty bodies.
+Users can request an ownership-checked refresh with `POST /api/feeds/{ownedFeedId}/favicon/refresh`. The CSRF- and rate-limit-protected endpoint returns `202`, creates or reuses one forced durable job, and immediately dispatches its operation ID. The Queue consumer fetches at most 1 MiB of site HTML, ranks at most four non-SVG icon links, probes three same-origin fallback paths, and validates every URL and redirect with the feed SSRF policy. Image probes allow at most three redirects, five seconds, and 2 MiB, require a non-SVG image MIME type, and reject empty bodies.
 
 A selected image is transformed once through the Images binding to a fixed 32 × 32 PNG with animation disabled. Larafeed analyzes darkness from those normalized bytes, hashes them with SHA-256, and inserts at most 64 KiB into D1. Identical normalized bytes reuse one row. The asset insert completes before D1 switches the feed's `favicon_asset_hash`; a fetch, transform, or persistence failure leaves the previous asset and darkness intact. A feed-update race can leave a harmless content-addressed orphan.
 
 The public route requires no session, rate limit, ownership query, upstream fetch, or Images transform. It checks the per-colo Worker Cache API first and reads D1 only on a cold or evicted cache entry. Successful responses use `Content-Type: image/png`, a hash ETag, and `Cache-Control: public, max-age=31536000, immutable`. Errors use `no-store`. The immutable browser cache normally avoids every repeat request. D1 remains authoritative because Cache API entries are non-durable and may be evicted.
 
-Cron checks at most five actively subscribed stale or missing favicons per tick. A successful check, including a bounded no-icon result, advances `favicon_updated_at`; the same feed is not retried until its 30-day refresh interval passes. Successful feed refreshes also check that exact feed when needed, so normal adds and OPML imports do not wait for Cron. Each Cron deletes at most 100 unreferenced favicon rows older than 30 days. Migration `0015` marks existing favicon sources stale for bounded D1 backfill.
+Cron reserves at most five actively subscribed stale or missing favicons per tick as D1 jobs with outbox rows. Successful feed refreshes reserve that exact feed when needed, so normal adds and OPML imports do not wait for Cron. Each Queue message contains one stable operation ID, and `max_batch_size=1` gives each feed an independent consumer invocation, lease, retry policy, and terminal D1 transition. One failed publisher cannot block another feed.
+
+A successful check, including a bounded permanent no-icon result, advances `favicon_updated_at`; the same feed is not retried until its 30-day refresh interval passes. Transient transport, timeout, `408`/`425`/`429`/`5xx`, Images, and storage failures retry with bounded backoff. Exhausted work records durable terminal state and applies the same cooldown without deleting a previous asset. Cron recovers expired leases and old sent-but-incomplete messages using the original operation ID. It also deletes at most 100 unreferenced favicon rows older than 30 days. Migration `0015` marks existing favicon sources stale for bounded D1 backfill; migration `0016` enforces one active favicon job per feed.
 
 The old authenticated `/api/images/feeds/{feedId}/small` route remains only as a migration fallback while a feed has an upstream source but no normalized asset hash.
 
-Wrangler declares only the `IMAGES` transformation binding for this flow. It does not require R2 or hosted Cloudflare Images storage.
+Wrangler declares the `IMAGES` transformation binding plus one dedicated favicon Queue. D1 records terminal failures; no Queue DLQ, R2, or hosted Cloudflare Images storage is required.
 
 ## Article images
 

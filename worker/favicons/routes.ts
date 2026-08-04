@@ -11,12 +11,11 @@ import {
     type FaviconAssetRepository,
     feedFaviconUrl,
     makeD1FaviconAssetRepository,
-    makeFaviconAssetStore,
 } from './assets';
 import { faviconRefreshEnabled } from './cron';
 import { faviconDarknessEnabled } from './darkness';
 import { makeFaviconRepository } from './repository';
-import { type FaviconService, makeFaviconService } from './service';
+import { makeFaviconRuntime } from './runtime';
 
 const headers = {
     'cache-control': 'no-store',
@@ -25,7 +24,17 @@ const headers = {
 
 export interface FaviconRuntime {
     readonly auth: AuthRuntime;
-    readonly service: FaviconService;
+    readonly scheduleOwned: (
+        userId: number,
+        feedId: number,
+    ) => Effect.Effect<
+        {
+            readonly feedId: number;
+            readonly faviconUrl: string | null;
+            readonly faviconAssetHash: string | null;
+        },
+        unknown
+    >;
     readonly rateLimit: (key: string) => Promise<{ readonly success: boolean }>;
 }
 export type FaviconRuntimeFactory = (
@@ -37,21 +46,32 @@ export interface FaviconRouteDependencies {
     readonly assetRepository?: FaviconAssetRepository;
     readonly cache?: Pick<Cache, 'match' | 'put'>;
 }
+class FaviconSchedulingError extends Schema.TaggedErrorClass<FaviconSchedulingError>()(
+    'FaviconSchedulingError',
+    {},
+) {}
+
 export const defaultFaviconRuntimeFactory: FaviconRuntimeFactory = (env) =>
     defaultAuthRuntimeFactory(env).pipe(
         Effect.map((auth) => {
             const d1 = makeD1(env.DB);
+            const repository = makeFaviconRepository(d1);
+            const orchestrator = makeFaviconRuntime(env).orchestrator;
             return {
                 auth,
-                service: makeFaviconService({
-                    repository: makeFaviconRepository(d1),
-                    assetStore: faviconDarknessEnabled(env)
-                        ? makeFaviconAssetStore({
-                              repository: makeD1FaviconAssetRepository(d1),
-                              images: env.IMAGES,
-                          })
-                        : undefined,
-                }),
+                scheduleOwned: (userId: number, feedId: number) =>
+                    repository.findOwnedTarget(userId, feedId).pipe(
+                        Effect.tap((target) =>
+                            Effect.tryPromise({
+                                try: () =>
+                                    orchestrator.scheduleFeed(
+                                        target.feedId,
+                                        true,
+                                    ),
+                                catch: () => new FaviconSchedulingError(),
+                            }),
+                        ),
+                    ),
                 rateLimit: (key: string) =>
                     env.AUTH_RATE_LIMITER.limit({ key }),
             };
@@ -137,6 +157,7 @@ const errorResponse = (error: unknown): Response => {
                     status: 503,
                 };
             case 'FaviconAssetStorageError':
+            case 'FaviconSchedulingError':
             case 'FaviconStorageError':
             case 'AuthStorageError':
                 return {
@@ -188,7 +209,10 @@ export const registerFaviconRoutes = (
     dependencies: FaviconRouteDependencies = {},
 ): Hono<{ Bindings: Env }> => {
     const factory = dependencies.runtimeFactory ?? defaultFaviconRuntimeFactory;
-    const enabled = dependencies.enabled ?? faviconRefreshEnabled;
+    const enabled =
+        dependencies.enabled ??
+        ((env: Env) =>
+            faviconRefreshEnabled(env) && faviconDarknessEnabled(env));
 
     app.get('/api/public/favicons/v1/:filename', async (context) => {
         const match = /^([a-f0-9]{64})\.png$/u.exec(
@@ -275,7 +299,7 @@ export const registerFaviconRoutes = (
                         }).pipe(
                             Effect.flatMap((rate) =>
                                 rate.success
-                                    ? runtime.service.refreshOwned(
+                                    ? runtime.scheduleOwned(
                                           session.user.id,
                                           feedId,
                                       )
@@ -299,7 +323,7 @@ export const registerFaviconRoutes = (
                 Effect.map(
                     (body) =>
                         new Response(JSON.stringify(body), {
-                            status: 200,
+                            status: 202,
                             headers,
                         }),
                 ),

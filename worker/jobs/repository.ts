@@ -149,13 +149,6 @@ export interface JobRepository {
     readonly recordRefreshFailure: (
         input: RecordRefreshFailureInput,
     ) => Promise<RefreshFailureRecord>;
-    readonly recordDeadLetter: (input: {
-        readonly operationId: string;
-        readonly historyId: number;
-        readonly now: number;
-        readonly errorClass: string;
-        readonly errorMessage: string;
-    }) => Promise<boolean>;
 }
 
 const run = async <A>(operation: string, effect: Effect.Effect<A, unknown>) => {
@@ -1021,13 +1014,38 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         bounded,
                     ],
                 },
+                {
+                    sql: `UPDATE outbox_messages
+                        SET state = 'dead_lettered', sent_at = NULL,
+                            lease_owner = NULL, lease_expires_at = NULL,
+                            last_error_class = 'stale_lease',
+                            last_error_message = 'Worker lease expired',
+                            updated_at = ?
+                        WHERE topic = ? AND state <> 'dead_lettered'
+                          AND job_id IN (
+                            SELECT id FROM jobs WHERE kind = ?
+                              AND state = 'dead_lettered'
+                              AND last_error_class = 'stale_lease'
+                              AND updated_at = ?
+                          )`,
+                    bindings: [
+                        now,
+                        FEED_REFRESH_TOPIC,
+                        FEED_REFRESH_JOB_KIND,
+                        now,
+                    ],
+                },
             ]),
         );
         if (changeCount(operation, results[0]) > bounded) {
             throw new JobInvariantError(operation, 'advanced beyond job limit');
         }
         const recovered = changeCount(operation, results[1]);
-        if (recovered > boundedLimit(limit, MAX_DUE_FEEDS)) {
+        const terminalOutbox = changeCount(operation, results[2]);
+        if (
+            recovered > boundedLimit(limit, MAX_DUE_FEEDS) ||
+            terminalOutbox > recovered
+        ) {
             throw new JobInvariantError(
                 operation,
                 'recovered beyond job limit',
@@ -1767,6 +1785,28 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 ],
             });
             statements.push(dailyRefreshAggregate(input.historyId, false));
+            statements.push({
+                sql: `UPDATE outbox_messages
+                    SET state = 'dead_lettered', sent_at = NULL,
+                        lease_owner = NULL, lease_expires_at = NULL,
+                        last_error_class = ?, last_error_message = ?,
+                        updated_at = ?
+                    WHERE job_id = ? AND topic = ?
+                      AND state <> 'dead_lettered'
+                      AND EXISTS (
+                        SELECT 1 FROM jobs j
+                        WHERE j.id = outbox_messages.job_id
+                          AND ${leasePredicate}
+                      )`,
+                bindings: [
+                    klass,
+                    message,
+                    input.failedAt,
+                    input.claim.jobId,
+                    FEED_REFRESH_TOPIC,
+                    ...conditionBindings,
+                ],
+            });
         }
         statements.push({
             sql: `UPDATE jobs
@@ -1792,7 +1832,8 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
         if (
             terminal &&
             (changeCount(operation, results[1]) !== 1 ||
-                changeCount(operation, results[2]) !== 1)
+                changeCount(operation, results[2]) !== 1 ||
+                changeCount(operation, results[3]) !== 1)
         ) {
             throw new RefreshLeaseLostError(input.claim.operationId);
         }
@@ -1805,122 +1846,5 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 ? null
                 : Math.max(input.failedAt, input.retryAt),
         };
-    },
-
-    async recordDeadLetter(input) {
-        const operation = 'recordDeadLetter';
-        const klass = errorClass(input.errorClass);
-        const message = errorMessage(input.errorMessage);
-        const results = await run(
-            operation,
-            d1.batch([
-                {
-                    sql: `UPDATE outbox_messages
-                        SET state = 'dead_lettered', sent_at = NULL,
-                            lease_owner = NULL, lease_expires_at = NULL,
-                            last_error_class = ?, last_error_message = ?,
-                            updated_at = ?
-                        WHERE job_id = (
-                            SELECT id FROM jobs
-                            WHERE operation_id = ? AND kind = ?
-                        ) AND topic = ? AND state <> 'dead_lettered'`,
-                    bindings: [
-                        klass,
-                        message,
-                        input.now,
-                        input.operationId,
-                        FEED_REFRESH_JOB_KIND,
-                        FEED_REFRESH_TOPIC,
-                    ],
-                },
-                {
-                    sql: `INSERT INTO feed_refreshes (
-                            id, feed_id, job_id, refreshed_at, was_successful,
-                            was_not_modified, error_class, error_message,
-                            created_at
-                        )
-                        SELECT ?, json_extract(j.payload_json, '$.feedId'),
-                            j.id, ?, 0, 0, ?, ?, ?
-                        FROM jobs j WHERE j.operation_id = ? AND j.kind = ?
-                        ON CONFLICT(job_id) DO NOTHING`,
-                    bindings: [
-                        input.historyId,
-                        input.now,
-                        klass,
-                        message,
-                        input.now,
-                        input.operationId,
-                        FEED_REFRESH_JOB_KIND,
-                    ],
-                },
-                dailyRefreshAggregate(input.historyId, false),
-                {
-                    sql: `UPDATE feeds
-                        SET consecutive_failures = consecutive_failures + 1,
-                            last_attempt_at = ?, last_failed_refresh_at = ?,
-                            next_refresh_at = CASE WHEN (
-                                SELECT json_extract(j.payload_json, '$.trigger')
-                                FROM jobs j
-                                WHERE j.operation_id = ? AND j.kind = ?
-                            ) = 'scheduled' THEN MAX(
-                                next_refresh_at + 1,
-                                ? + ${DEFAULT_REFRESH_INTERVAL_MS}
-                            ) ELSE next_refresh_at END,
-                            last_error_class = ?, last_error_message = ?,
-                            updated_at = ?
-                        WHERE id = (
-                            SELECT json_extract(j.payload_json, '$.feedId')
-                            FROM jobs j
-                            WHERE j.operation_id = ? AND j.kind = ?
-                        )`,
-                    bindings: [
-                        input.now,
-                        input.now,
-                        input.operationId,
-                        FEED_REFRESH_JOB_KIND,
-                        input.now,
-                        klass,
-                        message,
-                        input.now,
-                        input.operationId,
-                        FEED_REFRESH_JOB_KIND,
-                    ],
-                },
-                {
-                    sql: `UPDATE jobs
-                        SET state = 'dead_lettered', lease_owner = NULL,
-                            lease_expires_at = NULL, completed_at = ?,
-                            last_error_class = ?, last_error_message = ?,
-                            updated_at = ?
-                        WHERE operation_id = ? AND kind = ?
-                            AND state NOT IN (
-                                'succeeded', 'dead_lettered', 'canceled'
-                            )`,
-                    bindings: [
-                        input.now,
-                        klass,
-                        message,
-                        input.now,
-                        input.operationId,
-                        FEED_REFRESH_JOB_KIND,
-                    ],
-                },
-            ]),
-        );
-        const outboxChanges = changeCount(operation, results[0]);
-        const historyChanges = changeCount(operation, results[1]);
-        const aggregateChanges = changeCount(operation, results[2]);
-        const feedChanges = changeCount(operation, results[3]);
-        const jobChanges = changeCount(operation, results[4]);
-        if (
-            outboxChanges > 1 ||
-            historyChanges > 1 ||
-            aggregateChanges > 1 ||
-            feedChanges > 1 ||
-            jobChanges > 1
-        ) {
-            throw new JobInvariantError(operation, 'updated multiple job rows');
-        }
-        return jobChanges === 1;
     },
 });

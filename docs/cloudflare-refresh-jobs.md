@@ -21,7 +21,7 @@ Cron reconciliation
 
 - Cron runs every five minutes in production and every ten minutes in the test environment.
 - Production reserves at most 10 due feeds per Cron run. The test environment reserves 5.
-- Queue batches contain at most 5 messages. Production consumer concurrency is capped at 3.
+- Every Queue message represents one feed operation, and `max_batch_size=1` guarantees one consumer invocation per feed. Production consumer concurrency is capped at 3; test concurrency is capped at 2.
 - A feed fetch has one 15-second deadline, at most 5 manually validated redirects, and a 5 MiB response limit.
 - A refresh commits at most 400 unique, valid, non-future entries. Larger feeds fail before persistence instead of committing a truncated result; parsing rejects source documents above 1,000 items. Sanitized article HTML is stored only below 1.8 MB.
 - Parser source IDs remain canonical. On the first post-migration refresh, an exact source-less legacy URL identity is promoted in place so entry IDs and interactions remain stable.
@@ -42,11 +42,11 @@ Cron reconciliation
 
 Queue sends and D1 writes do not share a transaction. The dispatcher therefore leaves ambiguous sends leased. Lease expiry can send the same operation again; consumer claims and unique constraints make that safe.
 
-The main Queue and its DLQ can both exhaust delivery retries while D1 is unavailable. In that case Cloudflare can delete the DLQ message before its terminal state is stored. Scheduled reconciliation detects only old, available `queued` or `failed` jobs whose one authoritative outbox row is still `sent`. It reopens that row without changing its payload, so the same operation ID is dispatched again. Duplicate original and redriven deliveries converge through the conditional claim. Succeeded, canceled, and dead-lettered jobs are never reopened.
+The main Queue can exhaust delivery retries while D1 is unavailable. Cloudflare then discards the message, but the authoritative D1 job and outbox row remain unfinished. Scheduled reconciliation detects only old, available `queued` or `failed` jobs whose outbox row is still `sent`. It reopens that row without changing its payload, so the same operation ID is dispatched again. Duplicate original and redriven deliveries converge through the conditional claim. Succeeded, canceled, and dead-lettered jobs are never reopened.
 
 Each reconciliation is age-gated, batch-limited, and charged to the outbox attempt budget. Budget exhaustion dead-letters both the job and outbox. A terminal scheduled job advances the feed generation by at least the normal refresh interval, so it cannot reserve the same operation forever. Manual jobs do not change the scheduled feed time.
 
-Retryable network, timeout, HTTP 408/425/429, and 5xx failures use bounded exponential backoff. Valid `Retry-After` guidance can extend that delay within the persisted six-hour cap. Terminal policy, parse, size, and other 4xx failures end the job. A terminal feed that is not gone is reconsidered no sooner than the normal refresh interval, rather than the short queue-retry delay. HTTP 404 and 410 also mark the feed gone. The DLQ consumer records terminal D1 state before acknowledging.
+Retryable network, timeout, HTTP 408/425/429, and 5xx failures use bounded exponential backoff. Valid `Retry-After` guidance can extend that delay within the persisted six-hour cap. Terminal policy, parse, size, and other 4xx failures end the job. A terminal feed that is not gone is reconsidered no sooner than the normal refresh interval, rather than the short queue-retry delay. HTTP 404 and 410 also mark the feed gone. Processing exhaustion records feed-refresh failure history. Processing, lease, and redrive exhaustion record terminal job/outbox state and a bounded failure class directly in D1.
 
 Feed URLs and every redirect must use standard-port HTTP or HTTPS. Credentials, fragments, local names, private/special IP literals, and obvious binary responses are rejected. Worker fetch cannot DNS-pin arbitrary hostnames, so URL validation is defense in depth alongside the Workers network boundary.
 
@@ -62,10 +62,9 @@ Disabling scheduling stops new scheduled jobs. Reconciliation and bounded retent
 
 ## Provisioning
 
-Wrangler declares these resources but does not create them during a dry run:
+Wrangler declares these resources but does not create them during a dry run. The consumer uses `max_batch_size=1`:
 
 - `larafeed-feed-refresh`
-- `larafeed-feed-refresh-dlq`
-- test equivalents prefixed with `larafeed-test-`
+- test equivalent `larafeed-test-feed-refresh`
 
 The test queues and ten-minute Cron are provisioned and attached to the isolated test Worker. Production queues and Cron remain unprovisioned; create the queues before the first approved production deployment.

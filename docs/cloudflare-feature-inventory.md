@@ -10,7 +10,7 @@ This inventory is the deployment contract. “Implemented” means the Cloudflar
 | Original product interface and reader conveniences | Preserved with the original Larafeed logo, 56px icon navigation, compact feed hierarchy, card-based entry list, article toolbar, shared settings shell, subscriptions table, persistent system/light/dark themes, keyboard-accessible resizable desktop panes, J/K and search shortcuts, Shift+? help, Unicode-aware reading-time estimates, and friendly route/error recovery pages. |
 | Entry list/detail, numbered pagination, read/unread, star/unstar, archive state | Implemented with sparse interactions and ingestion-ID read watermarks. Detail prefetch is side-effect-free. |
 | Mark feed as read | Implemented as an atomic read-through watermark update without user-by-entry writes. |
-| RSS, Atom, RDF, and JSON Feed refresh | Implemented with bounded secure fetch, parsing, sanitization, conditional requests, JSON Feed 1.0/1.1 discovery, Queues, Cron, durable jobs, outbox, retries, and DLQs. |
+| RSS, Atom, RDF, and JSON Feed refresh | Implemented with bounded secure fetch, parsing, sanitization, conditional requests, JSON Feed 1.0/1.1 discovery, Queues, Cron, durable D1 jobs, outbox recovery, retries, and terminal failure history. |
 | Manual refresh | Implemented as an authenticated, CSRF-protected durable command with per-feed active-job deduplication and the legacy five-minute post-success cooldown. |
 | OPML import and progress | Implemented with bounded parsing, verified feed discovery before success, one durable item per feed, partial failure reporting, retries, and progress polling. |
 | OPML export | Implemented as an authenticated download. |
@@ -25,7 +25,7 @@ This inventory is the deployment contract. “Implemented” means the Cloudflar
 | Security notifications and audit | Password-login failure and public-registration Telegram triggers no longer exist. Passkey-era account, credential, access-link, token, and authentication events are stored in D1 and visible in the administrator security ledger; rate-limit and infrastructure alerts remain in Cloudflare observability. |
 | Google Reader and Fever | Implemented with scoped, revocable app tokens, chronological monotonic item IDs, and no upstream favicon URL disclosure. Password authentication is removed. |
 | API token settings | Implemented with one-time plaintext display and revocation. |
-| Favicons and article image privacy | Replaced by ownership-bound opaque routes and fixed Cloudflare Images transforms. Manual and bounded monthly stale refreshes discover ranked HTML icons, probe safe same-origin fallbacks, validate every redirect/MIME/size, and restore bounded 10×10 luminance classification before storing source metadata. The application is not an arbitrary image proxy. |
+| Favicons and article image privacy | Favicons use durable per-feed D1 jobs, one-message Queue invocations, fixed 32×32 Images transforms, content-addressed D1 PNG assets, and immutable same-origin delivery. Independent retries and terminal D1 state prevent one publisher from blocking other feeds. Article images remain ownership-bound on-demand transforms. The application is not an arbitrary image proxy. |
 | Gemini summaries | Replaced by bounded, cached AI Gateway requests with a kill switch and application rate limits. |
 | Initial subscriptions | Start from an empty D1 database, enroll users with passkeys, and import subscription outlines through OPML. Legacy entries, interactions, tokens, and refresh history are not imported. |
 

@@ -18,7 +18,6 @@ const repositoryStub = (overrides: Partial<OpmlRepository>): OpmlRepository =>
         claimJob: vi.fn(),
         completeItem: vi.fn(),
         recordFailure: vi.fn(),
-        recordDeadLetter: vi.fn(),
         recoverStaleJobs: vi.fn(),
         recoverActiveImports: vi.fn(),
         ...overrides,

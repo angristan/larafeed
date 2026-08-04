@@ -307,6 +307,39 @@ describe('feed image service', () => {
         expect(binding.images.input).not.toHaveBeenCalled();
     });
 
+    it('classifies retryable upstream failures without retrying permanent responses', async () => {
+        const binding = makeImages();
+        const input = {
+            sourceUrl: 'https://images.example.test/icon.png',
+            preset: 'small' as const,
+            accept: null,
+        };
+        await expect(
+            makeImageService({
+                images: binding.images,
+                fetch: (async () =>
+                    new Response('unavailable', {
+                        status: 503,
+                    })) as typeof globalThis.fetch,
+            }).transformFeedImage(input),
+        ).rejects.toMatchObject({
+            _tag: 'FeedImageUnavailable',
+            retryable: true,
+        });
+        await expect(
+            makeImageService({
+                images: binding.images,
+                fetch: (async () =>
+                    new Response('missing', {
+                        status: 404,
+                    })) as typeof globalThis.fetch,
+            }).transformFeedImage(input),
+        ).rejects.toMatchObject({
+            _tag: 'FeedImageUnavailable',
+            retryable: false,
+        });
+    });
+
     it('uses one exact five-second timeout across the redirect chain', async () => {
         vi.useFakeTimers();
         const binding = makeImages();

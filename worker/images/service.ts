@@ -63,9 +63,15 @@ export interface TransformArticleImageInput {
 
 export class FeedImageUnavailable extends Error {
     readonly _tag = 'FeedImageUnavailable';
+
+    constructor(readonly retryable = false) {
+        super('Feed image is unavailable');
+        this.name = 'FeedImageUnavailable';
+    }
 }
 
-const unavailable = (): FeedImageUnavailable => new FeedImageUnavailable();
+const unavailable = (retryable = false): FeedImageUnavailable =>
+    new FeedImageUnavailable(retryable);
 
 const autoFormat = (accept: string | null): AutoImageFormat => {
     const normalized = accept?.toLowerCase() ?? '';
@@ -181,8 +187,13 @@ export const fetchImageBytes = async (
             }
 
             if (response.status < 200 || response.status >= 300) {
+                const retryable =
+                    response.status === 408 ||
+                    response.status === 425 ||
+                    response.status === 429 ||
+                    response.status >= 500;
                 await response.body?.cancel();
-                throw unavailable();
+                throw unavailable(retryable);
             }
             if (imageMime(response) === null) {
                 await response.body?.cancel();
@@ -192,7 +203,7 @@ export const fetchImageBytes = async (
         }
     } catch (cause) {
         if (cause instanceof FeedImageUnavailable) throw cause;
-        throw unavailable();
+        throw unavailable(true);
     } finally {
         clearTimeout(timeout);
     }

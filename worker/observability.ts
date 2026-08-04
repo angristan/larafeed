@@ -2,8 +2,8 @@ import { tracing } from 'cloudflare:workers';
 
 export const operationNames = {
     opmlQueue: 'app.opml.queue.consume',
-    opmlDeadLetterQueue: 'app.opml.queue.dead_letter',
     refreshQueue: 'app.refresh.queue.consume',
+    faviconQueue: 'app.favicon.queue.consume',
     refreshCron: 'app.refresh.cron',
     opmlCron: 'app.opml.cron',
     faviconCron: 'app.favicon.cron',
@@ -15,7 +15,6 @@ export type OperationTrigger = 'queue' | 'scheduled';
 
 export interface OperationAttributes {
     readonly batchSize?: number;
-    readonly deadLetter?: boolean;
 }
 
 export const traceOperation = <A>(
@@ -29,10 +28,6 @@ export const traceOperation = <A>(
         if (attributes.batchSize !== undefined) {
             span.setAttribute('app.batch.size', attributes.batchSize);
         }
-        if (attributes.deadLetter !== undefined) {
-            span.setAttribute('app.queue.dead_letter', attributes.deadLetter);
-        }
-
         try {
             return await operation();
         } catch (error) {

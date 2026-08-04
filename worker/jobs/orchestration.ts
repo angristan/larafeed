@@ -34,7 +34,7 @@ export interface JobOrchestratorDependencies {
     readonly repository: JobRepository;
     readonly queue: QueueSender;
     readonly processor: RefreshProcessor;
-    readonly refreshFavicon?: (feedId: number) => Promise<unknown>;
+    readonly scheduleFavicon?: (feedId: number) => Promise<unknown>;
     readonly now?: () => number;
     readonly generateId?: () => Promise<number>;
     readonly generateToken?: () => Promise<string>;
@@ -88,11 +88,6 @@ export interface JobOrchestrator {
     readonly processQueueMessage: (
         body: unknown,
         owner?: string,
-    ) => Promise<QueueDecision>;
-    readonly recordDeadLetter: (
-        body: unknown,
-        errorClass?: string,
-        errorMessage?: string,
     ) => Promise<QueueDecision>;
     readonly runCron: (input?: {
         readonly reserve?: boolean;
@@ -430,12 +425,12 @@ export const makeJobOrchestrator = (
                     : {}),
                 entries,
             });
-            if (dependencies.refreshFavicon !== undefined) {
+            if (dependencies.scheduleFavicon !== undefined) {
                 try {
-                    await dependencies.refreshFavicon(claimed.claim.feedId);
+                    await dependencies.scheduleFavicon(claimed.claim.feedId);
                 } catch {
-                    // Post persistence is authoritative. A stale or unknown
-                    // favicon remains eligible for scheduled recovery.
+                    // Post persistence is authoritative. The favicon job/outbox
+                    // or scheduled stale-feed discovery provides recovery.
                 }
             }
             return {
@@ -462,36 +457,6 @@ export const makeJobOrchestrator = (
                 }
             }
             return retryDecision('orchestration_error', failedAt, retryAt);
-        }
-    };
-
-    const recordDeadLetter = async (
-        body: unknown,
-        klass = 'queue_dead_letter',
-        message = 'Queue delivery attempts exhausted',
-    ): Promise<QueueDecision> => {
-        const queueMessage = decodeRefreshQueueMessage(body);
-        if (queueMessage === null) {
-            return { action: 'dead', reason: 'invalid_message' };
-        }
-        try {
-            const changed = await repository.recordDeadLetter({
-                operationId: queueMessage.operationId,
-                historyId: await generateId(),
-                now: now(),
-                errorClass: klass,
-                errorMessage: message,
-            });
-            return {
-                action: 'dead',
-                reason: changed ? 'dead_lettered' : 'already_terminal',
-            };
-        } catch {
-            return {
-                action: 'retry',
-                reason: 'dead_letter_storage_error',
-                retryDelaySeconds: 30,
-            };
         }
     };
 
@@ -554,7 +519,6 @@ export const makeJobOrchestrator = (
         dispatchOutbox,
         dispatchOperation,
         processQueueMessage,
-        recordDeadLetter,
         runCron,
     };
 };

@@ -374,4 +374,56 @@ describe('favicon service', () => {
         );
         expect(fetchMock).toHaveBeenCalledTimes(4);
     });
+
+    it('retries a transient HTML outage when fallback images are missing', async () => {
+        const accountRepository = repository();
+        const update = vi.spyOn(accountRepository, 'update');
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                new Response('unavailable', {
+                    status: 503,
+                }),
+            )
+            .mockResolvedValue(new Response('missing', { status: 404 }));
+        const service = makeFaviconService({
+            repository: accountRepository,
+            fetch: fetchMock,
+            now: () => 100,
+        });
+
+        await expect(
+            Effect.runPromise(service.refreshStale(1)),
+        ).rejects.toMatchObject({ _tag: 'FaviconDiscoveryError' });
+        expect(update).not.toHaveBeenCalled();
+        expect(fetchMock).toHaveBeenCalledTimes(4);
+    });
+
+    it('retries when every image candidate has a transient failure', async () => {
+        const accountRepository = repository();
+        const update = vi.spyOn(accountRepository, 'update');
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                new Response('<html></html>', {
+                    headers: { 'content-type': 'text/html' },
+                }),
+            )
+            .mockResolvedValue(
+                new Response('unavailable', {
+                    status: 503,
+                }),
+            );
+        const service = makeFaviconService({
+            repository: accountRepository,
+            fetch: fetchMock,
+            now: () => 100,
+        });
+
+        await expect(
+            Effect.runPromise(service.refreshStale(1)),
+        ).rejects.toMatchObject({ _tag: 'FaviconDiscoveryError' });
+        expect(update).not.toHaveBeenCalled();
+        expect(fetchMock).toHaveBeenCalledTimes(4);
+    });
 });

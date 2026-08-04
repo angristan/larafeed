@@ -578,15 +578,6 @@ describe('durable feed refresh jobs', () => {
             }),
         ).rejects.toThrow('outbox lease was lost');
         await expect(
-            repository.recordDeadLetter({
-                operationId: opmlMessage.operationId,
-                historyId: 322_501,
-                now,
-                errorClass: 'queue_dead_letter',
-                errorMessage: 'Refresh DLQ must not terminate OPML work',
-            }),
-        ).resolves.toBe(false);
-        await expect(
             first<{
                 job_state: string;
                 outbox_state: string;
@@ -614,7 +605,7 @@ describe('durable feed refresh jobs', () => {
         );
     });
 
-    it('redrives a lost Queue and DLQ delivery with the stable payload and converges duplicates', async () => {
+    it('redrives a lost Queue delivery with the stable payload and converges duplicates', async () => {
         const now = 2_100_001_250_000;
         const feedId = 323_001;
         const operationId = 'lost-delivery-operation';
@@ -1088,6 +1079,13 @@ describe('durable feed refresh jobs', () => {
             state: 'dead_lettered',
             completed_at: now + 20_002,
         });
+        await expect(
+            first<{ state: string }>(
+                `SELECT state FROM outbox_messages
+                 WHERE job_id = (SELECT id FROM jobs WHERE operation_id = ?)`,
+                ['operation-331001'],
+            ),
+        ).resolves.toEqual({ state: 'dead_lettered' });
     });
 
     it('classifies 304 and makes duplicate queue delivery idempotent', async () => {
@@ -1968,21 +1966,25 @@ describe('durable feed refresh jobs', () => {
         await expect(
             first<{
                 state: string;
+                outbox_state: string;
                 class_length: number;
                 message_length: number;
                 is_gone: number;
                 last_failed_refresh_at: number;
             }>(
-                `SELECT j.state, length(j.last_error_class) AS class_length,
+                `SELECT j.state, o.state AS outbox_state,
+                    length(j.last_error_class) AS class_length,
                     length(j.last_error_message) AS message_length,
                     f.is_gone, f.last_failed_refresh_at
                  FROM jobs j
+                 JOIN outbox_messages o ON o.job_id = j.id
                  JOIN feeds f ON f.id = json_extract(j.payload_json, '$.feedId')
                  WHERE j.operation_id = ?`,
                 ['operation-371001'],
             ),
         ).resolves.toEqual({
             state: 'dead_lettered',
+            outbox_state: 'dead_lettered',
             class_length: 17,
             message_length: 14,
             is_gone: 0,
@@ -2217,33 +2219,8 @@ describe('durable feed refresh jobs', () => {
         ).resolves.toEqual({ job_id: null });
     });
 
-    it('records DLQ state and deletes old history without deleting each feed newest row', async () => {
+    it('deletes old history without deleting each feed newest row', async () => {
         const now = 2_100_007_000_000;
-        const feedId = 380_001;
-        await insertFeed(feedId, now);
-        await createJob(feedId, 381_001, now);
-
-        await expect(
-            repository.recordDeadLetter({
-                operationId: 'operation-381001',
-                historyId: 382_001,
-                now: now + 1,
-                errorClass: 'queue_dead_letter',
-                errorMessage: 'Attempts exhausted',
-            }),
-        ).resolves.toBe(true);
-        await expect(
-            first<{ job_state: string; outbox_state: string }>(
-                `SELECT j.state AS job_state, o.state AS outbox_state
-                 FROM jobs j JOIN outbox_messages o ON o.job_id = j.id
-                 WHERE j.operation_id = ?`,
-                ['operation-381001'],
-            ),
-        ).resolves.toEqual({
-            job_state: 'dead_lettered',
-            outbox_state: 'dead_lettered',
-        });
-
         const historyFeed = 383_001;
         await insertFeed(historyFeed, now);
         await run(

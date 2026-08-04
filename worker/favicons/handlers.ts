@@ -1,5 +1,5 @@
 import { singleQueueMessage } from '../queue';
-import { makeRefreshRuntime } from './runtime';
+import { makeFaviconRuntime } from './runtime';
 
 const MAX_QUEUE_DELAY_SECONDS = 12 * 60 * 60;
 
@@ -25,38 +25,20 @@ const applyDecision = (
         });
         return;
     }
-
     message.ack();
 };
 
-export const handleRefreshQueue = async (
+export const handleFaviconQueue = async (
     batch: MessageBatch<unknown>,
     env: Env,
 ): Promise<void> => {
     const message = singleQueueMessage(batch);
     if (message === null) return;
 
-    const { orchestrator } = makeRefreshRuntime(env);
+    const orchestrator = makeFaviconRuntime(env).orchestrator;
     const decision = await orchestrator.processQueueMessage(
         message.body,
-        `queue:${message.id}`,
+        `favicon-queue:${message.id}`,
     );
     applyDecision(message, decision);
-};
-
-export const handleRefreshCron = async (
-    _controller: ScheduledController,
-    env: Env,
-): Promise<void> => {
-    const runtime = makeRefreshRuntime(env);
-    await runtime.orchestrator.runCron({
-        reserve: runtime.config.schedulerEnabled,
-        dispatch: runtime.config.dispatchEnabled,
-        dueLimit: runtime.config.dueLimit,
-        dispatchLimit: Math.min(100, runtime.config.dueLimit * 2),
-        staleLeaseLimit: runtime.config.dueLimit,
-        redriveLimit: runtime.config.dueLimit,
-        cleanupLimit: 100,
-        jobCleanupLimit: 100,
-    });
 };

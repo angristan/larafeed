@@ -138,8 +138,8 @@ describe('job orchestration', () => {
     it('leaves entry ID allocation to the repository', async () => {
         let generatedIds = 0;
         let committedEntries: readonly unknown[] = [];
-        const refreshFavicon = vi.fn(() =>
-            Promise.reject(new Error('favicon provider unavailable')),
+        const scheduleFavicon = vi.fn(() =>
+            Promise.reject(new Error('favicon Queue unavailable')),
         );
         const service = makeJobOrchestrator({
             repository: repository({
@@ -169,7 +169,7 @@ describe('job orchestration', () => {
                 },
             }),
             queue: { send: async () => undefined },
-            refreshFavicon,
+            scheduleFavicon,
             processor: async () => ({
                 type: 'success',
                 etag: null,
@@ -211,7 +211,7 @@ describe('job orchestration', () => {
         expect(generatedIds).toBe(1);
         expect(committedEntries).toHaveLength(1);
         expect(committedEntries[0]).not.toHaveProperty('id');
-        expect(refreshFavicon).toHaveBeenCalledWith(20);
+        expect(scheduleFavicon).toHaveBeenCalledWith(20);
     });
 
     it('releases a claimed job when refresh commit orchestration fails', async () => {
