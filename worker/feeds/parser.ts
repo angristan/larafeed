@@ -800,7 +800,11 @@ export const parseFeedDocument = async (
             options.fetchedAt,
         ));
     } else {
-        if (/<!\s*(?:doctype|entity)\b/iu.test(source)) {
+        const declarationScan = source.replace(
+            /<!\[CDATA\[[\s\S]*?\]\]>/gu,
+            '',
+        );
+        if (/<!\s*(?:doctype|entity)\b/iu.test(declarationScan)) {
             throw new FeedParseError({ reason: 'forbidden_declaration' });
         }
 

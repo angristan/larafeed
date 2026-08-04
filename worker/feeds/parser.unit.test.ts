@@ -383,6 +383,15 @@ describe('feed parser', () => {
         expect(feed.entries).toHaveLength(1);
     });
 
+    it('allows inert HTML declarations inside CDATA content', async () => {
+        const feed = await parse(`<rss><channel><title>HTML source</title><item>
+            <guid>one</guid><title>One</title>
+            <description><![CDATA[<!DOCTYPE html><html><body><p>Safe</p></body></html>]]></description>
+        </item></channel></rss>`);
+
+        expect(feed.entries[0]?.contentHtml).toBe('<p>Safe</p>');
+    });
+
     it('rejects DTD and external entity declarations before parsing', async () => {
         await expect(
             parse(
