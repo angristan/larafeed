@@ -351,7 +351,7 @@ describe('feed refresh service', () => {
     });
 
     it('discovers and validates a JSON Feed alternate from an HTML page', async () => {
-        const html = `<html><head>
+        const html = `<!doctype html><html><head>
             <link rel="alternate" type="application/feed+json" href="/feed.json">
             <link rel="alternate" type="application/feed+json" href="http://127.0.0.1/private">
         </head></html>`;

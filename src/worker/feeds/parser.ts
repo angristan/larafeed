@@ -798,7 +798,12 @@ export const parseFeedDocument = async (
             '',
         );
         if (/<!\s*(?:doctype|entity)\b/iu.test(declarationScan)) {
-            throw new FeedParseError({ reason: 'forbidden_declaration' });
+            const reason =
+                contentType === 'text/html' ||
+                contentType === 'application/xhtml+xml'
+                    ? 'unsupported_feed'
+                    : 'forbidden_declaration';
+            throw new FeedParseError({ reason });
         }
 
         let document: unknown;
