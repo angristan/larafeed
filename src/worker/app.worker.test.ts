@@ -1,4 +1,4 @@
-import { SELF } from 'cloudflare:test';
+import { env, SELF } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 
 describe('Worker integration', () => {
@@ -34,11 +34,11 @@ describe('Worker integration', () => {
 
     it('issues a rate-limited passkey challenge without Turnstile', async () => {
         const response = await SELF.fetch(
-            'http://localhost:5173/api/auth/authentication/options',
+            `${env.AUTH_ORIGIN}/api/auth/authentication/options`,
             {
                 method: 'POST',
                 headers: {
-                    Origin: 'http://localhost:5173',
+                    Origin: env.AUTH_ORIGIN,
                     'Content-Type': 'application/json',
                 },
                 body: '{}',

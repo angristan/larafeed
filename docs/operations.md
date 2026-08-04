@@ -13,6 +13,8 @@ npm run deploy            # migrate and deploy the portable environment
 
 Named maintainer environments use the matching `:production` or `:test` scripts. Build immediately before a config-less Wrangler command because the Vite build selects the flattened deployment configuration.
 
+Cloudflare Workers Builds watches `main` and deploys production automatically. It runs linting, type checks, unit and Workerd tests, the production build, production D1 migrations, and then Wrangler deployment. Use `npm run deploy:production` for an approved manual deployment.
+
 D1 migrations are forward-only. Apply a corrective migration instead of editing an applied migration.
 
 ## Health checks
