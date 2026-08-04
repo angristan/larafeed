@@ -4,7 +4,7 @@ Larafeed runs as one Cloudflare Worker with Static Assets, D1, three Queues, Cro
 
 ## Deploy button
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/angristan/larafeed/tree/cloudflare)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/angristan/larafeed)
 
 During setup:
 

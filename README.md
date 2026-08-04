@@ -80,7 +80,7 @@ flowchart LR
 
 ## Deploy to Cloudflare
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/angristan/larafeed/tree/cloudflare)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/angristan/larafeed)
 
 The installer provisions the Worker, D1 database, and Queues, then applies all D1 migrations. It asks for the public HTTPS origin and a private operator secret used to create the first administrator enrollment link.
 
