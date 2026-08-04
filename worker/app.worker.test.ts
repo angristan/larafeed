@@ -28,7 +28,27 @@ describe('Worker integration', () => {
         expect(response.status).toBe(200);
         expect(response.headers.get('cache-control')).toBe('no-store');
         await expect(response.json()).resolves.toEqual({
-            turnstileSiteKey: '1x00000000000000000000AA',
+            turnstileSiteKey: null,
+        });
+    });
+
+    it('issues a rate-limited passkey challenge without Turnstile', async () => {
+        const response = await SELF.fetch(
+            'http://localhost:5173/api/auth/authentication/options',
+            {
+                method: 'POST',
+                headers: {
+                    Origin: 'http://localhost:5173',
+                    'Content-Type': 'application/json',
+                },
+                body: '{}',
+            },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toMatchObject({
+            challengeId: expect.any(Number),
+            options: { challenge: expect.any(String) },
         });
     });
 

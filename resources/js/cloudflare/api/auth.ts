@@ -203,13 +203,16 @@ export const listPasskeys = Effect.fn('AuthClient.listPasskeys')(() =>
 
 export const getPasskeyRegistrationOptions = Effect.fn(
     'AuthClient.getPasskeyRegistrationOptions',
-)((input: { readonly turnstileToken: string; readonly csrfToken: string }) =>
+)((input: { readonly turnstileToken?: string; readonly csrfToken: string }) =>
     requestJson(
         '/api/auth/passkeys/registration/options',
         RegistrationOptionsResponse,
         {
             method: 'POST',
-            body: { turnstileToken: input.turnstileToken },
+            body:
+                input.turnstileToken === undefined
+                    ? {}
+                    : { turnstileToken: input.turnstileToken },
             headers: { 'X-CSRF-Token': input.csrfToken },
         },
     ),
@@ -228,7 +231,9 @@ export const verifyPasskeyRegistration = Effect.fn(
             body: {
                 challengeId: input.challengeId,
                 name: input.name,
-                turnstileToken: input.turnstileToken,
+                ...(input.turnstileToken === undefined
+                    ? {}
+                    : { turnstileToken: input.turnstileToken }),
                 response: input.response,
             },
             headers: { 'X-CSRF-Token': input.csrfToken },

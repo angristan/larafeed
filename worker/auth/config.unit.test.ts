@@ -18,6 +18,7 @@ const productionBindings = (
     AUTH_RP_NAME: 'Larafeed',
     AUTH_CHALLENGE_TTL_SECONDS: '300',
     AUTH_SESSION_TTL_SECONDS: '2592000',
+    TURNSTILE_ENABLED: 'true',
     TURNSTILE_SITE_KEY: 'site-key',
     TURNSTILE_SECRET_KEY: 'secret-key',
     ...overrides,
@@ -55,6 +56,41 @@ describe('authentication configuration', () => {
                 sameSite: 'Lax',
                 path: '/',
             },
+        });
+    });
+
+    it('disables Turnstile by default without requiring keys', async () => {
+        const {
+            TURNSTILE_ENABLED: _enabled,
+            TURNSTILE_SITE_KEY: _siteKey,
+            TURNSTILE_SECRET_KEY: _secretKey,
+            ...bindings
+        } = productionBindings();
+        const config = await Effect.runPromise(parseAuthConfig(bindings));
+
+        expect(config.turnstileSiteKey).toBeNull();
+        expect(config.turnstileSecretKey).toBeNull();
+    });
+
+    it('fails closed when enabled without a site key', async () => {
+        const { TURNSTILE_SITE_KEY: _siteKey, ...bindings } =
+            productionBindings();
+        const error = await parseFailure(bindings);
+
+        expect(error).toMatchObject({
+            field: 'TURNSTILE_SITE_KEY',
+            reason: 'invalid',
+        });
+    });
+
+    it('fails closed when enabled without a secret key', async () => {
+        const { TURNSTILE_SECRET_KEY: _secretKey, ...bindings } =
+            productionBindings();
+        const error = await parseFailure(bindings);
+
+        expect(error).toMatchObject({
+            field: 'TURNSTILE_SECRET_KEY',
+            reason: 'invalid',
         });
     });
 

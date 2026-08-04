@@ -34,6 +34,19 @@ describe('AuthClient', () => {
         );
     });
 
+    it('decodes disabled human verification configuration', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(() =>
+                Promise.resolve(Response.json({ turnstileSiteKey: null })),
+            ),
+        );
+
+        await expect(Effect.runPromise(getAuthConfig())).resolves.toEqual({
+            turnstileSiteKey: null,
+        });
+    });
+
     it('rejects a successful response with an invalid schema', async () => {
         vi.stubGlobal(
             'fetch',

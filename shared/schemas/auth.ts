@@ -27,7 +27,7 @@ export class AuthUser extends Schema.Class<AuthUser>('AuthUser')({
 export class AuthConfigResponse extends Schema.Class<AuthConfigResponse>(
     'AuthConfigResponse',
 )({
-    turnstileSiteKey: NonEmptyString,
+    turnstileSiteKey: Schema.NullOr(NonEmptyString),
 }) {}
 
 export class UnauthenticatedSessionResponse extends Schema.Class<UnauthenticatedSessionResponse>(
@@ -53,7 +53,7 @@ export type AuthSessionResponse = typeof AuthSessionResponse.Type;
 export class AuthenticationOptionsRequest extends Schema.Class<AuthenticationOptionsRequest>(
     'AuthenticationOptionsRequest',
 )({
-    turnstileToken: Token,
+    turnstileToken: Schema.optionalKey(Token),
 }) {}
 
 export class AuthenticationOptionsResponse extends Schema.Class<AuthenticationOptionsResponse>(
@@ -67,7 +67,7 @@ export class AuthenticationVerifyRequest extends Schema.Class<AuthenticationVeri
     'AuthenticationVerifyRequest',
 )({
     challengeId: SafeId,
-    turnstileToken: Token,
+    turnstileToken: Schema.optionalKey(Token),
     response: WebAuthnJson,
 }) {}
 
@@ -75,7 +75,7 @@ export class AccessRegistrationOptionsRequest extends Schema.Class<AccessRegistr
     'AccessRegistrationOptionsRequest',
 )({
     accessToken: Token,
-    turnstileToken: Token,
+    turnstileToken: Schema.optionalKey(Token),
 }) {}
 
 export class RegistrationOptionsResponse extends Schema.Class<RegistrationOptionsResponse>(
@@ -92,14 +92,14 @@ export class AccessRegistrationVerifyRequest extends Schema.Class<AccessRegistra
     accessToken: Token,
     challengeId: SafeId,
     name: NonEmptyString.check(Schema.isMaxLength(100)),
-    turnstileToken: Token,
+    turnstileToken: Schema.optionalKey(Token),
     response: WebAuthnJson,
 }) {}
 
 export class PasskeyRegistrationOptionsRequest extends Schema.Class<PasskeyRegistrationOptionsRequest>(
     'PasskeyRegistrationOptionsRequest',
 )({
-    turnstileToken: Token,
+    turnstileToken: Schema.optionalKey(Token),
 }) {}
 
 export class PasskeyRegistrationVerifyRequest extends Schema.Class<PasskeyRegistrationVerifyRequest>(
@@ -107,7 +107,7 @@ export class PasskeyRegistrationVerifyRequest extends Schema.Class<PasskeyRegist
 )({
     challengeId: SafeId,
     name: NonEmptyString.check(Schema.isMaxLength(100)),
-    turnstileToken: Token,
+    turnstileToken: Schema.optionalKey(Token),
     response: WebAuthnJson,
 }) {}
 

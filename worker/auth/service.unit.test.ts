@@ -16,7 +16,7 @@ import {
     SESSION_LAST_SEEN_THROTTLE_MS,
     WEBAUTHN_CHALLENGE_RETENTION_MS,
 } from './service';
-import type { TurnstileValidator } from './turnstile';
+import { TurnstileInputError, type TurnstileValidator } from './turnstile';
 import type { WebAuthn } from './webauthn';
 
 const config: AuthConfig = {
@@ -206,6 +206,43 @@ describe('authentication service request guards', () => {
             idleCutoff: now - SESSION_IDLE_TIMEOUT_MS,
             lastSeenThrottleCutoff: now - SESSION_LAST_SEEN_THROTTLE_MS,
         });
+    });
+
+    it('fails closed when enabled without a token or verifier', async () => {
+        const service = makeAuthService({
+            repository: {} as AuthRepository,
+            webAuthn: {} as WebAuthn,
+            config,
+        });
+
+        await expect(
+            Effect.runPromise(service.authenticationOptions({})),
+        ).rejects.toBeInstanceOf(TurnstileInputError);
+    });
+
+    it('issues passkey challenges without a Turnstile dependency when disabled', async () => {
+        const issueAuthenticationChallenge = vi.fn(() => Effect.void);
+        const service = makeAuthService({
+            repository: {
+                cleanupRetainedRecords: () => Effect.void,
+                issueAuthenticationChallenge,
+            } as unknown as AuthRepository,
+            webAuthn: {
+                authenticationOptions: () =>
+                    Effect.succeed({ challenge: 'challenge' }),
+            } as unknown as WebAuthn,
+            config: {
+                ...config,
+                turnstileSiteKey: null,
+                turnstileSecretKey: null,
+            },
+            now: () => 2_000_000_000_000,
+        });
+
+        await expect(
+            Effect.runPromise(service.authenticationOptions({})),
+        ).resolves.toMatchObject({ options: { challenge: 'challenge' } });
+        expect(issueAuthenticationChallenge).toHaveBeenCalledOnce();
     });
 
     it('runs fixed-size retained-record cleanup at the login boundary', async () => {

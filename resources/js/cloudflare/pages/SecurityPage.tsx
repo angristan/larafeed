@@ -35,7 +35,11 @@ import {
     supportsPasskeys,
 } from '../auth/ceremony';
 import { ApplicationPage } from '../components/ApplicationPage';
-import { Turnstile, type TurnstileHandle } from '../components/Turnstile';
+import {
+    executeTurnstile,
+    Turnstile,
+    type TurnstileHandle,
+} from '../components/Turnstile';
 import {
     accountKeys,
     accountQueryOptions,
@@ -341,11 +345,14 @@ function PasskeysSection() {
         retry: false,
         mutationFn: async (passkeyName: string) => {
             const csrfToken = requireAccountCsrf();
-            const optionsToken = await turnstile.current?.execute(
+            const siteKey = config.data?.turnstileSiteKey;
+            if (siteKey === undefined)
+                throw new Error('Authentication configuration is unavailable.');
+            const optionsToken = await executeTurnstile(
+                turnstile.current,
+                siteKey,
                 AUTH_TURNSTILE_ACTIONS.registrationOptions,
             );
-            if (optionsToken === undefined)
-                throw new Error('Human verification is unavailable.');
             const options = await Effect.runPromise(
                 getPasskeyRegistrationOptions({
                     turnstileToken: optionsToken,
@@ -353,11 +360,11 @@ function PasskeysSection() {
                 }),
             );
             const response = await requestRegistration(options.options);
-            const verifyToken = await turnstile.current?.execute(
+            const verifyToken = await executeTurnstile(
+                turnstile.current,
+                siteKey,
                 AUTH_TURNSTILE_ACTIONS.registrationVerify,
             );
-            if (verifyToken === undefined)
-                throw new Error('Human verification is unavailable.');
             return Effect.runPromise(
                 verifyPasskeyRegistration({
                     challengeId: options.challengeId,
@@ -405,12 +412,13 @@ function PasskeysSection() {
                     </Stack>
                 </Alert>
             )}
-            {config.data !== undefined && (
-                <Turnstile
-                    ref={turnstile}
-                    siteKey={config.data.turnstileSiteKey}
-                />
-            )}
+            {config.data?.turnstileSiteKey !== null &&
+                config.data?.turnstileSiteKey !== undefined && (
+                    <Turnstile
+                        ref={turnstile}
+                        siteKey={config.data.turnstileSiteKey}
+                    />
+                )}
             <form onSubmit={submit}>
                 <Group align="flex-end" wrap="wrap">
                     <TextInput
@@ -479,20 +487,23 @@ function DangerSection({
     const config = useQuery(authConfigQueryOptions);
     const turnstile = useRef<TurnstileHandle>(null);
     const freshAuthentication = async () => {
-        const optionsToken = await turnstile.current?.execute(
+        const siteKey = config.data?.turnstileSiteKey;
+        if (siteKey === undefined)
+            throw new Error('Authentication configuration is unavailable.');
+        const optionsToken = await executeTurnstile(
+            turnstile.current,
+            siteKey,
             AUTH_TURNSTILE_ACTIONS.authenticationOptions,
         );
-        if (optionsToken === undefined)
-            throw new Error('Human verification is unavailable.');
         const options = await Effect.runPromise(
             getAuthenticationOptions({ turnstileToken: optionsToken }),
         );
         const response = await requestAuthentication(options.options);
-        const verifyToken = await turnstile.current?.execute(
+        const verifyToken = await executeTurnstile(
+            turnstile.current,
+            siteKey,
             AUTH_TURNSTILE_ACTIONS.authenticationVerify,
         );
-        if (verifyToken === undefined)
-            throw new Error('Human verification is unavailable.');
         const authenticated = await Effect.runPromise(
             verifyAuthentication({
                 challengeId: options.challengeId,
@@ -576,12 +587,13 @@ function DangerSection({
                     </Stack>
                 </Alert>
             )}
-            {config.data !== undefined && (
-                <Turnstile
-                    ref={turnstile}
-                    siteKey={config.data.turnstileSiteKey}
-                />
-            )}
+            {config.data?.turnstileSiteKey !== null &&
+                config.data?.turnstileSiteKey !== undefined && (
+                    <Turnstile
+                        ref={turnstile}
+                        siteKey={config.data.turnstileSiteKey}
+                    />
+                )}
             <Modal
                 centered
                 closeOnClickOutside={!pending}

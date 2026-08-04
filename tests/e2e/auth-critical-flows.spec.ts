@@ -161,6 +161,100 @@ test('completes Turnstile and WebAuthn login before returning to the requested p
     expect(ceremony.challengeScriptRequests).toBe(0);
 });
 
+test('completes passkey login without Turnstile when disabled', async ({
+    page,
+}) => {
+    const ceremony: CeremonyBrowserState = {
+        events: [],
+        challengeScriptRequests: 0,
+    };
+    const requests: RecordedRequest[] = [];
+    await installCeremonyBrowserShim(page, ceremony);
+    await page.route('**/api/**', async (route) => {
+        const request = route.request();
+        const { pathname } = new URL(request.url());
+
+        if (pathname === '/api/auth/session') {
+            await route.fulfill(json({ authenticated: false }));
+            return;
+        }
+        if (pathname === '/api/auth/config') {
+            await route.fulfill(json({ turnstileSiteKey: null }));
+            return;
+        }
+        if (pathname === '/api/auth/authentication/options') {
+            ceremony.events.push('api:authentication-options');
+            requests.push({
+                path: pathname,
+                method: request.method(),
+                body: request.postDataJSON(),
+                csrf: await request.headerValue('x-csrf-token'),
+            });
+            await route.fulfill(
+                json({ challengeId: 102, options: authenticationOptions }),
+            );
+            return;
+        }
+        if (pathname === '/api/auth/authentication/verify') {
+            ceremony.events.push('api:authentication-verify');
+            requests.push({
+                path: pathname,
+                method: request.method(),
+                body: request.postDataJSON(),
+                csrf: await request.headerValue('x-csrf-token'),
+            });
+            await route.fulfill(
+                json({
+                    authenticated: true,
+                    user,
+                    expiresAt: now + 86_400_000,
+                }),
+            );
+            return;
+        }
+        if (pathname === '/api/opml/imports') {
+            await route.fulfill(json({ imports: [] }));
+            return;
+        }
+
+        await route.fulfill({
+            status: 404,
+            contentType: 'application/json; charset=UTF-8',
+            body: JSON.stringify({
+                error: { code: 'not_found', message: `Unmocked ${pathname}` },
+            }),
+        });
+    });
+
+    await page.goto('/login?returnTo=%2Fsettings%2Fopml');
+    await page.getByRole('button', { name: 'Continue with a passkey' }).click();
+
+    await expect(page).toHaveURL(/\/settings\/opml$/u);
+    expect(ceremony.events).toEqual([
+        'api:authentication-options',
+        'webauthn:get',
+        'api:authentication-verify',
+    ]);
+    expect(requests).toEqual([
+        {
+            path: '/api/auth/authentication/options',
+            method: 'POST',
+            body: {},
+            csrf: null,
+        },
+        {
+            path: '/api/auth/authentication/verify',
+            method: 'POST',
+            body: {
+                challengeId: 102,
+                response: assertionResponse,
+            },
+            csrf: null,
+        },
+    ]);
+    expect(ceremony.challengeScriptRequests).toBe(0);
+});
+
 const destructiveActions = [
     {
         name: 'clear reader data',

@@ -116,17 +116,20 @@ export const defaultAuthRuntimeFactory: AuthRuntimeFactory = (env) =>
             const d1 = makeD1(env.DB);
             const repository = makeAuthRepository(d1);
             const webAuthn = makeWebAuthn();
-            const turnstile = makeTurnstileValidator({
-                secretKey: config.turnstileSecretKey,
-                expectedHostname: config.rpId,
-            });
+            const turnstile =
+                config.turnstileSecretKey === null
+                    ? undefined
+                    : makeTurnstileValidator({
+                          secretKey: config.turnstileSecretKey,
+                          expectedHostname: config.rpId,
+                      });
 
             return {
                 config,
                 service: makeAuthService({
                     repository,
                     webAuthn,
-                    turnstile,
+                    ...(turnstile === undefined ? {} : { turnstile }),
                     config,
                 }),
                 operator: makeAuthOperator({

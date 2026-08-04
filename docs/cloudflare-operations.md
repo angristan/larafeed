@@ -19,11 +19,11 @@ Worker + Static Assets
   +---- AI Gateway ---- Gemini
 ```
 
-D1 is authoritative for users, sessions, reader data, normalized favicon assets, durable jobs, outbox commands, imports, and summaries. Queue messages contain operation identifiers only. Production and test use separate D1 databases, queues, rate-limit namespaces, origins, RP IDs, Turnstile keys, and passkeys.
+D1 is authoritative for users, sessions, reader data, normalized favicon assets, durable jobs, outbox commands, imports, and summaries. Queue messages contain operation identifiers only. Production and test use separate D1 databases, queues, rate-limit namespaces, origins, RP IDs, and passkeys. Optional Turnstile keys are environment-specific when enabled.
 
 ### Perimeter decision
 
-Cloudflare Access is not placed in front of the whole hostname. Whole-host Access would break Google Reader/Fever clients and public liveness checks, while the application already enforces passkeys, Turnstile, scoped app tokens, CSRF, and ownership at its boundaries. A future path-scoped Access policy may add defense in depth for `/admin/*`, but it must preserve `/up`, authentication ceremonies, and machine APIs. Any such durable account/zone policy belongs in `cloudflare-tf` and requires a separate reviewed rollout.
+Cloudflare Access is not placed in front of the whole hostname. Whole-host Access would break Google Reader/Fever clients and public liveness checks, while the application already enforces passkeys, mandatory rate limits, scoped app tokens, CSRF, and ownership at its boundaries. Optional Turnstile can add defense in depth to passkey ceremonies. A future path-scoped Access policy may protect `/admin/*`, but it must preserve `/up`, authentication ceremonies, and machine APIs. Any such durable account/zone policy belongs in `cloudflare-tf` and requires a separate reviewed rollout.
 
 ## Declared resources
 
@@ -48,11 +48,12 @@ The test environment uses the checked-in D1 ID and rate-limit namespace. Product
 Set these separately for production and test with Wrangler or the Cloudflare dashboard:
 
 - `AUTH_OPERATOR_SECRET` — strong random operator credential.
-- `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` — keys for the environment hostname.
+- Optional `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` — required only
+  when `TURNSTILE_ENABLED=true`; both keys must match the environment hostname.
 - `AI_GATEWAY_ACCOUNT_ID` — Cloudflare account identifier used in the exact Gateway URL.
 - `GEMINI_API_KEY` — provider credential.
 
-Do not put production secrets in `wrangler.jsonc`, `.dev.vars`, shell history, or build output. `AI_SUMMARY_ENABLED=false` keeps provider calls disabled even when credentials exist.
+Do not put production secrets in `wrangler.jsonc`, `.dev.vars`, shell history, or build output. `TURNSTILE_ENABLED=false` keeps passkey ceremonies independent of Turnstile while mandatory Worker rate limits, origin checks, and single-use challenges remain active. `AI_SUMMARY_ENABLED=false` keeps provider calls disabled even when credentials exist.
 
 ## Pre-deployment validation
 
@@ -77,7 +78,7 @@ The isolated test environment is provisioned:
 - Worker and custom domain: `larafeed-test` at `larafeedcf.stanislas.cloud`.
 - D1: `larafeed-test` in Western Europe.
 - Dedicated feed refresh and OPML import Queues. The favicon Queue is declared but must be provisioned before deploying this revision.
-- A hostname-bound managed Turnstile widget and separate Worker secrets.
+- Turnstile is disabled by default; previously configured widget keys are not used while `TURNSTILE_ENABLED=false`.
 - Refresh scheduling, Queue dispatch, OPML imports, favicon refresh, and Images are enabled for the current isolated test rollout. AI summaries remain disabled until dedicated test Gateway credentials and provider cost controls are configured.
 
 Wrangler owns the Worker custom domain and its DNS record. Deploy the test environment only after explicit approval:
@@ -100,13 +101,13 @@ Do not run these actions until the operator approves production writes.
 3. Create the production feed refresh, OPML import, and favicon refresh Queues.
 4. Replace the production placeholder rate-limit namespace ID.
 5. Declare the exact production Worker custom domain in Wrangler.
-6. Configure the production Turnstile widget.
-7. Configure the AI Gateway and provider budget/rate limits.
-8. Set production Worker secrets.
-9. Apply production D1 migrations.
-10. Deploy and complete smoke tests before traffic cutover.
+6. Configure the AI Gateway and provider budget/rate limits.
+7. Set production Worker secrets.
+8. Apply production D1 migrations.
+9. Deploy and complete smoke tests before traffic cutover.
+10. Optionally configure hostname-bound Turnstile keys and enable the feature in a later reviewed deployment.
 
-After steps 1–8 are reviewed and complete, use the pinned project tools from a clean signed revision:
+After steps 1–7 are reviewed and complete, use the pinned project tools from a clean signed revision:
 
 ```bash
 CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false \
@@ -190,7 +191,7 @@ Create production and test views separately. Do not include article text, tokens
 Monitor:
 
 - Worker request rate, status classes, exceptions, CPU time, and tail latency.
-- Authentication failures, Turnstile failures, access-link use, disabled users, and session errors.
+- Authentication failures, access-link use, disabled users, session errors, and Turnstile failures when the optional feature is enabled.
 - D1 database size, query latency, rows read/written, errors, and overloads.
 - Queue backlog, oldest message age, retries, and consumer errors for feed refresh, OPML, and favicon work.
 - D1 outbox pending age, leased rows past expiry, dead-lettered jobs, oldest due feed, and refresh failure classes.
@@ -205,7 +206,7 @@ Initial alert policy:
 - Page on sustained Worker 5xx/errors, D1 overload, authentication outage, or a growing Queue backlog with no successful consumers.
 - Urgent notification on any new D1 `dead_lettered` job, outbox age above 15 minutes, oldest due feed above 60 minutes, or stalled OPML import above 30 minutes.
 - Budget alert at 50%, 80%, and 100% for AI Gateway and Images usage; alert on unexpected D1 growth.
-- Review security-event spikes and repeated Turnstile failures without logging submitted credentials.
+- Review security-event spikes and, when enabled, repeated Turnstile failures without logging submitted credentials.
 
 Tune thresholds with real private-deployment traffic. Do not use local Workerd elapsed times as production SLO evidence.
 
@@ -271,7 +272,7 @@ Pause the OPML consumer. Keep import and item rows. Inspect bounded item errors 
 
 ### Authentication incident
 
-Confirm exact hostname, RP ID, origin, Turnstile hostname/action, and environment-specific keys. Revoke affected sessions or app tokens. Use operator recovery only when no enabled administrator can act.
+Confirm the exact hostname, RP ID, and origin. If Turnstile is enabled, also confirm its hostname, action, and environment-specific keys. Revoke affected sessions or app tokens. Use operator recovery only when no enabled administrator can act.
 
 ### AI or Images cost incident
 

@@ -27,7 +27,7 @@ import type {
     NewSession,
     PasskeyRecord,
 } from './repository';
-import type { TurnstileValidator } from './turnstile';
+import { TurnstileInputError, type TurnstileValidator } from './turnstile';
 import type { VerifiedRegistration, WebAuthn } from './webauthn';
 
 export const SESSION_IDLE_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1_000;
@@ -98,7 +98,7 @@ export interface MutationRequestMetadata {
 export interface AuthServiceDependencies {
     readonly repository: AuthRepository;
     readonly webAuthn: WebAuthn;
-    readonly turnstile: TurnstileValidator;
+    readonly turnstile?: TurnstileValidator;
     readonly config: AuthConfig;
     readonly now?: () => number;
     readonly webCrypto?: Crypto;
@@ -252,15 +252,28 @@ export const makeAuthService = (dependencies: AuthServiceDependencies) => {
     });
 
     const verifyTurnstile = (
-        turnstileToken: string,
+        turnstileToken: string | undefined,
         expectedAction: string,
         remoteIp?: string,
-    ) =>
-        turnstile.verify({
+    ) => {
+        if (config.turnstileSecretKey === null) {
+            return Effect.void;
+        }
+        if (turnstile === undefined || turnstileToken === undefined) {
+            return Effect.fail(
+                new TurnstileInputError({
+                    field: 'token',
+                    reason: 'invalid',
+                }),
+            );
+        }
+
+        return turnstile.verify({
             token: turnstileToken,
             expectedAction,
             ...(remoteIp === undefined ? {} : { remoteIp }),
         });
+    };
 
     const cleanupRetainedRecords = (now: number) =>
         repository.cleanupRetainedRecords({
@@ -274,7 +287,7 @@ export const makeAuthService = (dependencies: AuthServiceDependencies) => {
 
     const authenticationOptions = Effect.fn('auth.authentication.options')(
         function* (input: {
-            readonly turnstileToken: string;
+            readonly turnstileToken?: string;
             readonly remoteIp?: string;
         }) {
             yield* verifyTurnstile(
@@ -304,7 +317,7 @@ export const makeAuthService = (dependencies: AuthServiceDependencies) => {
     const verifyAuthentication = Effect.fn('auth.authentication.verify')(
         function* (input: {
             readonly challengeId: number;
-            readonly turnstileToken: string;
+            readonly turnstileToken?: string;
             readonly response: Record<string, unknown>;
             readonly remoteIp?: string;
         }) {
@@ -355,7 +368,7 @@ export const makeAuthService = (dependencies: AuthServiceDependencies) => {
         'auth.accessRegistration.options',
     )(function* (input: {
         readonly accessToken: string;
-        readonly turnstileToken: string;
+        readonly turnstileToken?: string;
         readonly remoteIp?: string;
     }) {
         yield* verifyTurnstile(
@@ -390,7 +403,7 @@ export const makeAuthService = (dependencies: AuthServiceDependencies) => {
         readonly accessToken: string;
         readonly challengeId: number;
         readonly name: string;
-        readonly turnstileToken: string;
+        readonly turnstileToken?: string;
         readonly response: Record<string, unknown>;
         readonly remoteIp?: string;
     }) {
@@ -440,7 +453,7 @@ export const makeAuthService = (dependencies: AuthServiceDependencies) => {
     )(function* (
         session: AuthenticatedSession,
         input: {
-            readonly turnstileToken: string;
+            readonly turnstileToken?: string;
             readonly remoteIp?: string;
         },
     ) {
@@ -478,7 +491,7 @@ export const makeAuthService = (dependencies: AuthServiceDependencies) => {
         input: {
             readonly challengeId: number;
             readonly name: string;
-            readonly turnstileToken: string;
+            readonly turnstileToken?: string;
             readonly response: Record<string, unknown>;
             readonly remoteIp?: string;
         },

@@ -18,6 +18,7 @@ import {
 } from '../auth/ceremony';
 import { AuthCard } from '../components/AuthCard';
 import {
+    executeTurnstile,
     Turnstile,
     TurnstileError,
     type TurnstileHandle,
@@ -75,22 +76,26 @@ export function LoginPage(): ReactElement {
         mutationKey: [...authKeys.all, 'login'],
         retry: false,
         mutationFn: async () => {
-            const turnstile = turnstileRef.current;
-            if (turnstile === null) {
-                throw new TurnstileError(
-                    'script',
-                    'Human verification is not ready.',
+            const siteKey = configQuery.data?.turnstileSiteKey;
+            if (siteKey === undefined) {
+                throw new AuthClientError(
+                    'decode',
+                    'Authentication configuration is unavailable.',
                 );
             }
 
-            const optionsToken = await turnstile.execute(
+            const optionsToken = await executeTurnstile(
+                turnstileRef.current,
+                siteKey,
                 AUTH_TURNSTILE_ACTIONS.authenticationOptions,
             );
             const ceremony = await Effect.runPromise(
                 getAuthenticationOptions({ turnstileToken: optionsToken }),
             );
             const response = await requestAuthentication(ceremony.options);
-            const verifyToken = await turnstile.execute(
+            const verifyToken = await executeTurnstile(
+                turnstileRef.current,
+                siteKey,
                 AUTH_TURNSTILE_ACTIONS.authenticationVerify,
             );
 
@@ -157,12 +162,13 @@ export function LoginPage(): ReactElement {
                 </Alert>
             )}
 
-            {configQuery.data !== undefined && (
-                <Turnstile
-                    ref={turnstileRef}
-                    siteKey={configQuery.data.turnstileSiteKey}
-                />
-            )}
+            {configQuery.data?.turnstileSiteKey !== null &&
+                configQuery.data?.turnstileSiteKey !== undefined && (
+                    <Turnstile
+                        ref={turnstileRef}
+                        siteKey={configQuery.data.turnstileSiteKey}
+                    />
+                )}
 
             <Button
                 type="button"

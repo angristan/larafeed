@@ -12,8 +12,9 @@ export interface AuthConfigBindings {
     readonly AUTH_RP_NAME: string;
     readonly AUTH_CHALLENGE_TTL_SECONDS: string;
     readonly AUTH_SESSION_TTL_SECONDS: string;
-    readonly TURNSTILE_SITE_KEY: string;
-    readonly TURNSTILE_SECRET_KEY: string;
+    readonly TURNSTILE_ENABLED?: string;
+    readonly TURNSTILE_SITE_KEY?: string;
+    readonly TURNSTILE_SECRET_KEY?: string;
 }
 
 export interface AuthCookieConfig {
@@ -31,8 +32,8 @@ export interface AuthConfig {
     readonly rpName: string;
     readonly challengeTtlMs: number;
     readonly sessionTtlMs: number;
-    readonly turnstileSiteKey: string;
-    readonly turnstileSecretKey: string;
+    readonly turnstileSiteKey: string | null;
+    readonly turnstileSecretKey: string | null;
     readonly sessionCookie: AuthCookieConfig;
     readonly csrfCookie: AuthCookieConfig;
 }
@@ -86,8 +87,9 @@ const AuthConfigBindingsSchema = Schema.Struct({
     AUTH_RP_NAME: NonEmptyConfigString,
     AUTH_CHALLENGE_TTL_SECONDS: ChallengeTtlSeconds,
     AUTH_SESSION_TTL_SECONDS: SessionTtlSeconds,
-    TURNSTILE_SITE_KEY: NonEmptyConfigString,
-    TURNSTILE_SECRET_KEY: NonEmptyConfigString,
+    TURNSTILE_ENABLED: Schema.optionalKey(Schema.Literals(['true', 'false'])),
+    TURNSTILE_SITE_KEY: Schema.optionalKey(NonEmptyConfigString),
+    TURNSTILE_SECRET_KEY: Schema.optionalKey(NonEmptyConfigString),
 });
 
 const decodeBindings = Schema.decodeUnknownEffect(AuthConfigBindingsSchema, {
@@ -107,7 +109,7 @@ const requireCanonicalValue = (
         | 'TURNSTILE_SECRET_KEY',
     value: string,
 ) =>
-    value.trim() === value
+    value.length > 0 && value.trim() === value
         ? Effect.succeed(value)
         : Effect.fail(configError(field, 'invalid'));
 
@@ -155,14 +157,19 @@ export const parseAuthConfig = Effect.fn('auth.config.parse')(function* (
         'AUTH_RP_NAME',
         bindings.AUTH_RP_NAME,
     );
-    const turnstileSiteKey = yield* requireCanonicalValue(
-        'TURNSTILE_SITE_KEY',
-        bindings.TURNSTILE_SITE_KEY,
-    );
-    const turnstileSecretKey = yield* requireCanonicalValue(
-        'TURNSTILE_SECRET_KEY',
-        bindings.TURNSTILE_SECRET_KEY,
-    );
+    const turnstileEnabled = bindings.TURNSTILE_ENABLED === 'true';
+    const turnstileSiteKey = turnstileEnabled
+        ? yield* requireCanonicalValue(
+              'TURNSTILE_SITE_KEY',
+              bindings.TURNSTILE_SITE_KEY ?? '',
+          )
+        : null;
+    const turnstileSecretKey = turnstileEnabled
+        ? yield* requireCanonicalValue(
+              'TURNSTILE_SECRET_KEY',
+              bindings.TURNSTILE_SECRET_KEY ?? '',
+          )
+        : null;
     const origin = yield* parseExactOrigin(bindings.AUTH_ORIGIN);
 
     if (origin.hostname !== rpId) {

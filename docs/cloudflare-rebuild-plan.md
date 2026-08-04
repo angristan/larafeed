@@ -36,7 +36,7 @@ Implemented locally on the `cloudflare` branch. The Worker, React frontend, D1 s
 | Migrations | Goose | Wrangler D1 SQL migrations |
 | Transactions | Interactive PostgreSQL transactions | Guarded native D1 atomic batches with affected-row inspection |
 | Background jobs | River on PostgreSQL | D1 job/outbox state, Queues consumers, Cron producers |
-| Authentication | Password, cookie session, optional TOTP | WebAuthn passkeys, D1-backed opaque sessions, Turnstile login protection |
+| Authentication | Password, cookie session, optional TOTP | WebAuthn passkeys, D1-backed opaque sessions, mandatory rate limits, and optional Turnstile protection |
 | User provisioning/recovery | Public registration and password flows | Private admin invitation/recovery links plus operator bootstrap |
 | Google Reader/Fever auth | Username and password | Username and revocable app-specific token in the password field |
 | Rate limiting | Process-local Go memory | Workers Rate Limiting bindings |
@@ -71,7 +71,7 @@ Cloudflare Worker
 ├── Effect services and business logic
 ├── native D1 Effect adapter + repositories
 ├── D1-backed opaque sessions
-├── Turnstile + Rate Limiting bindings
+├── optional Turnstile + mandatory Rate Limiting bindings
 └── Queue/outbox dispatchers
              │
        Cron → Queues
@@ -91,7 +91,7 @@ Cloudflare Worker
 - **Cron Triggers** find due work and enqueue bounded jobs.
 - **KV** is reserved for disposable cache data when D1 or the Cache API is not appropriate.
 - **Cloudflare Images** replaces imgproxy for remote image transformations.
-- **Turnstile** protects the passkey login page and ceremony endpoints, with mandatory server-side token validation.
+- **Turnstile** optionally adds bot protection to passkey ceremonies. When enabled, server-side token, hostname, and action validation is mandatory.
 - **Workers Rate Limiting bindings** protect authentication, manual refresh, AI-summary, import, and image-proxy operations with route-appropriate keys and limits.
 - **AI Gateway** fronts Gemini for provider observability, budgets, rate limiting, caching where semantically safe, and controlled retries/fallbacks.
 - **Analytics Engine** is reserved for intentional custom time-series events when native Workers Observability cannot answer an operational question.
@@ -104,7 +104,7 @@ TanStack Query is the frontend cache and ordinary browser-read retry owner. Effe
 - The web application uses WebAuthn passkeys only. It has no password login, password reset, email verification, or TOTP second factor.
 - Production uses the exact relying-party ID `larafeed.stanislas.cloud` and origin `https://larafeed.stanislas.cloud` unless a broader RP scope is deliberately approved before implementation.
 - Each preview/test hostname uses its own exact RP ID and allowed origin. Test and production passkeys are separate and do not transfer between domains.
-- Turnstile protects the login page and passkey ceremony endpoints before issuing or accepting a WebAuthn challenge.
+- Mandatory Worker rate limits protect passkey ceremony endpoints. Optional Turnstile verifies a token before issuing or accepting a WebAuthn challenge when enabled.
 - An authenticated administrator creates short-lived, single-use enrollment links for new users and recovery links for existing users. An explicit operator command creates the first administrator enrollment link and can recover the final administrator when no authenticated admin remains. Store only hashed link tokens, bind them to one user and purpose, and consume them atomically.
 - Users can register multiple passkeys. Successful WebAuthn authentication creates the D1-backed opaque session described below.
 - Google Reader and Fever clients use revocable app-specific tokens in the protocol's password field. Store only token hashes and expose each plaintext token once at creation.
@@ -284,7 +284,7 @@ Requirements:
 - Benchmark the reader list, sidebar counts, mark-all-read, feed ingestion, bounded batch sizes, and concurrent reads/writes. Record overload frequency as well as latency.
 - Project per-database storage with headroom and define classified behavior for rows or imports approaching current platform limits.
 - Confirm the chosen Effect v4 packages and Cloudflare runtime compatibility. Pin the resolved Effect v4 beta and aligned `@effect/*` packages exactly; treat upgrades as migrations.
-- Run security spikes for arbitrary feed/image fetching, redirect validation, CSRF, WebAuthn RP/origin validation, invite/recovery token consumption, session revocation, Turnstile verification, and Workers Rate Limiting bindings.
+- Run security spikes for arbitrary feed/image fetching, redirect validation, CSRF, WebAuthn RP/origin validation, invite/recovery token consumption, session revocation, optional Turnstile verification, and mandatory Workers Rate Limiting bindings.
 - Build an expected and plausible worst-case cost model from real traffic assumptions. Include Workers CPU/invocations, D1 rows read/written and storage, Queue sends/retries, Images transformations, telemetry, AI, and external providers.
 - Define kill switches and rollout bounds for Cron producers, Queue concurrency, imports, Images, AI, and telemetry sampling.
 
@@ -300,12 +300,12 @@ Requirements:
 - Implement WebAuthn passkey registration and authentication with environment-specific RP IDs and exact allowed origins. Production targets `larafeed.stanislas.cloud`; the test deployment uses separate credentials bound to its own hostname.
 - Implement admin-generated, short-lived, one-time enrollment and recovery links with atomic consumption and audit events. Add an explicit operator command for initial administrator enrollment and last-admin recovery.
 - Implement D1-backed sessions using an opaque random session identifier in a `Secure`, `HttpOnly`, `SameSite=Lax` cookie. Define expiry, rotation, revocation, key rotation, Origin/CSRF validation for unsafe methods, and Workers Rate Limiting bindings for authentication and expensive commands.
-- Add Turnstile to the passkey login page and ceremony endpoints with mandatory server-side token validation. Do not challenge ordinary authenticated traffic by default.
+- Keep Turnstile optional for passkey ceremonies. When enabled, require server-side token validation; when disabled, omit the widget and tokens while retaining mandatory Worker rate limits. Do not challenge ordinary authenticated traffic by default.
 - Implement hashed, revocable app-specific tokens for Google Reader and Fever authentication.
 - Store production credentials as Worker secrets and keep local-development secret handling explicit and separate.
 - Keep one stable browser QueryClient. Choose and pin the React Router, TanStack Query, and form packages; keep all Mantine packages aligned.
 
-**Gate:** admin invitation, passkey enrollment/login/logout, recovery, multiple-passkey management, app-token authentication/revocation, test/production RP isolation, Turnstile enforcement, session expiry/revocation, CSRF rejection, protected-cache clearing, protected navigation, SPA deep links, security headers, and asset deployment work in local and preview environments.
+**Gate:** admin invitation, passkey enrollment/login/logout, recovery, multiple-passkey management, app-token authentication/revocation, test/production RP isolation, disabled and enabled Turnstile modes, mandatory ceremony rate limiting, session expiry/revocation, CSRF rejection, protected-cache clearing, protected navigation, SPA deep links, security headers, and asset deployment work in local and preview environments.
 
 ### Phase 2: reader vertical slice
 

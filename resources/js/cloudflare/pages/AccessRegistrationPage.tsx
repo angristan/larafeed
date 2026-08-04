@@ -31,6 +31,7 @@ import {
 } from '../auth/ceremony';
 import { AuthCard } from '../components/AuthCard';
 import {
+    executeTurnstile,
     Turnstile,
     TurnstileError,
     type TurnstileHandle,
@@ -122,15 +123,17 @@ export function AccessRegistrationPage({
                 );
             }
 
-            const turnstile = turnstileRef.current;
-            if (turnstile === null) {
-                throw new TurnstileError(
-                    'script',
-                    'Human verification is not ready.',
+            const siteKey = configQuery.data?.turnstileSiteKey;
+            if (siteKey === undefined) {
+                throw new AuthClientError(
+                    'decode',
+                    'Authentication configuration is unavailable.',
                 );
             }
 
-            const optionsToken = await turnstile.execute(
+            const optionsToken = await executeTurnstile(
+                turnstileRef.current,
+                siteKey,
                 AUTH_TURNSTILE_ACTIONS.registrationOptions,
             );
             const ceremony = await Effect.runPromise(
@@ -145,7 +148,9 @@ export function AccessRegistrationPage({
             }
 
             const response = await requestRegistration(ceremony.options);
-            const verifyToken = await turnstile.execute(
+            const verifyToken = await executeTurnstile(
+                turnstileRef.current,
+                siteKey,
                 AUTH_TURNSTILE_ACTIONS.registrationVerify,
             );
 
@@ -259,12 +264,13 @@ export function AccessRegistrationPage({
                         disabled={registrationMutation.isPending}
                     />
 
-                    {configQuery.data !== undefined && (
-                        <Turnstile
-                            ref={turnstileRef}
-                            siteKey={configQuery.data.turnstileSiteKey}
-                        />
-                    )}
+                    {configQuery.data?.turnstileSiteKey !== null &&
+                        configQuery.data?.turnstileSiteKey !== undefined && (
+                            <Turnstile
+                                ref={turnstileRef}
+                                siteKey={configQuery.data.turnstileSiteKey}
+                            />
+                        )}
 
                     <Button
                         type="submit"

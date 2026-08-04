@@ -110,6 +110,23 @@ export interface TurnstileHandle {
     readonly execute: (action: string) => Promise<string>;
 }
 
+export function executeTurnstile(
+    handle: TurnstileHandle | null,
+    siteKey: string | null,
+    action: string,
+): Promise<string | undefined> {
+    if (siteKey === null) {
+        return Promise.resolve(undefined);
+    }
+    if (handle === null) {
+        return Promise.reject(
+            new TurnstileError('script', 'Human verification is not ready.'),
+        );
+    }
+
+    return handle.execute(action);
+}
+
 interface TurnstileProps {
     readonly siteKey: string;
 }
