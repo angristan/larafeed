@@ -127,7 +127,15 @@ test('completes Turnstile and WebAuthn login before returning to the requested p
     await page.goto(`/login?${new URLSearchParams({ returnTo })}`);
     await expect(page).toHaveTitle('Log in - Larafeed');
 
-    await page.getByRole('button', { name: 'Continue with a passkey' }).click();
+    const passkeyButton = page.getByRole('button', {
+        name: 'Continue with a passkey',
+    });
+    const restingTextColor = await passkeyButton.evaluate(
+        (element) => getComputedStyle(element).color,
+    );
+    await passkeyButton.hover();
+    await expect(passkeyButton).toHaveCSS('color', restingTextColor);
+    await passkeyButton.click();
 
     await expect(page).toHaveURL(/\/settings\/opml\?source=login#history$/u);
     await expect(page).toHaveTitle('Import & export - Larafeed');

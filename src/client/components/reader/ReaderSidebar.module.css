@@ -279,6 +279,8 @@
 
 .categoryFeeds {
     display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
     gap: 1px;
     padding-left: 8px;
     margin-left: 11px;
@@ -295,6 +297,7 @@
 
 .collectionLink {
     display: block;
+    min-width: 0;
     min-height: 30px;
     padding: 2px 4px;
     border: 1px solid transparent;
@@ -338,6 +341,7 @@
 .feedRow {
     display: flex;
     width: 100%;
+    min-width: 0;
     align-items: center;
     justify-content: space-between;
     gap: var(--ds-space-2);
@@ -352,6 +356,8 @@
 }
 
 .feedNavigationLink > * {
+    width: 100%;
+    min-width: 0;
     max-width: 100%;
 }
 
@@ -364,6 +370,8 @@
 }
 
 .feedName {
+    min-width: 0;
+    flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

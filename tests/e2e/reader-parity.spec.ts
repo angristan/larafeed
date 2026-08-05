@@ -1,6 +1,8 @@
 import { expect, type Page, test } from '@playwright/test';
 
 const now = Date.parse('2026-07-18T12:00:00.000Z');
+const longFeedName =
+    'Lobsters: Top Stories of the Past Week and Other Excellent Links';
 const entry = {
     id: 41,
     feedId: 21,
@@ -30,7 +32,10 @@ const json = (body: unknown) => ({
     body: JSON.stringify(body),
 });
 
-async function mockReaderApi(page: Page): Promise<ApiState> {
+async function mockReaderApi(
+    page: Page,
+    feedName = 'Example feed',
+): Promise<ApiState> {
     const state: ApiState = {
         entryListRequests: 0,
         summaryPosts: 0,
@@ -85,7 +90,7 @@ async function mockReaderApi(page: Page): Promise<ApiState> {
                         {
                             feedId: 21,
                             categoryId: 11,
-                            feedName: 'Example feed',
+                            feedName,
                             customFeedName: null,
                             faviconUrl: null,
                             faviconIsDark: false,
@@ -112,7 +117,7 @@ async function mockReaderApi(page: Page): Promise<ApiState> {
                             feedId: 21,
                             categoryId: 11,
                             categoryName: 'Technology',
-                            feedName: 'Example feed',
+                            feedName,
                             customFeedName: null,
                             feedUrl: 'https://publisher.example.test/feed.xml',
                             siteUrl: 'https://publisher.example.test/',
@@ -250,6 +255,30 @@ test('keeps the unread page stable and generates a summary with one click', asyn
     await expect(page.getByText('Generated summary.')).toBeVisible();
     expect(state.summaryPosts).toBe(1);
     expect(state.entryListRequests).toBe(1);
+});
+
+test('truncates long feed names within the sidebar', async ({ page }) => {
+    await mockReaderApi(page, longFeedName);
+    await page.goto('/feeds?filter=all&order_by=published_at&page=1');
+
+    const feedName = page.getByText(longFeedName, { exact: true }).first();
+    await expect(feedName).toBeVisible();
+    await expect(feedName).toHaveCSS('text-overflow', 'ellipsis');
+
+    const dimensions = await feedName.evaluate((element) => ({
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+    }));
+    expect(dimensions.scrollWidth).toBeGreaterThan(dimensions.clientWidth);
+
+    const sidebar = page.getByRole('navigation', { name: 'Feed library' });
+    const sidebarBox = await sidebar.boundingBox();
+    const feedNameBox = await feedName.boundingBox();
+    expect(sidebarBox).not.toBeNull();
+    expect(feedNameBox).not.toBeNull();
+    expect((feedNameBox?.x ?? 0) + (feedNameBox?.width ?? 0)).toBeLessThanOrEqual(
+        (sidebarBox?.x ?? 0) + (sidebarBox?.width ?? 0),
+    );
 });
 
 test('uses a single list or detail pane on mobile with working back navigation', async ({

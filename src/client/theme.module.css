@@ -23,6 +23,7 @@
 }
 
 .buttonRoot:hover:not(:disabled, [data-disabled]) {
+    color: var(--ds-ink);
     background: var(--ds-glass-sheen), var(--ds-glass-overlay);
     box-shadow:
         var(--button-hover-shadow), inset 0 1px 0 var(--ds-glass-highlight),
@@ -30,6 +31,7 @@
 }
 
 .buttonRoot:active:not(:disabled, [data-disabled]) {
+    color: var(--ds-ink);
     box-shadow:
         inset 0 2px 4px color-mix(in srgb, var(--ds-ink) 16%, transparent),
         inset 0 1px 0
