@@ -139,14 +139,15 @@ const requestJson = <A>(
     options: JsonRequestOptions = {},
 ): Effect.Effect<A, SubscriptionClientError> =>
     Effect.gen(function* () {
+        const method = options.method ?? 'GET';
         const response = yield* Effect.tryPromise({
             try: (signal) =>
                 fetch(path, {
-                    method: options.method ?? 'GET',
+                    method,
                     credentials: 'same-origin',
                     headers: {
                         Accept: 'application/json',
-                        ...(options.body === undefined
+                        ...(method === 'GET'
                             ? {}
                             : { 'Content-Type': 'application/json' }),
                         ...(options.csrfToken === undefined

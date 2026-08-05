@@ -6,6 +6,7 @@ import {
     listManagedSubscriptions,
     refreshFavicon,
     SubscriptionClientError,
+    unsubscribe,
     updateSubscription,
 } from './subscriptions';
 
@@ -164,6 +165,33 @@ describe('SubscriptionClient', () => {
                         excludeContent: [],
                         excludeAuthor: ['bot'],
                     },
+                }),
+            }),
+        );
+    });
+
+    it('sends CSRF protection and a JSON media type when unsubscribing', async () => {
+        const fetchMock = vi.fn(() =>
+            Promise.resolve(Response.json({ deleted: true })),
+        );
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(
+            Effect.runPromise(
+                unsubscribe({
+                    feedId: subscription.feedId,
+                    csrfToken: 'csrf-token',
+                }),
+            ),
+        ).resolves.toEqual({ deleted: true });
+        expect(fetchMock).toHaveBeenCalledWith(
+            '/api/subscriptions/7',
+            expect.objectContaining({
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: expect.objectContaining({
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': 'csrf-token',
                 }),
             }),
         );
