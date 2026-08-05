@@ -72,6 +72,8 @@ interface ReaderEntryDetailProps {
     readonly onSetArchived: (archived: boolean) => void;
 }
 
+const SINGLE_PANE_MEDIA_QUERY = '(max-width: 68.74em)';
+
 const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, {
     numeric: 'auto',
 });
@@ -253,7 +255,7 @@ export function ReaderEntryDetail({
             entry === undefined ||
             focusedEntry.current === entry.id ||
             typeof window === 'undefined' ||
-            !window.matchMedia('(max-width: 47.99em)').matches
+            !window.matchMedia(SINGLE_PANE_MEDIA_QUERY).matches
         ) {
             return;
         }

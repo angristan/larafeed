@@ -303,6 +303,33 @@ test('truncates long feed names within the sidebar', async ({ page }) => {
     );
 });
 
+test('moves focus between single panes at tablet width', async ({ page }) => {
+    await page.setViewportSize({ width: 800, height: 900 });
+    await mockReaderApi(page);
+    await page.goto('/feeds?filter=all&order_by=published_at&page=1');
+
+    const entryLink = page
+        .getByText('First unread entry', { exact: true })
+        .first();
+    const entryRow = page.locator('#reader-entry-41');
+    const detailHeading = page.getByRole('heading', {
+        name: 'First unread entry',
+    });
+    await expect(entryLink).toBeVisible();
+    await entryLink.click();
+
+    const back = page.getByRole('button', { name: 'Back to entry list' });
+    await expect(detailHeading).toBeVisible();
+    await expect(detailHeading).toBeFocused();
+    await expect(entryLink).toBeHidden();
+    await expect(back).toBeVisible();
+
+    await back.click();
+    await expect(entryLink).toBeVisible();
+    await expect(entryRow).toBeFocused();
+    await expect(back).toBeHidden();
+});
+
 test('uses a single list or detail pane on mobile with working back navigation', async ({
     page,
 }) => {
