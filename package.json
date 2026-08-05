@@ -28,17 +28,21 @@
         "auth:access-link": "bun scripts/auth-access-link.ts",
         "d1:validate": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vitest run --config vitest.config.ts validation/d1 && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vitest run --config vitest.worker.config.ts validation/d1/representative.worker.test.ts",
         "d1:validate:large": "LARAFEED_D1_FIXTURE_PROFILE=large npm run d1:validate",
-        "deploy": "npm run build && npm run d1:migrate && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy",
-        "deploy:production": "npm run d1:migrate:production && npm run build:production && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy",
-        "deploy:test": "npm run d1:migrate:test && npm run build:test && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy",
-        "deploy:check": "npm run build && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --dry-run",
-        "deploy:check:production": "npm run build:production && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --dry-run",
-        "deploy:check:test": "npm run build:test && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --dry-run",
+        "deploy:artifact": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy",
+        "deploy:artifact:check": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy --dry-run",
+        "deploy": "npm run build && npm run deploy:artifact:check && npm run d1:migrate && npm run deploy:artifact",
+        "deploy:production": "npm run build:production && npm run deploy:artifact:check && npm run d1:migrate:production && npm run deploy:artifact",
+        "deploy:test": "npm run build:test && npm run deploy:artifact:check && npm run d1:migrate:test && npm run deploy:artifact",
+        "deploy:check": "npm run build && npm run deploy:artifact:check",
+        "deploy:check:production": "npm run build:production && npm run deploy:artifact:check",
+        "deploy:check:test": "npm run build:test && npm run deploy:artifact:check",
         "deploy:check:cloudflare": "npm run deploy:check",
         "test": "vitest run --config vitest.config.ts && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vitest run --config vitest.worker.config.ts",
         "test:browser": "playwright test",
         "test:cloudflare": "npm test",
-        "validate": "npm run lint-check && npm run typecheck && npm run types:check:cloudflare && npm test && npm run test:browser && npm run deploy:check && npm run deploy:check:production && npm run deploy:check:test"
+        "validate": "npm run lint-check && npm run typecheck && npm run types:check:cloudflare && npm test && npm run test:browser && npm run deploy:check && npm run deploy:check:production && npm run deploy:check:test",
+        "validate:release": "npm run validate && npm run d1:validate:large",
+        "release:production": "npm run validate:release && npm run deploy:production"
     },
     "cloudflare": {
         "bindings": {

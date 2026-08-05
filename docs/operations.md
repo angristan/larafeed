@@ -6,16 +6,22 @@ D1 is authoritative for users, reader data, sessions, imports, summaries, durabl
 
 ```bash
 npm run validate          # full local validation and deployment dry runs
-npm run d1:validate:large # production-shaped D1 validation
+npm run validate:release  # canonical gate, including production-shaped D1 validation
 npm run deploy:check      # portable deployment dry run
-npm run deploy            # migrate and deploy the portable environment
+npm run deploy            # checked migration and deployment of the portable environment
 ```
 
-Named maintainer environments use the matching `:production` or `:test` scripts. Build immediately before a config-less Wrangler command because the Vite build selects the flattened deployment configuration.
+Named maintainer environments use the matching `:production` or `:test` scripts. Each deployment script runs this fixed sequence:
 
-Cloudflare Workers Builds watches `main` and deploys production automatically. It runs linting, type checks, unit and Workerd tests, the production build, production D1 migrations, and then Wrangler deployment. Use `npm run deploy:production` for an approved manual deployment.
+```text
+build -> deployment dry run -> remote D1 migration -> deploy the same build output
+```
 
-D1 migrations are forward-only. Apply a corrective migration instead of editing an applied migration.
+The Vite build selects the environment and writes the flattened deployment configuration. The dry run and final config-less Wrangler command use that generated artifact. Nothing rebuilds between the dry run and deployment.
+
+Cloudflare Workers Builds watches `main` and deploys production automatically. Its deploy command must be `npm run release:production`, not a dashboard-defined sequence of validation, migration, and deployment commands. This versioned script runs `npm run validate:release`, then the checked production deployment sequence above. The build image must have the Chromium runtime required by `npm run test:browser`. Use the same `npm run release:production` command for an approved manual production release. Use `npm run deploy:production` only when validation already passed for the exact checkout.
+
+D1 migrations are forward-only. Apply a corrective migration instead of editing an applied migration. Use expand/contract changes: deploy a backward-compatible schema expansion before code depends on it, and remove old columns or behavior only after all live Worker versions no longer use them.
 
 ## Health checks
 

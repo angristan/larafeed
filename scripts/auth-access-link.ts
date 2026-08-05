@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
 type InitialAdminInput = {
@@ -50,6 +51,92 @@ const endpointUrl = (value: string | undefined): URL => {
     return url;
 };
 
+const readHiddenOperatorSecret = async (): Promise<string> => {
+    const input = process.stdin;
+    if (
+        !input.isTTY ||
+        !process.stdout.isTTY ||
+        input.setRawMode === undefined
+    ) {
+        return fail(
+            'LARAFEED_OPERATOR_SECRET must be set for non-interactive use',
+        );
+    }
+
+    process.stdout.write('Operator secret: ');
+    const wasRaw = input.isRaw;
+    input.setRawMode(true);
+    input.setEncoding('utf8');
+    input.resume();
+
+    return await new Promise<string>((resolve, reject) => {
+        let secret = '';
+
+        const cleanup = (): void => {
+            input.removeListener('data', onData);
+            input.setRawMode(wasRaw);
+            input.pause();
+            process.stdout.write('\n');
+        };
+
+        const finish = (): void => {
+            cleanup();
+            resolve(secret);
+        };
+
+        const onData = (chunk: string): void => {
+            for (const character of chunk) {
+                if (character === '\u0003') {
+                    cleanup();
+                    reject(new Error('Operator secret input cancelled'));
+                    return;
+                }
+                if (character === '\r' || character === '\n') {
+                    finish();
+                    return;
+                }
+                if (character === '\u007f' || character === '\b') {
+                    secret = secret.slice(0, -1);
+                    continue;
+                }
+                if (character >= ' ' && secret.length < 4096) {
+                    secret += character;
+                }
+            }
+        };
+
+        input.on('data', onData);
+    });
+};
+
+export const resolveOperatorSecret = async (options?: {
+    readonly secret?: string;
+    readonly interactive?: boolean;
+    readonly prompt?: () => Promise<string>;
+}): Promise<string> => {
+    const secret = options?.secret ?? process.env.LARAFEED_OPERATOR_SECRET;
+    if (secret !== undefined && secret.length > 0) {
+        return secret;
+    }
+
+    const interactive =
+        options?.interactive ??
+        (process.stdin.isTTY === true && process.stdout.isTTY === true);
+    if (!interactive) {
+        return fail(
+            'LARAFEED_OPERATOR_SECRET must be set for non-interactive use',
+        );
+    }
+
+    const promptedSecret = await (
+        options?.prompt ?? readHiddenOperatorSecret
+    )();
+    if (promptedSecret.length === 0) {
+        return fail('Operator secret must not be empty');
+    }
+    return promptedSecret;
+};
+
 const operatorInput = (values: {
     readonly mode?: string;
     readonly username?: string;
@@ -60,7 +147,9 @@ const operatorInput = (values: {
     switch (values.mode) {
         case 'initial-admin':
             if (values['user-id'] !== undefined) {
-                return fail('--user-id is only valid with --mode recover-admin');
+                return fail(
+                    '--user-id is only valid with --mode recover-admin',
+                );
             }
             return {
                 mode: 'initial-admin',
@@ -109,10 +198,7 @@ const main = async (): Promise<void> => {
 
     const url = endpointUrl(values.url);
     const input = operatorInput(values);
-    const operatorSecret = process.env.LARAFEED_OPERATOR_SECRET;
-    if (operatorSecret === undefined || operatorSecret.length === 0) {
-        return fail('LARAFEED_OPERATOR_SECRET must be set');
-    }
+    const operatorSecret = await resolveOperatorSecret();
 
     const response = await fetch(url, {
         method: 'POST',
@@ -140,10 +226,17 @@ const main = async (): Promise<void> => {
     console.log(Reflect.get(result, 'url'));
 };
 
-try {
-    await main();
-} catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`auth-access-link: ${message}`);
-    process.exitCode = 1;
+const scriptPath = process.argv[1];
+if (
+    scriptPath !== undefined &&
+    import.meta.url === pathToFileURL(scriptPath).href
+) {
+    try {
+        await main();
+    } catch (error) {
+        const message =
+            error instanceof Error ? error.message : 'Unknown error';
+        console.error(`auth-access-link: ${message}`);
+        process.exitCode = 1;
+    }
 }

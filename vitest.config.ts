@@ -15,6 +15,7 @@ export default defineConfig({
             'src/shared/**/*.test.ts',
             'src/worker/**/*.unit.test.ts',
             'validation/**/*.unit.test.ts',
+            'scripts/**/*.test.ts',
         ],
     },
 });

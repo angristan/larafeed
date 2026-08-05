@@ -19,25 +19,49 @@ After the first deployment, open the D1 database settings and enable Read Replic
 
 ## Manual deployment
 
-Requirements: Node.js 24, npm, Bun, and an authenticated Wrangler session.
+Requirements: Node.js 24, npm, Bun, and an authenticated Wrangler session. The portable environment is the default, unnamed environment in `wrangler.jsonc`. The `production` and `test` named environments belong to this repository's maintainer. A fork must not use them without replacing every route and resource binding.
+
+### Provision a fresh portable environment
+
+Install dependencies, then create the D1 database and all three Queues. These commands create remote resources:
 
 ```bash
 npm ci
-npm run validate
-npm run d1:validate:large
+npm exec -- wrangler d1 create larafeed-template
+npm exec -- wrangler queues create larafeed-template-feed-refresh
+npm exec -- wrangler queues create larafeed-template-opml-import
+npm exec -- wrangler queues create larafeed-template-favicon-refresh
+```
+
+Before deployment, edit the default environment in `wrangler.jsonc`:
+
+1. Replace D1 `database_id` value `00000000-0000-0000-0000-000000000010` with the ID returned by `wrangler d1 create`.
+2. Set `AUTH_ORIGIN` to the exact public HTTPS origin, without a path or trailing slash.
+3. Change the Worker `name` if `larafeed-template` is already in use in the account.
+4. If you change a Queue resource name, replace it in its producer, consumer, and matching `*_QUEUE_NAME` variable. These three values must be identical.
+5. If you change the D1 name, update `database_name` as well as the ID.
+
+Set the required operator secret through Wrangler's hidden prompt. Generate and store a private value in a password manager first. Do not put the value on the command line.
+
+```bash
+npm exec -- wrangler secret put AUTH_OPERATOR_SECRET --config wrangler.jsonc
+```
+
+Then run the repository release validation and deploy:
+
+```bash
+npm run validate:release
 npm run deploy
 ```
 
-`npm run deploy` builds the portable environment, applies remote D1 migrations, and deploys it. Set `AUTH_OPERATOR_SECRET` as a Worker secret before users enroll.
-
-The `production` and `test` named environments in `wrangler.jsonc` belong to this repository's maintainer. A fork must replace every route and resource binding before using those environments.
+`npm run deploy` builds the portable environment, dry-runs that generated artifact, applies remote D1 migrations, and deploys the same artifact without rebuilding it. Existing manual environments can start at the secret or validation step after confirming that all configured resources already exist.
 
 ## Create the first administrator
 
-Run this from a checkout after deployment:
+Run this from an interactive terminal after deployment. The script asks for the operator secret with terminal echo disabled, so the value does not enter shell history.
 
 ```bash
-LARAFEED_OPERATOR_SECRET='your-secret' npm run auth:access-link -- \
+npm run auth:access-link -- \
   --url https://reader.example.com/api/auth/operator/access-link \
   --mode initial-admin \
   --username admin \
@@ -50,13 +74,13 @@ Replace `reader.example.com` with the deployment hostname. Open the returned URL
 If every administrator loses access, recover an existing enabled administrator:
 
 ```bash
-LARAFEED_OPERATOR_SECRET='your-secret' npm run auth:access-link -- \
+npm run auth:access-link -- \
   --url https://reader.example.com/api/auth/operator/access-link \
   --mode recover-admin \
   --user-id USER_ID
 ```
 
-Administrators can invite and recover other users from `/admin/users`.
+Administrators can invite and recover other users from `/admin/users`. Non-interactive automation can inject `LARAFEED_OPERATOR_SECRET` through its secret store. Do not use an inline literal assignment in a shell command.
 
 ## Import subscriptions
 

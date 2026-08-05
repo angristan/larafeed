@@ -1,6 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
+interface ObservabilityConfig {
+    readonly enabled?: boolean;
+    readonly logs?: {
+        readonly enabled?: boolean;
+        readonly head_sampling_rate?: number;
+        readonly invocation_logs?: boolean;
+        readonly persist?: boolean;
+    };
+}
+
 interface DeploymentEnvironment {
     readonly name?: string;
     readonly workers_dev?: boolean;
@@ -9,6 +19,7 @@ interface DeploymentEnvironment {
     readonly secrets?: { readonly required?: readonly string[] };
     readonly vars?: Readonly<Record<string, string>>;
     readonly routes?: readonly { readonly pattern: string }[];
+    readonly observability?: ObservabilityConfig;
 }
 
 interface WranglerConfig extends DeploymentEnvironment {
@@ -71,9 +82,21 @@ describe('Deploy-to-Cloudflare configuration', () => {
         });
     });
 
+    it('samples sanitized production logs without invocation URLs', () => {
+        expect(wrangler.env?.production?.observability).toMatchObject({
+            enabled: true,
+            logs: {
+                enabled: true,
+                head_sampling_rate: 0.01,
+                invocation_logs: false,
+                persist: true,
+            },
+        });
+    });
+
     it('applies D1 migrations before the button deployment', () => {
         expect(packageConfig.scripts?.deploy).toBe(
-            'npm run build && npm run d1:migrate && CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler deploy',
+            'npm run build && npm run deploy:artifact:check && npm run d1:migrate && npm run deploy:artifact',
         );
         expect(packageConfig.scripts?.['d1:migrate']).toContain(
             'd1 migrations apply DB --remote',
