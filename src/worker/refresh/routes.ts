@@ -1,10 +1,15 @@
 import { ApiErrorResponse, RefreshCommandResponse } from '@shared/http';
-import { Cause, Effect, Schema } from 'effect';
+import { Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 
 import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
+import { recoverHttpCause } from '../http/failures';
+import {
+    isRequestBodyTooLarge,
+    readBoundedJsonBody,
+} from '../http/request-body';
 import { type D1, makeD1 } from '../infrastructure/d1';
 import type { RefreshRuntime } from './runtime';
 import { makeRefreshRuntime } from './runtime';
@@ -13,6 +18,7 @@ const NO_STORE_HEADERS = {
     'cache-control': 'no-store',
     'content-type': 'application/json; charset=UTF-8',
 } as const;
+const MAX_EMPTY_JSON_BODY_BYTES = 1_024;
 
 class RefreshRouteNotFound extends Error {
     readonly _tag = 'RefreshRouteNotFound';
@@ -66,6 +72,14 @@ const tag = (error: unknown): string | undefined =>
 
 const errorResponse = (error: unknown): Response => {
     const [code, message, status] = (() => {
+        if (isRequestBodyTooLarge(error)) {
+            return [
+                'payload_too_large',
+                'Request body is too large',
+                413,
+            ] as const;
+        }
+
         switch (tag(error)) {
             case 'AuthValidationError':
             case 'RefreshRouteValidation':
@@ -167,7 +181,7 @@ const runRoute = (
     Effect.runPromise(
         program.pipe(
             Effect.catchCause((cause) =>
-                Effect.succeed(errorResponse(Cause.squash(cause))),
+                recoverHttpCause(cause, errorResponse),
             ),
         ),
         { signal: request.signal },
@@ -183,30 +197,38 @@ const parseFeedId = (value: string | undefined) => {
         : Effect.fail(new RefreshRouteValidation());
 };
 
-const requireEmptyJson = (request: Request) =>
-    Effect.tryPromise({
-        try: async () => {
-            if (
-                request.headers
-                    .get('Content-Type')
-                    ?.split(';', 1)[0]
-                    ?.trim()
-                    .toLowerCase() !== 'application/json'
-            ) {
-                throw new Error('Expected JSON');
-            }
-            const body: unknown = await request.json();
-            if (
-                typeof body !== 'object' ||
-                body === null ||
-                Array.isArray(body) ||
-                Object.keys(body).length !== 0
-            ) {
-                throw new Error('Expected empty object');
-            }
-        },
-        catch: () => new RefreshRouteValidation(),
-    });
+const requireEmptyJson = (request: Request) => {
+    if (
+        request.headers
+            .get('Content-Type')
+            ?.split(';', 1)[0]
+            ?.trim()
+            .toLowerCase() !== 'application/json'
+    ) {
+        return Effect.fail(new RefreshRouteValidation());
+    }
+
+    return readBoundedJsonBody(request, MAX_EMPTY_JSON_BODY_BYTES).pipe(
+        Effect.mapError((error) =>
+            isRequestBodyTooLarge(error) ? error : new RefreshRouteValidation(),
+        ),
+        Effect.flatMap((body) =>
+            Effect.try({
+                try: () => {
+                    if (
+                        typeof body !== 'object' ||
+                        body === null ||
+                        Array.isArray(body) ||
+                        Object.keys(body).length !== 0
+                    ) {
+                        throw new Error('Expected empty object');
+                    }
+                },
+                catch: () => new RefreshRouteValidation(),
+            }),
+        ),
+    );
+};
 
 const sessionToken = (
     context: Parameters<typeof getCookie>[0],

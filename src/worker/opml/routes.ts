@@ -4,12 +4,18 @@ import {
     OpmlImportListResponse,
     OpmlImportResponse,
 } from '@shared/http';
-import { Cause, Effect, Schema } from 'effect';
+import { Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 
 import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
+import { recoverHttpCause } from '../http/failures';
+import {
+    isRequestBodyTooLarge,
+    type RequestBodyError,
+    readBoundedJsonBody,
+} from '../http/request-body';
 import { type D1, makeD1 } from '../infrastructure/d1';
 import {
     OpmlFeatureDisabled,
@@ -98,6 +104,14 @@ const tag = (error: unknown): string | undefined =>
 
 const errorResponse = (error: unknown): Response => {
     const [code, message, status] = (() => {
+        if (isRequestBodyTooLarge(error)) {
+            return [
+                'payload_too_large',
+                'Request body is too large',
+                413,
+            ] as const;
+        }
+
         switch (tag(error)) {
             case 'OpmlValidationError':
             case 'AuthValidationError':
@@ -163,7 +177,7 @@ const runRoute = (
     Effect.runPromise(
         effect.pipe(
             Effect.catchCause((cause) =>
-                Effect.succeed(errorResponse(Cause.squash(cause))),
+                recoverHttpCause(cause, errorResponse),
             ),
         ),
         { signal: request.signal },
@@ -187,31 +201,17 @@ const jsonResponse = (
         ),
     );
 
-const MAX_JSON_REQUEST_CHARACTERS = 4_100_000;
+const MAX_JSON_REQUEST_BYTES = 4_100_000;
 
 const decodeJson = <S extends Schema.ConstraintDecoder<unknown>>(
     request: Request,
     schema: S,
-): Effect.Effect<S['Type'], OpmlValidationError> => {
-    const declaredLength = Number(request.headers.get('Content-Length'));
-    if (
-        Number.isFinite(declaredLength) &&
-        declaredLength > MAX_JSON_REQUEST_CHARACTERS
-    ) {
-        return Effect.fail(new OpmlValidationError('document_size'));
-    }
-
-    return Effect.tryPromise({
-        try: () => request.text(),
-        catch: () => new OpmlValidationError('invalid_json'),
-    }).pipe(
-        Effect.flatMap((source) =>
-            source.length > MAX_JSON_REQUEST_CHARACTERS
-                ? Effect.fail(new OpmlValidationError('document_size'))
-                : Effect.try({
-                      try: () => JSON.parse(source) as unknown,
-                      catch: () => new OpmlValidationError('invalid_json'),
-                  }),
+): Effect.Effect<S['Type'], OpmlValidationError | RequestBodyError> =>
+    readBoundedJsonBody(request, MAX_JSON_REQUEST_BYTES).pipe(
+        Effect.mapError((error) =>
+            isRequestBodyTooLarge(error)
+                ? error
+                : new OpmlValidationError('invalid_json'),
         ),
         Effect.flatMap((body) =>
             Schema.decodeUnknownEffect(schema, {
@@ -221,7 +221,6 @@ const decodeJson = <S extends Schema.ConstraintDecoder<unknown>>(
             ),
         ),
     );
-};
 
 const parseImportId = (value: string | undefined) => {
     if (value === undefined || !/^[1-9]\d*$/u.test(value)) {

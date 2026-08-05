@@ -13,6 +13,7 @@ export * from './schemas/summaries';
 
 export const ApiErrorCode = Schema.Literals([
     'validation_error',
+    'payload_too_large',
     'authentication_failed',
     'unauthenticated',
     'forbidden',

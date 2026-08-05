@@ -22,6 +22,7 @@ import {
     type FaviconRouteDependencies,
     registerFaviconRoutes,
 } from './favicons/routes';
+import { reportUnexpectedHttpError } from './http/failures';
 import { type ImageRouteDependencies, registerImageRoutes } from './images';
 import { type OpmlRouteDependencies, registerOpmlRoutes } from './opml/routes';
 import {
@@ -141,8 +142,10 @@ const makeApiErrorResponse = (
                 }),
         ),
         Effect.flatMap((body) => makeJsonResponse(body, status, 'apiError')),
-        Effect.catchTag('ResponseEncodingError', () =>
-            Effect.succeed(fallbackInternalServerError()),
+        Effect.catchTag('ResponseEncodingError', (error) =>
+            Effect.sync(() => reportUnexpectedHttpError(error)).pipe(
+                Effect.as(fallbackInternalServerError()),
+            ),
         ),
     );
 
@@ -175,8 +178,10 @@ const mapRequestErrors = (
                     'Service unavailable',
                     503,
                 ),
-            ResponseEncodingError: () =>
-                Effect.succeed(fallbackInternalServerError()),
+            ResponseEncodingError: (error) =>
+                Effect.sync(() => reportUnexpectedHttpError(error)).pipe(
+                    Effect.as(fallbackInternalServerError()),
+                ),
         }),
     );
 
@@ -205,7 +210,8 @@ export const createApp = (
                     { status: 429, headers: jsonHeaders },
                 );
             }
-        } catch {
+        } catch (error) {
+            reportUnexpectedHttpError(error);
             return new Response(
                 '{"error":{"code":"service_unavailable","message":"Service unavailable"}}',
                 { status: 503, headers: jsonHeaders },
@@ -245,7 +251,10 @@ export const createApp = (
     registerSummaryRoutes(app, dependencies.summaryRoutes);
     registerSubscriptionRoutes(app, dependencies.subscriptionRoutes);
 
-    app.onError(() => fallbackInternalServerError());
+    app.onError((error) => {
+        reportUnexpectedHttpError(error);
+        return fallbackInternalServerError();
+    });
 
     return app;
 };

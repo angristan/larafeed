@@ -8,12 +8,18 @@ import {
     UpdateAccountProfileRequest,
     UpdateAdminUserRequest,
 } from '@shared/http';
-import { Cause, Effect, Schema } from 'effect';
+import { Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 
 import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
+import { recoverHttpCause } from '../http/failures';
+import {
+    isRequestBodyTooLarge,
+    type RequestBodyError,
+    readBoundedJsonBody,
+} from '../http/request-body';
 import { makeD1 } from '../infrastructure/d1';
 import { AccountValidationError } from './errors';
 import { makeAccountRepository } from './repository';
@@ -29,6 +35,7 @@ const headers = {
     'cache-control': 'no-store',
     'content-type': 'application/json; charset=UTF-8',
 } as const;
+const MAX_JSON_BODY_BYTES = 64 * 1_024;
 const expiredCookie = (name: string, httpOnly: boolean): string =>
     `${name}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure; SameSite=Lax${httpOnly ? '; HttpOnly' : ''}`;
 
@@ -59,14 +66,13 @@ const decodeJson = <S extends Schema.ConstraintDecoder<unknown>>(
     schema: S,
     validationError: (value: unknown) => AccountValidationError = () =>
         new AccountValidationError({}),
-): Effect.Effect<S['Type'], AccountValidationError> =>
-    Effect.tryPromise({
-        try: async () => {
-            const value: unknown = await request.json();
-            return value;
-        },
-        catch: () => new AccountValidationError({}),
-    }).pipe(
+): Effect.Effect<S['Type'], AccountValidationError | RequestBodyError> =>
+    readBoundedJsonBody(request, MAX_JSON_BODY_BYTES).pipe(
+        Effect.mapError((error) =>
+            isRequestBodyTooLarge(error)
+                ? error
+                : new AccountValidationError({}),
+        ),
         Effect.flatMap((value) =>
             Schema.decodeUnknownEffect(schema, { onExcessProperty: 'error' })(
                 value,
@@ -155,6 +161,7 @@ const json = <S extends Schema.Top>(schema: S, value: unknown, status = 200) =>
 interface SafeError {
     readonly code:
         | 'validation_error'
+        | 'payload_too_large'
         | 'unauthenticated'
         | 'csrf_invalid'
         | 'forbidden'
@@ -185,6 +192,14 @@ const validationMessage = (error: unknown): string => {
     }
 };
 const safeError = (error: unknown): SafeError => {
+    if (isRequestBodyTooLarge(error)) {
+        return {
+            code: 'payload_too_large',
+            message: 'Request body is too large',
+            status: 413,
+        };
+    }
+
     switch (tag(error)) {
         case 'AccountValidationError':
             return {
@@ -270,7 +285,7 @@ const run = (request: Request, program: Effect.Effect<Response, unknown>) =>
     Effect.runPromise(
         program.pipe(
             Effect.catchCause((cause) =>
-                Effect.succeed(errorResponse(Cause.squash(cause))),
+                recoverHttpCause(cause, errorResponse),
             ),
         ),
         { signal: request.signal },

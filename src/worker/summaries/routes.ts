@@ -1,10 +1,16 @@
 import { ApiErrorResponse, EntrySummaryResponse } from '@shared/http';
-import { Cause, Effect, Schema } from 'effect';
+import { Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 
 import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
+import { recoverHttpCause } from '../http/failures';
+import {
+    isRequestBodyTooLarge,
+    type RequestBodyError,
+    readBoundedJsonBody,
+} from '../http/request-body';
 import { makeD1 } from '../infrastructure/d1';
 import { parseSummaryConfig } from './config';
 import {
@@ -21,6 +27,7 @@ const NO_STORE_HEADERS = {
     'content-type': 'application/json; charset=UTF-8',
 } as const;
 const EmptyJsonObject = Schema.Struct({});
+const MAX_EMPTY_JSON_BODY_BYTES = 1_024;
 
 export interface SummaryRouteRuntime {
     readonly auth: AuthRuntime;
@@ -57,6 +64,7 @@ export const defaultSummaryRuntimeFactory: SummaryRuntimeFactory = (env) => {
 interface SafeError {
     readonly code:
         | 'validation_error'
+        | 'payload_too_large'
         | 'unauthenticated'
         | 'forbidden'
         | 'csrf_invalid'
@@ -76,6 +84,14 @@ const taggedError = (error: unknown): string | undefined => {
 };
 
 const safeError = (error: unknown): SafeError => {
+    if (isRequestBodyTooLarge(error)) {
+        return {
+            code: 'payload_too_large',
+            message: 'Request body is too large',
+            status: 413,
+        };
+    }
+
     switch (taggedError(error)) {
         case 'SummaryValidationError':
         case 'AuthValidationError':
@@ -176,7 +192,7 @@ const runRoute = (
     Effect.runPromise(
         program.pipe(
             Effect.catchCause((cause) =>
-                Effect.succeed(apiErrorResponse(Cause.squash(cause))),
+                recoverHttpCause(cause, apiErrorResponse),
             ),
         ),
         { signal: request.signal },
@@ -210,16 +226,20 @@ const decodePathId = (
 
 const requireEmptyJson = (
     request: Request,
-): Effect.Effect<void, SummaryValidationError> =>
-    Effect.tryPromise({
-        try: async () => {
-            const body: unknown = await request.json();
-            Schema.decodeUnknownSync(EmptyJsonObject, {
+): Effect.Effect<void, SummaryValidationError | RequestBodyError> =>
+    readBoundedJsonBody(request, MAX_EMPTY_JSON_BODY_BYTES).pipe(
+        Effect.mapError((error) =>
+            isRequestBodyTooLarge(error) ? error : new SummaryValidationError(),
+        ),
+        Effect.flatMap((body) =>
+            Schema.decodeUnknownEffect(EmptyJsonObject, {
                 onExcessProperty: 'error',
-            })(body);
-        },
-        catch: () => new SummaryValidationError(),
-    });
+            })(body).pipe(
+                Effect.asVoid,
+                Effect.mapError(() => new SummaryValidationError()),
+            ),
+        ),
+    );
 
 const sessionToken = (
     context: Parameters<typeof getCookie>[0],

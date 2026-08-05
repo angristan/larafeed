@@ -4,6 +4,10 @@ import { getCookie } from 'hono/cookie';
 
 import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
+import {
+    isCancellationError,
+    reportUnexpectedHttpError,
+} from '../http/failures';
 import { makeD1 } from '../infrastructure/d1';
 import { findArticleImageSource, MAX_ARTICLE_IMAGES } from './article';
 import {
@@ -128,6 +132,7 @@ const runtimeErrorResponse = (error: unknown): Response => {
     if (taggedError(error) === 'Unauthenticated') {
         return jsonError(401, 'unauthenticated', 'Authentication required');
     }
+    if (!isCancellationError(error)) reportUnexpectedHttpError(error);
     return jsonError(503, 'service_unavailable', 'Service unavailable');
 };
 
@@ -212,7 +217,8 @@ export const registerImageRoutes = (
             rateLimit = await runtime.rateLimit(
                 imageRateLimitKey(session.user.id),
             );
-        } catch {
+        } catch (error) {
+            reportUnexpectedHttpError(error);
             return jsonError(503, 'service_unavailable', 'Service unavailable');
         }
         if (!rateLimit.success) {
@@ -287,7 +293,8 @@ export const registerImageRoutes = (
             rateLimit = await runtime.rateLimit(
                 imageRateLimitKey(session.user.id),
             );
-        } catch {
+        } catch (error) {
+            reportUnexpectedHttpError(error);
             return jsonError(503, 'service_unavailable', 'Service unavailable');
         }
         if (!rateLimit.success) {

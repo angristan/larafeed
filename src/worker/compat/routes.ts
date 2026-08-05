@@ -1,8 +1,14 @@
-import { Cause, Effect } from 'effect';
+import { Effect } from 'effect';
 import type { Context, Hono } from 'hono';
 
 import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AppTokenAuthenticationResult } from '../auth/service';
+import { recoverHttpCause } from '../http/failures';
+import {
+    isRequestBodyTooLarge,
+    type RequestBodyError,
+    readBoundedRequestBody,
+} from '../http/request-body';
 import { makeD1 } from '../infrastructure/d1';
 import {
     CompatibilityRateLimited,
@@ -99,14 +105,13 @@ const errorTag = (error: unknown): string | undefined => {
     const tag = Reflect.get(error, '_tag');
     return typeof tag === 'string' ? tag : undefined;
 };
-const squashedTag = (cause: Cause.Cause<unknown>): string | undefined =>
-    errorTag(Cause.squash(cause));
-
 const googleFailure = (
-    cause: Cause.Cause<unknown>,
+    error: unknown,
     authenticationError: string,
 ): Response => {
-    switch (squashedTag(cause)) {
+    if (isRequestBodyTooLarge(error)) return text('Error=BadRequest\n', 413);
+
+    switch (errorTag(error)) {
         case 'AuthenticationFailed':
             return text(`Error=${authenticationError}\n`, 403);
         case 'CompatibilityValidationError':
@@ -132,14 +137,20 @@ const runGoogle = (
     Effect.runPromise(
         program.pipe(
             Effect.catchCause((cause) =>
-                Effect.succeed(googleFailure(cause, authenticationError)),
+                recoverHttpCause(cause, (error) =>
+                    googleFailure(error, authenticationError),
+                ),
             ),
         ),
         { signal: request.signal },
     );
 
-const feverFailure = (cause: Cause.Cause<unknown>): Response => {
-    switch (squashedTag(cause)) {
+const feverFailure = (error: unknown): Response => {
+    if (isRequestBodyTooLarge(error)) {
+        return json({ api_version: 3, auth: 0 }, 413);
+    }
+
+    switch (errorTag(error)) {
         case 'AuthenticationFailed':
         case 'CompatibilityValidationError':
             return json({ api_version: 3, auth: 0 });
@@ -162,75 +173,51 @@ const runFever = (
 ): Promise<Response> =>
     Effect.runPromise(
         program.pipe(
-            Effect.catchCause((cause) => Effect.succeed(feverFailure(cause))),
+            Effect.catchCause((cause) => recoverHttpCause(cause, feverFailure)),
         ),
         { signal: request.signal },
     );
 
-const readBoundedBody = async (request: Request): Promise<Uint8Array> => {
-    if (request.body === null) return new Uint8Array();
-    const reader = request.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    try {
-        while (true) {
-            const next = await reader.read();
-            if (next.done) break;
-            total += next.value.byteLength;
-            if (total > MAX_FORM_BYTES) {
-                await reader.cancel('form too large');
-                throw new Error('form too large');
-            }
-            chunks.push(next.value);
-        }
-    } finally {
-        reader.releaseLock();
-    }
-    const body = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) {
-        body.set(chunk, offset);
-        offset += chunk.byteLength;
-    }
-    return body;
-};
-
 const readForm = (
     request: Request,
-): Effect.Effect<URLSearchParams, CompatibilityValidationError> =>
-    Effect.tryPromise({
-        try: async () => {
-            const lengthHeader = request.headers.get('content-length');
-            if (
-                lengthHeader !== null &&
-                (!/^\d+$/u.test(lengthHeader) ||
-                    Number(lengthHeader) > MAX_FORM_BYTES)
-            ) {
-                throw new Error('form too large');
-            }
-            const mediaType =
-                request.headers
-                    .get('content-type')
-                    ?.split(';', 1)[0]
-                    ?.trim()
-                    .toLowerCase() ?? '';
-            if (
-                mediaType !== '' &&
-                mediaType !== 'application/x-www-form-urlencoded'
-            ) {
-                throw new Error('unsupported form content type');
-            }
-            const bodyBytes = await readBoundedBody(request);
-            return new URLSearchParams(
-                new TextDecoder('utf-8', { fatal: true }).decode(bodyBytes),
-            );
-        },
-        catch: () => new CompatibilityValidationError(),
-    });
+): Effect.Effect<
+    URLSearchParams,
+    CompatibilityValidationError | RequestBodyError
+> => {
+    const mediaType =
+        request.headers
+            .get('content-type')
+            ?.split(';', 1)[0]
+            ?.trim()
+            .toLowerCase() ?? '';
+    if (mediaType !== '' && mediaType !== 'application/x-www-form-urlencoded') {
+        return Effect.fail(new CompatibilityValidationError());
+    }
+
+    return readBoundedRequestBody(request, MAX_FORM_BYTES).pipe(
+        Effect.mapError((error) =>
+            isRequestBodyTooLarge(error)
+                ? error
+                : new CompatibilityValidationError(),
+        ),
+        Effect.flatMap((body) =>
+            Effect.try({
+                try: () =>
+                    new URLSearchParams(
+                        new TextDecoder('utf-8', { fatal: true }).decode(body),
+                    ),
+                catch: () => new CompatibilityValidationError(),
+            }),
+        ),
+    );
+};
 
 const requestParameters = (
     request: Request,
-): Effect.Effect<URLSearchParams, CompatibilityValidationError> =>
+): Effect.Effect<
+    URLSearchParams,
+    CompatibilityValidationError | RequestBodyError
+> =>
     Effect.gen(function* () {
         if (new TextEncoder().encode(request.url).byteLength > MAX_URL_BYTES) {
             return yield* Effect.fail(new CompatibilityValidationError());

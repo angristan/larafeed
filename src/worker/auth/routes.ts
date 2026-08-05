@@ -21,10 +21,16 @@ import {
     RegistrationOptionsResponse,
     UnauthenticatedSessionResponse,
 } from '@shared/http';
-import { Cause, Effect, Schema } from 'effect';
+import { Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { generateCookie, getCookie } from 'hono/cookie';
 
+import { recoverHttpCause } from '../http/failures';
+import {
+    isRequestBodyTooLarge,
+    type RequestBodyError,
+    readBoundedJsonBody,
+} from '../http/request-body';
 import { type D1, makeD1 } from '../infrastructure/d1';
 import { type AuthConfig, parseAuthConfig } from './config';
 import {
@@ -47,6 +53,7 @@ const NO_STORE_HEADERS = {
     'cache-control': 'no-store',
     'content-type': 'application/json; charset=UTF-8',
 } as const;
+const MAX_JSON_BODY_BYTES = 64 * 1_024;
 
 const SafePathId = Schema.NumberFromString.check(
     Schema.isInt(),
@@ -204,6 +211,14 @@ const taggedError = (error: unknown): string | undefined => {
 };
 
 const safeError = (error: unknown): SafeError => {
+    if (isRequestBodyTooLarge(error)) {
+        return {
+            code: 'payload_too_large',
+            message: 'Request body is too large',
+            status: 413,
+        };
+    }
+
     switch (taggedError(error)) {
         case 'AuthValidationError':
             return {
@@ -302,7 +317,7 @@ const runRoute = (
     Effect.runPromise(
         program.pipe(
             Effect.catchCause((cause) =>
-                Effect.succeed(apiErrorResponse(Cause.squash(cause))),
+                recoverHttpCause(cause, apiErrorResponse),
             ),
         ),
         { signal: request.signal },
@@ -311,14 +326,11 @@ const runRoute = (
 const decodeJson = <S extends Schema.ConstraintDecoder<unknown>>(
     request: Request,
     schema: S,
-): Effect.Effect<S['Type'], AuthValidationError> =>
-    Effect.tryPromise({
-        try: async () => {
-            const body: unknown = await request.json();
-            return body;
-        },
-        catch: () => new AuthValidationError(),
-    }).pipe(
+): Effect.Effect<S['Type'], AuthValidationError | RequestBodyError> =>
+    readBoundedJsonBody(request, MAX_JSON_BODY_BYTES).pipe(
+        Effect.mapError((error) =>
+            isRequestBodyTooLarge(error) ? error : new AuthValidationError(),
+        ),
         Effect.flatMap((body) =>
             Schema.decodeUnknownEffect(schema, {
                 onExcessProperty: 'error',

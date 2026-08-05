@@ -61,7 +61,10 @@ describe('Worker HTTP app', () => {
         });
     });
 
-    it('does not expose unexpected defects', async () => {
+    it('records unexpected defects once without exposing details', async () => {
+        const consoleError = vi
+            .spyOn(console, 'error')
+            .mockImplementation(() => undefined);
         const app = createApp({
             healthCheck: () => Effect.die(new Error('private failure detail')),
         });
@@ -74,6 +77,17 @@ describe('Worker HTTP app', () => {
             '{"error":{"code":"internal_server_error","message":"Internal server error"}}',
         );
         expect(body).not.toContain('private failure detail');
+        expect(consoleError).toHaveBeenCalledOnce();
+        expect(consoleError).toHaveBeenCalledWith({
+            event: 'http.request.failed',
+            failureKind: 'exception',
+            failureTags: ['Error'],
+            reasonCount: 1,
+        });
+        expect(JSON.stringify(consoleError.mock.calls)).not.toContain(
+            'private failure detail',
+        );
+        consoleError.mockRestore();
     });
 
     it('rejects rate-limited authentication ceremonies before route work', async () => {
@@ -99,6 +113,9 @@ describe('Worker HTTP app', () => {
     });
 
     it('fails closed when the rate-limit binding is unavailable', async () => {
+        const consoleError = vi
+            .spyOn(console, 'error')
+            .mockImplementation(() => undefined);
         const response = await createApp().request(
             '/api/auth/operator/access-link',
             { method: 'POST' },
@@ -111,9 +128,17 @@ describe('Worker HTTP app', () => {
 
         expect(response.status).toBe(503);
         expect(await response.text()).not.toContain('private failure');
+        expect(consoleError).toHaveBeenCalledOnce();
+        expect(JSON.stringify(consoleError.mock.calls)).not.toContain(
+            'private failure',
+        );
+        consoleError.mockRestore();
     });
 
     it('propagates the request AbortSignal to the Effect program', async () => {
+        const consoleError = vi
+            .spyOn(console, 'error')
+            .mockImplementation(() => undefined);
         const abortController = new AbortController();
         let markStarted: () => void = () => undefined;
         let interrupted = false;
@@ -140,5 +165,7 @@ describe('Worker HTTP app', () => {
         await responsePromise;
 
         expect(interrupted).toBe(true);
+        expect(consoleError).not.toHaveBeenCalled();
+        consoleError.mockRestore();
     });
 });

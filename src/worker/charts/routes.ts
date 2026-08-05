@@ -1,9 +1,10 @@
 import { ApiErrorResponse, ChartResponse } from '@shared/http';
-import { Cause, Effect, Schema } from 'effect';
+import { Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 
 import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
+import { recoverHttpCause } from '../http/failures';
 import { makeD1 } from '../infrastructure/d1';
 import { ChartValidationError } from './errors';
 import { type ChartScopeInput, makeChartRepository } from './repository';
@@ -214,9 +215,7 @@ const apiError = (error: unknown): Response => {
 const run = (request: Request, program: Effect.Effect<Response, unknown>) =>
     Effect.runPromise(
         program.pipe(
-            Effect.catchCause((cause) =>
-                Effect.succeed(apiError(Cause.squash(cause))),
-            ),
+            Effect.catchCause((cause) => recoverHttpCause(cause, apiError)),
         ),
         { signal: request.signal },
     );

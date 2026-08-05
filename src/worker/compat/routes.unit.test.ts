@@ -185,6 +185,25 @@ describe('compatibility protocol routes', () => {
         ]);
     });
 
+    it('rejects oversized forms with a sanitized protocol response', async () => {
+        const harness = makeHarness({});
+        const response = await harness.app.request(
+            '/api/reader/accounts/ClientLogin',
+            {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/x-www-form-urlencoded',
+                },
+                body: `Email=owner&Passwd=${'x'.repeat(64 * 1_024)}`,
+            },
+            {} as Env,
+        );
+
+        expect(response.status).toBe(413);
+        expect(await response.text()).toBe('Error=BadRequest\n');
+        expect(harness.authenticateAppToken).not.toHaveBeenCalled();
+    });
+
     it('rate-limits invalid Google credentials by IP before verification', async () => {
         const harness = makeHarness({
             rateLimit: () => Effect.fail(new CompatibilityRateLimited()),

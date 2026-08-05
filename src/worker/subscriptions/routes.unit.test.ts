@@ -277,6 +277,28 @@ describe('subscription management routes', () => {
         });
     });
 
+    it('returns a typed 413 before decoding oversized JSON', async () => {
+        const createSubscription = vi.fn();
+        const response = await app(
+            subscriptionService({ createSubscription }),
+        ).request(
+            '/api/subscriptions',
+            request('POST', {
+                feedUrl: 'x'.repeat(64 * 1_024),
+                categoryId: 11,
+            }),
+        );
+
+        expect(response.status).toBe(413);
+        await expect(decode(response, ApiErrorResponse)).resolves.toEqual({
+            error: {
+                code: 'payload_too_large',
+                message: 'Request body is too large',
+            },
+        });
+        expect(createSubscription).not.toHaveBeenCalled();
+    });
+
     it('maps category conflicts without exposing storage details', async () => {
         const response = await app(
             subscriptionService({

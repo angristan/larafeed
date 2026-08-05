@@ -11,12 +11,18 @@ import {
     ReaderReadThroughResponse,
     ReaderSubscriptionListResponse,
 } from '@shared/http';
-import { Cause, Effect, Schema } from 'effect';
+import { Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 
 import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
+import { recoverHttpCause } from '../http/failures';
+import {
+    isRequestBodyTooLarge,
+    type RequestBodyError,
+    readBoundedJsonBody,
+} from '../http/request-body';
 import { makeD1 } from '../infrastructure/d1';
 import { ReaderValidationError } from './errors';
 import {
@@ -31,6 +37,7 @@ const NO_STORE_HEADERS = {
     'content-type': 'application/json; charset=UTF-8',
 } as const;
 const EmptyJsonObject = Schema.Struct({});
+const MAX_JSON_BODY_BYTES = 16 * 1_024;
 const MAX_PAGE = 10_000;
 const DEFAULT_PAGE_SIZE = 20;
 const allowedQueryKeys = new Set([
@@ -70,6 +77,7 @@ export const defaultReaderRuntimeFactory: ReaderRuntimeFactory = (env) => {
 interface SafeError {
     readonly code:
         | 'validation_error'
+        | 'payload_too_large'
         | 'unauthenticated'
         | 'forbidden'
         | 'csrf_invalid'
@@ -87,6 +95,14 @@ const taggedError = (error: unknown): string | undefined => {
 };
 
 const safeError = (error: unknown): SafeError => {
+    if (isRequestBodyTooLarge(error)) {
+        return {
+            code: 'payload_too_large',
+            message: 'Request body is too large',
+            status: 413,
+        };
+    }
+
     switch (taggedError(error)) {
         case 'ReaderValidationError':
         case 'AuthValidationError':
@@ -156,7 +172,7 @@ const runRoute = (
     Effect.runPromise(
         program.pipe(
             Effect.catchCause((cause) =>
-                Effect.succeed(apiErrorResponse(Cause.squash(cause))),
+                recoverHttpCause(cause, apiErrorResponse),
             ),
         ),
         { signal: request.signal },
@@ -182,14 +198,11 @@ const jsonResponse = (
 const decodeJson = <S extends Schema.ConstraintDecoder<unknown>>(
     request: Request,
     schema: S,
-): Effect.Effect<S['Type'], ReaderValidationError> =>
-    Effect.tryPromise({
-        try: async () => {
-            const body: unknown = await request.json();
-            return body;
-        },
-        catch: () => new ReaderValidationError(),
-    }).pipe(
+): Effect.Effect<S['Type'], ReaderValidationError | RequestBodyError> =>
+    readBoundedJsonBody(request, MAX_JSON_BODY_BYTES).pipe(
+        Effect.mapError((error) =>
+            isRequestBodyTooLarge(error) ? error : new ReaderValidationError(),
+        ),
         Effect.flatMap((body) =>
             Schema.decodeUnknownEffect(schema, {
                 onExcessProperty: 'error',

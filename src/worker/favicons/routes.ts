@@ -1,10 +1,11 @@
 import { ApiErrorResponse, FaviconRefreshResponse } from '@shared/http';
-import { Cause, Effect, Schema } from 'effect';
+import { Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 
 import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
+import { recoverHttpCause, reportUnexpectedHttpError } from '../http/failures';
 import { makeD1 } from '../infrastructure/d1';
 import {
     FAVICON_ASSET_CACHE_CONTROL,
@@ -200,7 +201,7 @@ const run = (request: Request, program: Effect.Effect<Response, unknown>) =>
     Effect.runPromise(
         program.pipe(
             Effect.catchCause((cause) =>
-                Effect.succeed(errorResponse(Cause.squash(cause))),
+                recoverHttpCause(cause, errorResponse),
             ),
         ),
         { signal: request.signal },
@@ -273,7 +274,8 @@ export const registerFaviconRoutes = (
                 // The browser can still cache this durable response.
             }
             return response;
-        } catch {
+        } catch (error) {
+            reportUnexpectedHttpError(error);
             return new Response(null, {
                 status: 503,
                 headers: { 'cache-control': 'no-store' },

@@ -10,13 +10,19 @@ import {
     UpdateCategoryRequest,
     UpdateSubscriptionRequest,
 } from '@shared/http';
-import { Cause, Effect, Schema } from 'effect';
+import { Effect, Schema } from 'effect';
 import type { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 
 import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
 import { makeFeedRefreshService } from '../feeds';
+import { recoverHttpCause } from '../http/failures';
+import {
+    isRequestBodyTooLarge,
+    type RequestBodyError,
+    readBoundedJsonBody,
+} from '../http/request-body';
 import { makeD1 } from '../infrastructure/d1';
 import {
     SubscriptionRateLimited,
@@ -125,6 +131,7 @@ export const defaultSubscriptionRuntimeFactory: SubscriptionRuntimeFactory = (
 interface SafeError {
     readonly code:
         | 'validation_error'
+        | 'payload_too_large'
         | 'unauthenticated'
         | 'forbidden'
         | 'csrf_invalid'
@@ -193,6 +200,14 @@ const safeFeedError = (error: unknown): SafeError => {
 };
 
 const safeError = (error: unknown): SafeError => {
+    if (isRequestBodyTooLarge(error)) {
+        return {
+            code: 'payload_too_large',
+            message: 'Request body is too large',
+            status: 413,
+        };
+    }
+
     switch (taggedError(error)) {
         case 'SubscriptionValidationError':
         case 'AuthValidationError':
@@ -281,7 +296,7 @@ const runRoute = (
     Effect.runPromise(
         program.pipe(
             Effect.catchCause((cause) =>
-                Effect.succeed(apiErrorResponse(Cause.squash(cause))),
+                recoverHttpCause(cause, apiErrorResponse),
             ),
         ),
         { signal: request.signal },
@@ -305,27 +320,13 @@ const jsonResponse = (
 const decodeJson = <S extends Schema.ConstraintDecoder<unknown>>(
     request: Request,
     schema: S,
-): Effect.Effect<S['Type'], SubscriptionValidationError> =>
-    Effect.tryPromise({
-        try: async () => {
-            const declaredLength = request.headers.get('content-length');
-            if (
-                declaredLength !== null &&
-                /^\d+$/u.test(declaredLength) &&
-                Number(declaredLength) > MAX_JSON_BODY_BYTES
-            ) {
-                throw new Error('body too large');
-            }
-            const text = await request.text();
-            if (
-                new TextEncoder().encode(text).byteLength > MAX_JSON_BODY_BYTES
-            ) {
-                throw new Error('body too large');
-            }
-            return JSON.parse(text) as unknown;
-        },
-        catch: () => new SubscriptionValidationError(),
-    }).pipe(
+): Effect.Effect<S['Type'], SubscriptionValidationError | RequestBodyError> =>
+    readBoundedJsonBody(request, MAX_JSON_BODY_BYTES).pipe(
+        Effect.mapError((error) =>
+            isRequestBodyTooLarge(error)
+                ? error
+                : new SubscriptionValidationError(),
+        ),
         Effect.flatMap((body) =>
             Schema.decodeUnknownEffect(schema, {
                 onExcessProperty: 'error',
