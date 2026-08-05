@@ -65,11 +65,6 @@ const filterTitles = {
     favorites: 'Favorites',
 } as const;
 
-const orderLabels = {
-    published_at: 'Published',
-    created_at: 'Added',
-} as const;
-
 export function ReaderEntryList({
     state,
     page,
@@ -113,14 +108,9 @@ export function ReaderEntryList({
                             : `${page.pagination.total.toLocaleString()} total`}
                     </Text>
                 </div>
-                <Group gap="xs" wrap="nowrap">
-                    <Text c="dimmed" size="xs">
-                        {orderLabels[state.orderBy]}
-                    </Text>
-                    {isFetching && page !== undefined && (
-                        <Loader aria-label="Refreshing entries" size="xs" />
-                    )}
-                </Group>
+                {isFetching && page !== undefined && (
+                    <Loader aria-label="Refreshing entries" size="xs" />
+                )}
             </header>
 
             <ScrollArea
