@@ -197,6 +197,25 @@ describe('subscription management D1 repository', () => {
             faviconUrl: `/api/public/favicons/v1/${hash}.png`,
         });
 
+        const interactedEntryId = 810_101;
+        await insertEntry(interactedEntryId, first.feedId, 'Interacted entry');
+        await Effect.runPromise(
+            d1.run({
+                sql: `INSERT INTO entry_interactions (
+                        user_id, feed_id, entry_id, starred_at,
+                        created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)`,
+                bindings: [
+                    firstUser,
+                    first.feedId,
+                    interactedEntryId,
+                    now,
+                    now,
+                    now,
+                ],
+            }),
+        );
+
         await Effect.runPromise(
             repository.unsubscribe(firstUser, first.feedId),
         );

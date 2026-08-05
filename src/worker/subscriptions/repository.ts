@@ -1043,11 +1043,14 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                         },
                     ]),
                 );
-                if ((yield* changeCount(operation, results[0])) !== 1) {
+                // D1 includes cascaded interactions and activity aggregates
+                // in the first statement's change count. Zero alone means the
+                // owned subscription did not exist.
+                if ((yield* changeCount(operation, results[0])) === 0) {
                     return yield* Effect.fail(new SubscriptionNotFound());
                 }
-                // D1 includes cascaded history, entries, and aggregates in
-                // change metadata when the final subscription deletes a feed.
+                // D1 also includes cascaded history, entries, and aggregates
+                // when the final subscription deletes a feed.
                 yield* changeCount(operation, results[1]);
             }),
 

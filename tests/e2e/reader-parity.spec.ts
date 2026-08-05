@@ -24,6 +24,7 @@ interface ApiState {
     entryListRequests: number;
     summaryPosts: number;
     readPuts: number;
+    unsubscribeDeletes: number;
 }
 
 const json = (body: unknown) => ({
@@ -40,6 +41,7 @@ async function mockReaderApi(
         entryListRequests: 0,
         summaryPosts: 0,
         readPuts: 0,
+        unsubscribeDeletes: 0,
     };
     await page.addInitScript(() => {
         document.cookie = 'larafeed-test-csrf=browser-csrf; path=/; SameSite=Lax';
@@ -142,6 +144,14 @@ async function mockReaderApi(
                     ],
                 }),
             );
+            return;
+        }
+        if (
+            pathname === '/api/subscriptions/21' &&
+            request.method() === 'DELETE'
+        ) {
+            state.unsubscribeDeletes += 1;
+            await route.fulfill(json({ deleted: true }));
             return;
         }
         if (pathname === '/api/entries/counts') {
@@ -255,6 +265,18 @@ test('keeps the unread page stable and generates a summary with one click', asyn
     await expect(page.getByText('Generated summary.')).toBeVisible();
     expect(state.summaryPosts).toBe(1);
     expect(state.entryListRequests).toBe(1);
+});
+
+test('unsubscribes from a feed after confirmation', async ({ page }) => {
+    const state = await mockReaderApi(page);
+    await page.goto('/feeds?filter=all&order_by=published_at&page=1');
+
+    await page.getByRole('button', { name: 'Manage Example feed' }).click();
+    await page.getByRole('menuitem', { name: 'Unsubscribe' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Unsubscribe from feed?' });
+    await dialog.getByRole('button', { name: 'Unsubscribe' }).click();
+
+    await expect.poll(() => state.unsubscribeDeletes).toBe(1);
 });
 
 test('truncates long feed names within the sidebar', async ({ page }) => {
