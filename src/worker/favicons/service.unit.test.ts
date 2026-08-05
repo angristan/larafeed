@@ -90,6 +90,51 @@ describe('favicon service', () => {
         );
     });
 
+    it('reads a bounded head from pages larger than the HTML limit', async () => {
+        const accountRepository = repository();
+        const update = vi.spyOn(accountRepository, 'update');
+        const html = `<html><head>
+            <link rel="icon" type="image/png" sizes="32x32" href="/declared.png">
+            </head><body>${'x'.repeat(2 * 1024 * 1024)}</body></html>`;
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                new Response(html, {
+                    headers: {
+                        'content-length': String(bytes(html).byteLength),
+                        'content-type': 'text/html',
+                    },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(new Uint8Array([1, 2, 3]), {
+                    headers: { 'content-type': 'image/png' },
+                }),
+            );
+        const service = makeFaviconService({
+            repository: accountRepository,
+            fetch: fetchMock,
+            analyzeDarkness: vi.fn().mockResolvedValue(false),
+            now: () => 1_900_000_000_001,
+        });
+
+        await expect(
+            Effect.runPromise(service.refreshOwned(1, target.feedId)),
+        ).resolves.toMatchObject({
+            faviconUrl: 'https://example.test/declared.png',
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(update).toHaveBeenCalledWith(
+            target.feedId,
+            'https://example.test/declared.png',
+            null,
+            false,
+            1_900_000_000_001,
+            target.faviconUrl,
+            target.faviconUpdatedAt,
+        );
+    });
+
     it('persists the normalized D1 asset before switching the feed reference', async () => {
         const accountRepository = repository();
         const update = vi.spyOn(accountRepository, 'update');

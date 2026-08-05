@@ -10,7 +10,7 @@ import {
 import type { FaviconDarknessAnalyzer } from './darkness';
 import type { FaviconRepository, FaviconTarget } from './repository';
 
-const MAX_HTML_BYTES = 1024 * 1024;
+const MAX_HTML_HEAD_BYTES = 1024 * 1024;
 const MAX_MANIFEST_BYTES = 256 * 1024;
 const MAX_INLINE_BYTES = 256 * 1024;
 const MAX_REDIRECTS = 3;
@@ -181,6 +181,19 @@ export const discoverFaviconLinks = (
         )
         .map(({ url }) => url);
 
+const concatenateBytes = (
+    chunks: readonly Uint8Array[],
+    total: number,
+): Uint8Array => {
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.byteLength;
+    }
+    return bytes;
+};
+
 const boundedBody = async (
     response: Response,
     maximum: number,
@@ -208,13 +221,48 @@ const boundedBody = async (
     } finally {
         reader.releaseLock();
     }
-    const body = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) {
-        body.set(chunk, offset);
-        offset += chunk.byteLength;
+    return concatenateBytes(chunks, total);
+};
+
+const boundedHtmlHead = async (
+    response: Response,
+    maximum: number,
+): Promise<Uint8Array> => {
+    const contentLength = response.headers.get('content-length');
+    if (contentLength !== null && !/^\d+$/u.test(contentLength))
+        throw new FaviconDiscoveryError();
+    if (response.body === null) throw new FaviconDiscoveryError();
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    const chunks: Uint8Array[] = [];
+    let decoded = '';
+    let total = 0;
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) return concatenateBytes(chunks, total);
+
+            const remaining = maximum - total;
+            const accepted = value.subarray(0, remaining);
+            if (accepted.byteLength > 0) {
+                chunks.push(accepted);
+                total += accepted.byteLength;
+                decoded += decoder.decode(accepted, { stream: true });
+            }
+
+            if (/<\/head\s*>/iu.test(decoded)) {
+                await reader.cancel();
+                return concatenateBytes(chunks, total);
+            }
+            if (accepted.byteLength < value.byteLength || total === maximum) {
+                await reader.cancel();
+                throw new FaviconDiscoveryError();
+            }
+        }
+    } finally {
+        reader.releaseLock();
     }
-    return body;
 };
 
 const fetchResource = async (
@@ -224,6 +272,7 @@ const fetchResource = async (
         readonly accept: string;
         readonly maximum: number;
         readonly acceptedMimes: ReadonlySet<string>;
+        readonly readHtmlHead?: boolean;
     },
 ): Promise<{ readonly url: URL; readonly body: Uint8Array }> => {
     let url = validateFeedUrl(rawUrl);
@@ -282,7 +331,10 @@ const fetchResource = async (
             }
             return {
                 url,
-                body: await boundedBody(response, input.maximum),
+                body:
+                    input.readHtmlHead === true
+                        ? await boundedHtmlHead(response, input.maximum)
+                        : await boundedBody(response, input.maximum),
             };
         }
     } catch (cause) {
@@ -303,8 +355,9 @@ const fetchPage = (
 ): Promise<FetchedPage> =>
     fetchResource(url, fetchImplementation, {
         accept: 'text/html,application/xhtml+xml;q=0.9',
-        maximum: MAX_HTML_BYTES,
+        maximum: MAX_HTML_HEAD_BYTES,
         acceptedMimes: new Set(['text/html', 'application/xhtml+xml']),
+        readHtmlHead: true,
     });
 
 const manifestCandidates = async (

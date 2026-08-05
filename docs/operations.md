@@ -58,7 +58,7 @@ These are application bounds, not Cloudflare platform limits.
 | --- | --- |
 | Feed refresh | 15-second deadline, 5 redirects, 10 MiB response, newest 20 valid entries, 8 processing attempts, 10 outbox attempts, 5-minute manual cooldown. |
 | OPML | 2 MB, 500 unique feeds, 50 outline levels, one concurrent discovery consumer. |
-| Favicons | 1 MiB site HTML, 256 KiB manifest or inline image, 2 MiB remote image, 3 redirects, safe SVG and bounded ICO decoding, fixed 32×32 PNG, 64 KiB stored output, 30-day refresh interval. |
+| Favicons | 1 MiB site HTML head, 256 KiB manifest or inline image, 2 MiB remote image, 3 redirects, safe SVG and bounded ICO decoding, fixed 32×32 PNG, 64 KiB stored output, 30-day refresh interval. |
 | Article images | At most 100 sources per entry, 2 MiB source, fixed 1600 px scale-down, ownership required. |
 | AI summaries | 50 KiB input, 15-second deadline, one retry, 512 output tokens, 32 KiB stored HTML. |
 
