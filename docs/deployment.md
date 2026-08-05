@@ -102,7 +102,9 @@ Both keys are required when enabled. Passkey rate limiting and exact-origin chec
 
 ### Images and favicons
 
-Set `IMAGES_ENABLED=true` to enable ownership-checked article image transforms. Also set `FAVICON_REFRESH_ENABLED=true` to discover and normalize favicons. Favicons are stored in D1; Larafeed does not require R2.
+Set `IMAGES_ENABLED=true` to enable ownership-checked article image transforms. Also set `FAVICON_REFRESH_ENABLED=true` to discover and normalize favicons. Bitmap favicons are normalized to 32×32 PNGs. SVG favicons pass through a strict local allowlist sanitizer and are stored separately with sandboxed delivery headers. Favicons are stored in D1; Larafeed does not require R2.
+
+Migration `0018_favicon_svg_assets.sql` supports a safe Worker rollback. An older Worker treats SVG-backed hashes as missing, so the client shows its RSS fallback icon. Redeploy an SVG-aware Worker to restore those favicons; do not drop the SVG table during a routine rollback.
 
 ### AI summaries
 

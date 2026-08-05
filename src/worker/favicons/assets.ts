@@ -4,10 +4,13 @@ import type { D1 } from '../infrastructure/d1';
 import { spanNames, type TelemetryFailure, traceAsync } from '../observability';
 import { inspectNormalizedFavicon } from './darkness';
 import { FaviconSourceError, prepareFaviconSource } from './source';
+import { sanitizeSvg } from './svg';
 
 const FAVICON_SIZE = 32;
 const MAX_FAVICON_ASSET_BYTES = 64 * 1024;
 const PNG_SIGNATURE = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
+const PNG_CONTENT_TYPE = 'image/png';
+const SVG_CONTENT_TYPE = 'image/svg+xml';
 const ASSET_VERSION = 'v1';
 const CACHE_CONTROL = 'public, max-age=31536000, immutable';
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
@@ -24,10 +27,19 @@ export class FaviconAssetStorageError extends Schema.TaggedErrorClass<FaviconAss
 export class FaviconAssetCandidateError extends Schema.TaggedErrorClass<FaviconAssetCandidateError>()(
     'FaviconAssetCandidateError',
     {
-        stage: Schema.Literals(['source', 'transform', 'output']),
+        stage: Schema.Literals(['source', 'sanitize', 'transform', 'output']),
         retryable: Schema.Boolean,
     },
 ) {}
+
+export type FaviconAssetContentType =
+    | typeof PNG_CONTENT_TYPE
+    | typeof SVG_CONTENT_TYPE;
+
+export interface FaviconAssetBody {
+    readonly bytes: Uint8Array;
+    readonly contentType: FaviconAssetContentType;
+}
 
 export interface StoredFaviconAsset {
     readonly hash: string;
@@ -37,10 +49,10 @@ export interface StoredFaviconAsset {
 export interface FaviconAssetRepository {
     readonly put: (
         hash: string,
-        png: Uint8Array,
+        asset: FaviconAssetBody,
         createdAt: number,
     ) => Promise<void>;
-    readonly find: (hash: string) => Promise<Uint8Array | null>;
+    readonly find: (hash: string) => Promise<FaviconAssetBody | null>;
     readonly deleteOrphans: (
         olderThan: number,
         limit: number,
@@ -64,7 +76,7 @@ const arrayBuffer = (bytes: Uint8Array): ArrayBuffer => {
 };
 
 const candidateError = (
-    stage: 'source' | 'transform' | 'output',
+    stage: 'source' | 'sanitize' | 'transform' | 'output',
     retryable = false,
 ) => new FaviconAssetCandidateError({ stage, retryable });
 
@@ -129,6 +141,8 @@ const hex = (bytes: ArrayBuffer): string =>
     Array.from(new Uint8Array(bytes), (byte) =>
         byte.toString(16).padStart(2, '0'),
     ).join('');
+const contentHash = async (bytes: Uint8Array): Promise<string> =>
+    hex(await crypto.subtle.digest('SHA-256', arrayBuffer(bytes)));
 
 const validateHash = (hash: string): string => {
     if (!HASH_PATTERN.test(hash)) throw new FaviconAssetStorageError();
@@ -170,28 +184,77 @@ const decodeBlob = (value: unknown): Uint8Array => {
     throw new FaviconAssetStorageError();
 };
 
+const validateAssetBody = async (
+    asset: FaviconAssetBody,
+): Promise<FaviconAssetBody> => {
+    if (
+        asset.bytes.byteLength === 0 ||
+        asset.bytes.byteLength > MAX_FAVICON_ASSET_BYTES
+    ) {
+        throw new FaviconAssetStorageError();
+    }
+    if (asset.contentType === PNG_CONTENT_TYPE) {
+        if (
+            asset.bytes.byteLength < PNG_SIGNATURE.byteLength ||
+            !PNG_SIGNATURE.every((byte, index) => asset.bytes[index] === byte)
+        ) {
+            throw new FaviconAssetStorageError();
+        }
+        return asset;
+    }
+    if (asset.contentType !== SVG_CONTENT_TYPE)
+        throw new FaviconAssetStorageError();
+    try {
+        const sanitized = await sanitizeSvg(asset.bytes);
+        if (
+            sanitized.byteLength !== asset.bytes.byteLength ||
+            !sanitized.every((byte, index) => byte === asset.bytes[index])
+        )
+            throw new FaviconAssetStorageError();
+        return asset;
+    } catch (cause) {
+        if (cause instanceof FaviconAssetStorageError) throw cause;
+        throw new FaviconAssetStorageError();
+    }
+};
+
 export const makeD1FaviconAssetRepository = (
     d1: D1,
 ): FaviconAssetRepository => ({
-    put: async (hash, png, createdAt) => {
+    put: async (hash, asset, createdAt) => {
         try {
             validateHash(hash);
-            if (
-                png.byteLength < PNG_SIGNATURE.byteLength ||
-                png.byteLength > MAX_FAVICON_ASSET_BYTES ||
-                !PNG_SIGNATURE.every((byte, index) => png[index] === byte) ||
-                !Number.isSafeInteger(createdAt) ||
-                createdAt < 0
-            ) {
+            await validateAssetBody(asset);
+            if ((await contentHash(asset.bytes)) !== hash)
                 throw new FaviconAssetStorageError();
-            }
+            if (!Number.isSafeInteger(createdAt) || createdAt < 0)
+                throw new FaviconAssetStorageError();
             await Effect.runPromise(
-                d1.run({
-                    sql: `INSERT INTO favicon_assets (hash, png, created_at)
-                        VALUES (?, ?, ?)
-                        ON CONFLICT(hash) DO NOTHING`,
-                    bindings: [hash, arrayBuffer(png), createdAt],
-                }),
+                d1.run(
+                    asset.contentType === PNG_CONTENT_TYPE
+                        ? {
+                              sql: `INSERT INTO favicon_assets (
+                                      hash, png, created_at
+                                  ) VALUES (?, ?, ?)
+                                  ON CONFLICT(hash) DO NOTHING`,
+                              bindings: [
+                                  hash,
+                                  arrayBuffer(asset.bytes),
+                                  createdAt,
+                              ],
+                          }
+                        : {
+                              sql: `INSERT INTO favicon_svg_assets (
+                                      hash, svg, created_at
+                                  ) VALUES (?, ?, ?)
+                                  ON CONFLICT(hash) DO NOTHING`,
+                              bindings: [
+                                  hash,
+                                  arrayBuffer(asset.bytes),
+                                  createdAt,
+                              ],
+                          },
+                ),
             );
         } catch (cause) {
             if (cause instanceof FaviconAssetStorageError) throw cause;
@@ -202,22 +265,34 @@ export const makeD1FaviconAssetRepository = (
         try {
             validateHash(hash);
             const row = await Effect.runPromise(
-                d1.first<{ readonly png: unknown }>({
-                    sql: 'SELECT png FROM favicon_assets WHERE hash = ?',
-                    bindings: [hash],
+                d1.first<{
+                    readonly body: unknown;
+                    readonly content_type: unknown;
+                }>({
+                    sql: `SELECT body, content_type FROM (
+                            SELECT png AS body, 'image/png' AS content_type
+                            FROM favicon_assets WHERE hash = ?
+                            UNION ALL
+                            SELECT svg AS body, 'image/svg+xml' AS content_type
+                            FROM favicon_svg_assets WHERE hash = ?
+                        ) LIMIT 1`,
+                    bindings: [hash, hash],
                 }),
             );
             if (row === null) return null;
-            const png = decodeBlob(row.png);
             if (
-                png.byteLength === 0 ||
-                png.byteLength > MAX_FAVICON_ASSET_BYTES ||
-                png.byteLength < PNG_SIGNATURE.byteLength ||
-                !PNG_SIGNATURE.every((byte, index) => png[index] === byte)
+                row.content_type !== PNG_CONTENT_TYPE &&
+                row.content_type !== SVG_CONTENT_TYPE
             ) {
                 throw new FaviconAssetStorageError();
             }
-            return png;
+            const asset = await validateAssetBody({
+                bytes: decodeBlob(row.body),
+                contentType: row.content_type,
+            });
+            if ((await contentHash(asset.bytes)) !== hash)
+                throw new FaviconAssetStorageError();
+            return asset;
         } catch (cause) {
             if (cause instanceof FaviconAssetStorageError) throw cause;
             throw new FaviconAssetStorageError();
@@ -234,24 +309,75 @@ export const makeD1FaviconAssetRepository = (
             ) {
                 throw new FaviconAssetStorageError();
             }
-            const result = await Effect.runPromise(
-                d1.run({
-                    sql: `DELETE FROM favicon_assets
-                        WHERE hash IN (
-                            SELECT fa.hash
+            const candidates = await Effect.runPromise(
+                d1.all<{ readonly hash: unknown; readonly kind: unknown }>({
+                    sql: `SELECT hash, kind FROM (
+                            SELECT fa.hash, 'png' AS kind, fa.created_at
                             FROM favicon_assets fa
                             WHERE fa.created_at < ?
                               AND NOT EXISTS (
                                   SELECT 1 FROM feeds f
                                   WHERE f.favicon_asset_hash = fa.hash
                               )
-                            ORDER BY fa.created_at ASC, fa.hash ASC
-                            LIMIT ?
-                        )`,
-                    bindings: [olderThan, limit],
+                            UNION ALL
+                            SELECT fa.hash, 'svg' AS kind, fa.created_at
+                            FROM favicon_svg_assets fa
+                            WHERE fa.created_at < ?
+                              AND NOT EXISTS (
+                                  SELECT 1 FROM feeds f
+                                  WHERE f.favicon_asset_hash = fa.hash
+                              )
+                        )
+                        ORDER BY created_at ASC, hash ASC, kind ASC
+                        LIMIT ?`,
+                    bindings: [olderThan, olderThan, limit],
                 }),
             );
-            return result.meta.changes;
+            const pngHashes: string[] = [];
+            const svgHashes: string[] = [];
+            for (const candidate of candidates.results) {
+                if (typeof candidate.hash !== 'string')
+                    throw new FaviconAssetStorageError();
+                validateHash(candidate.hash);
+                if (candidate.kind === 'png') pngHashes.push(candidate.hash);
+                else if (candidate.kind === 'svg')
+                    svgHashes.push(candidate.hash);
+                else throw new FaviconAssetStorageError();
+            }
+            const statements = [
+                ...(pngHashes.length === 0
+                    ? []
+                    : [
+                          {
+                              sql: `DELETE FROM favicon_assets
+                                  WHERE hash IN (${pngHashes.map(() => '?').join(', ')})
+                                    AND NOT EXISTS (
+                                        SELECT 1 FROM feeds f
+                                        WHERE f.favicon_asset_hash = favicon_assets.hash
+                                    )`,
+                              bindings: pngHashes,
+                          },
+                      ]),
+                ...(svgHashes.length === 0
+                    ? []
+                    : [
+                          {
+                              sql: `DELETE FROM favicon_svg_assets
+                                  WHERE hash IN (${svgHashes.map(() => '?').join(', ')})
+                                    AND NOT EXISTS (
+                                        SELECT 1 FROM feeds f
+                                        WHERE f.favicon_asset_hash = favicon_svg_assets.hash
+                                    )`,
+                              bindings: svgHashes,
+                          },
+                      ]),
+            ];
+            if (statements.length === 0) return 0;
+            const deleted = await Effect.runPromise(d1.batch(statements));
+            return deleted.reduce(
+                (total, result) => total + result.meta.changes,
+                0,
+            );
         } catch (cause) {
             if (cause instanceof FaviconAssetStorageError) throw cause;
             throw new FaviconAssetStorageError();
@@ -302,57 +428,79 @@ export const makeFaviconAssetStore = (
                 }
                 span.setAttribute('app.favicon.source_kind', prepared.kind);
 
-                let normalized: Uint8Array;
-                let inspection =
-                    prepared.kind === 'png' &&
-                    isExactSize(prepared.bytes, FAVICON_SIZE, FAVICON_SIZE)
-                        ? await inspectNormalizedFavicon(prepared.bytes)
-                        : { valid: false, isDark: null };
-                if (inspection.valid) {
-                    normalized = prepared.bytes;
+                let asset: FaviconAssetBody;
+                let isDark: boolean | null;
+                if (prepared.kind === 'svg') {
+                    let sanitized: Uint8Array;
+                    try {
+                        sanitized = await sanitizeSvg(prepared.bytes);
+                    } catch (cause) {
+                        if (cause instanceof FaviconSourceError)
+                            throw candidateError('sanitize');
+                        throw candidateError('sanitize', true);
+                    }
+                    asset = {
+                        bytes: sanitized,
+                        contentType: SVG_CONTENT_TYPE,
+                    };
+                    isDark = null;
+                    span.setAttribute('app.favicon.sanitized', true);
                     span.setAttribute('app.favicon.transformed', false);
                 } else {
-                    span.setAttribute('app.favicon.transformed', true);
-                    let output: ImageTransformationResult;
-                    try {
-                        const sourceBody = new Response(
-                            arrayBuffer(prepared.bytes),
-                        ).body;
-                        if (sourceBody === null) throw candidateError('source');
-                        output = await dependencies.images
-                            .input(sourceBody)
-                            .transform({
-                                width: FAVICON_SIZE,
-                                height: FAVICON_SIZE,
-                                fit: 'cover',
-                            })
-                            .output({ format: 'image/png', anim: false });
-                    } catch (cause) {
-                        if (cause instanceof FaviconAssetCandidateError)
-                            throw cause;
-                        throw candidateError('transform', true);
+                    let normalized: Uint8Array;
+                    let inspection =
+                        prepared.kind === 'png' &&
+                        isExactSize(prepared.bytes, FAVICON_SIZE, FAVICON_SIZE)
+                            ? await inspectNormalizedFavicon(prepared.bytes)
+                            : { valid: false, isDark: null };
+                    if (inspection.valid) {
+                        normalized = prepared.bytes;
+                        span.setAttribute('app.favicon.transformed', false);
+                    } else {
+                        span.setAttribute('app.favicon.transformed', true);
+                        let output: ImageTransformationResult;
+                        try {
+                            const sourceBody = new Response(
+                                arrayBuffer(prepared.bytes),
+                            ).body;
+                            if (sourceBody === null)
+                                throw candidateError('source');
+                            output = await dependencies.images
+                                .input(sourceBody)
+                                .transform({
+                                    width: FAVICON_SIZE,
+                                    height: FAVICON_SIZE,
+                                    fit: 'cover',
+                                })
+                                .output({ format: 'image/png', anim: false });
+                        } catch (cause) {
+                            if (cause instanceof FaviconAssetCandidateError)
+                                throw cause;
+                            throw candidateError('transform', true);
+                        }
+                        normalized = await readBoundedPng(output.response());
+                        inspection = await inspectNormalizedFavicon(normalized);
+                        if (!inspection.valid) throw candidateError('output');
                     }
-                    normalized = await readBoundedPng(output.response());
-                    inspection = await inspectNormalizedFavicon(normalized);
-                    if (!inspection.valid) throw candidateError('output');
+                    asset = {
+                        bytes: normalized,
+                        contentType: PNG_CONTENT_TYPE,
+                    };
+                    isDark = inspection.isDark;
                 }
                 span.setAttribute(
                     'app.favicon.normalized_bytes',
-                    normalized.byteLength,
+                    asset.bytes.byteLength,
                 );
 
                 try {
-                    const digest = await crypto.subtle.digest(
-                        'SHA-256',
-                        arrayBuffer(normalized),
-                    );
-                    const hash = hex(digest);
+                    const hash = await contentHash(asset.bytes);
                     await dependencies.repository.put(
                         hash,
-                        normalized,
+                        asset,
                         (dependencies.now ?? Date.now)(),
                     );
-                    return { hash, isDark: inspection.isDark };
+                    return { hash, isDark };
                 } catch (cause) {
                     if (cause instanceof FaviconAssetStorageError) throw cause;
                     throw new FaviconAssetStorageError();

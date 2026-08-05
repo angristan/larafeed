@@ -14,6 +14,14 @@ const transparentPng = Uint8Array.from(
     ),
     (character) => character.charCodeAt(0),
 );
+const contentHash = async (bytes: Uint8Array): Promise<string> => {
+    const source = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(source).set(bytes);
+    return Array.from(
+        new Uint8Array(await crypto.subtle.digest('SHA-256', source)),
+        (byte) => byte.toString(16).padStart(2, '0'),
+    ).join('');
+};
 const legacyIco = (): Uint8Array => {
     const width = 32;
     const height = 32;
@@ -58,7 +66,8 @@ describe('favicon D1 assets', () => {
         expect(first.hash).toMatch(/^[a-f0-9]{64}$/u);
         expect(first.isDark).toBe(true);
         expect(stored).not.toBeNull();
-        expect(Array.from(stored?.subarray(0, 8) ?? [])).toEqual([
+        expect(stored?.contentType).toBe('image/png');
+        expect(Array.from(stored?.bytes.subarray(0, 8) ?? [])).toEqual([
             137, 80, 78, 71, 13, 10, 26, 10,
         ]);
 
@@ -88,47 +97,93 @@ describe('favicon D1 assets', () => {
 
         expect(stored).not.toBeNull();
         if (stored === null) throw new Error('Expected stored ICO asset');
-        expect(Array.from(stored.subarray(0, 8))).toEqual([
+        expect(stored.contentType).toBe('image/png');
+        expect(Array.from(stored.bytes.subarray(0, 8))).toEqual([
             137, 80, 78, 71, 13, 10, 26, 10,
         ]);
         expect(
             new DataView(
-                stored.buffer,
-                stored.byteOffset,
-                stored.byteLength,
+                stored.bytes.buffer,
+                stored.bytes.byteOffset,
+                stored.bytes.byteLength,
             ).getUint32(16),
         ).toBe(32);
     });
 
-    it('normalizes and stores a safe SVG through Images', async () => {
-        const store = makeFaviconAssetStore({
-            repository,
-            images: env.IMAGES,
-            now: () => 1_900_000_000_002,
-        });
+    it('sanitizes and isolates SVG storage without rasterizing it', async () => {
         const source = new TextEncoder().encode(
             `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
                 <path fill="#111" d="M0 0h64v64H0z" />
             </svg>`,
         );
+        const store = makeFaviconAssetStore({
+            repository,
+            images: env.IMAGES,
+            now: () => 1_900_000_000_002,
+        });
 
         const asset = await store.persist(source);
         const stored = await repository.find(asset.hash);
 
+        expect(asset.isDark).toBeNull();
         expect(stored).not.toBeNull();
         if (stored === null) throw new Error('Expected stored SVG asset');
-        const view = new DataView(
-            stored.buffer,
-            stored.byteOffset,
-            stored.byteLength,
+        expect(stored.contentType).toBe('image/svg+xml');
+        expect(new TextDecoder().decode(stored.bytes)).toBe(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path fill="#111" d="M0 0h64v64H0z"/></svg>',
         );
-        expect(view.getUint32(16)).toBe(32);
-        expect(view.getUint32(20)).toBe(32);
+        await expect(
+            Effect.runPromise(
+                d1.first<number>(
+                    {
+                        sql: 'SELECT COUNT(*) AS count FROM favicon_svg_assets WHERE hash = ?',
+                        bindings: [asset.hash],
+                    },
+                    'count',
+                ),
+            ),
+        ).resolves.toBe(1);
+        await expect(
+            Effect.runPromise(
+                d1.first<number>(
+                    {
+                        sql: 'SELECT COUNT(*) AS count FROM favicon_assets WHERE hash = ?',
+                        bindings: [asset.hash],
+                    },
+                    'count',
+                ),
+            ),
+        ).resolves.toBe(0);
+
+        const response = await createApp().request(
+            `https://larafeedcf.stanislas.cloud/api/public/favicons/v1/${asset.hash}.png`,
+            {},
+            env,
+        );
+        expect(response.status).toBe(200);
+        expect(response.headers.get('content-type')).toBe('image/svg+xml');
+        expect(response.headers.get('content-security-policy')).toBe(
+            "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+        );
+        expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+            stored.bytes,
+        );
     });
 
     it('serves a stored asset through the default public route', async () => {
-        const hash = 'e'.repeat(64);
-        await repository.put(hash, transparentPng, 2_000);
+        const hash = await contentHash(transparentPng);
+        await expect(
+            repository.put(
+                'e'.repeat(64),
+                { bytes: transparentPng, contentType: 'image/png' },
+                2_000,
+            ),
+        ).rejects.toBeDefined();
+        await repository.put(
+            hash,
+            { bytes: transparentPng, contentType: 'image/png' },
+            2_000,
+        );
 
         const response = await createApp().request(
             `https://larafeedcf.stanislas.cloud/api/public/favicons/v1/${hash}.png`,
@@ -147,33 +202,80 @@ describe('favicon D1 assets', () => {
         );
     });
 
-    it('deletes only old unreferenced assets in bounded batches', async () => {
-        const orphanHash = 'c'.repeat(64);
+    it('deletes the oldest unreferenced assets across both formats', async () => {
+        const svgOrphanHash = 'b'.repeat(64);
+        const pngOrphanHash = 'c'.repeat(64);
         const referencedHash = 'd'.repeat(64);
         const createdAt = 1_000;
-        await repository.put(orphanHash, transparentPng, createdAt);
-        await repository.put(referencedHash, transparentPng, createdAt);
         await Effect.runPromise(
-            d1.run({
-                sql: `INSERT INTO feeds (
-                        id, name, feed_url, favicon_asset_hash,
-                        next_refresh_at, created_at, updated_at
-                    ) VALUES (?, 'Asset feed', ?, ?, ?, ?, ?)`,
-                bindings: [
-                    965_001,
-                    'https://favicon-assets.example.test/feed.xml',
-                    referencedHash,
-                    createdAt,
-                    createdAt,
-                    createdAt,
-                ],
-            }),
+            d1.batch([
+                {
+                    sql: `INSERT INTO favicon_svg_assets (hash, svg, created_at)
+                        VALUES (?, ?, ?)`,
+                    bindings: [
+                        svgOrphanHash,
+                        new TextEncoder().encode('<svg/>'),
+                        createdAt - 1,
+                    ],
+                },
+                {
+                    sql: `INSERT INTO favicon_assets (hash, png, created_at)
+                        VALUES (?, ?, ?), (?, ?, ?)`,
+                    bindings: [
+                        pngOrphanHash,
+                        transparentPng,
+                        createdAt,
+                        referencedHash,
+                        transparentPng,
+                        createdAt - 2,
+                    ],
+                },
+                {
+                    sql: `INSERT INTO feeds (
+                            id, name, feed_url, favicon_asset_hash,
+                            next_refresh_at, created_at, updated_at
+                        ) VALUES (?, 'Asset feed', ?, ?, ?, ?, ?)`,
+                    bindings: [
+                        965_001,
+                        'https://favicon-assets.example.test/feed.xml',
+                        referencedHash,
+                        createdAt,
+                        createdAt,
+                        createdAt,
+                    ],
+                },
+            ]),
         );
 
         await expect(repository.deleteOrphans(createdAt + 1, 1)).resolves.toBe(
             1,
         );
-        await expect(repository.find(orphanHash)).resolves.toBeNull();
-        await expect(repository.find(referencedHash)).resolves.not.toBeNull();
+        await expect(
+            Effect.runPromise(
+                d1.first<number>(
+                    {
+                        sql: `SELECT COUNT(*) AS count
+                            FROM favicon_svg_assets WHERE hash = ?`,
+                        bindings: [svgOrphanHash],
+                    },
+                    'count',
+                ),
+            ),
+        ).resolves.toBe(0);
+        await expect(repository.deleteOrphans(createdAt + 1, 1)).resolves.toBe(
+            1,
+        );
+        await expect(
+            Effect.runPromise(
+                d1.first<number>(
+                    {
+                        sql: `SELECT COUNT(*) AS count FROM favicon_assets
+                            WHERE hash IN (?, ?)`,
+                        bindings: [pngOrphanHash, referencedHash],
+                    },
+                    'count',
+                ),
+            ),
+        ).resolves.toBe(1);
     });
 });

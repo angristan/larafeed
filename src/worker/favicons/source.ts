@@ -345,7 +345,9 @@ const validateSvg = (source: Uint8Array): void => {
     if (
         !/<svg\b/iu.test(text) ||
         /<!\s*(?:doctype|entity)\b/iu.test(text) ||
-        /<\s*(?:script|foreignObject|iframe|object|embed)\b/iu.test(text) ||
+        /<\s*(?:script|foreignObject|iframe|object|embed|a)\b/iu.test(text) ||
+        /\son[a-z][a-z0-9:._-]*\s*=/iu.test(text) ||
+        /(?:javascript|vbscript)\s*:/iu.test(text) ||
         /@import\b/iu.test(text)
     )
         throw new FaviconSourceError('unsupported');

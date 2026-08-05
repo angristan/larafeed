@@ -116,7 +116,10 @@ describe('favicon routes', () => {
     it('serves durable assets through a public immutable edge cache', async () => {
         const hash = 'b'.repeat(64);
         const png = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
-        const find = vi.fn(async () => png);
+        const find = vi.fn(async () => ({
+            bytes: png,
+            contentType: 'image/png' as const,
+        }));
         let cached: Response | undefined;
         const match = vi.fn(async () => cached?.clone());
         const put = vi.fn(async (_request: Request, response: Response) => {
@@ -156,6 +159,44 @@ describe('favicon routes', () => {
         );
         expect(invalid.status).toBe(404);
         expect(invalid.headers.get('cache-control')).toBe('no-store');
+    });
+
+    it('serves sanitized SVGs through sandboxed responses', async () => {
+        const hash = 'c'.repeat(64);
+        const svg = new TextEncoder().encode(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"/>',
+        );
+        const repository = {
+            put: vi.fn(async () => undefined),
+            find: vi.fn(async () => ({
+                bytes: svg,
+                contentType: 'image/svg+xml' as const,
+            })),
+            deleteOrphans: vi.fn(async () => 0),
+        } satisfies FaviconAssetRepository;
+        const current = app(true, true, {
+            repository,
+            cache: {
+                match: vi.fn(async () => undefined),
+                put: vi.fn(async () => undefined),
+            },
+        });
+
+        const response = await current.hono.request(
+            `/api/public/favicons/v1/${hash}.png`,
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get('content-type')).toBe('image/svg+xml');
+        expect(response.headers.get('content-security-policy')).toBe(
+            "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+        );
+        expect(response.headers.get('cross-origin-resource-policy')).toBe(
+            'same-origin',
+        );
+        expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+        expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+        expect(new Uint8Array(await response.arrayBuffer())).toEqual(svg);
     });
 
     it('rejects invalid ids and rate-limited refreshes safely', async () => {

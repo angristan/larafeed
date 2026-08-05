@@ -45,7 +45,10 @@ const makeImages = (outputBytes = normalizedPng) => {
 };
 
 const makeRepository = () => {
-    const put = vi.fn(async () => undefined);
+    const put = vi.fn(
+        async (..._args: Parameters<FaviconAssetRepository['put']>) =>
+            undefined,
+    );
     const find = vi.fn(async () => null);
     const deleteOrphans = vi.fn(async () => 0);
     return {
@@ -119,7 +122,7 @@ describe('favicon assets', () => {
         });
         expect(repository.put).toHaveBeenCalledWith(
             asset.hash,
-            normalizedPng,
+            { bytes: normalizedPng, contentType: 'image/png' },
             1234,
         );
     });
@@ -136,7 +139,34 @@ describe('favicon assets', () => {
         const asset = await store.persist(exactPng);
 
         expect(images.input).not.toHaveBeenCalled();
-        expect(repository.put).toHaveBeenCalledWith(asset.hash, exactPng, 1234);
+        expect(repository.put).toHaveBeenCalledWith(
+            asset.hash,
+            { bytes: exactPng, contentType: 'image/png' },
+            1234,
+        );
+    });
+
+    it('sanitizes and stores SVGs without rasterizing them', async () => {
+        const images = makeImages();
+        const repository = makeRepository();
+        const source = new TextEncoder().encode(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><metadata>remove me</metadata><path style="fill:#123" d="M0 0h32v32H0z"/></svg>',
+        );
+        const store = makeFaviconAssetStore({
+            repository: repository.repository,
+            images: images.images,
+            now: () => 1234,
+        });
+
+        const asset = await store.persist(source);
+
+        expect(asset.isDark).toBeNull();
+        expect(images.input).not.toHaveBeenCalled();
+        const stored = repository.put.mock.calls[0]?.[1];
+        expect(stored?.contentType).toBe('image/svg+xml');
+        expect(new TextDecoder().decode(stored?.bytes)).toBe(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path style="fill:#123" d="M0 0h32v32H0z"/></svg>',
+        );
     });
 
     it('fails closed for invalid or oversized Images output', async () => {

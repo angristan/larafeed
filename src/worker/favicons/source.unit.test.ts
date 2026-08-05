@@ -58,6 +58,9 @@ describe('favicon source preparation', () => {
 
     it.each([
         '<svg><script>alert(1)</script></svg>',
+        '<svg onload="alert(1)" />',
+        '<svg><a href="#target"><path /></a></svg>',
+        '<svg><path style="background:url(javascript:alert(1))" /></svg>',
         '<svg><image href="https://private.example/image.png" /></svg>',
         '<!DOCTYPE svg><svg />',
         '<svg><style>@import "https://example.test/style.css"</style></svg>',

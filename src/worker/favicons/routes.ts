@@ -218,9 +218,8 @@ export const registerFaviconRoutes = (
             faviconRefreshEnabled(env) && faviconDarknessEnabled(env));
 
     app.get('/api/public/favicons/v1/:filename', async (context) => {
-        const match = /^([a-f0-9]{64})\.png$/u.exec(
-            context.req.param('filename') ?? '',
-        );
+        const filename = context.req.param('filename') ?? '';
+        const match = /^([a-f0-9]{64})\.png$/u.exec(filename);
         const hash = match?.[1];
         if (hash === undefined || new URL(context.req.url).search) {
             return new Response(null, {
@@ -250,22 +249,31 @@ export const registerFaviconRoutes = (
                 makeD1FaviconAssetRepository(
                     makeD1(context.env.DB, 'first-unconstrained'),
                 );
-            const png = await repository.find(hash);
-            if (png === null) {
+            const asset = await repository.find(hash);
+            if (asset === null) {
                 return new Response(null, {
                     status: 404,
                     headers: { 'cache-control': 'no-store' },
                 });
             }
-            const body = new ArrayBuffer(png.byteLength);
-            new Uint8Array(body).set(png);
+            const body = new ArrayBuffer(asset.bytes.byteLength);
+            new Uint8Array(body).set(asset.bytes);
+            const svg = asset.contentType === 'image/svg+xml';
             const response = new Response(body, {
                 status: 200,
                 headers: {
                     'cache-control': FAVICON_ASSET_CACHE_CONTROL,
-                    'content-type': 'image/png',
+                    'content-type': asset.contentType,
                     etag: `"${hash}"`,
+                    'referrer-policy': 'no-referrer',
                     'x-content-type-options': 'nosniff',
+                    ...(svg
+                        ? {
+                              'content-security-policy':
+                                  "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+                              'cross-origin-resource-policy': 'same-origin',
+                          }
+                        : {}),
                 },
             });
             try {
