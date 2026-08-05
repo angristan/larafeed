@@ -151,6 +151,10 @@
     --scrollarea-scrollbar-size: 8px;
 }
 
+.entryListViewport {
+    will-change: scroll-position;
+}
+
 .readerScrollbar[data-orientation='vertical'] {
     top: var(--reader-overlay-space);
     bottom: 3px;
@@ -206,11 +210,24 @@
     isolation: isolate;
     border: 1px solid var(--ds-glass-line);
     border-radius: var(--ds-radius-lg);
-    background: var(--ds-glass-sheen), var(--ds-glass);
+    background: transparent;
     box-shadow: var(--ds-shadow-float);
-    backdrop-filter: blur(var(--ds-glass-blur))
-        saturate(var(--ds-glass-saturate)) brightness(var(--ds-glass-brightness))
-        contrast(var(--ds-glass-contrast));
+}
+
+.listHeader::before {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--ds-glass-sheen), var(--ds-glass);
+    backdrop-filter: blur(16px) saturate(var(--ds-glass-saturate));
+    content: '';
+    pointer-events: none;
+}
+
+.listHeader > * {
+    position: relative;
+    z-index: 1;
 }
 
 .entryScrollContent {
@@ -615,14 +632,16 @@
 
 @supports not (backdrop-filter: blur(1px)) {
     .detailToolbar,
-    .listHeader {
+    .listHeader,
+    .listHeader::before {
         background: var(--ds-paper-muted) !important;
     }
 }
 
 @media (prefers-reduced-transparency: reduce) {
     .detailToolbar,
-    .listHeader {
+    .listHeader,
+    .listHeader::before {
         background: var(--ds-paper-muted) !important;
         backdrop-filter: none;
     }

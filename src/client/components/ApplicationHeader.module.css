@@ -8,9 +8,6 @@
     color: var(--ds-ink);
     background: var(--ds-glass-sheen), var(--ds-glass-overlay);
     box-shadow: var(--ds-shadow-float);
-    backdrop-filter: blur(var(--ds-glass-blur))
-        saturate(var(--ds-glass-saturate)) brightness(var(--ds-glass-brightness))
-        contrast(var(--ds-glass-contrast));
 }
 
 .desktopRail {
@@ -182,10 +179,7 @@
         border-radius: var(--ds-radius-lg);
         background: var(--ds-glass-sheen), var(--ds-glass-overlay);
         box-shadow: var(--ds-shadow-float);
-        backdrop-filter: blur(var(--ds-glass-blur))
-            saturate(var(--ds-glass-saturate))
-            brightness(var(--ds-glass-brightness))
-            contrast(var(--ds-glass-contrast));
+        backdrop-filter: blur(16px) saturate(var(--ds-glass-saturate));
     }
 
     .contextPane > * {
@@ -207,7 +201,18 @@
         width: calc(var(--app-shell-navbar-width) - 24px);
         height: auto;
         border-radius: var(--ds-radius-xl);
+        background: transparent;
+    }
+
+    .workspaceNavbar::before {
+        position: absolute;
+        z-index: 0;
+        inset: 0;
+        border-radius: inherit;
         background: var(--ds-glass-sheen), var(--ds-glass);
+        backdrop-filter: blur(16px) saturate(var(--ds-glass-saturate));
+        content: '';
+        pointer-events: none;
     }
 
     .desktopRail {
@@ -405,6 +410,7 @@
 
 @supports not (backdrop-filter: blur(1px)) {
     .workspaceNavbar,
+    .workspaceNavbar::before,
     .mobileHeader,
     .mobileNavigation {
         background: var(--ds-paper);
@@ -413,6 +419,7 @@
 
 @media (prefers-reduced-transparency: reduce) {
     .workspaceNavbar,
+    .workspaceNavbar::before,
     .mobileHeader,
     .mobileNavigation {
         background: var(--ds-paper);

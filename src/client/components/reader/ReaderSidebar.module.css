@@ -34,6 +34,10 @@
     margin-bottom: var(--ds-space-1);
 }
 
+.feedListScroll :global(.mantine-ScrollArea-viewport) {
+    will-change: scroll-position;
+}
+
 .collections {
     padding: 0 var(--ds-space-2) var(--ds-space-4);
 }

@@ -118,6 +118,7 @@ export function ReaderEntryList({
                 classNames={{
                     scrollbar: classes.readerScrollbar,
                     thumb: classes.readerScrollbarThumb,
+                    viewport: classes.entryListViewport,
                 }}
                 viewportRef={viewport}
             >

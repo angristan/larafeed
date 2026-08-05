@@ -1309,7 +1309,11 @@ export function ReaderSidebar({
                 </Text>
             </AppShell.Section>
 
-            <AppShell.Section component={ScrollArea} grow>
+            <AppShell.Section
+                className={classes.feedListScroll}
+                component={ScrollArea}
+                grow
+            >
                 <div className={classes.collections}>
                     {isPending && subscriptions === undefined && (
                         <Text c="dimmed" size="xs">
