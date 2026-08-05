@@ -1,54 +1,62 @@
-.page {
-    width: min(100%, 88rem);
-    padding: var(--ds-space-3);
-    margin-inline: auto;
-}
-
 .auditSurface {
     min-width: 0;
     overflow: hidden;
     border: 1px solid var(--ds-work-line);
     border-radius: var(--ds-radius-md);
     background: var(--ds-surface-work);
-    box-shadow: none;
+    box-shadow: var(--ds-shadow-work);
 }
 
-.statusSummary {
-    display: flex;
-    min-height: 2.75rem;
-    align-items: center;
-    gap: 0;
-    border-bottom: 1px solid var(--ds-work-line);
-    background: var(--ds-surface-work-header);
-}
 
-.statusSummary > span {
-    padding: var(--ds-space-2) var(--ds-space-4);
-    border-right: 1px solid var(--ds-line);
-    color: var(--ds-muted);
-    font-variant-numeric: tabular-nums;
-    font-weight: 650;
-}
-
-.statusSummary > span:nth-child(2) {
-    color: var(--ds-rust);
-}
-
-.statusSummary > span:last-child {
-    border-right: 0;
-}
-
+.overviewHeader,
 .toolbarHeader {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--ds-space-4);
+}
+
+.overviewHeader {
+    min-height: 4rem;
+    padding: var(--ds-space-3) var(--ds-space-4);
+    border-bottom: 1px solid var(--ds-work-line);
+    background: var(--ds-surface-work-header);
+}
+
+.toolbarHeader {
     padding: var(--ds-space-3) var(--ds-space-4) 0;
 }
 
+.overviewHeader h2,
 .toolbarHeader h2 {
     font-size: 0.875rem;
     font-weight: 700;
+}
+
+.metricGrid {
+    display: grid;
+    overflow: hidden;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1px;
+    background: var(--ds-work-line);
+}
+
+.metricGrid > div {
+    min-width: 0;
+    padding: var(--ds-space-4);
+    background: var(--ds-surface-work);
+}
+
+.metricValue {
+    margin-top: var(--ds-space-1);
+    font-size: 1.75rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.emptyRegion {
+    padding: var(--ds-space-5) var(--ds-space-4);
 }
 
 .filterGrid {
@@ -103,13 +111,6 @@
     background: var(--ds-paper-muted);
 }
 
-.table tbody tr:focus-visible {
-    position: relative;
-    z-index: 2;
-    outline: 2px solid var(--ds-focus);
-    outline-offset: -2px;
-}
-
 .table td {
     border-bottom-color: var(--ds-line);
 }
@@ -124,32 +125,24 @@
 }
 
 @media (max-width: 74.99em) {
-    .filterGrid {
+    .filterGrid,
+    .metricGrid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
-@media (max-width: 43.74em) {
-    .page {
-        padding: 0;
+@media (max-width: 56.24em) {
+    .overviewHeader,
+    .toolbarHeader {
+        align-items: flex-start;
     }
 
-    .statusSummary {
-        align-items: stretch;
+    .overviewHeader {
         flex-direction: column;
     }
 
-    .statusSummary > span {
-        border-right: 0;
-        border-bottom: 1px solid var(--ds-line);
-    }
-
-    .statusSummary > span:last-child {
-        border-bottom: 0;
-    }
-
     .toolbarHeader {
-        align-items: flex-start;
+        flex-wrap: wrap;
     }
 
     .filterGrid {

@@ -10,6 +10,7 @@ import {
     buildAddFeedBookmarklet,
     getSubscriptionStatus,
     nextSubscriptionSortDirection,
+    SubscriptionOverviewPage,
     SubscriptionsPage,
     subscriptionStatusFilterOptions,
 } from './SubscriptionsPage';
@@ -70,11 +71,15 @@ function renderPage(
         queryClient.setQueryData(subscriptionManagementKeys.list(), data);
     }
 
+    const Page = initialEntry.startsWith('/settings/subscriptions/overview')
+        ? SubscriptionOverviewPage
+        : SubscriptionsPage;
+
     return renderToStaticMarkup(
         <QueryClientProvider client={queryClient}>
             <MantineProvider>
                 <MemoryRouter initialEntries={[initialEntry]}>
-                    <SubscriptionsPage />
+                    <Page />
                 </MemoryRouter>
             </MantineProvider>
         </QueryClientProvider>,
@@ -86,8 +91,24 @@ describe('SubscriptionsPage', () => {
         expect(renderPage()).toContain('Loading subscriptions');
     });
 
-    it('renders the legacy filter sidebar and empty table', () => {
-        const markup = renderPage({ categories: [], subscriptions: [] });
+    it('links the overview to the stable feed audit route', () => {
+        const markup = renderPage(
+            { categories: [], subscriptions: [] },
+            '/settings/subscriptions/overview',
+        );
+
+        expect(markup).toContain('Feed health');
+        expect(markup).toContain('Needs attention');
+        expect(markup).toContain('Categories');
+        expect(markup).toContain('href="/settings/subscriptions"');
+        expect(markup).not.toContain('href="#subscription-');
+    });
+
+    it('renders filters and an empty table on the feed audit page', () => {
+        const markup = renderPage(
+            { categories: [], subscriptions: [] },
+            '/settings/subscriptions',
+        );
 
         expect(markup).toContain('Search &amp; Filter');
         expect(markup).toContain('Refine the subscriptions table in real time');
@@ -95,10 +116,15 @@ describe('SubscriptionsPage', () => {
     });
 
     it('renders feed metadata and management controls', () => {
-        const markup = renderPage({
-            categories: [{ id: 3, name: 'Technology', subscriptionCount: 1 }],
-            subscriptions: [subscription],
-        });
+        const markup = renderPage(
+            {
+                categories: [
+                    { id: 3, name: 'Technology', subscriptionCount: 1 },
+                ],
+                subscriptions: [subscription],
+            },
+            '/settings/subscriptions',
+        );
 
         expect(markup).toContain('Subscriptions');
         expect(markup).toContain('<th');
@@ -109,47 +135,57 @@ describe('SubscriptionsPage', () => {
         expect(markup).toContain('Feed');
         expect(markup).toContain('Last success');
         expect(markup).toContain('Last failure');
+        expect(markup).toContain('Details');
+        expect(markup).not.toMatch(/<tr[^>]+role="button"/u);
         expect(markup).toContain('Sorted ascending');
     });
 
     it('uses authoritative statuses for badges, filters, and totals', () => {
-        const markup = renderPage({
-            categories: [{ id: 3, name: 'Technology', subscriptionCount: 4 }],
-            subscriptions: [
-                subscription,
-                {
-                    ...subscription,
-                    feedId: 8,
-                    customFeedName: 'Recovering feed',
-                    consecutiveFailures: 2,
-                },
-                {
-                    ...subscription,
-                    feedId: 9,
-                    customFeedName: 'Gone feed',
-                    isGone: true,
-                },
-                {
-                    ...subscription,
-                    feedId: 10,
-                    customFeedName: 'New feed',
-                    lastSuccessfulRefreshAt: null,
-                    refreshes: [],
-                },
-            ],
-        });
+        const markup = renderPage(
+            {
+                categories: [
+                    { id: 3, name: 'Technology', subscriptionCount: 4 },
+                ],
+                subscriptions: [
+                    subscription,
+                    {
+                        ...subscription,
+                        feedId: 8,
+                        customFeedName: 'Recovering feed',
+                        consecutiveFailures: 2,
+                    },
+                    {
+                        ...subscription,
+                        feedId: 9,
+                        customFeedName: 'Gone feed',
+                        isGone: true,
+                    },
+                    {
+                        ...subscription,
+                        feedId: 10,
+                        customFeedName: 'New feed',
+                        lastSuccessfulRefreshAt: null,
+                        refreshes: [],
+                    },
+                ],
+            },
+            '/settings/subscriptions/overview',
+        );
 
-        expect(markup).toContain('Total: 4');
-        expect(markup).toContain('With errors: 2');
-        expect(markup).toContain('Never refreshed: 1');
+        const text = markup.replaceAll(/<[^>]+>/g, '');
+        expect(text).toContain('Total feeds4');
+        expect(text).toContain('With errors2');
+        expect(text).toContain('Never refreshed1');
         expect(markup).toContain('Failed');
         expect(markup).toContain('Gone');
+        expect(markup).toContain('Details');
+        expect(markup).not.toMatch(/<tr[^>]+role="button"/u);
         expect(
             subscriptionStatusFilterOptions.map(({ value }) => value),
         ).toEqual(['healthy', 'failing', 'never', 'gone']);
     });
 
-    it('keeps add-feed controls out of the legacy audit page', () => {
+    it('keeps add-feed controls out of the feed audit page', () => {
         const markup = renderPage(
             {
                 categories: [

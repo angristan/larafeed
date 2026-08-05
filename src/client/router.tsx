@@ -173,7 +173,9 @@ async function chartsLoader(args: LoaderFunctionArgs) {
     const canonicalSearch = canonicalChartSearch(state);
     if (args.url.search.slice(1) !== canonicalSearch) {
         throw redirect(
-            `/charts${canonicalSearch.length > 0 ? `?${canonicalSearch}` : ''}`,
+            `${args.url.pathname}${
+                canonicalSearch.length > 0 ? `?${canonicalSearch}` : ''
+            }`,
         );
     }
     await Promise.all([
@@ -272,6 +274,36 @@ export const router = createBrowserRouter([
                 },
             },
             {
+                path: '/charts/reading',
+                loader: chartsLoader,
+                lazy: async () => {
+                    const { ReadingChartsPage } = await import(
+                        './pages/ChartsPage'
+                    );
+                    return { Component: ReadingChartsPage };
+                },
+            },
+            {
+                path: '/charts/refresh',
+                loader: chartsLoader,
+                lazy: async () => {
+                    const { RefreshChartsPage } = await import(
+                        './pages/ChartsPage'
+                    );
+                    return { Component: RefreshChartsPage };
+                },
+            },
+            {
+                path: '/charts/backlog',
+                loader: chartsLoader,
+                lazy: async () => {
+                    const { BacklogChartsPage } = await import(
+                        './pages/ChartsPage'
+                    );
+                    return { Component: BacklogChartsPage };
+                },
+            },
+            {
                 path: '/settings/security',
                 loader: securityLoader,
                 lazy: async () => {
@@ -299,6 +331,16 @@ export const router = createBrowserRouter([
                         './pages/SubscriptionsPage'
                     );
                     return { Component: SubscriptionsPage };
+                },
+            },
+            {
+                path: '/settings/subscriptions/overview',
+                loader: subscriptionsLoader,
+                lazy: async () => {
+                    const { SubscriptionOverviewPage } = await import(
+                        './pages/SubscriptionsPage'
+                    );
+                    return { Component: SubscriptionOverviewPage };
                 },
             },
             {

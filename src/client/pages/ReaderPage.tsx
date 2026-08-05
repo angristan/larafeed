@@ -213,7 +213,7 @@ export function ReaderPage() {
     return (
         <AppShell
             className={classes.shell}
-            header={{ height: { base: 58, sm: 0 } }}
+            header={{ height: { base: 72, sm: 0 } }}
             navbar={{
                 width: { base: 'min(88vw, 320px)', sm: 364 },
                 breakpoint: 'sm',

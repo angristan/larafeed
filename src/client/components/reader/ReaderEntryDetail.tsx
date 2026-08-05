@@ -5,7 +5,6 @@ import {
     Box,
     Button,
     Center,
-    Divider,
     Flex,
     Group,
     Menu,
@@ -560,15 +559,20 @@ export function ReaderEntryDetail({
                 </Flex>
             </div>
 
-            {mutationError !== null && (
-                <Alert color="red" m="sm" role="alert">
-                    {mutationError.message}
-                </Alert>
-            )}
-
-            <Divider mb={20} />
-            <ScrollArea style={{ height: '100%' }} viewportRef={viewport}>
-                <Box pl={20} pr={20}>
+            <ScrollArea
+                className={classes.detailScroll}
+                classNames={{
+                    scrollbar: classes.readerScrollbar,
+                    thumb: classes.readerScrollbarThumb,
+                }}
+                viewportRef={viewport}
+            >
+                <Box className={classes.articleScrollContent} pl={20} pr={20}>
+                    {mutationError !== null && (
+                        <Alert color="red" mb="sm" role="alert">
+                            {mutationError.message}
+                        </Alert>
+                    )}
                     <Typography className={classes.articleTypography}>
                         <Title
                             ref={detailHeading}

@@ -1,49 +1,14 @@
 .canvas {
-    position: relative;
     min-height: 100dvh;
-    overflow: hidden;
-    isolation: isolate;
-}
-
-.canvas::before,
-.canvas::after {
-    position: fixed;
-    z-index: -1;
-    bottom: -7rem;
-    content: '';
-    pointer-events: none;
-}
-
-.canvas::before {
-    right: -5rem;
-    width: 28rem;
-    height: 18rem;
-    border: 1px solid color-mix(in srgb, var(--ds-sage) 18%, transparent);
-    border-radius: var(--ds-radius-xl);
+    color: var(--ds-ink);
     background:
-        repeating-linear-gradient(
-            to bottom,
-            transparent 0 28px,
-            color-mix(in srgb, var(--ds-sage) 10%, transparent) 28px 29px
+        linear-gradient(
+            155deg,
+            color-mix(in srgb, var(--ds-accent) 7%, var(--ds-canvas)),
+            var(--ds-canvas) 46%,
+            color-mix(in srgb, var(--ds-sage) 6%, var(--ds-canvas))
         ),
-        color-mix(in srgb, var(--ds-paper) 24%, transparent);
-    transform: rotate(-8deg);
-}
-
-.canvas::after {
-    left: -7rem;
-    width: 26rem;
-    height: 16rem;
-    border: 1px solid color-mix(in srgb, var(--ds-sky) 16%, transparent);
-    border-radius: var(--ds-radius-xl);
-    background:
-        repeating-linear-gradient(
-            to bottom,
-            transparent 0 28px,
-            color-mix(in srgb, var(--ds-sky) 9%, transparent) 28px 29px
-        ),
-        color-mix(in srgb, var(--ds-paper) 20%, transparent);
-    transform: rotate(7deg);
+        var(--ds-canvas);
 }
 
 .brand {
@@ -55,38 +20,13 @@
 }
 
 .brand svg {
-    filter: drop-shadow(2px 2px 0 var(--ds-shadow-color));
+    filter: drop-shadow(
+        0 5px 12px color-mix(in srgb, var(--ds-ink) 18%, transparent)
+    );
 }
 
 .panel {
-    position: relative;
-    overflow: hidden;
-}
-
-.panel::before {
-    position: absolute;
-    top: 0;
-    right: var(--ds-space-5);
-    left: var(--ds-space-5);
-    height: 2px;
-    background: linear-gradient(
-        90deg,
-        transparent,
-        var(--ds-sage),
-        var(--ds-accent),
-        transparent
-    );
-    content: '';
-    opacity: 0.7;
-}
-
-.privateNote {
-    font-family: var(--ds-font-mono);
-}
-
-@media (max-width: 30em) {
-    .canvas::before,
-    .canvas::after {
-        opacity: 0.65;
-    }
+    border: 1px solid var(--ds-work-line);
+    background: var(--ds-surface-work);
+    box-shadow: var(--ds-shadow-work);
 }

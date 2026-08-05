@@ -194,24 +194,6 @@ export function ApplicationHeader({
                     <Menu.Label>
                         {profile.data?.email ?? `@${user.username}`}
                     </Menu.Label>
-                    {user.isAdmin && (
-                        <Menu.Item
-                            component={Link}
-                            leftSection={<IconSettings size={14} />}
-                            to="/admin/users"
-                        >
-                            Administration
-                        </Menu.Item>
-                    )}
-                    <Menu.Item
-                        component="a"
-                        href="https://github.com/angristan/larafeed"
-                        leftSection={<IconBrandGithub size={14} />}
-                        rel="noopener noreferrer"
-                        target="_blank"
-                    >
-                        GitHub repository
-                    </Menu.Item>
                     <Menu.Divider />
                     <Menu.Item
                         disabled={logoutMutation.isPending}

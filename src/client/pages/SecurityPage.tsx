@@ -33,7 +33,11 @@ import {
     requestRegistration,
     supportsPasskeys,
 } from '../auth/ceremony';
-import { ApplicationPage } from '../components/ApplicationPage';
+import {
+    ApplicationPage,
+    ApplicationSettingsContent,
+    ApplicationWorkSurface,
+} from '../components/ApplicationPage';
 import {
     executeTurnstile,
     Turnstile,
@@ -716,38 +720,30 @@ export function SecurityPage() {
 
     return (
         <ApplicationPage activePage="settings" settingsNavigation>
-            <Stack
-                gap="xl"
-                maw={760}
-                mx="auto"
-                my="md"
-                px={{ base: 0, sm: 'md' }}
+            <ApplicationSettingsContent
+                description="Manage your account, preferences, and data import/export tools."
+                title="Settings"
             >
-                <Stack gap={4}>
-                    <Title order={1}>Settings</Title>
-                    <Text c="dimmed" size="sm">
-                        Manage your account, preferences, and data import/export
-                        tools.
-                    </Text>
-                </Stack>
-                <Divider />
                 {section === 'security' ? (
-                    <PasskeysSection />
+                    <ApplicationWorkSurface>
+                        <PasskeysSection />
+                    </ApplicationWorkSurface>
                 ) : (
-                    <>
-                        <ProfileSection />
+                    <Stack gap="md">
+                        <ApplicationWorkSurface>
+                            <ProfileSection />
+                        </ApplicationWorkSurface>
                         {profile.data !== undefined && (
-                            <>
-                                <Divider />
+                            <ApplicationWorkSurface>
                                 <DangerSection
                                     userId={profile.data.id}
                                     username={profile.data.username}
                                 />
-                            </>
+                            </ApplicationWorkSurface>
                         )}
-                    </>
+                    </Stack>
                 )}
-            </Stack>
+            </ApplicationSettingsContent>
         </ApplicationPage>
     );
 }

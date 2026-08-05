@@ -81,6 +81,7 @@ import {
     updateSubscriptionMutationOptions,
 } from '../../queries/subscriptions';
 import { type ReaderState, readerHref } from '../../readerState';
+import { ApplicationSidebarHeader } from '../ApplicationPage';
 import { FeedFavicon } from './FeedFavicon';
 import classes from './ReaderSidebar.module.css';
 
@@ -766,7 +767,17 @@ export function FeedActions({
                         {subscription.totalCount}
                     </Badge>
                 )}
-                <Menu shadow="md">
+                <Menu
+                    classNames={{
+                        dropdown: classes.managementMenuDropdown,
+                        item: classes.managementMenuItem,
+                        label: classes.managementMenuLabel,
+                    }}
+                    offset={8}
+                    position="right-start"
+                    shadow="md"
+                    width={192}
+                >
                     <Menu.Target>
                         <ActionIcon
                             aria-label={`Manage ${subscription.customFeedName ?? subscription.feedName}`}
@@ -777,8 +788,8 @@ export function FeedActions({
                         >
                             <IconDots
                                 aria-hidden="true"
-                                size={15}
-                                stroke={1.5}
+                                size={13}
+                                stroke={1.7}
                             />
                         </ActionIcon>
                     </Menu.Target>
@@ -1029,7 +1040,17 @@ function CategoryHeader({
                 >
                     {entriesCount}
                 </Badge>
-                <Menu shadow="md">
+                <Menu
+                    classNames={{
+                        dropdown: classes.managementMenuDropdown,
+                        item: classes.managementMenuItem,
+                        label: classes.managementMenuLabel,
+                    }}
+                    offset={8}
+                    position="right-start"
+                    shadow="md"
+                    width={192}
+                >
                     <Menu.Target>
                         <ActionIcon
                             aria-label={`Manage ${name} category`}
@@ -1040,8 +1061,8 @@ function CategoryHeader({
                         >
                             <IconDots
                                 aria-hidden="true"
-                                size={15}
-                                stroke={1.5}
+                                size={13}
+                                stroke={1.7}
                             />
                         </ActionIcon>
                     </Menu.Target>
@@ -1198,20 +1219,12 @@ export function ReaderSidebar({
                 initialFeedUrl={bookmarkletFeedUrl ?? undefined}
                 opened={addOpened}
             />
-            <AppShell.Section p="lg" pb="sm">
-                <Group justify="space-between" wrap="nowrap">
-                    <Stack gap={1}>
-                        <Text fw={750} size="sm">
-                            Library
-                        </Text>
-                        <Text c="dimmed" ff="monospace" size="xs">
-                            {(subscriptions?.length ?? 0).toLocaleString()}{' '}
-                            feeds
-                        </Text>
-                    </Stack>
+            <ApplicationSidebarHeader
+                action={
                     <Tooltip label="Create feed or category" position="right">
                         <ActionIcon
                             aria-label="Create feed or category"
+                            className={classes.addFeedAction}
                             onClick={openAddModal}
                             size="md"
                             variant="subtle"
@@ -1219,7 +1232,10 @@ export function ReaderSidebar({
                             <IconPlus size={16} stroke={1.7} />
                         </ActionIcon>
                     </Tooltip>
-                </Group>
+                }
+                description={`${(subscriptions?.length ?? 0).toLocaleString()} feeds`}
+                title="Library"
+            >
                 <TextInput
                     aria-label="Search feeds"
                     classNames={{ input: classes.searchInput }}
@@ -1233,7 +1249,7 @@ export function ReaderSidebar({
                     size="sm"
                     value={search}
                 />
-            </AppShell.Section>
+            </ApplicationSidebarHeader>
 
             <AppShell.Section>
                 <Text className={classes.sectionLabel} c="dimmed" size="xs">

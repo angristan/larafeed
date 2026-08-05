@@ -7,7 +7,13 @@ import { describe, expect, it } from 'vitest';
 import type { ChartData, ChartRequest } from '../api/charts';
 import { chartKeys } from '../queries/charts';
 import { subscriptionManagementKeys } from '../queries/subscriptions';
-import { ChartsPage, refreshAttemptSeries } from './ChartsPage';
+import {
+    BacklogChartsPage,
+    ChartsPage,
+    ReadingChartsPage,
+    RefreshChartsPage,
+    refreshAttemptSeries,
+} from './ChartsPage';
 
 const request: ChartRequest = {
     range: '30',
@@ -71,7 +77,14 @@ const chart: ChartData = {
     activityCoverageStart: '2026-07-18',
 };
 
-function renderCharts(): string {
+function renderCharts(
+    Page:
+        | typeof ChartsPage
+        | typeof ReadingChartsPage
+        | typeof RefreshChartsPage
+        | typeof BacklogChartsPage,
+    initialEntry: string,
+): string {
     const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false } },
     });
@@ -82,38 +95,68 @@ function renderCharts(): string {
     });
 
     return renderToStaticMarkup(
-        <MemoryRouter initialEntries={['/charts']}>
+        <MemoryRouter initialEntries={[initialEntry]}>
             <QueryClientProvider client={queryClient}>
                 <MantineProvider>
-                    <ChartsPage />
+                    <Page />
                 </MantineProvider>
             </QueryClientProvider>
         </MemoryRouter>,
     );
 }
 
-describe('ChartsPage', () => {
-    it('renders accessible charts with explicit current-state semantics', () => {
-        const markup = renderCharts();
+describe('chart report pages', () => {
+    it('renders a focused overview with real report links', () => {
+        const markup = renderCharts(ChartsPage, '/charts');
 
-        expect(markup).toContain('Filters');
-        expect(markup).toContain('Key Metrics');
-        expect(markup).toContain('Daily Reads Activity');
-        expect(markup).toContain('Daily Subscription Entries');
-        expect(markup).toContain('Daily Saved Entries');
-        expect(markup).toContain('Refresh Activity');
-        expect(markup).toContain('Daily attempts');
+        expect(markup).toContain('aria-label="Chart date range"');
+        expect(markup).toContain('aria-label="Date range"');
+        expect(markup).toContain('aria-label="Chart scope"');
+        expect(markup).toContain('aria-label="Overview summary"');
+        expect(markup).toContain('Reading flow');
+        expect(markup).toContain('Unread backlog');
+        expect(markup).toContain('Refresh success rate');
+        expect(markup).toContain('View daily chart data');
+        expect(markup).toContain('Friday, July 17, 2026');
+        expect(markup).toContain('href="/charts/reading"');
+        expect(markup).toContain('href="/charts/refresh"');
+        expect(markup).toContain('href="/charts/backlog"');
+        expect(markup).not.toContain('href="#');
+    });
+
+    it('renders reading activity as a distinct report', () => {
+        const markup = renderCharts(ReadingChartsPage, '/charts/reading');
+
+        expect(markup).toContain('Reading flow');
+        expect(markup).toContain('Reading density');
+        expect(markup).toContain('Save density');
+        expect(markup).toContain(
+            'Reader activity tracking is complete from 2026-07-18.',
+        );
+        expect(markup).not.toContain('Refresh attempts');
+    });
+
+    it('renders refresh health as a distinct report', () => {
+        const markup = renderCharts(RefreshChartsPage, '/charts/refresh');
+
+        expect(markup).toContain('Refresh attempts');
+        expect(markup).toContain('Success rate');
+        expect(markup).toContain('Entries created');
+        expect(markup).toContain('66.7%');
         expect(refreshAttemptSeries).toContainEqual({
             name: 'totalAttempts',
             label: 'Total attempts',
             color: 'blue.6',
         });
-        expect(markup).toContain('Success rate');
-        expect(markup).toContain('Unread Backlog Trend');
-        expect(markup).toContain('Daily Read-through Rate');
-        expect(markup).toContain(
-            'Reader activity tracking is complete from 2026-07-18.',
-        );
-        expect(markup).toContain('66.7%');
+        expect(markup).not.toContain('Reading density');
+    });
+
+    it('renders backlog trends as a distinct report', () => {
+        const markup = renderCharts(BacklogChartsPage, '/charts/backlog');
+
+        expect(markup).toContain('Unread backlog');
+        expect(markup).toContain('Read-through rate');
+        expect(markup).toContain('Arrival density');
+        expect(markup).not.toContain('Refresh attempts');
     });
 });

@@ -1,4 +1,4 @@
-import { Heatmap, LineChart } from '@mantine/charts';
+import { BarChart, Heatmap, LineChart } from '@mantine/charts';
 import {
     Alert,
     Button,
@@ -6,18 +6,18 @@ import {
     Loader,
     NavLink,
     Paper,
-    ScrollArea,
     SegmentedControl,
     Select,
     Skeleton,
     Stack,
+    Table,
     Text,
     TextInput,
     Title,
+    VisuallyHidden,
 } from '@mantine/core';
 import {
     IconActivity,
-    IconAdjustments,
     IconChartHistogram,
     IconListDetails,
     IconRefresh,
@@ -26,11 +26,13 @@ import { useQuery } from '@tanstack/react-query';
 import {
     type FormEvent,
     type ReactNode,
+    type PointerEvent as ReactPointerEvent,
     useEffect,
+    useId,
     useMemo,
     useState,
 } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 
 import type { ChartData, ChartRequest } from '../api/charts';
 import {
@@ -38,10 +40,16 @@ import {
     defaultCustomDates,
     parseChartState,
 } from '../chartState';
-import { ApplicationPage } from '../components/ApplicationPage';
+import {
+    ApplicationPage,
+    ApplicationSidebarHeader,
+    ApplicationSidebarNavigation,
+} from '../components/ApplicationPage';
 import { chartQueryOptions } from '../queries/charts';
 import { subscriptionManagementQueryOptions } from '../queries/subscriptions';
 import classes from './ChartsPage.module.css';
+
+type ChartReportView = 'overview' | 'reading' | 'refresh' | 'backlog';
 
 export const refreshAttemptSeries = [
     {
@@ -66,6 +74,13 @@ const formatDate = (date: string) =>
         weekday: 'long',
         year: 'numeric',
         month: 'long',
+        day: 'numeric',
+        timeZone: 'UTC',
+    });
+
+const formatShortDate = (date: string) =>
+    new Date(`${date}T00:00:00.000Z`).toLocaleDateString('en-US', {
+        month: 'short',
         day: 'numeric',
         timeZone: 'UTC',
     });
@@ -96,20 +111,194 @@ function SummaryMetric({
     );
 }
 
+interface InstrumentMetric {
+    readonly description?: string;
+    readonly label: string;
+    readonly value: string;
+}
+
+function InstrumentStrip({
+    label,
+    metrics,
+}: {
+    readonly label: string;
+    readonly metrics: readonly InstrumentMetric[];
+}) {
+    return (
+        <Paper
+            aria-label={`${label} summary`}
+            className={classes.instrumentStrip}
+            component="section"
+            p={0}
+        >
+            <Text className={classes.instrumentGroupLabel}>{label}</Text>
+            <div className={classes.instrumentMetrics}>
+                {metrics.map((metric) => (
+                    <SummaryMetric key={metric.label} {...metric} />
+                ))}
+            </div>
+        </Paper>
+    );
+}
+
 function ChartSurface({
     children,
+    detail,
+    primary = false,
     title,
 }: {
     readonly children: ReactNode;
+    readonly detail?: string;
+    readonly primary?: boolean;
     readonly title: string;
 }) {
+    const titleId = useId();
+    const trackTooltip = (event: ReactPointerEvent<HTMLDivElement>) => {
+        if (event.pointerType !== 'mouse') return;
+        const region = event.currentTarget;
+        const tooltip = region.querySelector<HTMLElement>(
+            '.recharts-tooltip-wrapper',
+        );
+        if (tooltip === null) return;
+        const regionBounds = region.getBoundingClientRect();
+        const pointerY = event.clientY - regionBounds.top;
+        const tooltipHeight = Math.max(tooltip.offsetHeight, 140);
+        const below = pointerY + tooltipHeight + 20;
+        const top =
+            below > regionBounds.height
+                ? pointerY - tooltipHeight - 12
+                : pointerY + 12;
+        region.style.setProperty('--chart-tooltip-y', `${Math.max(8, top)}px`);
+    };
+
     return (
-        <Paper className={classes.chartSurface} component="section" p={0}>
+        <Paper
+            aria-labelledby={titleId}
+            className={`${classes.chartSurface} ${
+                primary ? classes.primaryChart : ''
+            }`}
+            component="section"
+            p={0}
+        >
             <header className={classes.surfaceHeader}>
-                <Title order={3}>{title}</Title>
+                <div>
+                    <Title id={titleId} order={3}>
+                        {title}
+                    </Title>
+                    {detail !== undefined && (
+                        <Text c="dimmed" size="xs">
+                            {detail}
+                        </Text>
+                    )}
+                </div>
             </header>
-            <div className={classes.chartBody}>{children}</div>
+            <div className={classes.chartBody} onPointerMove={trackTooltip}>
+                {children}
+            </div>
         </Paper>
+    );
+}
+
+function chartTableValue(value: number | null): string {
+    return value === null ? '–' : value.toLocaleString();
+}
+
+function ChartDataDisclosure({
+    data,
+    view,
+}: {
+    readonly data: ChartData;
+    readonly view: ChartReportView;
+}) {
+    const reading = view === 'overview' || view === 'reading';
+    const refresh = view === 'refresh';
+
+    return (
+        <details className={classes.dataDisclosure}>
+            <summary>View daily chart data</summary>
+            <Table.ScrollContainer minWidth={reading ? 560 : 500}>
+                <Table striped withRowBorders>
+                    <Table.Thead>
+                        <Table.Tr>
+                            <Table.Th>Date</Table.Th>
+                            {reading && (
+                                <>
+                                    <Table.Th ta="right">Received</Table.Th>
+                                    <Table.Th ta="right">Read</Table.Th>
+                                    <Table.Th ta="right">Saved</Table.Th>
+                                </>
+                            )}
+                            {refresh && (
+                                <>
+                                    <Table.Th ta="right">Successful</Table.Th>
+                                    <Table.Th ta="right">Failed</Table.Th>
+                                    <Table.Th ta="right">
+                                        Entries created
+                                    </Table.Th>
+                                </>
+                            )}
+                            {!reading && !refresh && (
+                                <>
+                                    <Table.Th ta="right">
+                                        Unread backlog
+                                    </Table.Th>
+                                    <Table.Th ta="right">Read-through</Table.Th>
+                                    <Table.Th ta="right">Received</Table.Th>
+                                </>
+                            )}
+                        </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                        {data.days.map((day) => (
+                            <Table.Tr key={day.date}>
+                                <Table.Td>{formatDate(day.date)}</Table.Td>
+                                {reading && (
+                                    <>
+                                        <Table.Td ta="right">
+                                            {day.received.toLocaleString()}
+                                        </Table.Td>
+                                        <Table.Td ta="right">
+                                            {chartTableValue(day.markedRead)}
+                                        </Table.Td>
+                                        <Table.Td ta="right">
+                                            {chartTableValue(day.saved)}
+                                        </Table.Td>
+                                    </>
+                                )}
+                                {refresh && (
+                                    <>
+                                        <Table.Td ta="right">
+                                            {day.refreshSuccesses.toLocaleString()}
+                                        </Table.Td>
+                                        <Table.Td ta="right">
+                                            {day.refreshFailures.toLocaleString()}
+                                        </Table.Td>
+                                        <Table.Td ta="right">
+                                            {day.refreshEntriesCreated.toLocaleString()}
+                                        </Table.Td>
+                                    </>
+                                )}
+                                {!reading && !refresh && (
+                                    <>
+                                        <Table.Td ta="right">
+                                            {day.currentlyUnread.toLocaleString()}
+                                        </Table.Td>
+                                        <Table.Td ta="right">
+                                            {day.cohortReadThroughRate === null
+                                                ? '–'
+                                                : `${day.cohortReadThroughRate.toFixed(1)}%`}
+                                        </Table.Td>
+                                        <Table.Td ta="right">
+                                            {day.received.toLocaleString()}
+                                        </Table.Td>
+                                    </>
+                                )}
+                            </Table.Tr>
+                        ))}
+                    </Table.Tbody>
+                </Table>
+            </Table.ScrollContainer>
+        </details>
     );
 }
 
@@ -125,7 +314,13 @@ function heatmapData(
     return result;
 }
 
-function ChartsDashboard({ data }: { readonly data: ChartData }) {
+function ChartsDashboard({
+    data,
+    view,
+}: {
+    readonly data: ChartData;
+    readonly view: ChartReportView;
+}) {
     const dateRangeLabel =
         data.window.startDate === data.window.endDate
             ? formatDate(data.window.startDate)
@@ -135,8 +330,14 @@ function ChartsDashboard({ data }: { readonly data: ChartData }) {
     const reads = heatmapData(data.days, 'markedRead');
     const entries = heatmapData(data.days, 'received');
     const saved = heatmapData(data.days, 'saved');
+    const readingFlow = data.days.map((day) => ({
+        date: formatShortDate(day.date),
+        received: day.received,
+        read: day.markedRead ?? 0,
+        saved: day.saved ?? 0,
+    }));
     const refreshActivity = data.days.map((day) => ({
-        date: day.date,
+        date: formatShortDate(day.date),
         successes: day.refreshSuccesses,
         failures: day.refreshFailures,
         totalAttempts: day.refreshSuccesses + day.refreshFailures,
@@ -145,198 +346,186 @@ function ChartsDashboard({ data }: { readonly data: ChartData }) {
     const refreshRates = data.days.map((day) => {
         const attempts = day.refreshSuccesses + day.refreshFailures;
         return {
-            date: day.date,
+            date: formatShortDate(day.date),
             successRate:
                 attempts === 0 ? null : (day.refreshSuccesses / attempts) * 100,
         };
     });
     const backlog = data.days.map((day) => ({
-        date: day.date,
+        date: formatShortDate(day.date),
         backlog: day.currentlyUnread,
     }));
     const readThrough = data.days.map((day) => ({
-        date: day.date,
+        date: formatShortDate(day.date),
         rate: day.cohortReadThroughRate,
     }));
+    const instrument = {
+        overview: {
+            label: 'Overview',
+            metrics: [
+                {
+                    label: 'Entries received',
+                    value: data.summary.received.toLocaleString(),
+                },
+                {
+                    label: 'Read-through',
+                    value: `${(data.summary.cohortReadThroughRate ?? 0).toFixed(
+                        1,
+                    )}%`,
+                },
+                {
+                    label: 'Current backlog',
+                    value: data.summary.currentUnread.toLocaleString(),
+                },
+                {
+                    label: 'Refresh success',
+                    value: `${(data.summary.refreshSuccessRate ?? 0).toFixed(
+                        1,
+                    )}%`,
+                },
+            ],
+        },
+        reading: {
+            label: 'Reading activity',
+            metrics: [
+                {
+                    label: 'Received',
+                    value: data.summary.received.toLocaleString(),
+                },
+                {
+                    label: 'Read',
+                    value: data.summary.currentlyRead.toLocaleString(),
+                },
+                {
+                    label: 'Saved',
+                    value: data.summary.currentlySaved.toLocaleString(),
+                },
+                {
+                    label: 'Read-through',
+                    value: `${(data.summary.cohortReadThroughRate ?? 0).toFixed(
+                        1,
+                    )}%`,
+                },
+            ],
+        },
+        refresh: {
+            label: 'Refresh health',
+            metrics: [
+                {
+                    label: 'Attempts',
+                    value: data.summary.refreshAttempts.toLocaleString(),
+                },
+                {
+                    label: 'Success rate',
+                    value: `${(data.summary.refreshSuccessRate ?? 0).toFixed(
+                        1,
+                    )}%`,
+                },
+                {
+                    label: 'Failures',
+                    value: data.summary.refreshFailures.toLocaleString(),
+                },
+                {
+                    label: 'Entries created',
+                    value: data.summary.refreshEntriesCreated.toLocaleString(),
+                },
+            ],
+        },
+        backlog: {
+            label: 'Backlog pressure',
+            metrics: [
+                {
+                    label: 'Current backlog',
+                    value: data.summary.currentUnread.toLocaleString(),
+                },
+                {
+                    label: 'Read-through',
+                    value: `${(data.summary.cohortReadThroughRate ?? 0).toFixed(
+                        1,
+                    )}%`,
+                },
+                {
+                    label: 'Received',
+                    value: data.summary.received.toLocaleString(),
+                },
+                {
+                    label: 'Read',
+                    value: data.summary.currentlyRead.toLocaleString(),
+                },
+            ],
+        },
+    }[view];
 
     return (
-        <Stack gap="xl">
-            <Paper
-                className={classes.summarySurface}
-                component="section"
-                id="key-metrics"
-                p={0}
-            >
-                <header className={classes.surfaceHeader}>
-                    <Title order={2}>Key Metrics</Title>
-                    <Text c="dimmed" size="xs">
-                        {dateRangeLabel}
-                    </Text>
-                </header>
-                <div className={classes.summaryStrip}>
-                    <SummaryMetric
-                        label="Entries received"
-                        value={data.summary.received.toLocaleString()}
-                    />
-                    <SummaryMetric
-                        description={`${(
-                            data.summary.cohortReadThroughRate ?? 0
-                        ).toFixed(1)}% read-through`}
-                        label="Entries read"
-                        value={data.summary.currentlyRead.toLocaleString()}
-                    />
-                    <SummaryMetric
-                        label="Entries saved"
-                        value={data.summary.currentlySaved.toLocaleString()}
-                    />
-                    <SummaryMetric
-                        label="Current backlog"
-                        value={data.summary.currentUnread.toLocaleString()}
-                    />
-                </div>
-            </Paper>
+        <Stack gap="md">
+            <InstrumentStrip {...instrument} />
 
-            <Stack component="section" gap="md" id="activity">
-                <div className={classes.sectionHeading}>
-                    <Title order={2}>Daily activity</Title>
-                    <Text c="dimmed" size="sm">
-                        Reader actions and feed arrivals across the selected
-                        range.
-                    </Text>
-                </div>
-                <ChartSurface title="Daily Reads Activity">
-                    <Heatmap
-                        colors={[
-                            'var(--mantine-color-blue-1)',
-                            'var(--mantine-color-blue-4)',
-                            'var(--mantine-color-blue-6)',
-                            'var(--mantine-color-blue-8)',
-                        ]}
-                        data={reads}
-                        endDate={data.window.endDate}
-                        getTooltipLabel={({ date, value }) =>
-                            `${formatDate(date)} – ${
-                                value === null || value === 0
-                                    ? 'No reads'
-                                    : `${value} read${value > 1 ? 's' : ''}`
-                            }`
-                        }
-                        startDate={data.window.startDate}
-                        withMonthLabels
-                        withTooltip
-                        withWeekdayLabels
-                    />
-                </ChartSurface>
-                <ChartSurface title="Daily Subscription Entries">
-                    <Heatmap
-                        colors={[
-                            'var(--mantine-color-green-1)',
-                            'var(--mantine-color-green-4)',
-                            'var(--mantine-color-green-6)',
-                            'var(--mantine-color-green-8)',
-                        ]}
-                        data={entries}
-                        endDate={data.window.endDate}
-                        getTooltipLabel={({ date, value }) =>
-                            `${formatDate(date)} – ${
-                                value === null || value === 0
-                                    ? 'No entries'
-                                    : `${value} entr${value > 1 ? 'ies' : 'y'}`
-                            }`
-                        }
-                        startDate={data.window.startDate}
-                        withMonthLabels
-                        withTooltip
-                        withWeekdayLabels
-                    />
-                </ChartSurface>
-                <ChartSurface title="Daily Saved Entries">
-                    <Heatmap
-                        colors={[
-                            'var(--mantine-color-orange-1)',
-                            'var(--mantine-color-orange-4)',
-                            'var(--mantine-color-orange-6)',
-                            'var(--mantine-color-orange-8)',
-                        ]}
-                        data={saved}
-                        endDate={data.window.endDate}
-                        getTooltipLabel={({ date, value }) =>
-                            `${formatDate(date)} – ${
-                                value === null || value === 0
-                                    ? 'No saves'
-                                    : `${value} save${value > 1 ? 's' : ''}`
-                            }`
-                        }
-                        startDate={data.window.startDate}
-                        withMonthLabels
-                        withTooltip
-                        withWeekdayLabels
-                    />
-                </ChartSurface>
-                <Alert color="blue" variant="light">
-                    {data.activityCoverageStart === null
-                        ? 'Reader activity tracking starts after this chart window.'
-                        : `Reader activity tracking is complete from ${data.activityCoverageStart}. Earlier days are shown as unavailable.`}
-                </Alert>
-            </Stack>
-
-            <Stack component="section" gap="md" id="refreshes">
-                <Paper className={classes.summarySurface} p={0}>
-                    <header className={classes.surfaceHeader}>
-                        <Title order={2}>Refresh Activity</Title>
-                    </header>
-                    <div
-                        className={`${classes.summaryStrip} ${classes.refreshSummary}`}
+            {view === 'overview' && (
+                <Stack gap="md">
+                    <ChartSurface
+                        detail={`Arrivals, reads, and saves · ${dateRangeLabel}`}
+                        primary
+                        title="Reading flow"
                     >
-                        <SummaryMetric
-                            label="Refresh attempts"
-                            value={data.summary.refreshAttempts.toLocaleString()}
+                        <BarChart
+                            data={readingFlow}
+                            dataKey="date"
+                            h={300}
+                            maxBarWidth={18}
+                            series={[
+                                {
+                                    name: 'received',
+                                    label: 'Received',
+                                    color: 'teal.7',
+                                },
+                                {
+                                    name: 'read',
+                                    label: 'Read',
+                                    color: 'sky.6',
+                                },
+                                {
+                                    name: 'saved',
+                                    label: 'Saved',
+                                    color: 'orange.6',
+                                },
+                            ]}
+                            valueFormatter={(value) =>
+                                Number(value).toLocaleString()
+                            }
+                            withLegend
+                            xAxisLabel="Date"
+                            yAxisLabel="Entries"
                         />
-                        <SummaryMetric
-                            label="Success rate"
-                            value={`${(
-                                data.summary.refreshSuccessRate ?? 0
-                            ).toFixed(1)}%`}
-                        />
-                        <SummaryMetric
-                            label="Successful refreshes"
-                            value={data.summary.refreshSuccesses.toLocaleString()}
-                        />
-                        <SummaryMetric
-                            label="Failed refreshes"
-                            value={data.summary.refreshFailures.toLocaleString()}
-                        />
-                        <SummaryMetric
-                            label="Entries created"
-                            value={data.summary.refreshEntriesCreated.toLocaleString()}
-                        />
-                    </div>
-                </Paper>
-
-                {data.summary.refreshAttempts > 0 ? (
-                    <Stack gap="md">
-                        <ChartSurface title="Daily attempts">
+                    </ChartSurface>
+                    <div className={classes.reportGrid}>
+                        <ChartSurface title="Unread backlog">
                             <LineChart
-                                data={refreshActivity}
+                                data={backlog}
                                 dataKey="date"
-                                h={300}
-                                series={refreshAttemptSeries}
+                                h={260}
+                                series={[
+                                    {
+                                        name: 'backlog',
+                                        label: 'Unread backlog',
+                                        color: 'orange.6',
+                                    },
+                                ]}
                                 valueFormatter={(value) =>
                                     Number.isFinite(value)
                                         ? Number(value).toLocaleString()
                                         : '–'
                                 }
-                                withLegend
+                                withLegend={false}
                                 xAxisLabel="Date"
-                                yAxisLabel="Attempts"
+                                yAxisLabel="Entries"
                             />
                         </ChartSurface>
-                        <ChartSurface title="Success rate">
+                        <ChartSurface title="Refresh success rate">
                             <LineChart
                                 connectNulls={false}
                                 data={refreshRates}
                                 dataKey="date"
-                                h={300}
+                                h={260}
                                 series={[
                                     {
                                         name: 'successRate',
@@ -347,82 +536,297 @@ function ChartsDashboard({ data }: { readonly data: ChartData }) {
                                 unit="%"
                                 valueFormatter={(value) =>
                                     Number.isFinite(value)
-                                        ? `${Number(value).toFixed(1)}%`
+                                        ? Number(value).toFixed(1)
                                         : '–'
                                 }
                                 withLegend={false}
                                 xAxisLabel="Date"
-                                yAxisLabel="%"
                             />
                         </ChartSurface>
-                    </Stack>
-                ) : (
-                    <Text className={classes.emptyState} c="dimmed" size="sm">
-                        No refresh activity recorded for this period.
-                    </Text>
-                )}
-            </Stack>
+                    </div>
+                </Stack>
+            )}
 
-            <Stack component="section" gap="md" id="trends">
-                <div className={classes.sectionHeading}>
-                    <Title order={2}>Reading trends</Title>
-                    <Text c="dimmed" size="sm">
-                        Backlog pressure and cohort completion over time.
-                    </Text>
-                </div>
-                <ChartSurface title="Unread Backlog Trend">
-                    <LineChart
-                        data={backlog}
-                        dataKey="date"
-                        h={300}
-                        series={[
-                            {
-                                name: 'backlog',
-                                label: 'Unread backlog',
-                                color: 'orange.6',
-                            },
-                        ]}
-                        valueFormatter={(value) =>
-                            Number.isFinite(value)
-                                ? Number(value).toLocaleString()
-                                : '–'
-                        }
-                        withLegend
-                        xAxisLabel="Date"
-                        yAxisLabel="Entries"
-                    />
-                </ChartSurface>
-                <ChartSurface title="Daily Read-through Rate">
-                    <LineChart
-                        connectNulls={false}
-                        data={readThrough}
-                        dataKey="date"
-                        h={300}
-                        series={[
-                            {
-                                name: 'rate',
-                                label: 'Read-through %',
-                                color: 'sky.6',
-                            },
-                        ]}
-                        unit="%"
-                        valueFormatter={(value) =>
-                            Number.isFinite(value)
-                                ? `${Number(value).toFixed(1)}%`
-                                : '–'
-                        }
-                        withLegend
-                        xAxisLabel="Date"
-                        yAxisLabel="%"
-                    />
-                </ChartSurface>
-            </Stack>
+            {view === 'reading' && (
+                <Stack component="section" gap="md">
+                    <ChartSurface
+                        detail={`Arrivals, reads, and saves · ${dateRangeLabel}`}
+                        primary
+                        title="Reading flow"
+                    >
+                        <BarChart
+                            data={readingFlow}
+                            dataKey="date"
+                            h={300}
+                            maxBarWidth={18}
+                            series={[
+                                {
+                                    name: 'received',
+                                    label: 'Received',
+                                    color: 'teal.7',
+                                },
+                                {
+                                    name: 'read',
+                                    label: 'Read',
+                                    color: 'sky.6',
+                                },
+                                {
+                                    name: 'saved',
+                                    label: 'Saved',
+                                    color: 'orange.6',
+                                },
+                            ]}
+                            valueFormatter={(value) =>
+                                Number(value).toLocaleString()
+                            }
+                            withLegend
+                            xAxisLabel="Date"
+                            yAxisLabel="Entries"
+                        />
+                    </ChartSurface>
+                    <div className={classes.reportGrid}>
+                        <ChartSurface
+                            detail="Reads per calendar day"
+                            title="Reading density"
+                        >
+                            <Heatmap
+                                colors={[
+                                    'var(--mantine-color-blue-1)',
+                                    'var(--mantine-color-blue-4)',
+                                    'var(--mantine-color-blue-6)',
+                                    'var(--mantine-color-blue-8)',
+                                ]}
+                                data={reads}
+                                endDate={data.window.endDate}
+                                getTooltipLabel={({ date, value }) =>
+                                    `${formatDate(date)} – ${
+                                        value === null || value === 0
+                                            ? 'No reads'
+                                            : `${value} read${value > 1 ? 's' : ''}`
+                                    }`
+                                }
+                                startDate={data.window.startDate}
+                                withMonthLabels
+                                withTooltip
+                                withWeekdayLabels
+                            />
+                        </ChartSurface>
+                        <ChartSurface
+                            detail="Saved entries per calendar day"
+                            title="Save density"
+                        >
+                            <Heatmap
+                                colors={[
+                                    'var(--mantine-color-orange-1)',
+                                    'var(--mantine-color-orange-4)',
+                                    'var(--mantine-color-orange-6)',
+                                    'var(--mantine-color-orange-8)',
+                                ]}
+                                data={saved}
+                                endDate={data.window.endDate}
+                                getTooltipLabel={({ date, value }) =>
+                                    `${formatDate(date)} – ${
+                                        value === null || value === 0
+                                            ? 'No saves'
+                                            : `${value} save${value > 1 ? 's' : ''}`
+                                    }`
+                                }
+                                startDate={data.window.startDate}
+                                withMonthLabels
+                                withTooltip
+                                withWeekdayLabels
+                            />
+                        </ChartSurface>
+                    </div>
+                    <Alert color="blue" variant="light">
+                        {data.activityCoverageStart === null
+                            ? 'Reader activity tracking starts after this chart window.'
+                            : `Reader activity tracking is complete from ${data.activityCoverageStart}. Earlier days are shown as unavailable.`}
+                    </Alert>
+                </Stack>
+            )}
+
+            {view === 'refresh' && (
+                <Stack component="section" gap="md">
+                    {data.summary.refreshAttempts > 0 ? (
+                        <Stack gap="md">
+                            <ChartSurface
+                                detail={`Successful and failed refreshes · ${dateRangeLabel}`}
+                                primary
+                                title="Refresh attempts"
+                            >
+                                <LineChart
+                                    data={refreshActivity}
+                                    dataKey="date"
+                                    h={300}
+                                    series={refreshAttemptSeries}
+                                    valueFormatter={(value) =>
+                                        Number.isFinite(value)
+                                            ? Number(value).toLocaleString()
+                                            : '–'
+                                    }
+                                    withLegend
+                                    xAxisLabel="Date"
+                                    yAxisLabel="Attempts"
+                                />
+                            </ChartSurface>
+                            <div className={classes.reportGrid}>
+                                <ChartSurface
+                                    detail="Successful attempts by day"
+                                    title="Success rate"
+                                >
+                                    <LineChart
+                                        connectNulls={false}
+                                        data={refreshRates}
+                                        dataKey="date"
+                                        h={300}
+                                        series={[
+                                            {
+                                                name: 'successRate',
+                                                label: 'Success rate %',
+                                                color: 'sage.6',
+                                            },
+                                        ]}
+                                        unit="%"
+                                        valueFormatter={(value) =>
+                                            Number.isFinite(value)
+                                                ? Number(value).toFixed(1)
+                                                : '–'
+                                        }
+                                        withLegend={false}
+                                        xAxisLabel="Date"
+                                    />
+                                </ChartSurface>
+                                <ChartSurface
+                                    detail="New entries found during refreshes"
+                                    title="Entries created"
+                                >
+                                    <LineChart
+                                        data={refreshActivity}
+                                        dataKey="date"
+                                        h={260}
+                                        series={[
+                                            {
+                                                name: 'entriesCreated',
+                                                label: 'Entries created',
+                                                color: 'sky.6',
+                                            },
+                                        ]}
+                                        valueFormatter={(value) =>
+                                            Number(value).toLocaleString()
+                                        }
+                                        withLegend={false}
+                                        xAxisLabel="Date"
+                                        yAxisLabel="Entries"
+                                    />
+                                </ChartSurface>
+                            </div>
+                        </Stack>
+                    ) : (
+                        <Text
+                            className={classes.emptyState}
+                            c="dimmed"
+                            size="sm"
+                        >
+                            No refresh activity recorded for this period.
+                        </Text>
+                    )}
+                </Stack>
+            )}
+
+            {view === 'backlog' && (
+                <Stack component="section" gap="md">
+                    <ChartSurface
+                        detail={`Unread pressure over time · ${dateRangeLabel}`}
+                        primary
+                        title="Unread backlog"
+                    >
+                        <LineChart
+                            data={backlog}
+                            dataKey="date"
+                            h={300}
+                            series={[
+                                {
+                                    name: 'backlog',
+                                    label: 'Unread backlog',
+                                    color: 'orange.6',
+                                },
+                            ]}
+                            valueFormatter={(value) =>
+                                Number.isFinite(value)
+                                    ? Number(value).toLocaleString()
+                                    : '–'
+                            }
+                            withLegend
+                            xAxisLabel="Date"
+                            yAxisLabel="Entries"
+                        />
+                    </ChartSurface>
+                    <div className={classes.reportGrid}>
+                        <ChartSurface
+                            detail="Cohort completion by day"
+                            title="Read-through rate"
+                        >
+                            <LineChart
+                                connectNulls={false}
+                                data={readThrough}
+                                dataKey="date"
+                                h={300}
+                                series={[
+                                    {
+                                        name: 'rate',
+                                        label: 'Read-through %',
+                                        color: 'sky.6',
+                                    },
+                                ]}
+                                unit="%"
+                                valueFormatter={(value) =>
+                                    Number.isFinite(value)
+                                        ? Number(value).toFixed(1)
+                                        : '–'
+                                }
+                                withLegend
+                                xAxisLabel="Date"
+                            />
+                        </ChartSurface>
+                        <ChartSurface
+                            detail="New entries per calendar day"
+                            title="Arrival density"
+                        >
+                            <Heatmap
+                                colors={[
+                                    'var(--mantine-color-green-1)',
+                                    'var(--mantine-color-green-4)',
+                                    'var(--mantine-color-green-6)',
+                                    'var(--mantine-color-green-8)',
+                                ]}
+                                data={entries}
+                                endDate={data.window.endDate}
+                                getTooltipLabel={({ date, value }) =>
+                                    `${formatDate(date)} – ${
+                                        value === null || value === 0
+                                            ? 'No entries'
+                                            : `${value} entr${value > 1 ? 'ies' : 'y'}`
+                                    }`
+                                }
+                                startDate={data.window.startDate}
+                                withMonthLabels
+                                withTooltip
+                                withWeekdayLabels
+                            />
+                        </ChartSurface>
+                    </div>
+                </Stack>
+            )}
+
+            <ChartDataDisclosure data={data} view={view} />
         </Stack>
     );
 }
 
-export function ChartsPage() {
+function ChartReportWorkspace({ view }: { readonly view: ChartReportView }) {
     const [searchParameters] = useSearchParams();
+    const location = useLocation();
     const navigate = useNavigate();
     const state = useMemo(
         () => parseChartState(searchParameters),
@@ -432,13 +836,6 @@ export function ChartsPage() {
     const charts = useQuery(chartQueryOptions(state));
     const [startDate, setStartDate] = useState(state.startDate ?? '');
     const [endDate, setEndDate] = useState(state.endDate ?? '');
-    const [group, setGroup] = useState<'all' | 'feed' | 'category'>(() =>
-        state.feedId !== null
-            ? 'feed'
-            : state.categoryId !== null
-              ? 'category'
-              : 'all',
-    );
 
     useEffect(() => {
         setStartDate(state.startDate ?? '');
@@ -448,7 +845,7 @@ export function ChartsPage() {
     const update = (next: ChartRequest) => {
         const search = canonicalChartSearch(next);
         void navigate({
-            pathname: '/charts',
+            pathname: location.pathname,
             search: search.length > 0 ? `?${search}` : '',
         });
     };
@@ -456,84 +853,127 @@ export function ChartsPage() {
         event.preventDefault();
         update({ ...state, range: 'custom', startDate, endDate });
     };
-    useEffect(() => {
-        if (state.feedId !== null) {
-            setGroup('feed');
-        } else if (state.categoryId !== null) {
-            setGroup('category');
-        } else {
-            setGroup('all');
-        }
-    }, [state.categoryId, state.feedId]);
-
+    const reportRoutes = [
+        {
+            view: 'overview',
+            to: '/charts',
+            label: 'Overview',
+            description: 'Important signals',
+            icon: IconListDetails,
+        },
+        {
+            view: 'reading',
+            to: '/charts/reading',
+            label: 'Reading activity',
+            description: 'Entries, reads, saves',
+            icon: IconActivity,
+        },
+        {
+            view: 'refresh',
+            to: '/charts/refresh',
+            label: 'Refresh health',
+            description: 'Attempts and failures',
+            icon: IconRefresh,
+        },
+        {
+            view: 'backlog',
+            to: '/charts/backlog',
+            label: 'Backlog trends',
+            description: 'Unread and read-through',
+            icon: IconChartHistogram,
+        },
+    ] as const;
     const sidebar = (
-        <ScrollArea style={{ height: 'calc(100vh - 96px)' }} type="auto">
-            <Stack gap="sm" p="md">
-                <Title order={4}>Sections</Title>
-                <NavLink
-                    component="a"
-                    description="Range & grouping"
-                    href="#filters"
-                    label="Filters"
-                    leftSection={<IconAdjustments size={16} stroke={1.5} />}
-                />
-                <NavLink
-                    component="a"
-                    description="Overall totals"
-                    href="#key-metrics"
-                    label="Key metrics"
-                    leftSection={<IconListDetails size={16} stroke={1.5} />}
-                />
-                <NavLink
-                    component="a"
-                    description="Reads, entries, saves"
-                    href="#activity"
-                    label="Daily activity"
-                    leftSection={<IconActivity size={16} stroke={1.5} />}
-                />
-                <NavLink
-                    component="a"
-                    description="Attempts & success"
-                    href="#refreshes"
-                    label="Refresh activity"
-                    leftSection={<IconRefresh size={16} stroke={1.5} />}
-                />
-                <NavLink
-                    component="a"
-                    description="Backlog & read-through"
-                    href="#trends"
-                    label="Trends"
-                    leftSection={<IconChartHistogram size={16} stroke={1.5} />}
-                />
-            </Stack>
-        </ScrollArea>
+        <>
+            <ApplicationSidebarHeader
+                description="Reader reports and feed health"
+                title="Charts"
+            />
+            <ApplicationSidebarNavigation>
+                {reportRoutes.map((report) => {
+                    const Icon = report.icon;
+                    return (
+                        <NavLink
+                            key={report.to}
+                            active={view === report.view}
+                            component={Link}
+                            description={report.description}
+                            label={report.label}
+                            leftSection={<Icon size={16} stroke={1.5} />}
+                            to={`${report.to}${location.search}`}
+                        />
+                    );
+                })}
+            </ApplicationSidebarNavigation>
+        </>
     );
+
+    const presentation = {
+        overview: {
+            title: 'Charts overview',
+            description:
+                'See the most important reading and refresh signals at a glance.',
+        },
+        reading: {
+            title: 'Reading activity',
+            description: 'Compare feed arrivals with reads and saved entries.',
+        },
+        refresh: {
+            title: 'Refresh health',
+            description:
+                'Track refresh reliability, failures, and new entries.',
+        },
+        backlog: {
+            title: 'Backlog trends',
+            description:
+                'Follow unread pressure and cohort read-through over time.',
+        },
+    }[view];
+    const scopeValue =
+        state.feedId !== null
+            ? `feed:${state.feedId}`
+            : state.categoryId !== null
+              ? `category:${state.categoryId}`
+              : 'all';
+    const scopeOptions = [
+        { value: 'all', label: 'All subscriptions' },
+        ...(subscriptions.data?.subscriptions.map((subscription) => ({
+            value: `feed:${subscription.feedId}`,
+            label: `Feed · ${
+                subscription.customFeedName ?? subscription.feedName
+            }`,
+        })) ?? []),
+        ...(subscriptions.data?.categories.map((category) => ({
+            value: `category:${category.id}`,
+            label: `Category · ${category.name}`,
+        })) ?? []),
+    ];
+    const updateScope = (value: string | null) => {
+        if (value === null || value === 'all') {
+            update({ ...state, feedId: null, categoryId: null });
+            return;
+        }
+        const [kind, rawId] = value.split(':');
+        const id = Number(rawId);
+        if (!Number.isSafeInteger(id)) return;
+        update({
+            ...state,
+            feedId: kind === 'feed' ? id : null,
+            categoryId: kind === 'category' ? id : null,
+        });
+    };
 
     return (
         <ApplicationPage activePage="charts" sidebar={sidebar}>
-            <Stack className={classes.page} gap="xl">
-                <Stack gap={4}>
-                    <Title order={1}>Reading activity</Title>
-                    <Text c="dimmed" size="sm">
-                        Follow what arrives, what you read, and how reliably
-                        feeds refresh.
-                    </Text>
-                </Stack>
-
+            <Stack className={classes.content} gap="md">
                 <Paper
-                    className={classes.filterSurface}
+                    aria-label="Chart date range"
+                    className={classes.filterTopbar}
                     component="section"
-                    id="filters"
                     p={0}
                 >
-                    <header className={classes.surfaceHeader}>
-                        <Title order={2}>Filters</Title>
-                        {charts.data !== undefined && (
-                            <Text c="dimmed" size="xs">
-                                {formatDate(charts.data.window.startDate)} →{' '}
-                                {formatDate(charts.data.window.endDate)}
-                            </Text>
-                        )}
+                    <header className={classes.topbarHeader}>
+                        <Title order={1}>{presentation.title}</Title>
                     </header>
                     <Stack className={classes.filterBody} gap="sm">
                         <Group
@@ -542,10 +982,47 @@ export function ChartsPage() {
                             wrap="wrap"
                         >
                             <SegmentedControl
+                                aria-label="Date range"
                                 data={[
-                                    { value: '30', label: '30 days' },
-                                    { value: '90', label: '90 days' },
-                                    { value: '365', label: '365 days' },
+                                    {
+                                        value: '30',
+                                        label: (
+                                            <span>
+                                                <span aria-hidden="true">
+                                                    30d
+                                                </span>
+                                                <VisuallyHidden>
+                                                    30 days
+                                                </VisuallyHidden>
+                                            </span>
+                                        ),
+                                    },
+                                    {
+                                        value: '90',
+                                        label: (
+                                            <span>
+                                                <span aria-hidden="true">
+                                                    90d
+                                                </span>
+                                                <VisuallyHidden>
+                                                    90 days
+                                                </VisuallyHidden>
+                                            </span>
+                                        ),
+                                    },
+                                    {
+                                        value: '365',
+                                        label: (
+                                            <span>
+                                                <span aria-hidden="true">
+                                                    1y
+                                                </span>
+                                                <VisuallyHidden>
+                                                    1 year
+                                                </VisuallyHidden>
+                                            </span>
+                                        ),
+                                    },
                                     { value: 'custom', label: 'Custom' },
                                 ]}
                                 onChange={(value) => {
@@ -611,149 +1088,61 @@ export function ChartsPage() {
                                 </form>
                             )}
                         </Group>
-                        <Group
-                            className={classes.toolbarRow}
-                            gap="sm"
-                            wrap="wrap"
-                        >
-                            <SegmentedControl
-                                data={[
-                                    {
-                                        value: 'all',
-                                        label: 'All subscriptions',
-                                    },
-                                    { value: 'feed', label: 'By feed' },
-                                    { value: 'category', label: 'By category' },
-                                ]}
-                                onChange={(value) => {
-                                    const nextGroup = value as
-                                        | 'all'
-                                        | 'feed'
-                                        | 'category';
-                                    setGroup(nextGroup);
-                                    if (nextGroup === 'feed') {
-                                        const feedId =
-                                            subscriptions.data?.subscriptions[0]
-                                                ?.feedId;
-                                        if (feedId === undefined) return;
-                                        update({
-                                            ...state,
-                                            feedId,
-                                            categoryId: null,
-                                        });
-                                    } else if (nextGroup === 'category') {
-                                        const categoryId =
-                                            subscriptions.data?.categories[0]
-                                                ?.id;
-                                        if (categoryId === undefined) return;
-                                        update({
-                                            ...state,
-                                            categoryId,
-                                            feedId: null,
-                                        });
-                                    } else {
-                                        update({
-                                            ...state,
-                                            feedId: null,
-                                            categoryId: null,
-                                        });
-                                    }
-                                }}
-                                value={group}
-                            />
-                            {group === 'feed' && (
-                                <Select
-                                    data={
-                                        subscriptions.data?.subscriptions.map(
-                                            (subscription) => ({
-                                                value: String(
-                                                    subscription.feedId,
-                                                ),
-                                                label:
-                                                    subscription.customFeedName ??
-                                                    subscription.feedName,
-                                            }),
-                                        ) ?? []
-                                    }
-                                    nothingFoundMessage="No feeds"
-                                    onChange={(value) =>
-                                        update({
-                                            ...state,
-                                            feedId:
-                                                value === null
-                                                    ? null
-                                                    : Number(value),
-                                            categoryId: null,
-                                        })
-                                    }
-                                    placeholder="Select feed"
-                                    searchable
-                                    value={
-                                        state.feedId === null
-                                            ? null
-                                            : String(state.feedId)
-                                    }
-                                />
-                            )}
-                            {group === 'category' && (
-                                <Select
-                                    data={
-                                        subscriptions.data?.categories.map(
-                                            (category) => ({
-                                                value: String(category.id),
-                                                label: category.name,
-                                            }),
-                                        ) ?? []
-                                    }
-                                    nothingFoundMessage="No categories"
-                                    onChange={(value) =>
-                                        update({
-                                            ...state,
-                                            categoryId:
-                                                value === null
-                                                    ? null
-                                                    : Number(value),
-                                            feedId: null,
-                                        })
-                                    }
-                                    placeholder="Select category"
-                                    searchable
-                                    value={
-                                        state.categoryId === null
-                                            ? null
-                                            : String(state.categoryId)
-                                    }
-                                />
-                            )}
-                        </Group>
-                        {subscriptions.isPending && (
-                            <Group gap="xs">
-                                <Loader size="xs" />
-                                <Text c="dimmed" size="sm">
-                                    Loading feeds and categories…
-                                </Text>
-                            </Group>
-                        )}
-                        {subscriptions.isError && (
-                            <Alert color="red" title="Chart scopes unavailable">
-                                <Stack align="flex-start" gap="xs">
-                                    <Text size="sm">
-                                        {subscriptions.error.message}
-                                    </Text>
-                                    <Button
-                                        onClick={() =>
-                                            void subscriptions.refetch()
-                                        }
-                                        size="xs"
-                                        variant="light"
-                                    >
-                                        Retry
-                                    </Button>
-                                </Stack>
-                            </Alert>
-                        )}
                     </Stack>
                 </Paper>
+
+                <Text className={classes.introDescription} c="dimmed">
+                    {presentation.description}
+                </Text>
+
+                <Group
+                    className={classes.scopeRow}
+                    justify="space-between"
+                    wrap="wrap"
+                >
+                    <Group gap="xs" wrap="nowrap">
+                        <Text fw={700} size="xs">
+                            Scope
+                        </Text>
+                        <Select
+                            aria-label="Chart scope"
+                            className={classes.scopeSelect}
+                            data={scopeOptions}
+                            disabled={subscriptions.isError}
+                            nothingFoundMessage="No matching feeds or categories"
+                            onChange={updateScope}
+                            rightSection={
+                                subscriptions.isPending ? (
+                                    <Loader size="xs" />
+                                ) : undefined
+                            }
+                            searchable
+                            size="xs"
+                            value={scopeValue}
+                        />
+                    </Group>
+                    {charts.data !== undefined && (
+                        <Text c="dimmed" size="xs">
+                            {formatDate(charts.data.window.startDate)} →{' '}
+                            {formatDate(charts.data.window.endDate)}
+                        </Text>
+                    )}
+                </Group>
+
+                {subscriptions.isError && (
+                    <Alert color="red" title="Chart scopes unavailable">
+                        <Stack align="flex-start" gap="xs">
+                            <Text size="sm">{subscriptions.error.message}</Text>
+                            <Button
+                                onClick={() => void subscriptions.refetch()}
+                                size="xs"
+                                variant="light"
+                            >
+                                Retry
+                            </Button>
+                        </Stack>
+                    </Alert>
+                )}
 
                 {charts.isPending && (
                     <Paper
@@ -770,9 +1159,6 @@ export function ChartsPage() {
                             ))}
                         </div>
                     </Paper>
-                )}
-                {charts.isFetching && charts.data !== undefined && (
-                    <Loader aria-label="Refreshing charts" size="sm" />
                 )}
                 {charts.isError && (
                     <Alert color="red" role="alert" title="Charts unavailable">
@@ -792,9 +1178,25 @@ export function ChartsPage() {
                     </Alert>
                 )}
                 {charts.data !== undefined && (
-                    <ChartsDashboard data={charts.data} />
+                    <ChartsDashboard data={charts.data} view={view} />
                 )}
             </Stack>
         </ApplicationPage>
     );
+}
+
+export function ChartsPage() {
+    return <ChartReportWorkspace view="overview" />;
+}
+
+export function ReadingChartsPage() {
+    return <ChartReportWorkspace view="reading" />;
+}
+
+export function RefreshChartsPage() {
+    return <ChartReportWorkspace view="refresh" />;
+}
+
+export function BacklogChartsPage() {
+    return <ChartReportWorkspace view="backlog" />;
 }

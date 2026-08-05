@@ -1,10 +1,3 @@
-.page {
-    width: min(100%, 78rem);
-    margin-inline: auto;
-    padding: var(--ds-space-3);
-}
-
-.filterSurface,
 .summarySurface,
 .chartSurface {
     min-width: 0;
@@ -12,7 +5,60 @@
     border: 1px solid var(--ds-work-line);
     border-radius: var(--ds-radius-md);
     background: var(--ds-surface-work);
-    box-shadow: none;
+    box-shadow: var(--ds-shadow-work);
+}
+
+.content {
+    width: 100%;
+    max-width: 78rem;
+    min-width: 0;
+    padding-block: var(--ds-space-3) var(--ds-space-7);
+    margin-inline: auto;
+}
+
+.introDescription {
+    padding-inline: var(--ds-space-1);
+}
+
+.filterTopbar {
+    position: sticky;
+    z-index: 12;
+    top: var(--ds-space-3);
+    display: grid;
+    min-width: 0;
+    overflow: hidden;
+    isolation: isolate;
+    grid-template-columns: minmax(11rem, auto) minmax(0, 1fr);
+    border: 1px solid var(--ds-glass-line);
+    border-radius: var(--ds-radius-lg);
+    color: var(--ds-ink);
+    background: var(--ds-glass-sheen), var(--ds-glass-overlay);
+    box-shadow: var(--ds-shadow-float);
+    backdrop-filter: blur(var(--ds-glass-blur))
+        saturate(var(--ds-glass-saturate)) brightness(var(--ds-glass-brightness))
+        contrast(var(--ds-glass-contrast));
+}
+
+.filterTopbar::after {
+    position: absolute;
+    z-index: 0;
+    right: 10%;
+    bottom: -1px;
+    left: 10%;
+    height: 1px;
+    background: var(--ds-glass-refraction);
+    content: '';
+    pointer-events: none;
+}
+
+.filterTopbar > * {
+    position: relative;
+    z-index: 1;
+}
+
+.filterTopbar :global(.mantine-SegmentedControl-root),
+.filterTopbar :global(.mantine-Button-root) {
+    backdrop-filter: none;
 }
 
 .surfaceHeader,
@@ -27,6 +73,23 @@
     background: var(--ds-surface-work-header);
 }
 
+.topbarHeader {
+    display: flex;
+    min-height: 4.25rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-space-2);
+    padding: var(--ds-space-3) var(--ds-space-4);
+    border-right: 1px solid
+        color-mix(in srgb, var(--ds-glass-line) 80%, transparent);
+    background: color-mix(in srgb, var(--ds-glass-strong) 36%, transparent);
+}
+
+.topbarHeader h1 {
+    font-size: 1rem;
+    letter-spacing: -0.02em;
+}
+
 .surfaceHeader h2,
 .surfaceHeader h3 {
     font-size: 0.875rem;
@@ -35,20 +98,68 @@
 }
 
 .filterBody {
-    padding: var(--ds-space-3) var(--ds-space-4) var(--ds-space-4);
+    display: grid;
+    align-items: center;
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--ds-space-3) var(--ds-space-4);
 }
 
 .toolbarRow {
     min-width: 0;
+    justify-content: flex-end;
+}
+
+.scopeRow {
+    display: grid;
+    min-height: 2.25rem;
+    grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+    gap: var(--ds-space-3);
+    padding-inline: var(--ds-space-1);
+}
+
+.scopeRow > :last-child {
+    justify-self: end;
+}
+
+.scopeSelect {
+    width: 100%;
+}
+
+.reportGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ds-space-3);
+}
+
+.instrumentStrip {
+    overflow: hidden;
+    border: 1px solid var(--ds-work-line);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-work);
+    box-shadow: var(--ds-shadow-work);
+}
+
+.instrumentGroupLabel {
+    min-height: 1.75rem;
+    padding: 0.4rem var(--ds-space-3);
+    border-bottom: 1px solid var(--ds-work-line);
+    color: var(--ds-muted);
+    background: var(--ds-surface-work-header);
+    font-size: 0.625rem;
+    font-weight: 750;
+    letter-spacing: 0.06em;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.instrumentMetrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .summaryStrip {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.refreshSummary {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .summaryMetric {
@@ -82,21 +193,32 @@
     line-height: 1.15;
 }
 
-.sectionHeading {
-    display: grid;
-    gap: 2px;
-    padding-inline: var(--ds-space-1);
-}
-
-.sectionHeading h2 {
-    font-size: 1.125rem;
+.primaryChart .surfaceHeader {
+    min-height: 3.5rem;
 }
 
 .chartBody {
+    --chart-tooltip-y: 8px;
     min-width: 0;
     padding: var(--ds-space-4);
     overflow-x: auto;
     background: var(--ds-paper);
+}
+
+.chartBody :global(.recharts-tooltip-wrapper) {
+    top: var(--chart-tooltip-y) !important;
+    transition: none !important;
+}
+
+.chartSurface :global(.mantine-ChartTooltip-tooltip) {
+    border: 1px solid var(--ds-glass-line);
+    border-radius: var(--ds-radius-lg);
+    color: var(--ds-ink);
+    background: var(--ds-glass-sheen), var(--ds-glass-overlay);
+    box-shadow: var(--ds-shadow-float);
+    backdrop-filter: blur(var(--ds-glass-blur))
+        saturate(var(--ds-glass-saturate)) brightness(var(--ds-glass-brightness))
+        contrast(var(--ds-glass-contrast));
 }
 
 .emptyState {
@@ -104,32 +226,70 @@
     border-block: 1px solid var(--ds-line);
 }
 
-.chart {
-    display: block;
-    width: 100%;
-    height: clamp(12rem, 28vw, 17rem);
-    overflow: visible;
+.dataDisclosure {
+    overflow: hidden;
+    border: 1px solid var(--ds-work-line);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-work);
+    box-shadow: var(--ds-shadow-work);
 }
 
-.gridLine {
-    stroke: var(--ds-line);
-    stroke-width: 1;
-    vector-effect: non-scaling-stroke;
+.dataDisclosure > summary {
+    padding: var(--ds-space-3) var(--ds-space-4);
+    border-bottom: 1px solid transparent;
+    background: var(--ds-surface-work-header);
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 700;
 }
 
-.legendSwatch {
-    width: 0.75rem;
-    height: 0.75rem;
-    border-radius: var(--ds-radius-xs);
-    flex: 0 0 auto;
+.dataDisclosure[open] > summary {
+    border-bottom-color: var(--ds-work-line);
+}
+
+.dataDisclosure > summary:focus-visible {
+    outline: 2px solid var(--ds-focus);
+    outline-offset: -3px;
+}
+
+.dataDisclosure :global(.mantine-Table-scrollContainer) {
+    border: 0;
+    border-radius: 0;
+}
+
+@media (max-width: 68.74em) {
+    .filterTopbar {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .topbarHeader {
+        min-height: 3.5rem;
+        border-right: 0;
+        border-bottom: 1px solid
+            color-mix(in srgb, var(--ds-glass-line) 80%, transparent);
+    }
+
+    .filterBody,
+    .reportGrid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .chartBody > * {
+        min-width: 36rem;
+    }
 }
 
 @media (max-width: 56.24em) {
-    .summaryStrip {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+    .scopeRow {
+        grid-template-columns: minmax(0, 1fr);
     }
 
-    .refreshSummary {
+    .scopeRow > :last-child {
+        justify-self: start;
+    }
+
+    .instrumentMetrics,
+    .summaryStrip {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
@@ -145,21 +305,15 @@
         border-bottom: 0;
     }
 
-    .refreshSummary .summaryMetric:nth-last-child(2) {
-        border-bottom: 1px solid var(--ds-line);
-    }
-
-    .refreshSummary .summaryMetric:last-child {
-        border-right: 0;
-        border-bottom: 0;
-    }
 }
 
 @media (max-width: 43.74em) {
-    .page {
-        padding: 0;
+    .filterTopbar {
+        position: relative;
+        top: auto;
     }
 
+    .topbarHeader,
     .surfaceHeader,
     .loadingHeader,
     .filterBody,
@@ -169,6 +323,12 @@
 
     .toolbarRow {
         align-items: stretch;
+        justify-content: flex-start;
+    }
+
+    .scopeRow > *,
+    .scopeSelect {
+        width: 100%;
     }
 
     .chartBody > * {
@@ -185,5 +345,20 @@
 
     .summaryMetric {
         padding-inline: var(--ds-space-3);
+    }
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+    .filterTopbar,
+    .chartSurface :global(.mantine-ChartTooltip-tooltip) {
+        background: var(--ds-paper);
+    }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    .filterTopbar,
+    .chartSurface :global(.mantine-ChartTooltip-tooltip) {
+        background: var(--ds-paper);
+        backdrop-filter: none;
     }
 }

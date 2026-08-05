@@ -1,0 +1,67 @@
+.content {
+    width: 100%;
+    max-width: 78rem;
+    min-width: 0;
+    padding-block: var(--ds-space-3) var(--ds-space-7);
+    margin-inline: auto;
+}
+
+.settingsContent {
+    max-width: 52.5rem;
+}
+
+.contentHeader {
+    display: grid;
+    gap: var(--ds-space-1);
+    padding-inline: var(--ds-space-1);
+}
+
+.contentHeader p {
+    max-width: 44rem;
+}
+
+.workSurface {
+    overflow: hidden;
+    border: 1px solid var(--ds-work-line);
+    color: var(--ds-ink);
+    background: var(--ds-surface-work);
+    box-shadow: var(--ds-shadow-work);
+}
+
+.sidebarHeader {
+    flex: 0 0 auto;
+    padding: var(--ds-space-4) var(--ds-space-4) var(--ds-space-3);
+}
+
+.sidebarTitle {
+    color: var(--ds-ink);
+    font-size: var(--mantine-font-size-sm);
+    font-weight: 750;
+    line-height: 1.4;
+}
+
+.sidebarDescription {
+    color: var(--ds-subtle);
+    font-size: var(--mantine-font-size-xs);
+    line-height: 1.4;
+}
+
+.sidebarNavigation {
+    min-height: 0;
+    padding: 0 var(--ds-space-3) var(--ds-space-4);
+}
+
+.sidebarNavigation :global(.mantine-ScrollArea-viewport) {
+    padding-block: 1px;
+}
+
+@media (max-width: 43.74em) {
+    .content {
+        padding-block: 0 var(--ds-space-6);
+    }
+
+    .contentHeader {
+        padding-inline: 0;
+    }
+
+}

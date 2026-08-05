@@ -43,6 +43,9 @@ describe('ApplicationHeader', () => {
         expect(markup).toContain('aria-label="Keyboard shortcuts"');
         expect(markup).toContain('aria-label="Toggle color scheme"');
         expect(markup).toContain('aria-label="Signed in as Reader"');
-        expect(markup).toContain('github.com/angristan/larafeed');
+        expect(markup.match(/github\.com\/angristan\/larafeed/g)).toHaveLength(
+            1,
+        );
+        expect(markup).not.toContain('Administration');
     });
 });

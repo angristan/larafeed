@@ -74,6 +74,7 @@ describe('SecurityPage', () => {
         expect(securityMarkup).toContain('Add another passkey before deleting');
         expect(securityMarkup).not.toContain('Profile settings');
         expect(securityMarkup).toContain('Import &amp; export');
-        expect(securityMarkup).not.toContain('Administration');
+        expect(securityMarkup).toContain('Administration');
+        expect(securityMarkup).toContain('Users and access');
     });
 });

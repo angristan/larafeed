@@ -3,7 +3,6 @@ import {
     Badge,
     Button,
     Checkbox,
-    Container,
     Group,
     Paper,
     Skeleton,
@@ -18,7 +17,6 @@ import {
     IconCopy,
     IconLink,
     IconRefresh,
-    IconShieldLock,
     IconUserPlus,
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -26,7 +24,10 @@ import { type FormEvent, useState } from 'react';
 import { Link } from 'react-router';
 
 import type { ManagedAccessLink, ManagedUser } from '../api/account';
-import { ApplicationPage } from '../components/ApplicationPage';
+import {
+    ApplicationContent,
+    ApplicationPage,
+} from '../components/ApplicationPage';
 import {
     adminOverviewQueryOptions,
     createEnrollmentLinkMutationOptions,
@@ -326,306 +327,280 @@ export function AdminUsersPage() {
             pageTitle="Administration"
             settingsNavigation
         >
-            <Container component="div" size="xl" py="md">
-                <Stack gap="xl">
-                    <Stack gap="xs" align="flex-start">
-                        <Group gap="sm">
-                            <IconShieldLock aria-hidden="true" size={30} />
-                            <Title order={1}>Administration</Title>
-                        </Group>
-                        <Text c="dimmed">
-                            Invite users, issue recovery links, control access,
-                            and review security events.
-                        </Text>
+            <ApplicationContent
+                description="Invite users, issue recovery links, control access, and review security events."
+                title="Administration"
+            >
+                <EnrollmentForm />
+                {overview.isPending ? (
+                    <Stack gap="md">
+                        <Skeleton height={240} />
+                        <Skeleton height={180} />
                     </Stack>
-                    <EnrollmentForm />
-                    {overview.isPending ? (
-                        <Stack gap="md">
-                            <Skeleton height={240} />
-                            <Skeleton height={180} />
+                ) : overview.isError ? (
+                    <Alert
+                        color="red"
+                        role="alert"
+                        title="Administration unavailable"
+                    >
+                        <Stack align="flex-start" gap="sm">
+                            <Text size="sm">{overview.error.message}</Text>
+                            <Button
+                                leftSection={
+                                    <IconRefresh aria-hidden="true" size={15} />
+                                }
+                                onClick={() => void overview.refetch()}
+                                size="xs"
+                                variant="light"
+                            >
+                                Retry
+                            </Button>
                         </Stack>
-                    ) : overview.isError ? (
-                        <Alert
-                            color="red"
-                            role="alert"
-                            title="Administration unavailable"
+                    </Alert>
+                ) : (
+                    <>
+                        <Paper
+                            component="section"
+                            withBorder
+                            p={{ base: 'lg', sm: 'xl' }}
                         >
-                            <Stack align="flex-start" gap="sm">
-                                <Text size="sm">{overview.error.message}</Text>
-                                <Button
-                                    leftSection={
-                                        <IconRefresh
-                                            aria-hidden="true"
-                                            size={15}
-                                        />
-                                    }
-                                    onClick={() => void overview.refetch()}
-                                    size="xs"
-                                    variant="light"
-                                >
-                                    Retry
-                                </Button>
-                            </Stack>
-                        </Alert>
-                    ) : (
-                        <>
-                            <Paper
-                                component="section"
-                                withBorder
-                                p={{ base: 'lg', sm: 'xl' }}
-                            >
-                                <Stack gap="md">
-                                    <Stack gap={3}>
-                                        <Title order={2} size="h3">
-                                            Users
-                                        </Title>
-                                        <Text c="dimmed" size="sm">
-                                            Disabling an account revokes its
-                                            sessions and outstanding links. The
-                                            final active administrator is
-                                            protected.
-                                        </Text>
-                                    </Stack>
-                                    <Table.ScrollContainer minWidth={820}>
-                                        <Table striped withRowBorders={false}>
-                                            <Table.Thead>
-                                                <Table.Tr>
-                                                    <Table.Th>User</Table.Th>
-                                                    <Table.Th ta="right">
-                                                        Passkeys
-                                                    </Table.Th>
-                                                    <Table.Th ta="right">
-                                                        Feeds
-                                                    </Table.Th>
-                                                    <Table.Th ta="right">
-                                                        Actions
-                                                    </Table.Th>
-                                                </Table.Tr>
-                                            </Table.Thead>
-                                            <Table.Tbody>
-                                                {overview.data.users.map(
-                                                    (user) => (
-                                                        <UserRow
-                                                            currentUserId={
-                                                                currentUserId
-                                                            }
-                                                            key={user.id}
-                                                            user={user}
-                                                        />
-                                                    ),
-                                                )}
-                                            </Table.Tbody>
-                                        </Table>
-                                    </Table.ScrollContainer>
+                            <Stack gap="md">
+                                <Stack gap={3}>
+                                    <Title order={2} size="h3">
+                                        Users
+                                    </Title>
+                                    <Text c="dimmed" size="sm">
+                                        Disabling an account revokes its
+                                        sessions and outstanding links. The
+                                        final active administrator is protected.
+                                    </Text>
                                 </Stack>
-                            </Paper>
-                            <Paper
-                                component="section"
-                                withBorder
-                                p={{ base: 'lg', sm: 'xl' }}
-                            >
-                                <Stack gap="md">
-                                    <Stack gap={3}>
-                                        <Title order={2} size="h3">
-                                            Access links
-                                        </Title>
-                                        <Text c="dimmed" size="sm">
-                                            Recent enrollment and recovery link
-                                            metadata. Secret link tokens are
-                                            only shown once when created.
-                                        </Text>
-                                    </Stack>
-                                    <ErrorAlert
-                                        error={revoke.error}
-                                        title="Link was not revoked"
-                                    />
-                                    <Table.ScrollContainer minWidth={700}>
-                                        <Table striped withRowBorders={false}>
-                                            <Table.Thead>
+                                <Table.ScrollContainer minWidth={820}>
+                                    <Table striped withRowBorders={false}>
+                                        <Table.Thead>
+                                            <Table.Tr>
+                                                <Table.Th>User</Table.Th>
+                                                <Table.Th ta="right">
+                                                    Passkeys
+                                                </Table.Th>
+                                                <Table.Th ta="right">
+                                                    Feeds
+                                                </Table.Th>
+                                                <Table.Th ta="right">
+                                                    Actions
+                                                </Table.Th>
+                                            </Table.Tr>
+                                        </Table.Thead>
+                                        <Table.Tbody>
+                                            {overview.data.users.map((user) => (
+                                                <UserRow
+                                                    currentUserId={
+                                                        currentUserId
+                                                    }
+                                                    key={user.id}
+                                                    user={user}
+                                                />
+                                            ))}
+                                        </Table.Tbody>
+                                    </Table>
+                                </Table.ScrollContainer>
+                            </Stack>
+                        </Paper>
+                        <Paper
+                            component="section"
+                            withBorder
+                            p={{ base: 'lg', sm: 'xl' }}
+                        >
+                            <Stack gap="md">
+                                <Stack gap={3}>
+                                    <Title order={2} size="h3">
+                                        Access links
+                                    </Title>
+                                    <Text c="dimmed" size="sm">
+                                        Recent enrollment and recovery link
+                                        metadata. Secret link tokens are only
+                                        shown once when created.
+                                    </Text>
+                                </Stack>
+                                <ErrorAlert
+                                    error={revoke.error}
+                                    title="Link was not revoked"
+                                />
+                                <Table.ScrollContainer minWidth={700}>
+                                    <Table striped withRowBorders={false}>
+                                        <Table.Thead>
+                                            <Table.Tr>
+                                                <Table.Th>User</Table.Th>
+                                                <Table.Th>Purpose</Table.Th>
+                                                <Table.Th>Status</Table.Th>
+                                                <Table.Th>Expires</Table.Th>
+                                                <Table.Th />
+                                            </Table.Tr>
+                                        </Table.Thead>
+                                        <Table.Tbody>
+                                            {overview.data.accessLinks
+                                                .length === 0 ? (
                                                 <Table.Tr>
-                                                    <Table.Th>User</Table.Th>
-                                                    <Table.Th>Purpose</Table.Th>
-                                                    <Table.Th>Status</Table.Th>
-                                                    <Table.Th>Expires</Table.Th>
-                                                    <Table.Th />
+                                                    <Table.Td colSpan={5}>
+                                                        <Text
+                                                            c="dimmed"
+                                                            size="sm"
+                                                        >
+                                                            No access links yet.
+                                                        </Text>
+                                                    </Table.Td>
                                                 </Table.Tr>
-                                            </Table.Thead>
-                                            <Table.Tbody>
-                                                {overview.data.accessLinks
-                                                    .length === 0 ? (
-                                                    <Table.Tr>
-                                                        <Table.Td colSpan={5}>
-                                                            <Text
-                                                                c="dimmed"
-                                                                size="sm"
+                                            ) : (
+                                                overview.data.accessLinks.map(
+                                                    (link) => {
+                                                        const status =
+                                                            linkStatus(link);
+                                                        return (
+                                                            <Table.Tr
+                                                                key={link.id}
                                                             >
-                                                                No access links
-                                                                yet.
-                                                            </Text>
+                                                                <Table.Td>
+                                                                    @
+                                                                    {
+                                                                        link.username
+                                                                    }
+                                                                </Table.Td>
+                                                                <Table.Td>
+                                                                    {
+                                                                        link.purpose
+                                                                    }
+                                                                </Table.Td>
+                                                                <Table.Td>
+                                                                    <Badge
+                                                                        color={
+                                                                            status.color
+                                                                        }
+                                                                        variant="light"
+                                                                    >
+                                                                        {
+                                                                            status.label
+                                                                        }
+                                                                    </Badge>
+                                                                </Table.Td>
+                                                                <Table.Td>
+                                                                    {dateTime.format(
+                                                                        new Date(
+                                                                            link.expiresAt,
+                                                                        ),
+                                                                    )}
+                                                                </Table.Td>
+                                                                <Table.Td ta="right">
+                                                                    {status.active && (
+                                                                        <Button
+                                                                            color="red"
+                                                                            loading={
+                                                                                revoke.isPending &&
+                                                                                revoke
+                                                                                    .variables
+                                                                                    ?.linkId ===
+                                                                                    link.id
+                                                                            }
+                                                                            onClick={() =>
+                                                                                revoke.mutate(
+                                                                                    {
+                                                                                        linkId: link.id,
+                                                                                    },
+                                                                                )
+                                                                            }
+                                                                            size="xs"
+                                                                            variant="subtle"
+                                                                        >
+                                                                            Revoke
+                                                                        </Button>
+                                                                    )}
+                                                                </Table.Td>
+                                                            </Table.Tr>
+                                                        );
+                                                    },
+                                                )
+                                            )}
+                                        </Table.Tbody>
+                                    </Table>
+                                </Table.ScrollContainer>
+                            </Stack>
+                        </Paper>
+                        <Paper
+                            component="section"
+                            withBorder
+                            p={{ base: 'lg', sm: 'xl' }}
+                        >
+                            <Stack gap="md">
+                                <Stack gap={3}>
+                                    <Title order={2} size="h3">
+                                        Recent security events
+                                    </Title>
+                                    <Text c="dimmed" size="sm">
+                                        The latest account and authentication
+                                        events stored in D1.
+                                    </Text>
+                                </Stack>
+                                <Table.ScrollContainer minWidth={620}>
+                                    <Table striped withRowBorders={false}>
+                                        <Table.Thead>
+                                            <Table.Tr>
+                                                <Table.Th>Time</Table.Th>
+                                                <Table.Th>Event</Table.Th>
+                                                <Table.Th>User ID</Table.Th>
+                                                <Table.Th>Actor ID</Table.Th>
+                                            </Table.Tr>
+                                        </Table.Thead>
+                                        <Table.Tbody>
+                                            {overview.data.securityEvents.map(
+                                                (event) => (
+                                                    <Table.Tr key={event.id}>
+                                                        <Table.Td>
+                                                            {dateTime.format(
+                                                                new Date(
+                                                                    event.createdAt,
+                                                                ),
+                                                            )}
+                                                        </Table.Td>
+                                                        <Table.Td>
+                                                            {eventLabels[
+                                                                event.kind
+                                                            ] ?? event.kind}
+                                                        </Table.Td>
+                                                        <Table.Td>
+                                                            {event.userId ??
+                                                                '—'}
+                                                        </Table.Td>
+                                                        <Table.Td>
+                                                            {event.actorUserId ??
+                                                                '—'}
                                                         </Table.Td>
                                                     </Table.Tr>
-                                                ) : (
-                                                    overview.data.accessLinks.map(
-                                                        (link) => {
-                                                            const status =
-                                                                linkStatus(
-                                                                    link,
-                                                                );
-                                                            return (
-                                                                <Table.Tr
-                                                                    key={
-                                                                        link.id
-                                                                    }
-                                                                >
-                                                                    <Table.Td>
-                                                                        @
-                                                                        {
-                                                                            link.username
-                                                                        }
-                                                                    </Table.Td>
-                                                                    <Table.Td>
-                                                                        {
-                                                                            link.purpose
-                                                                        }
-                                                                    </Table.Td>
-                                                                    <Table.Td>
-                                                                        <Badge
-                                                                            color={
-                                                                                status.color
-                                                                            }
-                                                                            variant="light"
-                                                                        >
-                                                                            {
-                                                                                status.label
-                                                                            }
-                                                                        </Badge>
-                                                                    </Table.Td>
-                                                                    <Table.Td>
-                                                                        {dateTime.format(
-                                                                            new Date(
-                                                                                link.expiresAt,
-                                                                            ),
-                                                                        )}
-                                                                    </Table.Td>
-                                                                    <Table.Td ta="right">
-                                                                        {status.active && (
-                                                                            <Button
-                                                                                color="red"
-                                                                                loading={
-                                                                                    revoke.isPending &&
-                                                                                    revoke
-                                                                                        .variables
-                                                                                        ?.linkId ===
-                                                                                        link.id
-                                                                                }
-                                                                                onClick={() =>
-                                                                                    revoke.mutate(
-                                                                                        {
-                                                                                            linkId: link.id,
-                                                                                        },
-                                                                                    )
-                                                                                }
-                                                                                size="xs"
-                                                                                variant="subtle"
-                                                                            >
-                                                                                Revoke
-                                                                            </Button>
-                                                                        )}
-                                                                    </Table.Td>
-                                                                </Table.Tr>
-                                                            );
-                                                        },
-                                                    )
-                                                )}
-                                            </Table.Tbody>
-                                        </Table>
-                                    </Table.ScrollContainer>
-                                </Stack>
-                            </Paper>
-                            <Paper
-                                component="section"
-                                withBorder
-                                p={{ base: 'lg', sm: 'xl' }}
-                            >
-                                <Stack gap="md">
-                                    <Stack gap={3}>
-                                        <Title order={2} size="h3">
-                                            Recent security events
-                                        </Title>
-                                        <Text c="dimmed" size="sm">
-                                            The latest account and
-                                            authentication events stored in D1.
-                                        </Text>
-                                    </Stack>
-                                    <Table.ScrollContainer minWidth={620}>
-                                        <Table striped withRowBorders={false}>
-                                            <Table.Thead>
-                                                <Table.Tr>
-                                                    <Table.Th>Time</Table.Th>
-                                                    <Table.Th>Event</Table.Th>
-                                                    <Table.Th>User ID</Table.Th>
-                                                    <Table.Th>
-                                                        Actor ID
-                                                    </Table.Th>
-                                                </Table.Tr>
-                                            </Table.Thead>
-                                            <Table.Tbody>
-                                                {overview.data.securityEvents.map(
-                                                    (event) => (
-                                                        <Table.Tr
-                                                            key={event.id}
-                                                        >
-                                                            <Table.Td>
-                                                                {dateTime.format(
-                                                                    new Date(
-                                                                        event.createdAt,
-                                                                    ),
-                                                                )}
-                                                            </Table.Td>
-                                                            <Table.Td>
-                                                                {eventLabels[
-                                                                    event.kind
-                                                                ] ?? event.kind}
-                                                            </Table.Td>
-                                                            <Table.Td>
-                                                                {event.userId ??
-                                                                    '—'}
-                                                            </Table.Td>
-                                                            <Table.Td>
-                                                                {event.actorUserId ??
-                                                                    '—'}
-                                                            </Table.Td>
-                                                        </Table.Tr>
-                                                    ),
-                                                )}
-                                            </Table.Tbody>
-                                        </Table>
-                                    </Table.ScrollContainer>
-                                </Stack>
-                            </Paper>
-                        </>
-                    )}
-                    <Group>
-                        <Badge
-                            color="green"
-                            leftSection={
-                                <IconCheck aria-hidden="true" size={12} />
-                            }
-                            variant="light"
-                        >
-                            Passkey-only access
-                        </Badge>
-                        <Button
-                            component={Link}
-                            size="xs"
-                            to="/settings/security"
-                            variant="subtle"
-                        >
-                            My security settings
-                        </Button>
-                    </Group>
-                </Stack>
-            </Container>
+                                                ),
+                                            )}
+                                        </Table.Tbody>
+                                    </Table>
+                                </Table.ScrollContainer>
+                            </Stack>
+                        </Paper>
+                    </>
+                )}
+                <Group>
+                    <Badge
+                        color="green"
+                        leftSection={<IconCheck aria-hidden="true" size={12} />}
+                        variant="light"
+                    >
+                        Passkey-only access
+                    </Badge>
+                    <Button
+                        component={Link}
+                        size="xs"
+                        to="/settings/security"
+                        variant="subtle"
+                    >
+                        My security settings
+                    </Button>
+                </Group>
+            </ApplicationContent>
         </ApplicationPage>
     );
 }

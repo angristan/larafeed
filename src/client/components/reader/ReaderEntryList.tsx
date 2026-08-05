@@ -107,14 +107,14 @@ export function ReaderEntryList({
                     <Text fw={700} size="sm">
                         {scopeTitle}
                     </Text>
-                    <Text c="dimmed" ff="monospace" size="xs">
+                    <Text c="dimmed" size="xs">
                         {page === undefined
                             ? 'Loading entries'
                             : `${page.pagination.total.toLocaleString()} total`}
                     </Text>
                 </div>
                 <Group gap="xs" wrap="nowrap">
-                    <Text c="dimmed" ff="monospace" size="xs">
+                    <Text c="dimmed" size="xs">
                         {orderLabels[state.orderBy]}
                     </Text>
                     {isFetching && page !== undefined && (
@@ -125,12 +125,22 @@ export function ReaderEntryList({
 
             <ScrollArea
                 className={classes.entryListScroll}
+                classNames={{
+                    scrollbar: classes.readerScrollbar,
+                    thumb: classes.readerScrollbarThumb,
+                }}
                 viewportRef={viewport}
             >
-                {isPending && page === undefined && (
-                    <Stack gap={0} aria-label="Loading entries">
-                        {['first', 'second', 'third', 'fourth', 'fifth'].map(
-                            (key) => (
+                <div className={classes.entryScrollContent}>
+                    {isPending && page === undefined && (
+                        <Stack gap={0} aria-label="Loading entries">
+                            {[
+                                'first',
+                                'second',
+                                'third',
+                                'fourth',
+                                'fifth',
+                            ].map((key) => (
                                 <div
                                     className={classes.entrySkeleton}
                                     key={key}
@@ -147,128 +157,142 @@ export function ReaderEntryList({
                                         width="58%"
                                     />
                                 </div>
-                            ),
-                        )}
-                    </Stack>
-                )}
-
-                {error !== null && page === undefined && (
-                    <Center p="xl">
-                        <Alert color="red" title="Entries unavailable">
-                            <Stack gap="sm">
-                                <Text size="sm">{error.message}</Text>
-                                <Button
-                                    leftSection={
-                                        <IconRefresh
-                                            aria-hidden="true"
-                                            size={15}
-                                        />
-                                    }
-                                    onClick={onRetry}
-                                    size="xs"
-                                    variant="light"
-                                >
-                                    Retry
-                                </Button>
-                            </Stack>
-                        </Alert>
-                    </Center>
-                )}
-
-                {page !== undefined && page.entries.length === 0 && (
-                    <Center className={classes.emptyEntries}>
-                        <Stack align="center" gap={4} ta="center">
-                            <Text fw={650} size="sm">
-                                No entries here
-                            </Text>
-                            <Text c="dimmed" maw={260} size="xs">
-                                Choose another feed or filter, or wait for the
-                                next refresh.
-                            </Text>
+                            ))}
                         </Stack>
-                    </Center>
-                )}
+                    )}
 
-                {page !== undefined && page.entries.length > 0 && (
-                    <ul className={classes.entriesList}>
-                        {page.entries.map((entry) => {
-                            const active = state.entryId === entry.id;
-                            const feedName =
-                                entry.customFeedName ?? entry.feedName;
-                            return (
-                                <li
-                                    className={classes.entryItem}
-                                    key={entry.id}
-                                >
-                                    <Link
-                                        id={`reader-entry-${entry.id}`}
-                                        aria-current={
-                                            active ? 'true' : undefined
+                    {error !== null && page === undefined && (
+                        <Center p="xl">
+                            <Alert color="red" title="Entries unavailable">
+                                <Stack gap="sm">
+                                    <Text size="sm">{error.message}</Text>
+                                    <Button
+                                        leftSection={
+                                            <IconRefresh
+                                                aria-hidden="true"
+                                                size={15}
+                                            />
                                         }
-                                        className={`${classes.entry} ${
-                                            active ? classes.activeEntry : ''
-                                        } ${entry.read ? classes.readEntry : ''}`}
-                                        onFocus={() =>
-                                            onPrefetchEntry(entry.id)
-                                        }
-                                        onMouseEnter={() =>
-                                            onPrefetchEntry(entry.id)
-                                        }
-                                        to={readerHref(state, {
-                                            entryId: entry.id,
-                                        })}
+                                        onClick={onRetry}
+                                        size="xs"
+                                        variant="light"
                                     >
-                                        <span
-                                            aria-hidden="true"
-                                            className={classes.unreadMarker}
-                                            data-read={entry.read || undefined}
-                                        />
-                                        <span className={classes.entryCopy}>
+                                        Retry
+                                    </Button>
+                                </Stack>
+                            </Alert>
+                        </Center>
+                    )}
+
+                    {page !== undefined && page.entries.length === 0 && (
+                        <Center className={classes.emptyEntries}>
+                            <Stack align="center" gap={4} ta="center">
+                                <Text fw={650} size="sm">
+                                    No entries here
+                                </Text>
+                                <Text c="dimmed" maw={260} size="xs">
+                                    Choose another feed or filter, or wait for
+                                    the next refresh.
+                                </Text>
+                            </Stack>
+                        </Center>
+                    )}
+
+                    {page !== undefined && page.entries.length > 0 && (
+                        <ul className={classes.entriesList}>
+                            {page.entries.map((entry) => {
+                                const active = state.entryId === entry.id;
+                                const feedName =
+                                    entry.customFeedName ?? entry.feedName;
+                                return (
+                                    <li
+                                        className={classes.entryItem}
+                                        key={entry.id}
+                                    >
+                                        <Link
+                                            id={`reader-entry-${entry.id}`}
+                                            aria-current={
+                                                active ? 'true' : undefined
+                                            }
+                                            className={`${classes.entry} ${
+                                                active
+                                                    ? classes.activeEntry
+                                                    : ''
+                                            } ${entry.read ? classes.readEntry : ''}`}
+                                            onFocus={() =>
+                                                onPrefetchEntry(entry.id)
+                                            }
+                                            onMouseEnter={() =>
+                                                onPrefetchEntry(entry.id)
+                                            }
+                                            to={readerHref(state, {
+                                                entryId: entry.id,
+                                            })}
+                                        >
                                             <span
-                                                className={classes.entryTitle}
-                                            >
-                                                {entry.title ||
-                                                    'Untitled entry'}
-                                                {entry.starred && (
-                                                    <IconStarFilled
-                                                        aria-label="Favorite"
-                                                        className={
-                                                            classes.starredIcon
-                                                        }
-                                                        size={14}
-                                                    />
-                                                )}
-                                            </span>
-                                            <span className={classes.entryMeta}>
+                                                aria-hidden="true"
+                                                className={classes.unreadMarker}
+                                                data-read={
+                                                    entry.read || undefined
+                                                }
+                                            />
+                                            <span className={classes.entryCopy}>
                                                 <span
-                                                    className={classes.feedMeta}
+                                                    className={
+                                                        classes.entryTitle
+                                                    }
                                                 >
-                                                    <FeedFavicon
-                                                        isDark={
-                                                            entry.faviconIsDark
-                                                        }
-                                                        size={18}
-                                                        src={entry.faviconUrl}
-                                                    />
-                                                    <span>{feedName}</span>
-                                                </span>
-                                                <time
-                                                    dateTime={new Date(
-                                                        entry.publishedAt,
-                                                    ).toISOString()}
-                                                >
-                                                    {formatRelativeTime(
-                                                        entry.publishedAt,
+                                                    {entry.title ||
+                                                        'Untitled entry'}
+                                                    {entry.starred && (
+                                                        <IconStarFilled
+                                                            aria-label="Favorite"
+                                                            className={
+                                                                classes.starredIcon
+                                                            }
+                                                            size={14}
+                                                        />
                                                     )}
-                                                </time>
+                                                </span>
+                                                <span
+                                                    className={
+                                                        classes.entryMeta
+                                                    }
+                                                >
+                                                    <span
+                                                        className={
+                                                            classes.feedMeta
+                                                        }
+                                                    >
+                                                        <FeedFavicon
+                                                            isDark={
+                                                                entry.faviconIsDark
+                                                            }
+                                                            size={18}
+                                                            src={
+                                                                entry.faviconUrl
+                                                            }
+                                                        />
+                                                        <span>{feedName}</span>
+                                                    </span>
+                                                    <time
+                                                        dateTime={new Date(
+                                                            entry.publishedAt,
+                                                        ).toISOString()}
+                                                    >
+                                                        {formatRelativeTime(
+                                                            entry.publishedAt,
+                                                        )}
+                                                    </time>
+                                                </span>
                                             </span>
-                                        </span>
-                                    </Link>
-                                </li>
-                            );
-                        })}
-                    </ul>
-                )}
+                                        </Link>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    )}
+                </div>
             </ScrollArea>
 
             {page !== undefined && (

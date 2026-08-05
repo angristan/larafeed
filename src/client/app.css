@@ -29,7 +29,14 @@ body,
 
 body {
     color: var(--ds-ink);
-    background: var(--ds-canvas);
+    background:
+        linear-gradient(
+            180deg,
+            color-mix(in srgb, var(--ds-accent) 5%, var(--ds-canvas)),
+            var(--ds-canvas) 42%,
+            color-mix(in srgb, var(--ds-sage) 3%, var(--ds-canvas))
+        ),
+        var(--ds-canvas);
     overscroll-behavior: none;
 }
 
@@ -39,7 +46,8 @@ body {
 }
 
 :where(a, button, input, textarea, select, [tabindex]):focus-visible {
-    outline-color: var(--ds-focus);
+    outline: 2px solid var(--ds-focus);
+    outline-offset: 3px;
 }
 
 pre {
@@ -62,9 +70,9 @@ a {
 }
 
 .mantine-AppShell-navbar {
-    border-color: var(--ds-line);
+    border-color: var(--ds-glass-line);
     color: var(--ds-ink);
-    background: var(--ds-paper-muted);
+    background: transparent;
 }
 
 .mantine-Divider-root {
@@ -79,7 +87,8 @@ a {
 }
 
 .mantine-Table-scrollContainer {
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
     border: 1px solid var(--ds-work-line);
     border-radius: var(--ds-radius-lg);
     background: var(--ds-surface-work);
@@ -116,16 +125,22 @@ a {
     border-color: var(--ds-work-line);
     color: var(--ds-ink);
     background: var(--ds-surface-work);
-    box-shadow: 0 1px 0 color-mix(in srgb, var(--ds-line-strong) 30%, transparent);
+    box-shadow: var(--ds-shadow-work);
 }
 
 .mantine-Notification-root {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
     border: 1px solid var(--ds-glass-line);
     color: var(--ds-ink);
     background: var(--ds-glass-sheen), var(--ds-glass-overlay);
     box-shadow: var(--ds-shadow-float);
-    backdrop-filter: blur(var(--ds-glass-blur)) saturate(var(--ds-glass-saturate));
+    backdrop-filter: blur(var(--ds-glass-blur))
+        saturate(var(--ds-glass-saturate)) brightness(var(--ds-glass-brightness))
+        contrast(var(--ds-glass-contrast));
 }
+
 
 .mantine-Notification-title {
     color: var(--ds-ink);
@@ -145,7 +160,10 @@ a {
 .mantine-Pagination-control {
     border-color: var(--ds-line-strong);
     color: var(--ds-ink);
-    background: var(--ds-paper);
+    background: var(--ds-glass-strong);
+    box-shadow:
+        inset 0 1px 0 var(--ds-glass-highlight),
+        inset 0 -1px 0 var(--ds-glass-refraction);
 }
 
 .mantine-Pagination-control[data-active] {
@@ -166,7 +184,15 @@ a {
 }
 
 .mantine-Skeleton-root::before {
-    background: var(--ds-paper-strong);
+    background: var(--ds-paper-muted);
+}
+
+.mantine-Skeleton-root::after {
+    background: color-mix(
+        in srgb,
+        var(--ds-paper-strong) 88%,
+        var(--ds-sage-surface)
+    ) !important;
 }
 
 * {

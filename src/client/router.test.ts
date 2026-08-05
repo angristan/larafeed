@@ -61,6 +61,7 @@ describe('legacy settings redirects', () => {
 
     it.each([
         '/settings/subscriptions',
+        '/settings/subscriptions/overview',
         '/settings/security',
         '/settings/opml',
     ])('does not redirect canonical path %s', (pathname) => {

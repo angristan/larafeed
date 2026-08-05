@@ -2,8 +2,15 @@
     display: flex;
     flex-direction: row;
     overflow: hidden;
+    isolation: isolate;
+    border: 1px solid var(--ds-glass-line);
+    border-radius: var(--ds-radius-lg);
     color: var(--ds-ink);
-    background: var(--ds-paper-muted);
+    background: var(--ds-glass-sheen), var(--ds-glass-overlay);
+    box-shadow: var(--ds-shadow-float);
+    backdrop-filter: blur(var(--ds-glass-blur))
+        saturate(var(--ds-glass-saturate)) brightness(var(--ds-glass-brightness))
+        contrast(var(--ds-glass-contrast));
 }
 
 .desktopRail {
@@ -11,6 +18,8 @@
 }
 
 .contextPane {
+    position: relative;
+    z-index: 1;
     display: flex;
     width: 100%;
     min-width: 0;
@@ -18,18 +27,31 @@
     flex: 1;
     flex-direction: column;
     overflow: hidden;
-    background: var(--ds-paper-muted);
+    background: transparent;
 }
 
 .mobileHeader {
-    height: 58px;
-    border-bottom: 1px solid var(--ds-line);
+    position: fixed;
+    top: 8px;
+    right: 8px;
+    left: 8px;
+    width: auto;
+    height: 56px;
+    overflow: hidden;
+    isolation: isolate;
+    border: 1px solid var(--ds-glass-line);
+    border-radius: var(--ds-radius-lg);
     color: var(--ds-ink);
-    background: var(--ds-paper);
-    box-shadow: none;
+    background: var(--ds-glass-sheen), var(--ds-glass);
+    box-shadow: var(--ds-shadow-float);
+    backdrop-filter: blur(var(--ds-glass-blur))
+        saturate(var(--ds-glass-saturate)) brightness(var(--ds-glass-brightness))
+        contrast(var(--ds-glass-contrast));
 }
 
 .mobileHeaderInner {
+    position: relative;
+    z-index: 1;
     padding-inline: var(--ds-space-3);
 }
 
@@ -42,7 +64,9 @@
 }
 
 .mobileBrand svg {
-    filter: drop-shadow(1px 1px 0 var(--ds-shadow-color));
+    filter: drop-shadow(
+        0 3px 7px color-mix(in srgb, var(--ds-ink) 24%, transparent)
+    );
 }
 
 .mobileBrand:focus-visible {
@@ -53,8 +77,8 @@
 
 .mobileUtilities :global(.mantine-ActionIcon-root) {
     border-color: transparent;
-    background: transparent;
-    box-shadow: none;
+    background: color-mix(in srgb, var(--ds-glass-strong) 66%, transparent);
+    box-shadow: inset 0 1px 0 var(--ds-glass-highlight);
     backdrop-filter: none;
 }
 
@@ -63,8 +87,9 @@
     height: 36px;
     border: 1px solid color-mix(in srgb, var(--ds-sage) 50%, var(--ds-line));
     color: var(--ds-sage);
-    background: var(--ds-sage-surface);
-    box-shadow: none;
+    background: color-mix(in srgb, var(--ds-sage-surface) 76%, transparent);
+    box-shadow:
+        var(--ds-shadow-control), inset 0 1px 0 var(--ds-glass-highlight);
     font-size: 0.75rem;
     font-weight: 750;
 }
@@ -77,20 +102,28 @@
 .mobileNavigation {
     position: fixed;
     z-index: 300;
-    right: 0;
-    bottom: 0;
-    left: 0;
+    right: 8px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: 8px;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    min-height: calc(58px + env(safe-area-inset-bottom));
-    padding: 4px 8px env(safe-area-inset-bottom);
-    border-top: 1px solid var(--ds-line-strong);
+    min-height: 58px;
+    padding: 4px;
+    overflow: hidden;
+    isolation: isolate;
+    border: 1px solid var(--ds-glass-line);
+    border-radius: var(--ds-radius-lg);
     color: var(--ds-ink);
-    background: var(--ds-paper);
-    box-shadow: 0 -8px 24px -24px var(--ds-ink);
+    background: var(--ds-glass-sheen), var(--ds-glass);
+    box-shadow: var(--ds-shadow-float);
+    backdrop-filter: blur(var(--ds-glass-blur))
+        saturate(var(--ds-glass-saturate)) brightness(var(--ds-glass-brightness))
+        contrast(var(--ds-glass-contrast));
 }
 
 .mobileNavigationLink {
+    position: relative;
+    z-index: 1;
     display: flex;
     min-width: 0;
     min-height: 49px;
@@ -98,22 +131,67 @@
     align-items: center;
     justify-content: center;
     gap: 3px;
-    border-radius: var(--ds-radius-sm);
+    border: 1px solid transparent;
+    border-radius: var(--ds-radius-md);
     color: var(--ds-muted);
     font-size: 0.625rem;
     font-weight: 650;
     line-height: 1;
     text-decoration: none;
+    transition:
+        transform var(--ds-motion-fast) var(--ds-motion-easing),
+        color var(--ds-motion-fast) var(--ds-motion-easing),
+        border-color var(--ds-motion-fast) var(--ds-motion-easing),
+        background-color var(--ds-motion-fast) var(--ds-motion-easing),
+        box-shadow var(--ds-motion-fast) var(--ds-motion-easing);
 }
 
 .mobileNavigationLink[data-active] {
     color: var(--ds-sage);
-    background: var(--ds-sage-surface);
+    background: color-mix(in srgb, var(--ds-sage-surface) 74%, transparent);
+    box-shadow:
+        inset 0 1px 0 var(--ds-glass-highlight),
+        inset 0 -1px 0 var(--ds-glass-refraction);
 }
 
 .mobileNavigationLink:focus-visible {
     outline: 2px solid var(--ds-focus);
     outline-offset: -2px;
+}
+
+@media (max-width: 43.74em) {
+    .workspaceNavbar {
+        top: 72px;
+        bottom: 80px;
+        left: 0;
+        width: var(--app-shell-navbar-width);
+        height: auto;
+        padding-inline: 8px;
+        overflow: visible;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+    }
+
+    .contextPane {
+        overflow: hidden;
+        isolation: isolate;
+        border: 1px solid var(--ds-glass-line);
+        border-radius: var(--ds-radius-lg);
+        background: var(--ds-glass-sheen), var(--ds-glass-overlay);
+        box-shadow: var(--ds-shadow-float);
+        backdrop-filter: blur(var(--ds-glass-blur))
+            saturate(var(--ds-glass-saturate))
+            brightness(var(--ds-glass-brightness))
+            contrast(var(--ds-glass-contrast));
+    }
+
+    .contextPane > * {
+        position: relative;
+        z-index: 1;
+    }
 }
 
 @media (min-width: 43.75em) {
@@ -123,10 +201,18 @@
     }
 
     .workspaceNavbar {
-        background: transparent;
+        top: 12px;
+        bottom: 12px;
+        left: 12px;
+        width: calc(var(--app-shell-navbar-width) - 24px);
+        height: auto;
+        border-radius: var(--ds-radius-xl);
+        background: var(--ds-glass-sheen), var(--ds-glass);
     }
 
     .desktopRail {
+        position: relative;
+        z-index: 1;
         display: flex;
         width: 64px;
         min-width: 64px;
@@ -134,10 +220,22 @@
         flex-direction: column;
         align-items: center;
         padding: var(--ds-space-3) 8px;
-        border-right: 1px solid
-            color-mix(in srgb, var(--ds-panel-text) 12%, transparent);
-        color: var(--ds-panel-text);
-        background: var(--ds-panel);
+        border-right: 1px solid var(--ds-glass-line);
+        color: var(--ds-ink);
+        background:
+            linear-gradient(
+                180deg,
+                color-mix(in srgb, var(--ds-glass-highlight) 34%, transparent),
+                transparent 24%
+            ),
+            linear-gradient(
+                90deg,
+                color-mix(in srgb, var(--ds-paper) 18%, transparent),
+                transparent 78%
+            );
+        box-shadow:
+            inset 1px 0 0 color-mix(in srgb, var(--ds-glass-highlight) 52%, transparent),
+            inset -1px 0 0 var(--ds-glass-refraction);
     }
 
     .railBrand {
@@ -146,12 +244,29 @@
         height: 44px;
         flex: 0 0 auto;
         place-items: center;
-        color: var(--ds-panel-text);
+        border: 1px solid transparent;
+        border-radius: var(--ds-radius-md);
+        color: var(--ds-ink);
         text-decoration: none;
+        transition:
+            transform var(--ds-motion-fast) var(--ds-motion-easing),
+            border-color var(--ds-motion-fast) var(--ds-motion-easing),
+            background-color var(--ds-motion-fast) var(--ds-motion-easing),
+            box-shadow var(--ds-motion-fast) var(--ds-motion-easing);
+    }
+
+    .railBrand:hover {
+        border-color: var(--ds-glass-line);
+        background: color-mix(in srgb, var(--ds-glass-strong) 68%, transparent);
+        box-shadow:
+            0 9px 18px -17px color-mix(in srgb, var(--ds-ink) 58%, transparent),
+            inset 0 1px 0 var(--ds-glass-highlight);
     }
 
     .railBrand svg {
-        filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.34));
+        filter: drop-shadow(
+            0 4px 9px color-mix(in srgb, var(--ds-ink) 26%, transparent)
+        );
     }
 
     .railBrand:focus-visible,
@@ -175,31 +290,53 @@
         width: 44px;
         height: 44px;
         place-items: center;
-        border-radius: var(--ds-radius-sm);
-        color: color-mix(in srgb, var(--ds-panel-text) 68%, transparent);
+        border: 1px solid transparent;
+        border-radius: var(--ds-radius-md);
+        color: var(--ds-muted);
         text-decoration: none;
         transition:
+            transform var(--ds-motion-fast) var(--ds-motion-easing),
             color var(--ds-motion-fast) var(--ds-motion-easing),
-            background-color var(--ds-motion-fast) var(--ds-motion-easing);
+            border-color var(--ds-motion-fast) var(--ds-motion-easing),
+            background-color var(--ds-motion-fast) var(--ds-motion-easing),
+            box-shadow var(--ds-motion-fast) var(--ds-motion-easing);
     }
 
     .railLink:hover {
-        color: var(--ds-panel-text);
-        background: color-mix(in srgb, var(--ds-panel-text) 8%, transparent);
+        border-color: var(--ds-glass-line);
+        color: var(--ds-ink);
+        background: color-mix(in srgb, var(--ds-glass-strong) 76%, transparent);
+        box-shadow:
+            0 9px 18px -17px
+            color-mix(in srgb, var(--ds-ink) 58%, transparent),
+            inset 0 1px 0 var(--ds-glass-highlight);
     }
 
     .railLink[data-active] {
+        border-color: color-mix(in srgb, var(--ds-sage) 34%, var(--ds-glass-line));
         color: var(--ds-sage);
-        background: color-mix(in srgb, var(--ds-sage) 14%, var(--ds-panel));
+        background:
+            radial-gradient(
+                ellipse 78% 96% at 18% 0%,
+                color-mix(in srgb, var(--ds-glass-highlight) 58%, transparent),
+                transparent 70%
+            ),
+            color-mix(in srgb, var(--ds-sage-surface) 76%, transparent);
+        box-shadow:
+            0 10px 20px -17px color-mix(in srgb, var(--ds-sage) 42%, transparent),
+            inset 0 1px 0 var(--ds-glass-highlight),
+            inset 0 -1px 0 var(--ds-glass-refraction);
     }
 
     .railLink[data-active]::before {
         position: absolute;
         top: 9px;
         bottom: 9px;
-        left: -8px;
-        width: 2px;
+        left: -9px;
+        width: 3px;
+        border-radius: 0 var(--ds-radius-xs) var(--ds-radius-xs) 0;
         background: var(--ds-sage);
+        box-shadow: 0 0 10px color-mix(in srgb, var(--ds-sage) 34%, transparent);
         content: '';
     }
 
@@ -209,33 +346,54 @@
         flex-direction: column;
         align-items: center;
         gap: var(--ds-space-1);
+        padding-top: var(--ds-space-2);
         margin-top: auto;
+    }
+
+    .railUtilities::before {
+        width: 28px;
+        height: 1px;
+        margin-bottom: var(--ds-space-1);
+        background: linear-gradient(
+            90deg,
+            transparent,
+            var(--ds-glass-line),
+            transparent
+        );
+        content: '';
     }
 
     .railUtilities :global(.mantine-ActionIcon-root) {
         border-color: transparent;
-        color: color-mix(in srgb, var(--ds-panel-text) 70%, transparent);
+        color: var(--ds-muted);
         background: transparent;
         box-shadow: none;
         backdrop-filter: none;
     }
 
     .railUtilities :global(.mantine-ActionIcon-root):hover {
-        color: var(--ds-panel-text);
-        background: color-mix(in srgb, var(--ds-panel-text) 8%, transparent);
-        box-shadow: none;
-        transform: none;
+        border-color: var(--ds-glass-line);
+        color: var(--ds-ink);
+        background: color-mix(in srgb, var(--ds-glass-strong) 76%, transparent);
+        box-shadow:
+            0 9px 18px -17px
+            color-mix(in srgb, var(--ds-ink) 58%, transparent),
+            inset 0 1px 0 var(--ds-glass-highlight);
     }
 
     .railUtilities .user {
         margin-top: var(--ds-space-2);
-        border-color: color-mix(in srgb, var(--ds-sage) 58%, transparent);
+        border-color: color-mix(in srgb, var(--ds-sage) 48%, transparent);
         color: var(--ds-sage);
-        background: color-mix(in srgb, var(--ds-sage) 13%, var(--ds-panel));
+        background: color-mix(in srgb, var(--ds-sage-surface) 72%, transparent);
+    }
+
+    .workspaceNavbar:not(:has(.contextPane)) .desktopRail {
+        border-right: 0;
     }
 
     .contextPane {
-        border-right: 1px solid var(--ds-line-strong);
+        border-right: 0;
     }
 }
 
@@ -245,8 +403,44 @@
     }
 }
 
+@supports not (backdrop-filter: blur(1px)) {
+    .workspaceNavbar,
+    .mobileHeader,
+    .mobileNavigation {
+        background: var(--ds-paper);
+    }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    .workspaceNavbar,
+    .mobileHeader,
+    .mobileNavigation {
+        background: var(--ds-paper);
+        backdrop-filter: none;
+    }
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    .mobileNavigationLink:hover:not(:active),
+    .railBrand:hover:not(:active),
+    .railLink:hover:not(:active),
+    .railUtilities :global(.mantine-ActionIcon-root):hover:not(:active) {
+        transform: translateY(-1px);
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
-    .railLink {
+    .mobileNavigationLink,
+    .railBrand,
+    .railLink,
+    .railUtilities :global(.mantine-ActionIcon-root) {
         transition: none;
+    }
+
+    .mobileNavigationLink:active,
+    .railBrand:active,
+    .railLink:active,
+    .railUtilities :global(.mantine-ActionIcon-root):active {
+        transform: none;
     }
 }

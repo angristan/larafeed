@@ -1,13 +1,20 @@
 .buttonRoot {
+    --button-rest-shadow: var(--ds-shadow-control);
+    --button-hover-shadow: var(--ds-shadow-control-hover);
     gap: var(--ds-space-2);
     border: 1px solid var(--ds-line-strong);
     color: var(--ds-ink);
-    background: var(--ds-paper);
-    box-shadow: inset 0 1px 0 var(--ds-glass-highlight);
-    font-weight: 650;
+    background: var(--ds-glass-sheen), var(--ds-glass-strong);
+    box-shadow:
+        var(--button-rest-shadow), inset 0 1px 0 var(--ds-glass-highlight),
+        inset 0 -1px 0 var(--ds-glass-refraction);
+    backdrop-filter: blur(var(--ds-glass-blur))
+        saturate(var(--ds-glass-saturate));
+    font-weight: 700;
+    transform-origin: center;
     transition:
-        border-color var(--ds-motion-fast) var(--ds-motion-easing),
-        color var(--ds-motion-fast) var(--ds-motion-easing),
+        transform var(--ds-motion-fast) var(--ds-motion-easing),
+        box-shadow var(--ds-motion-fast) var(--ds-motion-easing),
         background-color var(--ds-motion-fast) var(--ds-motion-easing);
 }
 
@@ -16,34 +23,60 @@
 }
 
 .buttonRoot:hover:not(:disabled, [data-disabled]) {
-    border-color: var(--ds-sage);
-    background: var(--ds-paper-muted);
+    background: var(--ds-glass-sheen), var(--ds-glass-overlay);
+    box-shadow:
+        var(--button-hover-shadow), inset 0 1px 0 var(--ds-glass-highlight),
+        inset 0 -1px 0 var(--ds-glass-refraction);
 }
 
 .buttonRoot:active:not(:disabled, [data-disabled]) {
-    background: var(--ds-paper-strong);
-    box-shadow: var(--ds-shadow-inset);
+    box-shadow:
+        inset 0 2px 4px color-mix(in srgb, var(--ds-ink) 16%, transparent),
+        inset 0 1px 0
+        color-mix(in srgb, var(--ds-glass-highlight) 48%, transparent);
+    transform: scale(0.97);
 }
 
 .buttonRoot[data-variant='filled'] {
     border-color: color-mix(in srgb, var(--button-bg) 72%, var(--ds-ink));
     color: var(--button-color);
     background: var(--button-bg);
-    box-shadow: none;
+    box-shadow: var(--button-rest-shadow);
+    backdrop-filter: none;
+}
+
+.buttonRoot[data-variant='filled']:hover:not(:disabled, [data-disabled]) {
+    color: var(--button-color);
+    background: var(--button-hover);
+    box-shadow: var(--button-hover-shadow);
 }
 
 .buttonRoot[data-variant='subtle'] {
-    border-color: transparent;
+    border-color: color-mix(in srgb, var(--button-color) 35%, var(--ds-line));
     color: var(--button-color);
-    background: transparent;
-    box-shadow: none;
+    background: color-mix(in srgb, var(--button-color) 7%, var(--ds-paper));
+    box-shadow: var(--button-rest-shadow);
+    backdrop-filter: none;
+}
+
+.buttonRoot[data-variant='subtle']:hover:not(:disabled, [data-disabled]) {
+    color: var(--button-color);
+    background: color-mix(in srgb, var(--button-color) 13%, var(--ds-paper));
+    box-shadow: var(--button-hover-shadow);
 }
 
 .buttonRoot[data-variant='light'] {
-    border-color: color-mix(in srgb, var(--button-color) 36%, var(--ds-line));
+    border-color: color-mix(in srgb, var(--button-color) 40%, var(--ds-line));
     color: var(--button-color);
-    background: color-mix(in srgb, var(--button-color) 9%, var(--ds-paper));
-    box-shadow: none;
+    background: color-mix(in srgb, var(--button-color) 10%, var(--ds-paper));
+    box-shadow: var(--button-rest-shadow);
+    backdrop-filter: none;
+}
+
+.buttonRoot[data-variant='light']:hover:not(:disabled, [data-disabled]) {
+    color: var(--button-color);
+    background: color-mix(in srgb, var(--button-color) 17%, var(--ds-paper));
+    box-shadow: var(--button-hover-shadow);
 }
 
 .buttonRoot:disabled,
@@ -79,48 +112,76 @@
 }
 
 .actionIconRoot {
-    border: 1px solid var(--ds-line-strong);
+    border: 1px solid var(--ds-glass-line);
     color: var(--ds-ink);
-    background: var(--ds-paper);
-    box-shadow: none;
+    background: var(--ds-glass-sheen), var(--ds-glass-strong);
+    box-shadow:
+        var(--ds-shadow-control), inset 0 1px 0 var(--ds-glass-highlight),
+        inset 0 -1px 0 var(--ds-glass-refraction);
+    backdrop-filter: blur(var(--ds-glass-blur))
+        saturate(var(--ds-glass-saturate));
+    transform-origin: center;
     transition:
-        color var(--ds-motion-fast) var(--ds-motion-easing),
+        transform var(--ds-motion-fast) var(--ds-motion-easing),
+        box-shadow var(--ds-motion-fast) var(--ds-motion-easing),
         background-color var(--ds-motion-fast) var(--ds-motion-easing),
         border-color var(--ds-motion-fast) var(--ds-motion-easing);
 }
 
 .actionIconRoot:hover:not(:disabled, [data-disabled]) {
-    border-color: var(--ds-sage);
-    background: var(--ds-paper-muted);
+    border-color: var(--ds-line-strong);
+    background: var(--ds-glass-sheen), var(--ds-glass-overlay);
+    box-shadow:
+        var(--ds-shadow-control-hover),
+        inset 0 1px 0 var(--ds-glass-highlight),
+        inset 0 -1px 0 var(--ds-glass-refraction);
 }
 
 .actionIconRoot:active:not(:disabled, [data-disabled]) {
-    background: var(--ds-paper-strong);
+    box-shadow:
+        inset 0 2px 4px color-mix(in srgb, var(--ds-ink) 16%, transparent),
+        inset 0 1px 0
+        color-mix(in srgb, var(--ds-glass-highlight) 48%, transparent);
+    transform: scale(0.94);
 }
 
 .actionIconRoot[data-variant='filled'] {
     border-color: color-mix(in srgb, var(--ai-bg) 72%, var(--ds-ink));
     color: var(--ai-color);
     background: var(--ai-bg);
+    box-shadow: var(--ds-shadow-control);
+    backdrop-filter: none;
 }
 
 .actionIconRoot[data-variant='subtle'] {
-    border-color: transparent;
+    border-color: color-mix(in srgb, var(--ai-color) 28%, var(--ds-line));
     color: var(--ai-color);
-    background: transparent;
+    background: color-mix(in srgb, var(--ai-color) 6%, var(--ds-paper));
+    box-shadow: var(--ds-shadow-control);
+    backdrop-filter: none;
 }
 
 .segmentedRoot {
-    border: 1px solid var(--ds-line);
+    border: 1px solid var(--ds-glass-line);
     color: var(--ds-ink);
-    background: var(--ds-paper-muted);
-    box-shadow: var(--ds-shadow-inset);
+    background: var(--ds-glass-sheen), var(--ds-glass-strong);
+    box-shadow:
+        0 8px 20px -16px color-mix(in srgb, var(--ds-ink) 52%, transparent),
+        inset 0 1px 0 var(--ds-glass-highlight),
+        inset 0 -1px 0 var(--ds-glass-refraction);
+    backdrop-filter: blur(var(--ds-glass-blur))
+        saturate(var(--ds-glass-saturate)) brightness(var(--ds-glass-brightness))
+        contrast(var(--ds-glass-contrast));
 }
 
 .segmentedIndicator {
-    border: 1px solid color-mix(in srgb, var(--ds-sage) 32%, var(--ds-line));
-    background: var(--ds-paper);
-    box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-ink) 12%, transparent);
+    border: 1px solid
+        color-mix(in srgb, var(--ds-sage) 20%, var(--ds-glass-line));
+    background: var(--ds-glass-sheen), var(--ds-glass-overlay);
+    box-shadow:
+        0 8px 18px -14px color-mix(in srgb, var(--ds-ink) 48%, transparent),
+        inset 0 1px 0 var(--ds-glass-highlight),
+        inset 0 -1px 0 var(--ds-glass-refraction);
 }
 
 .segmentedLabel {
@@ -142,7 +203,7 @@
     border-color: var(--ds-work-line);
     color: var(--ds-ink);
     background: var(--ds-surface-work);
-    box-shadow: 0 1px 0 color-mix(in srgb, var(--ds-line-strong) 34%, transparent);
+    box-shadow: var(--ds-shadow-work);
 }
 
 .alertRoot {
@@ -227,21 +288,11 @@
     border: 1px solid var(--ds-glass-line);
     border-radius: var(--ds-radius-lg);
     color: var(--ds-ink);
-    background:
-        radial-gradient(
-            ellipse 58% 34% at 14% 0%,
-            color-mix(in srgb, var(--ds-glass-highlight) 66%, transparent),
-            transparent 100%
-        ),
-        radial-gradient(
-            ellipse 34% 74% at 100% 70%,
-            color-mix(in srgb, var(--ds-glass-refraction) 58%, transparent),
-            transparent 100%
-        ),
-        var(--ds-glass-sheen),
-        var(--ds-glass-overlay);
+    background: var(--ds-glass-sheen), var(--ds-glass-overlay);
     box-shadow: var(--ds-shadow-float);
-    backdrop-filter: blur(var(--ds-glass-blur)) saturate(var(--ds-glass-saturate));
+    backdrop-filter: blur(var(--ds-glass-blur))
+        saturate(var(--ds-glass-saturate)) brightness(var(--ds-glass-brightness))
+        contrast(var(--ds-glass-contrast));
 }
 
 .option,
@@ -257,6 +308,8 @@
 .menuItem[data-hovered] {
     color: var(--ds-ink);
     background: color-mix(in srgb, var(--ds-paper-strong) 84%, transparent);
+    box-shadow: inset 0 1px 0
+        color-mix(in srgb, var(--ds-glass-highlight) 62%, transparent);
 }
 
 .menuItem[data-color='red'] {
@@ -284,26 +337,45 @@
     letter-spacing: -0.02em;
 }
 
+.overlayContent .buttonRoot,
+.overlayContent .actionIconRoot {
+    backdrop-filter: none;
+}
+
 .navLinkRoot {
     min-height: 44px;
     border: 1px solid transparent;
     border-radius: var(--ds-radius-md);
     color: var(--ds-muted);
+    transform-origin: center;
     transition:
+        transform var(--ds-motion-fast) var(--ds-motion-easing),
         color var(--ds-motion-fast) var(--ds-motion-easing),
         background-color var(--ds-motion-fast) var(--ds-motion-easing),
-        border-color var(--ds-motion-fast) var(--ds-motion-easing);
+        border-color var(--ds-motion-fast) var(--ds-motion-easing),
+        box-shadow var(--ds-motion-fast) var(--ds-motion-easing);
 }
 
 .navLinkRoot:hover {
+    border-color: var(--ds-glass-line);
     color: var(--ds-ink);
-    background: color-mix(in srgb, var(--ds-paper-strong) 58%, transparent);
+    background: color-mix(in srgb, var(--ds-glass-strong) 72%, transparent);
+    box-shadow:
+        0 9px 18px -17px color-mix(in srgb, var(--ds-ink) 58%, transparent),
+        inset 0 1px 0 var(--ds-glass-highlight);
 }
 
 .navLinkRoot[data-active] {
     border-color: color-mix(in srgb, var(--ds-sage) 38%, var(--ds-line));
     color: var(--ds-sage);
     background: var(--ds-sage-surface);
+    box-shadow:
+        0 10px 22px -19px color-mix(in srgb, var(--ds-ink) 56%, transparent),
+        inset 0 1px 0 var(--ds-glass-highlight);
+}
+
+.navLinkRoot:active {
+    transform: scale(0.985);
 }
 
 .navLinkRoot:focus-visible {
@@ -324,7 +396,15 @@
     color: currentColor;
 }
 
-@supports not ((backdrop-filter: blur(1px))) {
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    .buttonRoot:hover:not(:active, :disabled, [data-disabled]),
+    .actionIconRoot:hover:not(:active, :disabled, [data-disabled]),
+    .navLinkRoot:hover:not(:active) {
+        transform: translateY(-1px);
+    }
+}
+
+@supports not (backdrop-filter: blur(1px)) {
     .buttonRoot,
     .actionIconRoot,
     .segmentedRoot {
@@ -362,7 +442,8 @@
     }
 
     .buttonRoot:active:not(:disabled, [data-disabled]),
-    .actionIconRoot:active:not(:disabled, [data-disabled]) {
+    .actionIconRoot:active:not(:disabled, [data-disabled]),
+    .navLinkRoot:active {
         transform: none;
     }
 }
