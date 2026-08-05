@@ -2,6 +2,7 @@ import { Effect, Schema } from 'effect';
 
 import { validateFeedUrl } from '../feeds/policy';
 import { FeedImageUnavailable, fetchImageResource } from '../images/service';
+import { spanNames, type TelemetryFailure, traceAsync } from '../observability';
 import {
     FaviconAssetCandidateError,
     FaviconAssetStorageError,
@@ -27,11 +28,42 @@ export class FaviconDiscoveryError extends Schema.TaggedErrorClass<FaviconDiscov
 ) {}
 
 class FaviconPageUnavailable extends Error {
-    constructor(readonly retryable: boolean) {
+    constructor(
+        readonly retryable: boolean,
+        readonly status?: number,
+    ) {
         super('Favicon page is unavailable');
         this.name = 'FaviconPageUnavailable';
     }
 }
+
+const discoveryFailure =
+    (stage: 'candidate_fetch' | 'manifest_fetch' | 'page_fetch') =>
+    (cause: unknown): TelemetryFailure => {
+        if (cause instanceof FaviconPageUnavailable) {
+            return {
+                errorClass: cause.name,
+                stage,
+                retryable: cause.retryable,
+                ...(cause.status === undefined
+                    ? {}
+                    : { httpStatus: cause.status }),
+            };
+        }
+        if (cause instanceof FeedImageUnavailable) {
+            return {
+                errorClass: cause._tag,
+                stage,
+                retryable: cause.retryable,
+            };
+        }
+        return {
+            errorClass:
+                cause instanceof FaviconDiscoveryError ? cause._tag : 'Unknown',
+            stage,
+            retryable: false,
+        };
+    };
 
 export interface FaviconServiceDependencies {
     readonly repository: FaviconRepository;
@@ -323,7 +355,7 @@ const fetchResource = async (
                     response.status === 429 ||
                     response.status >= 500;
                 await response.body?.cancel();
-                throw new FaviconPageUnavailable(retryable);
+                throw new FaviconPageUnavailable(retryable, response.status);
             }
             if (!input.acceptedMimes.has(mime)) {
                 await response.body?.cancel();
@@ -353,12 +385,18 @@ const fetchPage = (
     url: URL,
     fetchImplementation: typeof globalThis.fetch,
 ): Promise<FetchedPage> =>
-    fetchResource(url, fetchImplementation, {
-        accept: 'text/html,application/xhtml+xml;q=0.9',
-        maximum: MAX_HTML_HEAD_BYTES,
-        acceptedMimes: new Set(['text/html', 'application/xhtml+xml']),
-        readHtmlHead: true,
-    });
+    traceAsync(
+        spanNames.faviconPageFetch,
+        {},
+        async () =>
+            fetchResource(url, fetchImplementation, {
+                accept: 'text/html,application/xhtml+xml;q=0.9',
+                maximum: MAX_HTML_HEAD_BYTES,
+                acceptedMimes: new Set(['text/html', 'application/xhtml+xml']),
+                readHtmlHead: true,
+            }),
+        discoveryFailure('page_fetch'),
+    );
 
 const manifestCandidates = async (
     page: FetchedPage,
@@ -379,17 +417,23 @@ const manifestCandidates = async (
         manifestsFetched += 1;
         try {
             const url = validateFeedUrl(new URL(href, page.url));
-            const manifest = await fetchResource(url, fetchImplementation, {
-                accept: 'application/manifest+json,application/json;q=0.9',
-                maximum: MAX_MANIFEST_BYTES,
-                acceptedMimes: new Set([
-                    'application/manifest+json',
-                    'application/json',
-                    'application/octet-stream',
-                    'text/json',
-                    'text/plain',
-                ]),
-            });
+            const manifest = await traceAsync(
+                spanNames.faviconManifestFetch,
+                {},
+                async () =>
+                    fetchResource(url, fetchImplementation, {
+                        accept: 'application/manifest+json,application/json;q=0.9',
+                        maximum: MAX_MANIFEST_BYTES,
+                        acceptedMimes: new Set([
+                            'application/manifest+json',
+                            'application/json',
+                            'application/octet-stream',
+                            'text/json',
+                            'text/plain',
+                        ]),
+                    }),
+                discoveryFailure('manifest_fetch'),
+            );
             const parsed: unknown = JSON.parse(
                 new TextDecoder().decode(manifest.body),
             );
@@ -535,20 +579,46 @@ export const makeFaviconService = (
                     readonly isDark: boolean | null;
                 } | null = null;
                 let retryableCandidateFailure = false;
-                for (const candidate of [...candidates.values()]
+                const rankedCandidates = [...candidates.values()]
                     .toSorted((left, right) => right.score - left.score)
-                    .slice(0, MAX_TOTAL_CANDIDATES)) {
+                    .slice(0, MAX_TOTAL_CANDIDATES);
+                for (const [
+                    candidateIndex,
+                    candidate,
+                ] of rankedCandidates.entries()) {
                     let bytes: Uint8Array;
                     try {
-                        bytes =
-                            candidate.bytes ??
-                            (
-                                await fetchImageResource(
-                                    candidate.url.href,
-                                    fetchImplementation,
-                                    { allowSvg: true, allowGeneric: true },
-                                )
-                            ).bytes;
+                        if (candidate.bytes !== null) {
+                            bytes = candidate.bytes;
+                        } else {
+                            const resource = await traceAsync(
+                                spanNames.faviconCandidateFetch,
+                                {
+                                    'app.favicon.candidate_rank':
+                                        candidateIndex + 1,
+                                    'app.favicon.candidate_score':
+                                        candidate.score,
+                                },
+                                async (span) => {
+                                    const fetched = await fetchImageResource(
+                                        candidate.url.href,
+                                        fetchImplementation,
+                                        { allowSvg: true, allowGeneric: true },
+                                    );
+                                    span.setAttribute(
+                                        'app.favicon.source_mime',
+                                        fetched.mime,
+                                    );
+                                    span.setAttribute(
+                                        'app.favicon.source_bytes',
+                                        fetched.bytes.byteLength,
+                                    );
+                                    return fetched;
+                                },
+                                discoveryFailure('candidate_fetch'),
+                            );
+                            bytes = resource.bytes;
+                        }
                     } catch (cause) {
                         if (cause instanceof FeedImageUnavailable)
                             retryableCandidateFailure ||= cause.retryable;

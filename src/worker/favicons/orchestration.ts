@@ -1,6 +1,11 @@
 import { Effect } from 'effect';
 
 import { generateRandomToken, generateSafeId } from '../auth/crypto';
+import {
+    recordHandledFailure,
+    safeErrorClass,
+    spanNames,
+} from '../observability';
 import { FaviconAssetCandidateError } from './assets';
 import type { FaviconJobRepository } from './job-repository';
 import {
@@ -200,6 +205,19 @@ export const makeFaviconOrchestrator = (
             try {
                 await queue.send({ operationId: message.operationId });
             } catch (cause) {
+                recordHandledFailure(
+                    spanNames.dispatchFailure,
+                    {
+                        'app.subsystem': 'favicon',
+                        'app.failure.stage': 'queue_send',
+                        'app.job.attempt': message.attemptCount + 1,
+                    },
+                    {
+                        errorClass: failureClass(cause),
+                        stage: 'queue_send',
+                        retryable: true,
+                    },
+                );
                 try {
                     await repository.releaseOutbox({
                         message,
@@ -210,7 +228,19 @@ export const makeFaviconOrchestrator = (
                         errorClass: failureClass(cause),
                     });
                     released += 1;
-                } catch {
+                } catch (releaseCause) {
+                    recordHandledFailure(
+                        spanNames.dispatchFailure,
+                        {
+                            'app.subsystem': 'favicon',
+                            'app.failure.stage': 'outbox_release',
+                        },
+                        {
+                            errorClass: safeErrorClass(releaseCause),
+                            stage: 'outbox_release',
+                            retryable: true,
+                        },
+                    );
                     ambiguous += 1;
                 }
                 continue;
@@ -218,7 +248,19 @@ export const makeFaviconOrchestrator = (
             try {
                 await repository.markDispatched(message, currentTime);
                 sent += 1;
-            } catch {
+            } catch (markCause) {
+                recordHandledFailure(
+                    spanNames.dispatchFailure,
+                    {
+                        'app.subsystem': 'favicon',
+                        'app.failure.stage': 'outbox_mark_dispatched',
+                    },
+                    {
+                        errorClass: safeErrorClass(markCause),
+                        stage: 'outbox_mark_dispatched',
+                        retryable: true,
+                    },
+                );
                 // A successful send followed by an unknown D1 result remains
                 // leased. Expiry safely sends the stable operation again.
                 ambiguous += 1;
@@ -291,6 +333,20 @@ export const makeFaviconOrchestrator = (
                     await repository.completeJob(result.claim, now());
                     return { action: 'ack', reason: 'superseded' };
                 }
+                recordHandledFailure(
+                    spanNames.jobFailure,
+                    {
+                        'app.subsystem': 'favicon',
+                        'app.feed.id': result.claim.feedId,
+                        'app.job.attempt': result.claim.attemptCount,
+                        'app.job.max_attempts': result.claim.maxAttempts,
+                    },
+                    {
+                        errorClass: failureClass(cause),
+                        stage: 'refresh',
+                        retryable: true,
+                    },
+                );
                 const failedAt = now();
                 const retryAt =
                     failedAt + faviconRetryBackoffMs(result.claim.attemptCount);
@@ -304,7 +360,19 @@ export const makeFaviconOrchestrator = (
                     ? { action: 'dead', reason: 'terminal_failure' }
                     : retryDecision('retryable_failure', failedAt, retryAt);
             }
-        } catch {
+        } catch (cause) {
+            recordHandledFailure(
+                spanNames.jobFailure,
+                {
+                    'app.subsystem': 'favicon',
+                    'app.failure.stage': 'orchestration',
+                },
+                {
+                    errorClass: safeErrorClass(cause),
+                    stage: 'orchestration',
+                    retryable: true,
+                },
+            );
             return retryDecision(
                 'orchestration_error',
                 currentTime,

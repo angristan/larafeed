@@ -9,6 +9,11 @@ import {
     makeFeedRefreshService,
 } from '../feeds/service';
 import { DEFAULT_REFRESH_INTERVAL_MS } from '../jobs';
+import {
+    recordHandledFailure,
+    safeErrorClass,
+    spanNames,
+} from '../observability';
 import { prepareRefreshEntry } from '../refresh/entries';
 import { OpmlValidationError } from './errors';
 import { parseOpml } from './parser';
@@ -268,6 +273,19 @@ export const makeOpmlOrchestrator = (
                     })),
                 );
             } catch (cause) {
+                recordHandledFailure(
+                    spanNames.dispatchFailure,
+                    {
+                        'app.subsystem': 'opml',
+                        'app.failure.stage': 'queue_send',
+                        'app.queue.batch_size': batch.length,
+                    },
+                    {
+                        errorClass: safeErrorClass(cause),
+                        stage: 'queue_send',
+                        retryable: true,
+                    },
+                );
                 try {
                     await repository.releaseOutboxBatch({
                         messages: batch,
@@ -291,7 +309,20 @@ export const makeOpmlOrchestrator = (
                                 : 'Queue batch send failed',
                     });
                     released += batch.length;
-                } catch {
+                } catch (releaseCause) {
+                    recordHandledFailure(
+                        spanNames.dispatchFailure,
+                        {
+                            'app.subsystem': 'opml',
+                            'app.failure.stage': 'outbox_release',
+                            'app.queue.batch_size': batch.length,
+                        },
+                        {
+                            errorClass: safeErrorClass(releaseCause),
+                            stage: 'outbox_release',
+                            retryable: true,
+                        },
+                    );
                     // A failed send followed by a failed D1 transition is
                     // ambiguous. Lease recovery safely retries stable IDs.
                     ambiguous += batch.length;
@@ -301,7 +332,20 @@ export const makeOpmlOrchestrator = (
             try {
                 await repository.markDispatchedBatch(batch, currentTime);
                 sent += batch.length;
-            } catch {
+            } catch (markCause) {
+                recordHandledFailure(
+                    spanNames.dispatchFailure,
+                    {
+                        'app.subsystem': 'opml',
+                        'app.failure.stage': 'outbox_mark_dispatched',
+                        'app.queue.batch_size': batch.length,
+                    },
+                    {
+                        errorClass: safeErrorClass(markCause),
+                        stage: 'outbox_mark_dispatched',
+                        retryable: true,
+                    },
+                );
                 // Keep an ambiguous send leased. Lease expiry produces safe
                 // duplicates with the same idempotent operation IDs.
                 ambiguous += batch.length;
@@ -413,6 +457,21 @@ export const makeOpmlOrchestrator = (
                 return { action: 'ack', reason: completion.state };
             } catch (cause) {
                 const failure = classifyFailure(cause);
+                recordHandledFailure(
+                    spanNames.jobFailure,
+                    {
+                        'app.subsystem': 'opml',
+                        'app.opml.import_id': result.claim.importId,
+                        'app.opml.item_id': result.claim.itemId,
+                        'app.job.attempt': result.claim.attemptCount,
+                        'app.job.max_attempts': result.claim.maxAttempts,
+                    },
+                    {
+                        errorClass: failure.errorClass,
+                        stage: 'discovery',
+                        retryable: failure.retryable,
+                    },
+                );
                 const failedAt = now();
                 const retryAt =
                     failedAt + opmlRetryBackoffMs(result.claim.attemptCount);
@@ -432,7 +491,19 @@ export const makeOpmlOrchestrator = (
                           recorded.availableAt ?? retryAt,
                       );
             }
-        } catch {
+        } catch (cause) {
+            recordHandledFailure(
+                spanNames.jobFailure,
+                {
+                    'app.subsystem': 'opml',
+                    'app.failure.stage': 'orchestration',
+                },
+                {
+                    errorClass: safeErrorClass(cause),
+                    stage: 'orchestration',
+                    retryable: true,
+                },
+            );
             return retryDecision(
                 'orchestration_error',
                 currentTime,

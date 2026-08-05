@@ -82,13 +82,18 @@ describe('Deploy-to-Cloudflare configuration', () => {
         });
     });
 
-    it('samples sanitized production logs without invocation URLs', () => {
+    it('persists complete production logs and traces', () => {
         expect(wrangler.env?.production?.observability).toMatchObject({
             enabled: true,
             logs: {
                 enabled: true,
-                head_sampling_rate: 0.01,
-                invocation_logs: false,
+                head_sampling_rate: 1,
+                invocation_logs: true,
+                persist: true,
+            },
+            traces: {
+                enabled: true,
+                head_sampling_rate: 1,
                 persist: true,
             },
         });

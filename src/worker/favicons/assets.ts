@@ -1,6 +1,7 @@
 import { Effect, Schema } from 'effect';
 
 import type { D1 } from '../infrastructure/d1';
+import { spanNames, type TelemetryFailure, traceAsync } from '../observability';
 import { inspectNormalizedFavicon } from './darkness';
 import { FaviconSourceError, prepareFaviconSource } from './source';
 
@@ -265,67 +266,100 @@ const isExactSize = (png: Uint8Array, width: number, height: number): boolean =>
     new DataView(png.buffer, png.byteOffset, png.byteLength).getUint32(20) ===
         height;
 
+const assetFailure = (cause: unknown): TelemetryFailure => {
+    if (cause instanceof FaviconAssetCandidateError) {
+        return {
+            errorClass: cause._tag,
+            stage: cause.stage,
+            retryable: cause.retryable,
+        };
+    }
+    if (cause instanceof FaviconAssetStorageError) {
+        return {
+            errorClass: cause._tag,
+            stage: 'storage',
+            retryable: true,
+        };
+    }
+    return { errorClass: 'Unknown', stage: 'unknown', retryable: true };
+};
+
 export const makeFaviconAssetStore = (
     dependencies: FaviconAssetStoreDependencies,
 ): FaviconAssetStore => ({
-    persist: async (source) => {
-        let prepared: Awaited<ReturnType<typeof prepareFaviconSource>>;
-        try {
-            prepared = await prepareFaviconSource(source);
-        } catch (cause) {
-            if (cause instanceof FaviconSourceError)
-                throw candidateError('source');
-            throw candidateError('source', true);
-        }
+    persist: (source) =>
+        traceAsync(
+            spanNames.faviconAssetPersist,
+            { 'app.favicon.source_bytes': source.byteLength },
+            async (span) => {
+                let prepared: Awaited<ReturnType<typeof prepareFaviconSource>>;
+                try {
+                    prepared = await prepareFaviconSource(source);
+                } catch (cause) {
+                    if (cause instanceof FaviconSourceError)
+                        throw candidateError('source');
+                    throw candidateError('source', true);
+                }
+                span.setAttribute('app.favicon.source_kind', prepared.kind);
 
-        let normalized: Uint8Array;
-        let inspection =
-            prepared.kind === 'png' &&
-            isExactSize(prepared.bytes, FAVICON_SIZE, FAVICON_SIZE)
-                ? await inspectNormalizedFavicon(prepared.bytes)
-                : { valid: false, isDark: null };
-        if (inspection.valid) {
-            normalized = prepared.bytes;
-        } else {
-            let output: ImageTransformationResult;
-            try {
-                const sourceBody = new Response(arrayBuffer(prepared.bytes))
-                    .body;
-                if (sourceBody === null) throw candidateError('source');
-                output = await dependencies.images
-                    .input(sourceBody)
-                    .transform({
-                        width: FAVICON_SIZE,
-                        height: FAVICON_SIZE,
-                        fit: 'cover',
-                    })
-                    .output({ format: 'image/png', anim: false });
-            } catch (cause) {
-                if (cause instanceof FaviconAssetCandidateError) throw cause;
-                throw candidateError('transform', true);
-            }
-            normalized = await readBoundedPng(output.response());
-            inspection = await inspectNormalizedFavicon(normalized);
-            if (!inspection.valid) throw candidateError('output');
-        }
+                let normalized: Uint8Array;
+                let inspection =
+                    prepared.kind === 'png' &&
+                    isExactSize(prepared.bytes, FAVICON_SIZE, FAVICON_SIZE)
+                        ? await inspectNormalizedFavicon(prepared.bytes)
+                        : { valid: false, isDark: null };
+                if (inspection.valid) {
+                    normalized = prepared.bytes;
+                    span.setAttribute('app.favicon.transformed', false);
+                } else {
+                    span.setAttribute('app.favicon.transformed', true);
+                    let output: ImageTransformationResult;
+                    try {
+                        const sourceBody = new Response(
+                            arrayBuffer(prepared.bytes),
+                        ).body;
+                        if (sourceBody === null) throw candidateError('source');
+                        output = await dependencies.images
+                            .input(sourceBody)
+                            .transform({
+                                width: FAVICON_SIZE,
+                                height: FAVICON_SIZE,
+                                fit: 'cover',
+                            })
+                            .output({ format: 'image/png', anim: false });
+                    } catch (cause) {
+                        if (cause instanceof FaviconAssetCandidateError)
+                            throw cause;
+                        throw candidateError('transform', true);
+                    }
+                    normalized = await readBoundedPng(output.response());
+                    inspection = await inspectNormalizedFavicon(normalized);
+                    if (!inspection.valid) throw candidateError('output');
+                }
+                span.setAttribute(
+                    'app.favicon.normalized_bytes',
+                    normalized.byteLength,
+                );
 
-        try {
-            const digest = await crypto.subtle.digest(
-                'SHA-256',
-                arrayBuffer(normalized),
-            );
-            const hash = hex(digest);
-            await dependencies.repository.put(
-                hash,
-                normalized,
-                (dependencies.now ?? Date.now)(),
-            );
-            return { hash, isDark: inspection.isDark };
-        } catch (cause) {
-            if (cause instanceof FaviconAssetStorageError) throw cause;
-            throw new FaviconAssetStorageError();
-        }
-    },
+                try {
+                    const digest = await crypto.subtle.digest(
+                        'SHA-256',
+                        arrayBuffer(normalized),
+                    );
+                    const hash = hex(digest);
+                    await dependencies.repository.put(
+                        hash,
+                        normalized,
+                        (dependencies.now ?? Date.now)(),
+                    );
+                    return { hash, isDark: inspection.isDark };
+                } catch (cause) {
+                    if (cause instanceof FaviconAssetStorageError) throw cause;
+                    throw new FaviconAssetStorageError();
+                }
+            },
+            assetFailure,
+        ),
 });
 
 export const FAVICON_ASSET_CACHE_CONTROL = CACHE_CONTROL;

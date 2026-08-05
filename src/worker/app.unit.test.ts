@@ -79,10 +79,13 @@ describe('Worker HTTP app', () => {
         expect(body).not.toContain('private failure detail');
         expect(consoleError).toHaveBeenCalledOnce();
         expect(consoleError).toHaveBeenCalledWith({
-            event: 'http.request.failed',
-            failureKind: 'exception',
-            failureTags: ['Error'],
-            reasonCount: 1,
+            event: 'app.operation.failed',
+            operation: 'app.http.failure',
+            outcome: 'failed',
+            'app.failure.kind': 'exception',
+            'app.failure.reason_count': 1,
+            'app.failure.class': 'Error',
+            'app.failure.stage': 'response',
         });
         expect(JSON.stringify(consoleError.mock.calls)).not.toContain(
             'private failure detail',

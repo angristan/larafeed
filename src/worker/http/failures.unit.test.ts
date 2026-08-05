@@ -30,10 +30,14 @@ describe('HTTP failure recovery', () => {
         expect(response.status).toBe(503);
         expect(consoleError).toHaveBeenCalledOnce();
         expect(consoleError).toHaveBeenCalledWith({
-            event: 'http.request.failed',
-            failureKind: 'typed_failure',
-            failureTags: ['StorageError'],
-            reasonCount: 1,
+            event: 'app.operation.failed',
+            operation: 'app.http.failure',
+            outcome: 'failed',
+            'app.failure.kind': 'typed_failure',
+            'app.failure.tags': 'StorageError',
+            'app.failure.reason_count': 1,
+            'app.failure.class': 'StorageError',
+            'app.failure.stage': 'response',
         });
         expect(JSON.stringify(consoleError.mock.calls)).not.toContain('secret');
         expect(JSON.stringify(consoleError.mock.calls)).not.toContain('token');

@@ -2,6 +2,11 @@ import { Effect } from 'effect';
 
 import { generateRandomToken, generateSafeId } from '../auth/crypto';
 import {
+    recordHandledFailure,
+    safeErrorClass,
+    spanNames,
+} from '../observability';
+import {
     JobInvariantError,
     ManualRefreshCooldownError,
     RefreshAlreadyActiveError,
@@ -278,6 +283,19 @@ export const makeJobOrchestrator = (
             try {
                 await queue.send({ operationId: message.operationId });
             } catch (cause) {
+                recordHandledFailure(
+                    spanNames.dispatchFailure,
+                    {
+                        'app.subsystem': 'refresh',
+                        'app.failure.stage': 'queue_send',
+                        'app.job.attempt': message.attemptCount + 1,
+                    },
+                    {
+                        errorClass: safeErrorClass(cause),
+                        stage: 'queue_send',
+                        retryable: true,
+                    },
+                );
                 const retryAt =
                     currentTime + retryBackoffMs(message.attemptCount + 1);
                 await repository.releaseOutbox({
@@ -299,7 +317,19 @@ export const makeJobOrchestrator = (
             try {
                 await repository.markDispatched(message, currentTime);
                 sent += 1;
-            } catch {
+            } catch (cause) {
+                recordHandledFailure(
+                    spanNames.dispatchFailure,
+                    {
+                        'app.subsystem': 'refresh',
+                        'app.failure.stage': 'outbox_mark_dispatched',
+                    },
+                    {
+                        errorClass: safeErrorClass(cause),
+                        stage: 'outbox_mark_dispatched',
+                        retryable: true,
+                    },
+                );
                 // A send followed by an unknown D1 result is intentionally left
                 // leased. Expiry causes a safe duplicate send with the same
                 // operation ID; queue consumption is idempotent.
@@ -367,6 +397,23 @@ export const makeJobOrchestrator = (
             const completedAt = now();
             const historyId = await generateId();
             if (result.type === 'failure') {
+                recordHandledFailure(
+                    spanNames.jobFailure,
+                    {
+                        'app.subsystem': 'refresh',
+                        'app.feed.id': claimed.claim.feedId,
+                        'app.job.attempt': claimed.claim.attemptCount,
+                        'app.job.max_attempts': claimed.claim.maxAttempts,
+                    },
+                    {
+                        errorClass: result.errorClass,
+                        stage: 'processor',
+                        retryable: result.retryable,
+                        ...(result.httpStatus === undefined
+                            ? {}
+                            : { httpStatus: result.httpStatus }),
+                    },
+                );
                 const retryAt =
                     completedAt +
                     Math.min(
@@ -428,7 +475,19 @@ export const makeJobOrchestrator = (
             if (dependencies.scheduleFavicon !== undefined) {
                 try {
                     await dependencies.scheduleFavicon(claimed.claim.feedId);
-                } catch {
+                } catch (cause) {
+                    recordHandledFailure(
+                        spanNames.jobFailure,
+                        {
+                            'app.subsystem': 'refresh',
+                            'app.feed.id': claimed.claim.feedId,
+                        },
+                        {
+                            errorClass: safeErrorClass(cause),
+                            stage: 'schedule_favicon',
+                            retryable: true,
+                        },
+                    );
                     // Post persistence is authoritative. The favicon job/outbox
                     // or scheduled stale-feed discovery provides recovery.
                 }
@@ -440,7 +499,20 @@ export const makeJobOrchestrator = (
                         ? 'not_modified'
                         : 'succeeded',
             };
-        } catch {
+        } catch (cause) {
+            recordHandledFailure(
+                spanNames.jobFailure,
+                {
+                    'app.subsystem': 'refresh',
+                    'app.feed.id': activeClaim?.feedId,
+                    'app.job.attempt': activeClaim?.attemptCount,
+                },
+                {
+                    errorClass: safeErrorClass(cause),
+                    stage: 'orchestration',
+                    retryable: true,
+                },
+            );
             const failedAt = now();
             const retryAt = failedAt + 30_000;
             if (activeClaim !== undefined) {
@@ -452,7 +524,19 @@ export const makeJobOrchestrator = (
                         errorClass: 'orchestration_error',
                         errorMessage: 'Refresh orchestration failed',
                     });
-                } catch {
+                } catch (releaseCause) {
+                    recordHandledFailure(
+                        spanNames.jobFailure,
+                        {
+                            'app.subsystem': 'refresh',
+                            'app.feed.id': activeClaim.feedId,
+                        },
+                        {
+                            errorClass: safeErrorClass(releaseCause),
+                            stage: 'lease_release',
+                            retryable: true,
+                        },
+                    );
                     // Expiry recovery remains the fallback if D1 is unavailable.
                 }
             }

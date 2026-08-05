@@ -100,6 +100,32 @@ describe('favicon D1 assets', () => {
         ).toBe(32);
     });
 
+    it('normalizes and stores a safe SVG through Images', async () => {
+        const store = makeFaviconAssetStore({
+            repository,
+            images: env.IMAGES,
+            now: () => 1_900_000_000_002,
+        });
+        const source = new TextEncoder().encode(
+            `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+                <path fill="#111" d="M0 0h64v64H0z" />
+            </svg>`,
+        );
+
+        const asset = await store.persist(source);
+        const stored = await repository.find(asset.hash);
+
+        expect(stored).not.toBeNull();
+        if (stored === null) throw new Error('Expected stored SVG asset');
+        const view = new DataView(
+            stored.buffer,
+            stored.byteOffset,
+            stored.byteLength,
+        );
+        expect(view.getUint32(16)).toBe(32);
+        expect(view.getUint32(20)).toBe(32);
+    });
+
     it('serves a stored asset through the default public route', async () => {
         const hash = 'e'.repeat(64);
         await repository.put(hash, transparentPng, 2_000);

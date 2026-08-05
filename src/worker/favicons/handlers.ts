@@ -1,3 +1,4 @@
+import { recordQueueDecision } from '../observability';
 import { singleQueueMessage } from '../queue';
 import { makeFaviconRuntime } from './runtime';
 
@@ -33,12 +34,19 @@ export const handleFaviconQueue = async (
     env: Env,
 ): Promise<void> => {
     const message = singleQueueMessage(batch);
-    if (message === null) return;
+    if (message === null) {
+        recordQueueDecision('favicon', {
+            action: 'dead',
+            reason: 'invalid_batch',
+        });
+        return;
+    }
 
     const orchestrator = makeFaviconRuntime(env).orchestrator;
     const decision = await orchestrator.processQueueMessage(
         message.body,
         `favicon-queue:${message.id}`,
     );
+    recordQueueDecision('favicon', decision);
     applyDecision(message, decision);
 };

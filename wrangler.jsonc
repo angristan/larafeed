@@ -91,14 +91,14 @@
     "observability": {
         "enabled": true,
         "logs": {
-            "enabled": false,
-            "head_sampling_rate": 0,
-            "invocation_logs": false,
-            "persist": false
+            "enabled": true,
+            "head_sampling_rate": 1,
+            "invocation_logs": true,
+            "persist": true
         },
         "traces": {
             "enabled": true,
-            "head_sampling_rate": 0.1,
+            "head_sampling_rate": 1,
             "persist": true
         }
     },
@@ -195,13 +195,13 @@
                 "enabled": true,
                 "logs": {
                     "enabled": true,
-                    "head_sampling_rate": 0.01,
-                    "invocation_logs": false,
+                    "head_sampling_rate": 1,
+                    "invocation_logs": true,
                     "persist": true
                 },
                 "traces": {
                     "enabled": true,
-                    "head_sampling_rate": 0.1,
+                    "head_sampling_rate": 1,
                     "persist": true
                 }
             }
@@ -297,10 +297,10 @@
             "observability": {
                 "enabled": true,
                 "logs": {
-                    "enabled": false,
-                    "head_sampling_rate": 0,
-                    "invocation_logs": false,
-                    "persist": false
+                    "enabled": true,
+                    "head_sampling_rate": 1,
+                    "invocation_logs": true,
+                    "persist": true
                 },
                 "traces": {
                     "enabled": true,

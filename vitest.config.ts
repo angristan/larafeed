@@ -6,6 +6,12 @@ export default defineConfig({
         alias: {
             '@': fileURLToPath(new URL('./src/client', import.meta.url)),
             '@shared': fileURLToPath(new URL('./src/shared', import.meta.url)),
+            'cloudflare:workers': fileURLToPath(
+                new URL(
+                    './src/worker/test/cloudflare-workers.unit.ts',
+                    import.meta.url,
+                ),
+            ),
         },
     },
     test: {

@@ -82,6 +82,8 @@ Feed refresh details are retained for 90 days. Daily chart aggregates are retain
 
 ## Monitoring
 
+Logs, invocation logs, and traces are persisted at 100% sampling in every environment. Handled retries, discarded Queue messages, degraded Cron passes, HTTP failures, and favicon pipeline stages emit bounded structured fields. Use the parent trace to correlate detailed child failures with the Queue or scheduled invocation. Custom telemetry must never contain payloads, article text, credentials, raw URLs, or raw error messages.
+
 Watch these signals separately for each environment:
 
 - Worker errors, CPU time, and latency.
@@ -98,7 +100,7 @@ Investigate outbox age above 15 minutes, oldest due feeds above 60 minutes, or O
 
 1. Disable the producer with the relevant rollout control.
 2. Pause its Queue consumer if accepted work must also stop.
-3. Inspect the D1 job, outbox, and failure class. D1 is authoritative.
+3. Inspect the complete trace and its structured logs for the failed stage and safe error class. Use D1 only for authoritative job and outbox state.
 4. Fix the cause. Do not create a new operation ID to replay existing work.
 5. Resume the consumer at low concurrency.
 6. Resume dispatch before scheduling.

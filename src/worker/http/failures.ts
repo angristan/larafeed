@@ -1,13 +1,10 @@
 import { Cause, Effect } from 'effect';
 
-const safeFailureTag = (value: unknown): string => {
-    if (typeof value !== 'object' || value === null) return 'Unknown';
-    const candidate = Reflect.get(value, '_tag') ?? Reflect.get(value, 'name');
-    return typeof candidate === 'string' &&
-        /^[A-Za-z][A-Za-z0-9]{0,63}$/u.test(candidate)
-        ? candidate
-        : 'Unknown';
-};
+import {
+    recordHandledFailure,
+    safeErrorClass,
+    spanNames,
+} from '../observability';
 
 const expectedUnavailableTags = new Set([
     'FaviconRefreshDisabled',
@@ -18,8 +15,8 @@ const expectedUnavailableTags = new Set([
 const failureTags = (cause: Cause.Cause<unknown>): string[] => {
     const tags = new Set<string>();
     for (const reason of cause.reasons) {
-        if (Cause.isFailReason(reason)) tags.add(safeFailureTag(reason.error));
-        if (Cause.isDieReason(reason)) tags.add(safeFailureTag(reason.defect));
+        if (Cause.isFailReason(reason)) tags.add(safeErrorClass(reason.error));
+        if (Cause.isDieReason(reason)) tags.add(safeErrorClass(reason.defect));
     }
     return [...tags].sort().slice(0, 4);
 };
@@ -28,12 +25,20 @@ const reportCause = (
     cause: Cause.Cause<unknown>,
     tags: readonly string[],
 ): void => {
-    console.error({
-        event: 'http.request.failed',
-        failureKind: Cause.hasDies(cause) ? 'defect' : 'typed_failure',
-        failureTags: tags,
-        reasonCount: Math.min(cause.reasons.length, 10),
-    });
+    recordHandledFailure(
+        spanNames.httpFailure,
+        {
+            'app.failure.kind': Cause.hasDies(cause)
+                ? 'defect'
+                : 'typed_failure',
+            'app.failure.tags': tags.join(','),
+            'app.failure.reason_count': Math.min(cause.reasons.length, 10),
+        },
+        {
+            errorClass: tags[0] ?? 'Unknown',
+            stage: 'response',
+        },
+    );
 };
 
 export const recoverHttpCause = (
@@ -67,10 +72,15 @@ export const isCancellationError = (error: unknown): boolean => {
 
 export const reportUnexpectedHttpError = (error: unknown): void => {
     if (isCancellationError(error)) return;
-    console.error({
-        event: 'http.request.failed',
-        failureKind: 'exception',
-        failureTags: [safeFailureTag(error)],
-        reasonCount: 1,
-    });
+    recordHandledFailure(
+        spanNames.httpFailure,
+        {
+            'app.failure.kind': 'exception',
+            'app.failure.reason_count': 1,
+        },
+        {
+            errorClass: safeErrorClass(error),
+            stage: 'response',
+        },
+    );
 };
