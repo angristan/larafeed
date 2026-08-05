@@ -1,15 +1,13 @@
 import {
     Alert,
-    Badge,
     Button,
     Checkbox,
     Code,
-    Container,
     CopyButton,
+    Divider,
     Group,
     Loader,
     Modal,
-    Paper,
     Stack,
     Text,
     TextInput,
@@ -20,7 +18,6 @@ import {
     IconAlertTriangle,
     IconCheck,
     IconCopy,
-    IconInfoCircle,
     IconKey,
     IconRefresh,
     IconTrash,
@@ -73,74 +70,72 @@ function AppTokenCard({
     const headingId = `app-token-${token.id}`;
 
     return (
-        <Paper
+        <Stack
             component="li"
             aria-labelledby={headingId}
-            withBorder
-            p={{ base: 'md', sm: 'lg' }}
-            style={{ listStyle: 'none' }}
+            gap="md"
+            py="md"
+            style={{
+                borderBottom: '1px solid var(--ds-line)',
+                listStyle: 'none',
+            }}
         >
-            <Stack gap="md">
-                <Group justify="space-between" align="flex-start" wrap="wrap">
-                    <Stack gap={3}>
-                        <Title id={headingId} order={3} size="h4">
-                            {token.name}
-                        </Title>
-                        <Text c="dimmed" size="sm">
-                            Token prefix <Code>{token.prefix}…</Code>
-                        </Text>
-                    </Stack>
-                    <Button
-                        color="red"
-                        leftSection={<IconTrash aria-hidden="true" size={16} />}
-                        onClick={() => onRevoke(token)}
-                        size="xs"
-                        variant="light"
-                    >
-                        Revoke
-                    </Button>
-                </Group>
+            <Group justify="space-between" align="flex-start" wrap="wrap">
+                <Stack gap={3}>
+                    <Title id={headingId} order={3} size="h4">
+                        {token.name}
+                    </Title>
+                    <Text c="dimmed" size="sm">
+                        Token prefix <Code>{token.prefix}…</Code>
+                    </Text>
+                </Stack>
+                <Button
+                    color="red"
+                    leftSection={<IconTrash aria-hidden="true" size={16} />}
+                    onClick={() => onRevoke(token)}
+                    size="xs"
+                    variant="light"
+                >
+                    Revoke
+                </Button>
+            </Group>
 
-                <Group gap="xs" aria-label="Allowed APIs">
-                    {token.scopes.map((scope) => (
-                        <Badge key={scope} variant="light">
-                            {scopePresentation[scope].label}
-                        </Badge>
-                    ))}
-                </Group>
+            <Text c="dimmed" size="xs">
+                Allowed APIs:{' '}
+                {token.scopes
+                    .map((scope) => scopePresentation[scope].label)
+                    .join(' · ')}
+            </Text>
 
-                <Group gap="xl" align="flex-start" wrap="wrap">
-                    <Stack gap={0}>
-                        <Text c="dimmed" size="xs">
-                            Created
-                        </Text>
-                        <Text size="sm">
-                            {formatTimestamp(token.createdAt)}
-                        </Text>
-                    </Stack>
-                    <Stack gap={0}>
-                        <Text c="dimmed" size="xs">
-                            Last used
-                        </Text>
-                        <Text size="sm">
-                            {token.lastUsedAt === null
-                                ? 'Never'
-                                : formatTimestamp(token.lastUsedAt)}
-                        </Text>
-                    </Stack>
-                    <Stack gap={0}>
-                        <Text c="dimmed" size="xs">
-                            Expires
-                        </Text>
-                        <Text size="sm">
-                            {token.expiresAt === null
-                                ? 'Never'
-                                : formatTimestamp(token.expiresAt)}
-                        </Text>
-                    </Stack>
-                </Group>
-            </Stack>
-        </Paper>
+            <Group gap="xl" align="flex-start" wrap="wrap">
+                <Stack gap={0}>
+                    <Text c="dimmed" size="xs">
+                        Created
+                    </Text>
+                    <Text size="sm">{formatTimestamp(token.createdAt)}</Text>
+                </Stack>
+                <Stack gap={0}>
+                    <Text c="dimmed" size="xs">
+                        Last used
+                    </Text>
+                    <Text size="sm">
+                        {token.lastUsedAt === null
+                            ? 'Never'
+                            : formatTimestamp(token.lastUsedAt)}
+                    </Text>
+                </Stack>
+                <Stack gap={0}>
+                    <Text c="dimmed" size="xs">
+                        Expires
+                    </Text>
+                    <Text size="sm">
+                        {token.expiresAt === null
+                            ? 'Never'
+                            : formatTimestamp(token.expiresAt)}
+                    </Text>
+                </Stack>
+            </Group>
+        </Stack>
     );
 }
 
@@ -153,21 +148,18 @@ function AppTokenList({
 }) {
     if (tokens.length === 0) {
         return (
-            <Paper withBorder p="xl">
-                <Stack align="center" gap="xs" ta="center">
-                    <IconInfoCircle aria-hidden="true" size={28} />
-                    <Text fw={600}>No app tokens</Text>
-                    <Text c="dimmed" maw={500} size="sm">
-                        Create a token when you connect a Google Reader or Fever
-                        client.
-                    </Text>
-                </Stack>
-            </Paper>
+            <Stack gap={2} py="md">
+                <Text fw={600}>No app tokens</Text>
+                <Text c="dimmed" maw={500} size="sm">
+                    Create a token when you connect a Google Reader or Fever
+                    client.
+                </Text>
+            </Stack>
         );
     }
 
     return (
-        <Stack component="ul" gap="sm" m={0} p={0}>
+        <Stack component="ul" gap={0} m={0} p={0}>
             {tokens.map((token) => (
                 <AppTokenCard
                     key={token.id}
@@ -282,7 +274,7 @@ export function AppTokensPage() {
             pageTitle="App tokens"
             settingsNavigation
         >
-            <Container component="div" size="md" py="md">
+            <Stack maw={760} mx="auto" my="md" px={{ base: 0, sm: 'md' }}>
                 <Modal
                     centered
                     closeOnClickOutside={!revokeMutation.isPending}
@@ -345,11 +337,12 @@ export function AppTokensPage() {
                         </Text>
                     </Stack>
 
-                    <Paper
+                    <Divider />
+
+                    <Stack
                         component="section"
                         aria-labelledby="connection-details-heading"
-                        withBorder
-                        p={{ base: 'lg', sm: 'xl' }}
+                        gap="md"
                     >
                         <Stack gap="md">
                             <Stack gap={4}>
@@ -401,7 +394,7 @@ export function AppTokensPage() {
                                 </Text>
                             </Stack>
                         </Stack>
-                    </Paper>
+                    </Stack>
 
                     {plaintextToken !== null && (
                         <Alert
@@ -472,11 +465,13 @@ export function AppTokensPage() {
                         </Alert>
                     )}
 
-                    <Paper
+                    <Divider />
+
+                    <Stack
                         component="section"
                         aria-labelledby="create-token-heading"
-                        withBorder
-                        p={{ base: 'lg', sm: 'xl' }}
+                        gap="md"
+                        maw={600}
                     >
                         <form autoComplete="off" onSubmit={handleSubmit}>
                             <Stack gap="md">
@@ -572,7 +567,9 @@ export function AppTokensPage() {
                                 </Group>
                             </Stack>
                         </form>
-                    </Paper>
+                    </Stack>
+
+                    <Divider />
 
                     <Stack
                         component="section"
@@ -651,7 +648,7 @@ export function AppTokensPage() {
                         )}
                     </Stack>
                 </Stack>
-            </Container>
+            </Stack>
         </ApplicationPage>
     );
 }

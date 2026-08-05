@@ -4,7 +4,7 @@ import {
     Badge,
     Box,
     Button,
-    Card,
+    Center,
     Divider,
     Flex,
     Group,
@@ -268,7 +268,20 @@ export function ReaderEntryDetail({
 
     if (!selected) {
         return (
-            <section aria-label="Entry detail" className={classes.detailPane} />
+            <section aria-label="Entry detail" className={classes.detailPane}>
+                <Center className={classes.emptyDetail}>
+                    <Stack align="center" gap="xs" ta="center">
+                        <IconBook aria-hidden="true" size={28} stroke={1.4} />
+                        <Text fw={650} size="sm">
+                            Select an entry to read
+                        </Text>
+                        <Text c="dimmed" maw={300} size="xs">
+                            Choose an article from the reading queue. You can
+                            use J and K to move through entries.
+                        </Text>
+                    </Stack>
+                </Center>
+            </section>
         );
     }
 
@@ -340,32 +353,36 @@ export function ReaderEntryDetail({
             direction="column"
             w="100%"
         >
-            <Card bg="transparent" pb={10} pl={10} pr={10} pt={0}>
+            <div className={classes.detailToolbar}>
                 <Flex
                     align="center"
                     className={classes.detailHeader}
                     direction="row"
                     justify="space-between"
                 >
-                    <Button
-                        aria-label="Back to entry list"
-                        className={classes.mobileOnly}
-                        leftSection={
-                            <IconArrowLeft aria-hidden="true" size={16} />
-                        }
-                        onClick={onBack}
-                        size="xs"
-                        variant="subtle"
+                    <Group
+                        className={classes.sourceIdentity}
+                        gap="xs"
+                        wrap="nowrap"
                     >
-                        Back
-                    </Button>
-                    <FeedFavicon
-                        isDark={entry.faviconIsDark}
-                        size={20}
-                        src={entry.faviconUrl}
-                    />
-                    <Group gap={6} wrap="nowrap">
-                        <Text c="dimmed" size="sm">
+                        <Button
+                            aria-label="Back to entry list"
+                            className={classes.mobileOnly}
+                            leftSection={
+                                <IconArrowLeft aria-hidden="true" size={16} />
+                            }
+                            onClick={onBack}
+                            size="xs"
+                            variant="subtle"
+                        >
+                            Back
+                        </Button>
+                        <FeedFavicon
+                            isDark={entry.faviconIsDark}
+                            size={18}
+                            src={entry.faviconUrl}
+                        />
+                        <Text c="dimmed" lineClamp={1} size="xs">
                             {feedName}
                         </Text>
                         {entry !== undefined &&
@@ -392,73 +409,68 @@ export function ReaderEntryDetail({
                                 />
                             )}
                     </Group>
-                    <Group className={classes.entryActions}>
-                        <Tooltip
-                            label="Summarize content with AI or switch back to content"
-                            openDelay={500}
-                            transitionProps={{
-                                transition: 'fade',
-                                duration: 300,
-                            }}
-                        >
-                            <SegmentedControl
-                                aria-label="Entry view"
-                                data={[
-                                    {
-                                        label: (
+                    <Group
+                        className={classes.entryActions}
+                        gap={6}
+                        wrap="nowrap"
+                    >
+                        <SegmentedControl
+                            aria-label="Entry view"
+                            data={[
+                                {
+                                    label: (
+                                        <Group gap={4} wrap="nowrap">
                                             <IconBook
                                                 aria-label="Article content"
-                                                size={16}
-                                                style={{ marginBottom: -3 }}
+                                                size={14}
                                             />
-                                        ),
-                                        value: 'content',
-                                    },
-                                    {
-                                        label: (
+                                            <span className={classes.viewLabel}>
+                                                Article
+                                            </span>
+                                        </Group>
+                                    ),
+                                    value: 'content',
+                                },
+                                {
+                                    label: (
+                                        <Group gap={4} wrap="nowrap">
                                             <IconBrain
                                                 aria-label="AI summary"
-                                                size={15}
-                                                style={{ marginBottom: -3 }}
+                                                size={14}
                                             />
-                                        ),
-                                        value: 'summary',
-                                    },
-                                ]}
-                                onChange={(value) =>
-                                    onSetSummarize(value === 'summary')
-                                }
-                                size="xs"
-                                styles={{
-                                    label: {
-                                        paddingInline: '10px',
-                                        paddingBlock: '3px',
-                                    },
-                                }}
-                                value={summarize ? 'summary' : 'content'}
-                            />
-                        </Tooltip>
+                                            <span className={classes.viewLabel}>
+                                                Summary
+                                            </span>
+                                        </Group>
+                                    ),
+                                    value: 'summary',
+                                },
+                            ]}
+                            onChange={(value) =>
+                                onSetSummarize(value === 'summary')
+                            }
+                            size="xs"
+                            value={summarize ? 'summary' : 'content'}
+                        />
 
                         {entry.url !== null && (
-                            <Tooltip
-                                label="Open in a new tab"
-                                transitionProps={{
-                                    transition: 'fade',
-                                    duration: 300,
-                                }}
+                            <Button
+                                aria-label="Open original article in a new tab"
+                                className={classes.originalAction}
+                                component="a"
+                                href={entry.url}
+                                leftSection={
+                                    <IconExternalLink size={14} stroke={1.8} />
+                                }
+                                rel="noopener noreferrer"
+                                size="xs"
+                                target="_blank"
+                                variant="default"
                             >
-                                <ActionIcon
-                                    aria-label="Open original article in a new tab"
-                                    color="gray"
-                                    component="a"
-                                    href={entry.url}
-                                    rel="noopener noreferrer"
-                                    target="_blank"
-                                    variant="outline"
-                                >
-                                    <IconExternalLink size={15} stroke={3} />
-                                </ActionIcon>
-                            </Tooltip>
+                                <span className={classes.originalLabel}>
+                                    Original
+                                </span>
+                            </Button>
                         )}
 
                         <Tooltip
@@ -478,7 +490,7 @@ export function ReaderEntryDetail({
                                 color="gray"
                                 loading={starPending}
                                 onClick={() => onSetStarred(!entry.starred)}
-                                variant="outline"
+                                variant="subtle"
                             >
                                 {entry.starred ? (
                                     <IconStarFilled size={15} stroke={3} />
@@ -503,7 +515,7 @@ export function ReaderEntryDetail({
                                 color="gray"
                                 loading={readPending}
                                 onClick={() => onSetRead(!entry.read)}
-                                variant="outline"
+                                variant="subtle"
                             >
                                 {entry.read ? (
                                     <IconCircle size={15} stroke={3} />
@@ -518,7 +530,7 @@ export function ReaderEntryDetail({
                                 <ActionIcon
                                     aria-label="Archive entry"
                                     color="gray"
-                                    variant="outline"
+                                    variant="subtle"
                                 >
                                     <IconDots size={15} stroke={1.5} />
                                 </ActionIcon>
@@ -546,7 +558,7 @@ export function ReaderEntryDetail({
                         </Menu>
                     </Group>
                 </Flex>
-            </Card>
+            </div>
 
             {mutationError !== null && (
                 <Alert color="red" m="sm" role="alert">

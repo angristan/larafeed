@@ -66,10 +66,15 @@ function SettingsNavigation({
 
     return (
         <>
-            <AppShell.Section p="md" pb="xs">
-                <Text c="dimmed" fw={500} size="xs" tt="uppercase">
-                    Settings
-                </Text>
+            <AppShell.Section p="lg" pb="sm">
+                <Stack gap={2}>
+                    <Text fw={750} size="sm">
+                        Settings
+                    </Text>
+                    <Text c="dimmed" size="xs">
+                        Account and reader configuration
+                    </Text>
+                </Stack>
             </AppShell.Section>
             <AppShell.Section component={ScrollArea} grow px="md" pb="md">
                 <Stack gap={4}>
@@ -127,34 +132,33 @@ export function ApplicationPage({
         };
     }, [resolvedTitle]);
     const hasSidebar = settingsNavigation || sidebar !== undefined;
+    const resolvedSidebar = hasSidebar
+        ? (sidebar ?? <SettingsNavigation onNavigate={navbar.close} />)
+        : undefined;
 
     return (
         <AppShell
-            header={{ height: 56 }}
-            navbar={
-                hasSidebar
-                    ? {
-                          width: navbarWidth,
-                          breakpoint: 'sm',
-                          collapsed: { mobile: !navbarOpened },
-                      }
-                    : undefined
-            }
-            padding="md"
+            header={{ height: { base: 58, sm: 0 } }}
+            navbar={{
+                width: {
+                    base: 'min(88vw, 320px)',
+                    sm: 64 + (hasSidebar ? navbarWidth : 0),
+                },
+                breakpoint: 'sm',
+                collapsed: { mobile: !hasSidebar || !navbarOpened },
+            }}
+            padding={{ base: 'md', sm: 'lg' }}
         >
             <ApplicationHeader
                 activePage={activePage}
                 hasSidebar={hasSidebar}
                 navbarOpened={navbarOpened}
                 onNavbarToggle={navbar.toggle}
+                sidebar={resolvedSidebar}
+                sidebarLabel={
+                    settingsNavigation ? 'Settings navigation' : undefined
+                }
             />
-            {hasSidebar && (
-                <AppShell.Navbar>
-                    {sidebar ?? (
-                        <SettingsNavigation onNavigate={navbar.close} />
-                    )}
-                </AppShell.Navbar>
-            )}
             <AppShell.Main>{children}</AppShell.Main>
         </AppShell>
     );

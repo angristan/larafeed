@@ -4,10 +4,10 @@ import {
     Anchor,
     Badge,
     Button,
-    Divider,
     Drawer,
     Group,
     Loader,
+    Paper,
     ScrollArea,
     Select,
     Stack,
@@ -33,6 +33,7 @@ import {
     refreshSubscriptionMutationOptions,
     subscriptionManagementQueryOptions,
 } from '../queries/subscriptions';
+import classes from './SubscriptionsPage.module.css';
 
 export { buildAddFeedBookmarklet } from '../bookmarklet';
 
@@ -159,13 +160,13 @@ function SubscriptionDrawer({
                             </Text>
                             <Group gap="sm">
                                 <StatusBadge subscription={subscription} />
-                                <Badge color="gray" variant="light">
+                                <Text c="dimmed" size="sm">
                                     {subscription.entryCount.toLocaleString()}{' '}
                                     entries
-                                </Badge>
-                                <Badge color="blue" variant="light">
+                                </Text>
+                                <Text c="dimmed" size="sm">
                                     {subscription.categoryName}
-                                </Badge>
+                                </Text>
                             </Group>
                         </Stack>
                         <Button
@@ -377,97 +378,6 @@ export function SubscriptionsPage() {
         setSortDirection('asc');
     };
 
-    const sidebar = (
-        <ScrollArea h="calc(100vh - 96px)" p="md" type="auto">
-            <Stack gap="lg">
-                <Stack gap={4}>
-                    <Title order={4}>Search &amp; Filter</Title>
-                    <Text c="dimmed" size="sm">
-                        Refine the subscriptions table in real time.
-                    </Text>
-                </Stack>
-                <Stack gap="sm">
-                    <TextInput
-                        label="Search"
-                        leftSection={<IconSearch size={16} />}
-                        onChange={(event) =>
-                            setSearch(event.currentTarget.value)
-                        }
-                        placeholder="Name or URL"
-                        value={search}
-                    />
-                    <Select
-                        data={[
-                            { label: 'All categories', value: 'all' },
-                            ...categories.map((item) => ({
-                                label: item.name,
-                                value: String(item.id),
-                            })),
-                        ]}
-                        label="Category"
-                        onChange={(value) => setCategory(value ?? 'all')}
-                        value={category}
-                    />
-                    <Select
-                        data={[
-                            { label: 'All statuses', value: 'all' },
-                            ...subscriptionStatusFilterOptions,
-                        ]}
-                        label="Status"
-                        onChange={(value) =>
-                            setStatus(
-                                (value ?? 'all') as SubscriptionStatus | 'all',
-                            )
-                        }
-                        value={status}
-                    />
-                </Stack>
-                <Divider label="Sorting" labelPosition="center" />
-                <Group align="flex-end" gap="xs">
-                    <Select
-                        data={[
-                            { label: 'Name', value: 'name' },
-                            { label: 'Entries count', value: 'entries' },
-                            { label: 'Last success', value: 'lastSuccess' },
-                            { label: 'Last failure', value: 'lastFailure' },
-                        ]}
-                        label="Sort by"
-                        onChange={handleSortFieldChange}
-                        style={{ flex: 1 }}
-                        value={sortField}
-                    />
-                    <Tooltip
-                        label={`Sort ${
-                            sortDirection === 'asc' ? 'ascending' : 'descending'
-                        }`}
-                        withArrow
-                    >
-                        <ActionIcon
-                            aria-label="Toggle sort direction"
-                            onClick={() =>
-                                setSortDirection((current) =>
-                                    current === 'asc' ? 'desc' : 'asc',
-                                )
-                            }
-                            size="lg"
-                            variant="light"
-                        >
-                            {sortDirection === 'asc' ? (
-                                <IconArrowNarrowUp size={18} />
-                            ) : (
-                                <IconArrowNarrowDown size={18} />
-                            )}
-                        </ActionIcon>
-                    </Tooltip>
-                </Group>
-                <Divider />
-                <Button color="gray" onClick={resetFilters} variant="light">
-                    Reset filters
-                </Button>
-            </Stack>
-        </ScrollArea>
-    );
-
     const errorCount = subscriptions.filter((subscription) => {
         const subscriptionStatus = getSubscriptionStatus(subscription);
         return (
@@ -479,16 +389,12 @@ export function SubscriptionsPage() {
     ).length;
 
     return (
-        <ApplicationPage
-            activePage="subscriptions"
-            navbarWidth={320}
-            sidebar={sidebar}
-        >
+        <ApplicationPage activePage="subscriptions">
             <SubscriptionDrawer
                 onClose={() => setSelectedFeedId(null)}
                 subscription={selected}
             />
-            <Stack gap="lg" px="md" py="md">
+            <Stack className={classes.page} gap="lg">
                 <Stack gap={4}>
                     <Title order={1}>Subscriptions</Title>
                     <Text c="dimmed" size="sm">
@@ -497,243 +403,443 @@ export function SubscriptionsPage() {
                     </Text>
                 </Stack>
 
-                <Group gap="sm" wrap="wrap">
-                    <Badge color="blue" variant="light">
-                        Total: {subscriptions.length}
-                    </Badge>
-                    <Badge color="red" variant="light">
-                        With errors: {errorCount}
-                    </Badge>
-                    <Badge color="gray" variant="light">
-                        Never refreshed: {neverCount}
-                    </Badge>
-                </Group>
+                <Paper className={classes.auditSurface} p={0}>
+                    <div className={classes.statusSummary}>
+                        <Text component="span" size="sm">
+                            {`Total: ${subscriptions.length}`}
+                        </Text>
+                        <Text component="span" size="sm">
+                            {`With errors: ${errorCount}`}
+                        </Text>
+                        <Text component="span" size="sm">
+                            {`Never refreshed: ${neverCount}`}
+                        </Text>
+                    </div>
 
-                {management.isPending && data === undefined && (
-                    <Group role="status">
-                        <Loader size="sm" />
-                        <Text size="sm">Loading subscriptions…</Text>
-                    </Group>
-                )}
-                {management.isError && data === undefined && (
-                    <Alert color="red" title="Subscriptions are unavailable">
-                        {management.error.message}
-                    </Alert>
-                )}
-
-                {data !== undefined && (
-                    <Table.ScrollContainer minWidth={900}>
-                        <Table
-                            highlightOnHover
-                            verticalSpacing="sm"
-                            withRowBorders
-                        >
-                            <Table.Thead>
-                                <Table.Tr>
-                                    <Table.Th
-                                        style={{ width: '32%', minWidth: 280 }}
+                    <section aria-labelledby="audit-filters-heading">
+                        <header className={classes.toolbarHeader}>
+                            <Stack gap={1}>
+                                <Title id="audit-filters-heading" order={2}>
+                                    Search &amp; Filter
+                                </Title>
+                                <Text c="dimmed" size="xs">
+                                    Refine the subscriptions table in real time.
+                                </Text>
+                            </Stack>
+                            <Button
+                                color="gray"
+                                onClick={resetFilters}
+                                size="xs"
+                                variant="subtle"
+                            >
+                                Reset filters
+                            </Button>
+                        </header>
+                        <div className={classes.filterGrid}>
+                            <TextInput
+                                label="Search"
+                                leftSection={<IconSearch size={16} />}
+                                onChange={(event) =>
+                                    setSearch(event.currentTarget.value)
+                                }
+                                placeholder="Name or URL"
+                                value={search}
+                            />
+                            <Select
+                                data={[
+                                    {
+                                        label: 'All categories',
+                                        value: 'all',
+                                    },
+                                    ...categories.map((item) => ({
+                                        label: item.name,
+                                        value: String(item.id),
+                                    })),
+                                ]}
+                                label="Category"
+                                onChange={(value) =>
+                                    setCategory(value ?? 'all')
+                                }
+                                value={category}
+                            />
+                            <Select
+                                data={[
+                                    { label: 'All statuses', value: 'all' },
+                                    ...subscriptionStatusFilterOptions,
+                                ]}
+                                label="Status"
+                                onChange={(value) =>
+                                    setStatus(
+                                        (value ?? 'all') as
+                                            | SubscriptionStatus
+                                            | 'all',
+                                    )
+                                }
+                                value={status}
+                            />
+                            <Group align="flex-end" gap="xs" wrap="nowrap">
+                                <Select
+                                    data={[
+                                        { label: 'Name', value: 'name' },
+                                        {
+                                            label: 'Entries count',
+                                            value: 'entries',
+                                        },
+                                        {
+                                            label: 'Last success',
+                                            value: 'lastSuccess',
+                                        },
+                                        {
+                                            label: 'Last failure',
+                                            value: 'lastFailure',
+                                        },
+                                    ]}
+                                    label="Sort by"
+                                    onChange={handleSortFieldChange}
+                                    style={{ flex: 1 }}
+                                    value={sortField}
+                                />
+                                <Tooltip
+                                    label={`Sort ${
+                                        sortDirection === 'asc'
+                                            ? 'ascending'
+                                            : 'descending'
+                                    }`}
+                                    withArrow
+                                >
+                                    <ActionIcon
+                                        aria-label="Toggle sort direction"
+                                        onClick={() =>
+                                            setSortDirection((current) =>
+                                                current === 'asc'
+                                                    ? 'desc'
+                                                    : 'asc',
+                                            )
+                                        }
+                                        size="lg"
+                                        variant="light"
                                     >
-                                        <Group align="center" gap={4}>
-                                            Name
-                                            {renderSortIndicator('name')}
-                                        </Group>
-                                    </Table.Th>
-                                    <Table.Th>Category</Table.Th>
-                                    <Table.Th ta="right">
-                                        <Group
-                                            align="center"
-                                            gap={4}
-                                            justify="flex-end"
-                                        >
-                                            Entries
-                                            {renderSortIndicator('entries')}
-                                        </Group>
-                                    </Table.Th>
-                                    <Table.Th>Status</Table.Th>
-                                    <Table.Th>
-                                        <Group align="center" gap={4}>
-                                            Last success
-                                            {renderSortIndicator('lastSuccess')}
-                                        </Group>
-                                    </Table.Th>
-                                    <Table.Th>
-                                        <Group align="center" gap={4}>
-                                            Last failure
-                                            {renderSortIndicator('lastFailure')}
-                                        </Group>
-                                    </Table.Th>
-                                </Table.Tr>
-                            </Table.Thead>
-                            <Table.Tbody>
-                                {filtered.length === 0 && (
-                                    <Table.Tr>
-                                        <Table.Td colSpan={6}>
-                                            <Text
-                                                c="dimmed"
-                                                size="sm"
-                                                ta="center"
-                                            >
-                                                No subscriptions match the
-                                                current filters.
-                                            </Text>
-                                        </Table.Td>
-                                    </Table.Tr>
+                                        {sortDirection === 'asc' ? (
+                                            <IconArrowNarrowUp size={18} />
+                                        ) : (
+                                            <IconArrowNarrowDown size={18} />
+                                        )}
+                                    </ActionIcon>
+                                </Tooltip>
+                            </Group>
+                        </div>
+                    </section>
+
+                    {management.isError && data !== undefined && (
+                        <Alert
+                            className={classes.inlineAlert}
+                            color="red"
+                            title="Subscription data may be outdated"
+                        >
+                            {management.error.message}
+                        </Alert>
+                    )}
+
+                    {management.isPending && data === undefined && (
+                        <Group className={classes.stateRegion} role="status">
+                            <Loader size="sm" />
+                            <Text size="sm">Loading subscriptions…</Text>
+                        </Group>
+                    )}
+                    {management.isError && data === undefined && (
+                        <Alert
+                            className={classes.stateRegion}
+                            color="red"
+                            title="Subscriptions are unavailable"
+                        >
+                            {management.error.message}
+                        </Alert>
+                    )}
+
+                    {data !== undefined && (
+                        <>
+                            <div className={classes.tableSummary}>
+                                <Text c="dimmed" size="xs">
+                                    {`Showing ${filtered.length.toLocaleString()} of ${subscriptions.length.toLocaleString()} subscriptions`}
+                                </Text>
+                                {management.isFetching && (
+                                    <Group gap="xs" role="status">
+                                        <Loader size="xs" />
+                                        <Text c="dimmed" size="xs">
+                                            Updating…
+                                        </Text>
+                                    </Group>
                                 )}
-                                {filtered.map((subscription) => {
-                                    const name =
-                                        subscription.customFeedName ??
-                                        subscription.feedName;
-                                    const lastFailure =
-                                        subscription.lastFailedRefreshAt;
-                                    return (
-                                        <Table.Tr
-                                            key={subscription.feedId}
-                                            aria-expanded={
-                                                selectedFeedId ===
-                                                subscription.feedId
-                                            }
-                                            aria-label={`View details for ${name}`}
-                                            onClick={() =>
-                                                setSelectedFeedId(
-                                                    subscription.feedId,
-                                                )
-                                            }
-                                            onKeyDown={(event) => {
-                                                if (
-                                                    event.key === 'Enter' ||
-                                                    event.key === ' '
-                                                ) {
-                                                    event.preventDefault();
-                                                    setSelectedFeedId(
-                                                        subscription.feedId,
-                                                    );
-                                                }
-                                            }}
-                                            role="button"
-                                            style={{ cursor: 'pointer' }}
-                                            tabIndex={0}
-                                        >
-                                            <Table.Td
+                            </div>
+                            <Table.ScrollContainer minWidth={900}>
+                                <Table
+                                    className={classes.table}
+                                    highlightOnHover
+                                    verticalSpacing="sm"
+                                    withRowBorders
+                                >
+                                    <Table.Thead>
+                                        <Table.Tr>
+                                            <Table.Th
                                                 style={{
                                                     width: '32%',
                                                     minWidth: 280,
                                                 }}
                                             >
-                                                <Group gap="sm" wrap="nowrap">
-                                                    <FeedFavicon
-                                                        isDark={
-                                                            subscription.faviconIsDark
-                                                        }
-                                                        size={32}
-                                                        src={
-                                                            subscription.faviconUrl
-                                                        }
-                                                    />
-                                                    <Stack gap={0}>
-                                                        <Group gap={6}>
-                                                            <Text fw={600}>
-                                                                {name}
-                                                            </Text>
-                                                            {subscription.customFeedName !==
-                                                                null && (
-                                                                <Badge
-                                                                    color="gray"
-                                                                    size="xs"
-                                                                    variant="light"
-                                                                >
-                                                                    Renamed
-                                                                </Badge>
-                                                            )}
-                                                        </Group>
-                                                        <Group gap={8}>
-                                                            {subscription.siteUrl !==
-                                                                null && (
-                                                                <Anchor
-                                                                    href={
-                                                                        subscription.siteUrl
-                                                                    }
-                                                                    onClick={(
-                                                                        event,
-                                                                    ) =>
-                                                                        event.stopPropagation()
-                                                                    }
-                                                                    rel="noreferrer"
-                                                                    size="xs"
-                                                                    target="_blank"
-                                                                >
-                                                                    Website
-                                                                </Anchor>
-                                                            )}
-                                                            <Anchor
-                                                                href={
-                                                                    subscription.feedUrl
-                                                                }
-                                                                onClick={(
-                                                                    event,
-                                                                ) =>
-                                                                    event.stopPropagation()
-                                                                }
-                                                                rel="noreferrer"
-                                                                size="xs"
-                                                                target="_blank"
-                                                            >
-                                                                Feed
-                                                            </Anchor>
-                                                        </Group>
-                                                    </Stack>
+                                                <Group align="center" gap={4}>
+                                                    Name
+                                                    {renderSortIndicator(
+                                                        'name',
+                                                    )}
                                                 </Group>
-                                            </Table.Td>
-                                            <Table.Td>
-                                                <Badge
-                                                    color="blue"
-                                                    variant="light"
+                                            </Table.Th>
+                                            <Table.Th>Category</Table.Th>
+                                            <Table.Th ta="right">
+                                                <Group
+                                                    align="center"
+                                                    gap={4}
+                                                    justify="flex-end"
                                                 >
-                                                    {subscription.categoryName}
-                                                </Badge>
-                                            </Table.Td>
-                                            <Table.Td ta="right">
-                                                {subscription.entryCount.toLocaleString()}
-                                            </Table.Td>
-                                            <Table.Td>
-                                                <StatusBadge
-                                                    subscription={subscription}
-                                                />
-                                            </Table.Td>
-                                            <Table.Td>
-                                                <Tooltip
-                                                    label={formatAbsolute(
-                                                        subscription.lastSuccessfulRefreshAt,
+                                                    Entries
+                                                    {renderSortIndicator(
+                                                        'entries',
                                                     )}
-                                                    withArrow
-                                                >
-                                                    <Text size="sm">
-                                                        {formatRelative(
-                                                            subscription.lastSuccessfulRefreshAt,
-                                                        )}
-                                                    </Text>
-                                                </Tooltip>
-                                            </Table.Td>
-                                            <Table.Td>
-                                                <Tooltip
-                                                    label={formatAbsolute(
-                                                        lastFailure,
+                                                </Group>
+                                            </Table.Th>
+                                            <Table.Th>Status</Table.Th>
+                                            <Table.Th>
+                                                <Group align="center" gap={4}>
+                                                    Last success
+                                                    {renderSortIndicator(
+                                                        'lastSuccess',
                                                     )}
-                                                    withArrow
-                                                >
-                                                    <Text size="sm">
-                                                        {formatRelative(
-                                                            lastFailure,
-                                                        )}
-                                                    </Text>
-                                                </Tooltip>
-                                            </Table.Td>
+                                                </Group>
+                                            </Table.Th>
+                                            <Table.Th>
+                                                <Group align="center" gap={4}>
+                                                    Last failure
+                                                    {renderSortIndicator(
+                                                        'lastFailure',
+                                                    )}
+                                                </Group>
+                                            </Table.Th>
                                         </Table.Tr>
-                                    );
-                                })}
-                            </Table.Tbody>
-                        </Table>
-                    </Table.ScrollContainer>
-                )}
+                                    </Table.Thead>
+                                    <Table.Tbody>
+                                        {filtered.length === 0 && (
+                                            <Table.Tr>
+                                                <Table.Td colSpan={6}>
+                                                    <Text
+                                                        c="dimmed"
+                                                        size="sm"
+                                                        ta="center"
+                                                    >
+                                                        No subscriptions match
+                                                        the current filters.
+                                                    </Text>
+                                                </Table.Td>
+                                            </Table.Tr>
+                                        )}
+                                        {filtered.map((subscription) => {
+                                            const name =
+                                                subscription.customFeedName ??
+                                                subscription.feedName;
+                                            const lastFailure =
+                                                subscription.lastFailedRefreshAt;
+                                            const subscriptionStatus =
+                                                getSubscriptionStatus(
+                                                    subscription,
+                                                );
+                                            const issue =
+                                                subscriptionStatus ===
+                                                    'failing' ||
+                                                subscriptionStatus === 'gone'
+                                                    ? (subscription.lastErrorMessage ??
+                                                      subscription.lastErrorClass ??
+                                                      (subscriptionStatus ===
+                                                      'gone'
+                                                          ? 'Feed is no longer available.'
+                                                          : `${subscription.consecutiveFailures.toLocaleString()} consecutive refresh failures`))
+                                                    : null;
+                                            return (
+                                                <Table.Tr
+                                                    key={subscription.feedId}
+                                                    aria-expanded={
+                                                        selectedFeedId ===
+                                                        subscription.feedId
+                                                    }
+                                                    aria-label={`View details for ${name}`}
+                                                    onClick={() =>
+                                                        setSelectedFeedId(
+                                                            subscription.feedId,
+                                                        )
+                                                    }
+                                                    onKeyDown={(event) => {
+                                                        if (
+                                                            event.key ===
+                                                                'Enter' ||
+                                                            event.key === ' '
+                                                        ) {
+                                                            event.preventDefault();
+                                                            setSelectedFeedId(
+                                                                subscription.feedId,
+                                                            );
+                                                        }
+                                                    }}
+                                                    role="button"
+                                                    style={{
+                                                        cursor: 'pointer',
+                                                    }}
+                                                    tabIndex={0}
+                                                >
+                                                    <Table.Td
+                                                        style={{
+                                                            width: '32%',
+                                                            minWidth: 280,
+                                                        }}
+                                                    >
+                                                        <Group
+                                                            gap="sm"
+                                                            wrap="nowrap"
+                                                        >
+                                                            <FeedFavicon
+                                                                isDark={
+                                                                    subscription.faviconIsDark
+                                                                }
+                                                                size={32}
+                                                                src={
+                                                                    subscription.faviconUrl
+                                                                }
+                                                            />
+                                                            <Stack gap={0}>
+                                                                <Group gap={6}>
+                                                                    <Text
+                                                                        fw={600}
+                                                                    >
+                                                                        {name}
+                                                                    </Text>
+                                                                    {subscription.customFeedName !==
+                                                                        null && (
+                                                                        <Text
+                                                                            c="dimmed"
+                                                                            component="span"
+                                                                            size="xs"
+                                                                        >
+                                                                            Renamed
+                                                                        </Text>
+                                                                    )}
+                                                                </Group>
+                                                                <Group gap={8}>
+                                                                    {subscription.siteUrl !==
+                                                                        null && (
+                                                                        <Anchor
+                                                                            href={
+                                                                                subscription.siteUrl
+                                                                            }
+                                                                            onClick={(
+                                                                                event,
+                                                                            ) =>
+                                                                                event.stopPropagation()
+                                                                            }
+                                                                            rel="noreferrer"
+                                                                            size="xs"
+                                                                            target="_blank"
+                                                                        >
+                                                                            Website
+                                                                        </Anchor>
+                                                                    )}
+                                                                    <Anchor
+                                                                        href={
+                                                                            subscription.feedUrl
+                                                                        }
+                                                                        onClick={(
+                                                                            event,
+                                                                        ) =>
+                                                                            event.stopPropagation()
+                                                                        }
+                                                                        rel="noreferrer"
+                                                                        size="xs"
+                                                                        target="_blank"
+                                                                    >
+                                                                        Feed
+                                                                    </Anchor>
+                                                                </Group>
+                                                            </Stack>
+                                                        </Group>
+                                                    </Table.Td>
+                                                    <Table.Td>
+                                                        <Text size="sm">
+                                                            {
+                                                                subscription.categoryName
+                                                            }
+                                                        </Text>
+                                                    </Table.Td>
+                                                    <Table.Td ta="right">
+                                                        {subscription.entryCount.toLocaleString()}
+                                                    </Table.Td>
+                                                    <Table.Td>
+                                                        <Stack gap={3}>
+                                                            <StatusBadge
+                                                                subscription={
+                                                                    subscription
+                                                                }
+                                                            />
+                                                            {issue !== null && (
+                                                                <Text
+                                                                    className={
+                                                                        classes.issue
+                                                                    }
+                                                                    c="red"
+                                                                    lineClamp={
+                                                                        2
+                                                                    }
+                                                                    size="xs"
+                                                                    title={
+                                                                        issue
+                                                                    }
+                                                                >
+                                                                    {issue}
+                                                                </Text>
+                                                            )}
+                                                        </Stack>
+                                                    </Table.Td>
+                                                    <Table.Td>
+                                                        <Tooltip
+                                                            label={formatAbsolute(
+                                                                subscription.lastSuccessfulRefreshAt,
+                                                            )}
+                                                            withArrow
+                                                        >
+                                                            <Text size="sm">
+                                                                {formatRelative(
+                                                                    subscription.lastSuccessfulRefreshAt,
+                                                                )}
+                                                            </Text>
+                                                        </Tooltip>
+                                                    </Table.Td>
+                                                    <Table.Td>
+                                                        <Tooltip
+                                                            label={formatAbsolute(
+                                                                lastFailure,
+                                                            )}
+                                                            withArrow
+                                                        >
+                                                            <Text size="sm">
+                                                                {formatRelative(
+                                                                    lastFailure,
+                                                                )}
+                                                            </Text>
+                                                        </Tooltip>
+                                                    </Table.Td>
+                                                </Table.Tr>
+                                            );
+                                        })}
+                                    </Table.Tbody>
+                                </Table>
+                            </Table.ScrollContainer>
+                        </>
+                    )}
+                </Paper>
             </Stack>
         </ApplicationPage>
     );

@@ -2,14 +2,13 @@ import { Heatmap, LineChart } from '@mantine/charts';
 import {
     Alert,
     Button,
-    Card,
     Group,
     Loader,
     NavLink,
+    Paper,
     ScrollArea,
     SegmentedControl,
     Select,
-    SimpleGrid,
     Skeleton,
     Stack,
     Text,
@@ -24,7 +23,13 @@ import {
     IconRefresh,
 } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import {
+    type FormEvent,
+    type ReactNode,
+    useEffect,
+    useMemo,
+    useState,
+} from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 
 import type { ChartData, ChartRequest } from '../api/charts';
@@ -36,12 +41,13 @@ import {
 import { ApplicationPage } from '../components/ApplicationPage';
 import { chartQueryOptions } from '../queries/charts';
 import { subscriptionManagementQueryOptions } from '../queries/subscriptions';
+import classes from './ChartsPage.module.css';
 
 export const refreshAttemptSeries = [
     {
         name: 'successes',
         label: 'Successful',
-        color: 'teal.6',
+        color: 'sage.6',
     },
     {
         name: 'failures',
@@ -64,7 +70,7 @@ const formatDate = (date: string) =>
         timeZone: 'UTC',
     });
 
-function SummaryCard({
+function SummaryMetric({
     label,
     value,
     description,
@@ -74,19 +80,36 @@ function SummaryCard({
     readonly description?: string;
 }) {
     return (
-        <Card padding="lg" radius="md" withBorder>
-            <Stack gap={2}>
-                <Text c="dimmed" fw={500} size="sm">
-                    {label}
+        <div className={classes.summaryMetric}>
+            <Text className={classes.metricLabel} component="span">
+                {label}
+            </Text>
+            <Text className={classes.metricValue} component="strong">
+                {value}
+            </Text>
+            {description !== undefined && (
+                <Text c="dimmed" component="span" size="xs">
+                    {description}
                 </Text>
-                <Title order={3}>{value}</Title>
-                {description !== undefined && (
-                    <Text c="dimmed" size="sm">
-                        {description}
-                    </Text>
-                )}
-            </Stack>
-        </Card>
+            )}
+        </div>
+    );
+}
+
+function ChartSurface({
+    children,
+    title,
+}: {
+    readonly children: ReactNode;
+    readonly title: string;
+}) {
+    return (
+        <Paper className={classes.chartSurface} component="section" p={0}>
+            <header className={classes.surfaceHeader}>
+                <Title order={3}>{title}</Title>
+            </header>
+            <div className={classes.chartBody}>{children}</div>
+        </Paper>
     );
 }
 
@@ -138,38 +161,50 @@ function ChartsDashboard({ data }: { readonly data: ChartData }) {
 
     return (
         <Stack gap="xl">
-            <Stack gap="md" id="key-metrics">
-                <Title order={2}>Key Metrics</Title>
-                <SimpleGrid
-                    cols={{ base: 1, sm: 2, md: 3, lg: 5 }}
-                    spacing="lg"
-                >
-                    <SummaryCard
+            <Paper
+                className={classes.summarySurface}
+                component="section"
+                id="key-metrics"
+                p={0}
+            >
+                <header className={classes.surfaceHeader}>
+                    <Title order={2}>Key Metrics</Title>
+                    <Text c="dimmed" size="xs">
+                        {dateRangeLabel}
+                    </Text>
+                </header>
+                <div className={classes.summaryStrip}>
+                    <SummaryMetric
                         label="Entries received"
                         value={data.summary.received.toLocaleString()}
                     />
-                    <SummaryCard
+                    <SummaryMetric
                         description={`${(
                             data.summary.cohortReadThroughRate ?? 0
                         ).toFixed(1)}% read-through`}
                         label="Entries read"
                         value={data.summary.currentlyRead.toLocaleString()}
                     />
-                    <SummaryCard
+                    <SummaryMetric
                         label="Entries saved"
                         value={data.summary.currentlySaved.toLocaleString()}
                     />
-                    <SummaryCard
+                    <SummaryMetric
                         label="Current backlog"
                         value={data.summary.currentUnread.toLocaleString()}
                     />
-                    <SummaryCard label="Date range" value={dateRangeLabel} />
-                </SimpleGrid>
-            </Stack>
+                </div>
+            </Paper>
 
-            <Stack gap="xl" id="activity">
-                <Stack gap="sm">
-                    <Title order={2}>Daily Reads Activity</Title>
+            <Stack component="section" gap="md" id="activity">
+                <div className={classes.sectionHeading}>
+                    <Title order={2}>Daily activity</Title>
+                    <Text c="dimmed" size="sm">
+                        Reader actions and feed arrivals across the selected
+                        range.
+                    </Text>
+                </div>
+                <ChartSurface title="Daily Reads Activity">
                     <Heatmap
                         colors={[
                             'var(--mantine-color-blue-1)',
@@ -191,9 +226,8 @@ function ChartsDashboard({ data }: { readonly data: ChartData }) {
                         withTooltip
                         withWeekdayLabels
                     />
-                </Stack>
-                <Stack gap="sm">
-                    <Title order={2}>Daily Subscription Entries</Title>
+                </ChartSurface>
+                <ChartSurface title="Daily Subscription Entries">
                     <Heatmap
                         colors={[
                             'var(--mantine-color-green-1)',
@@ -215,15 +249,14 @@ function ChartsDashboard({ data }: { readonly data: ChartData }) {
                         withTooltip
                         withWeekdayLabels
                     />
-                </Stack>
-                <Stack gap="sm">
-                    <Title order={2}>Daily Saved Entries</Title>
+                </ChartSurface>
+                <ChartSurface title="Daily Saved Entries">
                     <Heatmap
                         colors={[
-                            'var(--mantine-color-yellow-1)',
-                            'var(--mantine-color-yellow-4)',
-                            'var(--mantine-color-yellow-6)',
-                            'var(--mantine-color-yellow-8)',
+                            'var(--mantine-color-orange-1)',
+                            'var(--mantine-color-orange-4)',
+                            'var(--mantine-color-orange-6)',
+                            'var(--mantine-color-orange-8)',
                         ]}
                         data={saved}
                         endDate={data.window.endDate}
@@ -239,7 +272,7 @@ function ChartsDashboard({ data }: { readonly data: ChartData }) {
                         withTooltip
                         withWeekdayLabels
                     />
-                </Stack>
+                </ChartSurface>
                 <Alert color="blue" variant="light">
                     {data.activityCoverageStart === null
                         ? 'Reader activity tracking starts after this chart window.'
@@ -247,43 +280,42 @@ function ChartsDashboard({ data }: { readonly data: ChartData }) {
                 </Alert>
             </Stack>
 
-            <Stack gap="xl" id="refreshes">
-                <Stack gap="sm">
-                    <Title order={2}>Refresh Activity</Title>
-                    <SimpleGrid
-                        cols={{ base: 1, sm: 2, md: 3, lg: 5 }}
-                        spacing="lg"
+            <Stack component="section" gap="md" id="refreshes">
+                <Paper className={classes.summarySurface} p={0}>
+                    <header className={classes.surfaceHeader}>
+                        <Title order={2}>Refresh Activity</Title>
+                    </header>
+                    <div
+                        className={`${classes.summaryStrip} ${classes.refreshSummary}`}
                     >
-                        <SummaryCard
+                        <SummaryMetric
                             label="Refresh attempts"
                             value={data.summary.refreshAttempts.toLocaleString()}
                         />
-                        <SummaryCard
+                        <SummaryMetric
                             label="Success rate"
                             value={`${(
                                 data.summary.refreshSuccessRate ?? 0
                             ).toFixed(1)}%`}
                         />
-                        <SummaryCard
+                        <SummaryMetric
                             label="Successful refreshes"
                             value={data.summary.refreshSuccesses.toLocaleString()}
                         />
-                        <SummaryCard
+                        <SummaryMetric
                             label="Failed refreshes"
                             value={data.summary.refreshFailures.toLocaleString()}
                         />
-                        <SummaryCard
-                            description="Entries gathered during refreshes"
+                        <SummaryMetric
                             label="Entries created"
                             value={data.summary.refreshEntriesCreated.toLocaleString()}
                         />
-                    </SimpleGrid>
-                </Stack>
+                    </div>
+                </Paper>
 
                 {data.summary.refreshAttempts > 0 ? (
-                    <Stack gap="xl">
-                        <Stack gap="sm">
-                            <Title order={3}>Daily attempts</Title>
+                    <Stack gap="md">
+                        <ChartSurface title="Daily attempts">
                             <LineChart
                                 data={refreshActivity}
                                 dataKey="date"
@@ -298,9 +330,8 @@ function ChartsDashboard({ data }: { readonly data: ChartData }) {
                                 xAxisLabel="Date"
                                 yAxisLabel="Attempts"
                             />
-                        </Stack>
-                        <Stack gap="sm">
-                            <Title order={3}>Success rate</Title>
+                        </ChartSurface>
+                        <ChartSurface title="Success rate">
                             <LineChart
                                 connectNulls={false}
                                 data={refreshRates}
@@ -310,7 +341,7 @@ function ChartsDashboard({ data }: { readonly data: ChartData }) {
                                     {
                                         name: 'successRate',
                                         label: 'Success rate %',
-                                        color: 'teal.6',
+                                        color: 'sage.6',
                                     },
                                 ]}
                                 unit="%"
@@ -323,18 +354,23 @@ function ChartsDashboard({ data }: { readonly data: ChartData }) {
                                 xAxisLabel="Date"
                                 yAxisLabel="%"
                             />
-                        </Stack>
+                        </ChartSurface>
                     </Stack>
                 ) : (
-                    <Text c="dimmed" size="sm">
+                    <Text className={classes.emptyState} c="dimmed" size="sm">
                         No refresh activity recorded for this period.
                     </Text>
                 )}
             </Stack>
 
-            <Stack gap="xl" id="trends">
-                <Stack gap="sm">
-                    <Title order={2}>Unread Backlog Trend</Title>
+            <Stack component="section" gap="md" id="trends">
+                <div className={classes.sectionHeading}>
+                    <Title order={2}>Reading trends</Title>
+                    <Text c="dimmed" size="sm">
+                        Backlog pressure and cohort completion over time.
+                    </Text>
+                </div>
+                <ChartSurface title="Unread Backlog Trend">
                     <LineChart
                         data={backlog}
                         dataKey="date"
@@ -355,9 +391,8 @@ function ChartsDashboard({ data }: { readonly data: ChartData }) {
                         xAxisLabel="Date"
                         yAxisLabel="Entries"
                     />
-                </Stack>
-                <Stack gap="sm">
-                    <Title order={2}>Daily Read-through Rate</Title>
+                </ChartSurface>
+                <ChartSurface title="Daily Read-through Rate">
                     <LineChart
                         connectNulls={false}
                         data={readThrough}
@@ -367,7 +402,7 @@ function ChartsDashboard({ data }: { readonly data: ChartData }) {
                             {
                                 name: 'rate',
                                 label: 'Read-through %',
-                                color: 'indigo.6',
+                                color: 'sky.6',
                             },
                         ]}
                         unit="%"
@@ -380,7 +415,7 @@ function ChartsDashboard({ data }: { readonly data: ChartData }) {
                         xAxisLabel="Date"
                         yAxisLabel="%"
                     />
-                </Stack>
+                </ChartSurface>
             </Stack>
         </Stack>
     );
@@ -476,11 +511,36 @@ export function ChartsPage() {
 
     return (
         <ApplicationPage activePage="charts" sidebar={sidebar}>
-            <Stack gap="xl">
-                <Stack gap="md" id="filters">
-                    <Title order={2}>Filters</Title>
-                    <Stack gap="sm">
-                        <Group gap="sm" wrap="wrap">
+            <Stack className={classes.page} gap="xl">
+                <Stack gap={4}>
+                    <Title order={1}>Reading activity</Title>
+                    <Text c="dimmed" size="sm">
+                        Follow what arrives, what you read, and how reliably
+                        feeds refresh.
+                    </Text>
+                </Stack>
+
+                <Paper
+                    className={classes.filterSurface}
+                    component="section"
+                    id="filters"
+                    p={0}
+                >
+                    <header className={classes.surfaceHeader}>
+                        <Title order={2}>Filters</Title>
+                        {charts.data !== undefined && (
+                            <Text c="dimmed" size="xs">
+                                {formatDate(charts.data.window.startDate)} →{' '}
+                                {formatDate(charts.data.window.endDate)}
+                            </Text>
+                        )}
+                    </header>
+                    <Stack className={classes.filterBody} gap="sm">
+                        <Group
+                            className={classes.toolbarRow}
+                            gap="sm"
+                            wrap="wrap"
+                        >
                             <SegmentedControl
                                 data={[
                                     { value: '30', label: '30 days' },
@@ -551,7 +611,11 @@ export function ChartsPage() {
                                 </form>
                             )}
                         </Group>
-                        <Group gap="sm" wrap="wrap">
+                        <Group
+                            className={classes.toolbarRow}
+                            gap="sm"
+                            wrap="wrap"
+                        >
                             <SegmentedControl
                                 data={[
                                     {
@@ -688,26 +752,24 @@ export function ChartsPage() {
                                 </Stack>
                             </Alert>
                         )}
-                        {charts.data !== undefined && (
-                            <Text c="dimmed" size="sm">
-                                Showing data from{' '}
-                                {formatDate(charts.data.window.startDate)} →{' '}
-                                {formatDate(charts.data.window.endDate)}.
-                            </Text>
-                        )}
                     </Stack>
-                </Stack>
+                </Paper>
 
                 {charts.isPending && (
-                    <Stack aria-label="Loading charts" gap="lg">
-                        <SimpleGrid cols={{ base: 1, sm: 2, md: 3, lg: 5 }}>
-                            {['one', 'two', 'three', 'four', 'five'].map(
-                                (key) => (
-                                    <Skeleton key={key} height={112} />
-                                ),
-                            )}
-                        </SimpleGrid>
-                    </Stack>
+                    <Paper
+                        aria-label="Loading charts"
+                        className={classes.summarySurface}
+                        p={0}
+                    >
+                        <div className={classes.loadingHeader}>
+                            <Skeleton height={22} width={140} />
+                        </div>
+                        <div className={classes.summaryStrip}>
+                            {['one', 'two', 'three', 'four'].map((key) => (
+                                <Skeleton key={key} height={58} />
+                            ))}
+                        </div>
+                    </Paper>
                 )}
                 {charts.isFetching && charts.data !== undefined && (
                     <Loader aria-label="Refreshing charts" size="sm" />

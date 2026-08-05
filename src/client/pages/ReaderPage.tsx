@@ -213,41 +213,41 @@ export function ReaderPage() {
     return (
         <AppShell
             className={classes.shell}
-            header={{ height: 56 }}
+            header={{ height: { base: 58, sm: 0 } }}
             navbar={{
-                width: 300,
+                width: { base: 'min(88vw, 320px)', sm: 364 },
                 breakpoint: 'sm',
                 collapsed: { mobile: !navbarOpened },
             }}
-            padding="md"
+            padding={0}
         >
             <ApplicationHeader
                 activePage="reader"
                 hasSidebar
                 navbarOpened={navbarOpened}
                 onNavbarToggle={navbar.toggle}
+                sidebar={
+                    <ReaderSidebar
+                        categories={categoriesQuery.data?.categories}
+                        counts={countsQuery.data}
+                        error={sidebarError}
+                        isPending={
+                            categoriesQuery.isPending ||
+                            subscriptionsQuery.isPending ||
+                            countsQuery.isPending
+                        }
+                        onNavigate={navbar.close}
+                        onRetry={() => {
+                            void categoriesQuery.refetch();
+                            void subscriptionsQuery.refetch();
+                            void countsQuery.refetch();
+                        }}
+                        state={state}
+                        subscriptions={subscriptions}
+                    />
+                }
+                sidebarLabel="Feed library"
             />
-
-            <AppShell.Navbar aria-label="Feed navigation">
-                <ReaderSidebar
-                    categories={categoriesQuery.data?.categories}
-                    counts={countsQuery.data}
-                    error={sidebarError}
-                    isPending={
-                        categoriesQuery.isPending ||
-                        subscriptionsQuery.isPending ||
-                        countsQuery.isPending
-                    }
-                    onNavigate={navbar.close}
-                    onRetry={() => {
-                        void categoriesQuery.refetch();
-                        void subscriptionsQuery.refetch();
-                        void countsQuery.refetch();
-                    }}
-                    state={state}
-                    subscriptions={subscriptions}
-                />
-            </AppShell.Navbar>
 
             <AppShell.Main className={classes.main}>
                 <Split
@@ -348,11 +348,11 @@ export function ReaderPage() {
                                     onSuccess: () =>
                                         notifications.show({
                                             title: starred
-                                                ? 'Starred!'
-                                                : 'Not that good...',
+                                                ? 'Added to favorites'
+                                                : 'Removed from favorites',
                                             message: starred
-                                                ? 'Entry added to favorites'
-                                                : 'Entry removed from favorites',
+                                                ? 'The entry is now in Favorites.'
+                                                : 'The entry was removed from Favorites.',
                                             color: 'blue',
                                             withBorder: true,
                                         }),

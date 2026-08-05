@@ -1,0 +1,92 @@
+.canvas {
+    position: relative;
+    min-height: 100dvh;
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.canvas::before,
+.canvas::after {
+    position: fixed;
+    z-index: -1;
+    bottom: -7rem;
+    content: '';
+    pointer-events: none;
+}
+
+.canvas::before {
+    right: -5rem;
+    width: 28rem;
+    height: 18rem;
+    border: 1px solid color-mix(in srgb, var(--ds-sage) 18%, transparent);
+    border-radius: var(--ds-radius-xl);
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            transparent 0 28px,
+            color-mix(in srgb, var(--ds-sage) 10%, transparent) 28px 29px
+        ),
+        color-mix(in srgb, var(--ds-paper) 24%, transparent);
+    transform: rotate(-8deg);
+}
+
+.canvas::after {
+    left: -7rem;
+    width: 26rem;
+    height: 16rem;
+    border: 1px solid color-mix(in srgb, var(--ds-sky) 16%, transparent);
+    border-radius: var(--ds-radius-xl);
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            transparent 0 28px,
+            color-mix(in srgb, var(--ds-sky) 9%, transparent) 28px 29px
+        ),
+        color-mix(in srgb, var(--ds-paper) 20%, transparent);
+    transform: rotate(7deg);
+}
+
+.brand {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-3);
+    color: var(--ds-ink);
+    letter-spacing: -0.025em;
+}
+
+.brand svg {
+    filter: drop-shadow(2px 2px 0 var(--ds-shadow-color));
+}
+
+.panel {
+    position: relative;
+    overflow: hidden;
+}
+
+.panel::before {
+    position: absolute;
+    top: 0;
+    right: var(--ds-space-5);
+    left: var(--ds-space-5);
+    height: 2px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        var(--ds-sage),
+        var(--ds-accent),
+        transparent
+    );
+    content: '';
+    opacity: 0.7;
+}
+
+.privateNote {
+    font-family: var(--ds-font-mono);
+}
+
+@media (max-width: 30em) {
+    .canvas::before,
+    .canvas::after {
+        opacity: 0.65;
+    }
+}

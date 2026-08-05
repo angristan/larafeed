@@ -1,46 +1,45 @@
-/* Unified color system for consistent theming */
 :root {
-    --app-bg-primary: var(--mantine-color-white);
-    --app-bg-secondary: var(--mantine-color-gray-0);
-    --app-bg-tertiary: var(--mantine-color-gray-1);
-    --app-text-primary: var(--mantine-color-black);
-    --app-text-secondary: var(--mantine-color-gray-7);
-    --app-text-dimmed: var(--mantine-color-gray-6);
-    --app-border: var(--mantine-color-gray-3);
-    --app-border-subtle: var(--mantine-color-gray-2);
-    --app-hover: var(--mantine-color-gray-1);
-    --app-active: var(--mantine-color-gray-2);
-    --app-link: var(--mantine-color-blue-6);
-    --app-code-bg: var(--mantine-color-gray-1);
+    color-scheme: light;
+    --app-bg-primary: var(--ds-paper);
+    --app-bg-secondary: var(--ds-paper-muted);
+    --app-bg-tertiary: var(--ds-paper-strong);
+    --app-text-primary: var(--ds-ink);
+    --app-text-secondary: var(--ds-muted);
+    --app-text-dimmed: var(--ds-subtle);
+    --app-border: var(--ds-line);
+    --app-border-subtle: color-mix(in srgb, var(--ds-line) 68%, transparent);
+    --app-hover: color-mix(in srgb, var(--ds-paper-strong) 58%, transparent);
+    --app-active: var(--ds-sage-surface);
+    --app-link: var(--ds-sky);
+    --app-code-bg: var(--ds-paper-muted);
 }
 
 [data-mantine-color-scheme='dark'] {
-    --app-bg-primary: var(--mantine-color-dark-7);
-    --app-bg-secondary: var(--mantine-color-dark-6);
-    --app-bg-tertiary: var(--mantine-color-dark-5);
-    --app-text-primary: var(--mantine-color-dark-0);
-    --app-text-secondary: var(--mantine-color-dark-1);
-    --app-text-dimmed: var(--mantine-color-dark-2);
-    --app-border: var(--mantine-color-dark-4);
-    --app-border-subtle: var(--mantine-color-dark-5);
-    --app-hover: var(--mantine-color-dark-5);
-    --app-active: var(--mantine-color-dark-4);
-    --app-link: var(--mantine-color-blue-4);
-    --app-code-bg: var(--mantine-color-dark-8);
+    color-scheme: dark;
 }
 
-/* Soften outline variant buttons (entry actions) in dark mode */
-[data-mantine-color-scheme='dark'] .mantine-ActionIcon-root[data-variant='outline'] {
-    color: var(--mantine-color-dark-2);
-    border-color: var(--mantine-color-dark-4);
-}
-
-[data-mantine-color-scheme='dark'] .mantine-ActionIcon-root[data-variant='outline']:hover {
-    color: var(--mantine-color-dark-1);
+html,
+body,
+#root {
+    min-width: 20rem;
+    min-height: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 body {
+    color: var(--ds-ink);
+    background: var(--ds-canvas);
     overscroll-behavior: none;
+}
+
+::selection {
+    color: var(--ds-ink);
+    background: color-mix(in srgb, var(--ds-sage) 28%, transparent);
+}
+
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+    outline-color: var(--ds-focus);
 }
 
 pre {
@@ -48,9 +47,148 @@ pre {
     word-break: break-word;
 }
 
-/* https://dev.to/lennythedev/css-gotcha-how-to-fill-page-with-a-div-270j */
-html,
-body {
-    margin: 0 !important;
-    padding: 0 !important;
+a {
+    text-underline-offset: 0.16em;
+}
+
+.mantine-AppShell-root {
+    --app-shell-border-color: var(--ds-line);
+    color: var(--ds-ink);
+    background: transparent;
+}
+
+.mantine-AppShell-main {
+    background: transparent;
+}
+
+.mantine-AppShell-navbar {
+    border-color: var(--ds-line);
+    color: var(--ds-ink);
+    background: var(--ds-paper-muted);
+}
+
+.mantine-Divider-root {
+    border-color: var(--ds-line);
+}
+
+.mantine-Fieldset-root {
+    border: 1px solid var(--ds-line);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-inset);
+    box-shadow: var(--ds-shadow-inset);
+}
+
+.mantine-Table-scrollContainer {
+    overflow: hidden;
+    border: 1px solid var(--ds-work-line);
+    border-radius: var(--ds-radius-lg);
+    background: var(--ds-surface-work);
+    box-shadow: none;
+}
+
+.mantine-Table-table {
+    color: var(--ds-ink);
+    background: var(--ds-paper);
+}
+
+.mantine-Table-th {
+    border-color: var(--ds-line);
+    color: var(--ds-muted);
+    background: var(--ds-surface-work-header);
+    font-size: 0.6875rem;
+    font-weight: 700;
+}
+
+.mantine-Table-td {
+    border-color: var(--ds-line);
+}
+
+.mantine-Table-tr[data-striped='odd'],
+.mantine-Table-tr:nth-of-type(even) {
+    background: color-mix(in srgb, var(--ds-paper-muted) 58%, var(--ds-paper));
+}
+
+.mantine-Table-tr[data-hover]:hover {
+    background: var(--ds-sage-surface);
+}
+
+.mantine-Card-root {
+    border-color: var(--ds-work-line);
+    color: var(--ds-ink);
+    background: var(--ds-surface-work);
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--ds-line-strong) 30%, transparent);
+}
+
+.mantine-Notification-root {
+    border: 1px solid var(--ds-glass-line);
+    color: var(--ds-ink);
+    background: var(--ds-glass-sheen), var(--ds-glass-overlay);
+    box-shadow: var(--ds-shadow-float);
+    backdrop-filter: blur(var(--ds-glass-blur)) saturate(var(--ds-glass-saturate));
+}
+
+.mantine-Notification-title {
+    color: var(--ds-ink);
+}
+
+.mantine-Notification-description {
+    color: var(--ds-muted);
+}
+
+.mantine-Tooltip-tooltip {
+    border: 1px solid color-mix(in srgb, var(--ds-panel-text) 18%, transparent);
+    color: var(--ds-panel-text);
+    background: var(--ds-panel);
+    box-shadow: var(--ds-shadow-md);
+}
+
+.mantine-Pagination-control {
+    border-color: var(--ds-line-strong);
+    color: var(--ds-ink);
+    background: var(--ds-paper);
+}
+
+.mantine-Pagination-control[data-active] {
+    border-color: var(--ds-sage);
+    color: var(--ds-paper);
+    background: var(--ds-sage);
+}
+
+[data-mantine-color-scheme='dark'] .mantine-Pagination-control[data-active] {
+    color: var(--ds-canvas);
+}
+
+.mantine-Code-root {
+    border: 1px solid var(--ds-line);
+    color: var(--ds-muted);
+    background: var(--ds-paper-muted);
+    font-family: var(--ds-font-mono);
+}
+
+.mantine-Skeleton-root::before {
+    background: var(--ds-paper-strong);
+}
+
+* {
+    scrollbar-color: var(--ds-line-strong) transparent;
+    scrollbar-width: thin;
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+    .mantine-Notification-root {
+        background: var(--ds-paper);
+    }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    .mantine-Notification-root {
+        background: var(--ds-paper);
+        backdrop-filter: none;
+    }
+}
+
+@media (max-width: 43.74em) {
+    .mantine-AppShell-main {
+        padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+    }
 }

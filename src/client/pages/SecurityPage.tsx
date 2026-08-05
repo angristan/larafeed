@@ -5,7 +5,6 @@ import {
     Divider,
     Group,
     Modal,
-    Paper,
     Skeleton,
     Stack,
     Text,
@@ -149,13 +148,14 @@ function ProfileSection() {
     };
 
     return (
-        <Stack component="section" gap="md" id="profile" maw={520}>
+        <Stack component="section" gap="lg" id="profile" maw={600}>
             <Stack gap={3}>
                 <Title order={2}>Profile settings</Title>
                 <Text c="dimmed" size="sm">
                     Update the name and email attached to your private account.
                 </Text>
             </Stack>
+            <Divider />
             {profile.isPending ? (
                 <Stack gap="sm">
                     <Skeleton height={62} />
@@ -260,7 +260,15 @@ function PasskeyItem({
         },
     });
     return (
-        <Paper p="md" withBorder>
+        <Stack
+            component="li"
+            gap="md"
+            py="md"
+            style={{
+                borderBottom: '1px solid var(--ds-line)',
+                listStyle: 'none',
+            }}
+        >
             <Modal
                 centered
                 onClose={() => setConfirm(false)}
@@ -330,7 +338,7 @@ function PasskeyItem({
                     method.
                 </Text>
             )}
-        </Paper>
+        </Stack>
     );
 }
 
@@ -385,9 +393,15 @@ function PasskeysSection() {
     };
 
     return (
-        <Stack component="section" gap="md" id="security" maw={520}>
+        <Stack component="section" gap="lg" id="security" maw={600}>
             <Stack gap={3}>
                 <Title order={2}>Security</Title>
+                <Text c="dimmed" size="sm">
+                    Manage the sign-in methods that protect this account.
+                </Text>
+            </Stack>
+            <Divider />
+            <Stack gap={3}>
                 <Title order={3}>Passkeys</Title>
                 <Text c="dimmed" size="sm">
                     Keep at least two passkeys on separate devices for safer
@@ -461,7 +475,7 @@ function PasskeysSection() {
                     title="Passkeys unavailable"
                 />
             ) : (
-                <Stack gap="sm">
+                <Stack component="ul" gap={0} m={0} p={0}>
                     {passkeys.data.passkeys.map((passkey) => (
                         <PasskeyItem
                             count={passkeys.data.passkeys.length}
@@ -568,7 +582,7 @@ function DangerSection({
     const pending = wipe.isPending || remove.isPending;
     const error = wipe.error ?? remove.error;
     return (
-        <Stack component="section" gap="md" maw={520}>
+        <Stack component="section" gap="lg" maw={600}>
             {config.isError && (
                 <Alert
                     color="red"
@@ -702,7 +716,13 @@ export function SecurityPage() {
 
     return (
         <ApplicationPage activePage="settings" settingsNavigation>
-            <Stack gap="xl" maw={720} mx="auto" my="md">
+            <Stack
+                gap="xl"
+                maw={760}
+                mx="auto"
+                my="md"
+                px={{ base: 0, sm: 'md' }}
+            >
                 <Stack gap={4}>
                     <Title order={1}>Settings</Title>
                     <Text c="dimmed" size="sm">
@@ -710,16 +730,20 @@ export function SecurityPage() {
                         tools.
                     </Text>
                 </Stack>
+                <Divider />
                 {section === 'security' ? (
                     <PasskeysSection />
                 ) : (
                     <>
                         <ProfileSection />
                         {profile.data !== undefined && (
-                            <DangerSection
-                                userId={profile.data.id}
-                                username={profile.data.username}
-                            />
+                            <>
+                                <Divider />
+                                <DangerSection
+                                    userId={profile.data.id}
+                                    username={profile.data.username}
+                                />
+                            </>
                         )}
                     </>
                 )}

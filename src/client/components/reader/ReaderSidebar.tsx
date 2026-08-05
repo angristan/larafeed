@@ -4,7 +4,6 @@ import {
     AppShell,
     Badge,
     Button,
-    Code,
     Collapse,
     Divider,
     Fieldset,
@@ -419,7 +418,7 @@ export function AddFeedModal({
                                     mt="md"
                                     type="submit"
                                 >
-                                    Submit
+                                    Add feed
                                 </Button>
                             </form>
                         ) : (
@@ -462,7 +461,7 @@ export function AddFeedModal({
                                     mt="md"
                                     type="submit"
                                 >
-                                    Submit
+                                    Create category
                                 </Button>
                             </form>
                         )}
@@ -751,7 +750,7 @@ export function FeedActions({
                             mt="md"
                             type="submit"
                         >
-                            Submit
+                            Save changes
                         </Button>
                     </form>
                 </Fieldset>
@@ -1199,28 +1198,47 @@ export function ReaderSidebar({
                 initialFeedUrl={bookmarkletFeedUrl ?? undefined}
                 opened={addOpened}
             />
-            <AppShell.Section pl="md" pr="md" pt="md">
+            <AppShell.Section p="lg" pb="sm">
+                <Group justify="space-between" wrap="nowrap">
+                    <Stack gap={1}>
+                        <Text fw={750} size="sm">
+                            Library
+                        </Text>
+                        <Text c="dimmed" ff="monospace" size="xs">
+                            {(subscriptions?.length ?? 0).toLocaleString()}{' '}
+                            feeds
+                        </Text>
+                    </Stack>
+                    <Tooltip label="Create feed or category" position="right">
+                        <ActionIcon
+                            aria-label="Create feed or category"
+                            onClick={openAddModal}
+                            size="md"
+                            variant="subtle"
+                        >
+                            <IconPlus size={16} stroke={1.7} />
+                        </ActionIcon>
+                    </Tooltip>
+                </Group>
                 <TextInput
                     aria-label="Search feeds"
                     classNames={{ input: classes.searchInput }}
-                    leftSection={<IconSearch size={12} stroke={1.5} />}
-                    mb="sm"
+                    leftSection={<IconSearch size={14} stroke={1.6} />}
+                    mt="md"
                     onChange={(event) => setSearch(event.currentTarget.value)}
                     onKeyDown={(event) => {
                         if (event.key === 'Escape') setSearch('');
                     }}
-                    placeholder="Search"
-                    rightSection={
-                        <Code className={classes.searchCode}>Ctrl + K</Code>
-                    }
-                    rightSectionWidth={70}
-                    size="xs"
-                    styles={{ section: { pointerEvents: 'none' } }}
+                    placeholder="Filter library"
+                    size="sm"
                     value={search}
                 />
             </AppShell.Section>
 
             <AppShell.Section>
+                <Text className={classes.sectionLabel} c="dimmed" size="xs">
+                    Queue
+                </Text>
                 <div className={classes.mainLinks}>
                     <FilterLink
                         badgeVariant="filled"
@@ -1270,29 +1288,9 @@ export function ReaderSidebar({
             <Divider mb="sm" />
 
             <AppShell.Section>
-                <Group
-                    className={classes.collectionsHeader}
-                    justify="space-between"
-                >
-                    <Text c="dimmed" fw={500} size="xs">
-                        Feeds
-                    </Text>
-                    <Tooltip
-                        label="Create feed or category"
-                        opened={(subscriptions?.length ?? 0) === 0 || undefined}
-                        position="right"
-                        withArrow
-                    >
-                        <ActionIcon
-                            aria-label="Create feed or category"
-                            onClick={openAddModal}
-                            size={18}
-                            variant="default"
-                        >
-                            <IconPlus size={12} stroke={1.5} />
-                        </ActionIcon>
-                    </Tooltip>
-                </Group>
+                <Text className={classes.sectionLabel} c="dimmed" size="xs">
+                    Feeds
+                </Text>
             </AppShell.Section>
 
             <AppShell.Section component={ScrollArea} grow>

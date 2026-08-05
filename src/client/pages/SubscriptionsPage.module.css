@@ -1,40 +1,122 @@
+.page {
+    width: min(100%, 88rem);
+    padding: var(--ds-space-3);
+    margin-inline: auto;
+}
+
+.auditSurface {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--ds-work-line);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-work);
+    box-shadow: none;
+}
+
+.statusSummary {
+    display: flex;
+    min-height: 2.75rem;
+    align-items: center;
+    gap: 0;
+    border-bottom: 1px solid var(--ds-work-line);
+    background: var(--ds-surface-work-header);
+}
+
+.statusSummary > span {
+    padding: var(--ds-space-2) var(--ds-space-4);
+    border-right: 1px solid var(--ds-line);
+    color: var(--ds-muted);
+    font-variant-numeric: tabular-nums;
+    font-weight: 650;
+}
+
+.statusSummary > span:nth-child(2) {
+    color: var(--ds-rust);
+}
+
+.statusSummary > span:last-child {
+    border-right: 0;
+}
+
+.toolbarHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-space-4);
+    padding: var(--ds-space-3) var(--ds-space-4) 0;
+}
+
+.toolbarHeader h2 {
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
 .filterGrid {
     display: grid;
-    grid-template-columns: minmax(14rem, 2fr) repeat(3, minmax(10rem, 1fr));
-    gap: var(--mantine-spacing-sm);
+    grid-template-columns: minmax(15rem, 1.6fr) repeat(3, minmax(10rem, 1fr));
+    gap: var(--ds-space-3);
     align-items: end;
+    padding: var(--ds-space-3) var(--ds-space-4) var(--ds-space-4);
+    border-bottom: 1px solid var(--ds-work-line);
 }
 
-.subscriptionCard {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: var(--mantine-spacing-md);
-    align-items: center;
+.inlineAlert {
+    margin: var(--ds-space-3) var(--ds-space-4);
 }
 
-.subscriptionCopy {
-    min-width: 0;
+.stateRegion {
+    margin: var(--ds-space-4);
 }
 
-.subscriptionMeta {
+.tableSummary {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--mantine-spacing-xs) var(--mantine-spacing-md);
+    min-height: 2.25rem;
     align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-space-3);
+    padding: var(--ds-space-2) var(--ds-space-4);
+    border-bottom: 1px solid var(--ds-line);
+    background: var(--ds-paper-muted);
 }
 
-.categoryRow {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: var(--mantine-spacing-sm);
-    align-items: center;
+.table {
+    font-variant-numeric: tabular-nums;
 }
 
-.patternRow {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: var(--mantine-spacing-xs);
-    align-items: start;
+.table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    border-bottom-color: var(--ds-line-strong);
+    color: var(--ds-muted);
+    background: var(--ds-surface-work-header);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.table tbody tr {
+    background: var(--ds-paper);
+}
+
+.table tbody tr:hover {
+    background: var(--ds-paper-muted);
+}
+
+.table tbody tr:focus-visible {
+    position: relative;
+    z-index: 2;
+    outline: 2px solid var(--ds-focus);
+    outline-offset: -2px;
+}
+
+.table td {
+    border-bottom-color: var(--ds-line);
+}
+
+.issue {
+    max-width: 14rem;
+    overflow-wrap: anywhere;
 }
 
 .breakAnywhere {
@@ -47,13 +129,42 @@
     }
 }
 
-@media (max-width: 47.99em) {
+@media (max-width: 43.74em) {
+    .page {
+        padding: 0;
+    }
+
+    .statusSummary {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .statusSummary > span {
+        border-right: 0;
+        border-bottom: 1px solid var(--ds-line);
+    }
+
+    .statusSummary > span:last-child {
+        border-bottom: 0;
+    }
+
+    .toolbarHeader {
+        align-items: flex-start;
+    }
+
     .filterGrid {
         grid-template-columns: minmax(0, 1fr);
     }
 
-    .subscriptionCard,
-    .categoryRow {
-        grid-template-columns: minmax(0, 1fr);
+    .toolbarHeader,
+    .filterGrid,
+    .tableSummary {
+        padding-inline: var(--ds-space-3);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .table tbody tr {
+        transition: none;
     }
 }

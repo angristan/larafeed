@@ -17,7 +17,7 @@ import { RouterProvider } from 'react-router/dom';
 
 import { queryClient } from './queryClient';
 import { router } from './router';
-import { theme } from './theme';
+import { cssVariablesResolver, theme } from './theme';
 
 const rootElement = document.getElementById('root');
 
@@ -34,6 +34,7 @@ createRoot(rootElement).render(
         <QueryClientProvider client={queryClient}>
             <MantineProvider
                 colorSchemeManager={colorSchemeManager}
+                cssVariablesResolver={cssVariablesResolver}
                 defaultColorScheme="light"
                 theme={theme}
             >

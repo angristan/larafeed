@@ -6,19 +6,13 @@ import {
     FileInput,
     Group,
     Loader,
-    Paper,
     Progress,
     SimpleGrid,
     Stack,
     Text,
     Title,
 } from '@mantine/core';
-import {
-    IconDownload,
-    IconFileImport,
-    IconInfoCircle,
-    IconRefresh,
-} from '@tabler/icons-react';
+import { IconDownload, IconFileImport, IconRefresh } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type FormEvent, useMemo, useState } from 'react';
 import type { OpmlImport } from '../api/opml';
@@ -100,110 +94,109 @@ function ImportCard({ opmlImport }: { readonly opmlImport: OpmlImport }) {
     const headingId = `opml-import-${opmlImport.id}`;
 
     return (
-        <Paper
+        <Stack
             component="article"
             aria-labelledby={headingId}
-            withBorder
-            p={{ base: 'md', sm: 'lg' }}
+            gap="md"
+            py="md"
+            style={{ borderBottom: '1px solid var(--ds-line)' }}
         >
-            <Stack gap="md">
-                <Group justify="space-between" align="flex-start" wrap="wrap">
-                    <Stack gap={2}>
-                        <Title id={headingId} order={3} size="h4">
-                            {opmlImport.filename ?? `Import #${opmlImport.id}`}
-                        </Title>
-                        <Text c="dimmed" size="xs">
-                            Started {formatTimestamp(opmlImport.createdAt)}
-                        </Text>
-                    </Stack>
-                    <Badge color={presentation.color} variant="light">
-                        {presentation.label}
-                    </Badge>
-                </Group>
-
-                <Stack gap={6}>
-                    <Progress
-                        aria-label={`${processed.toLocaleString()} of ${opmlImport.totalItems.toLocaleString()} feeds processed`}
-                        color={opmlImport.state === 'failed' ? 'red' : 'blue'}
-                        size="md"
-                        value={progressValue(opmlImport)}
-                    />
-                    <Text
-                        aria-live={active ? 'polite' : undefined}
-                        c="dimmed"
-                        size="xs"
-                    >
-                        {opmlImport.totalItems === 0 && active
-                            ? 'Waiting for feeds to be discovered…'
-                            : `${processed.toLocaleString()} of ${opmlImport.totalItems.toLocaleString()} feeds processed`}
+            <Group justify="space-between" align="flex-start" wrap="wrap">
+                <Stack gap={2}>
+                    <Title id={headingId} order={3} size="h4">
+                        {opmlImport.filename ?? `Import #${opmlImport.id}`}
+                    </Title>
+                    <Text c="dimmed" size="xs">
+                        Started {formatTimestamp(opmlImport.createdAt)}
                     </Text>
                 </Stack>
+                <Badge color={presentation.color} variant="light">
+                    {presentation.label}
+                </Badge>
+            </Group>
 
-                <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
-                    <Stack gap={0}>
-                        <Text fw={700}>{opmlImport.totalItems}</Text>
-                        <Text c="dimmed" size="xs">
-                            Total
-                        </Text>
-                    </Stack>
-                    <Stack gap={0}>
-                        <Text c="green" fw={700}>
-                            {opmlImport.succeededItems}
-                        </Text>
-                        <Text c="dimmed" size="xs">
-                            Added
-                        </Text>
-                    </Stack>
-                    <Stack gap={0}>
-                        <Text c="yellow" fw={700}>
-                            {opmlImport.skippedItems}
-                        </Text>
-                        <Text c="dimmed" size="xs">
-                            Skipped
-                        </Text>
-                    </Stack>
-                    <Stack gap={0}>
-                        <Text c="red" fw={700}>
-                            {opmlImport.failedItems}
-                        </Text>
-                        <Text c="dimmed" size="xs">
-                            Failed
-                        </Text>
-                    </Stack>
-                </SimpleGrid>
-
-                {visibleErrors.length > 0 && (
-                    <Stack gap="xs">
-                        <Text fw={600} size="sm">
-                            Feed errors
-                        </Text>
-                        <Stack component="ul" gap="xs" m={0} pl="lg">
-                            {visibleErrors.map((error) => (
-                                <li key={`${error.position}-${error.feedUrl}`}>
-                                    <Text size="sm">
-                                        {error.title ?? error.feedUrl}
-                                    </Text>
-                                    <Text
-                                        c="dimmed"
-                                        lineClamp={1}
-                                        size="xs"
-                                        title={error.feedUrl}
-                                    >
-                                        {error.feedUrl} · {error.errorClass}
-                                    </Text>
-                                </li>
-                            ))}
-                        </Stack>
-                        {hiddenErrorCount > 0 && (
-                            <Text c="dimmed" size="xs">
-                                {hiddenErrorCount.toLocaleString()} more errors
-                                are not shown.
-                            </Text>
-                        )}
-                    </Stack>
-                )}
+            <Stack gap={6}>
+                <Progress
+                    aria-label={`${processed.toLocaleString()} of ${opmlImport.totalItems.toLocaleString()} feeds processed`}
+                    color={opmlImport.state === 'failed' ? 'red' : 'blue'}
+                    size="md"
+                    value={progressValue(opmlImport)}
+                />
+                <Text
+                    aria-live={active ? 'polite' : undefined}
+                    c="dimmed"
+                    size="xs"
+                >
+                    {opmlImport.totalItems === 0 && active
+                        ? 'Waiting for feeds to be discovered…'
+                        : `${processed.toLocaleString()} of ${opmlImport.totalItems.toLocaleString()} feeds processed`}
+                </Text>
             </Stack>
-        </Paper>
+
+            <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
+                <Stack gap={0}>
+                    <Text fw={700}>{opmlImport.totalItems}</Text>
+                    <Text c="dimmed" size="xs">
+                        Total
+                    </Text>
+                </Stack>
+                <Stack gap={0}>
+                    <Text c="green" fw={700}>
+                        {opmlImport.succeededItems}
+                    </Text>
+                    <Text c="dimmed" size="xs">
+                        Added
+                    </Text>
+                </Stack>
+                <Stack gap={0}>
+                    <Text c="orange" fw={700}>
+                        {opmlImport.skippedItems}
+                    </Text>
+                    <Text c="dimmed" size="xs">
+                        Skipped
+                    </Text>
+                </Stack>
+                <Stack gap={0}>
+                    <Text c="red" fw={700}>
+                        {opmlImport.failedItems}
+                    </Text>
+                    <Text c="dimmed" size="xs">
+                        Failed
+                    </Text>
+                </Stack>
+            </SimpleGrid>
+
+            {visibleErrors.length > 0 && (
+                <Stack gap="xs">
+                    <Text fw={600} size="sm">
+                        Feed errors
+                    </Text>
+                    <Stack component="ul" gap="xs" m={0} pl="lg">
+                        {visibleErrors.map((error) => (
+                            <li key={`${error.position}-${error.feedUrl}`}>
+                                <Text size="sm">
+                                    {error.title ?? error.feedUrl}
+                                </Text>
+                                <Text
+                                    c="dimmed"
+                                    lineClamp={1}
+                                    size="xs"
+                                    title={error.feedUrl}
+                                >
+                                    {error.feedUrl} · {error.errorClass}
+                                </Text>
+                            </li>
+                        ))}
+                    </Stack>
+                    {hiddenErrorCount > 0 && (
+                        <Text c="dimmed" size="xs">
+                            {hiddenErrorCount.toLocaleString()} more errors are
+                            not shown.
+                        </Text>
+                    )}
+                </Stack>
+            )}
+        </Stack>
     );
 }
 
@@ -219,15 +212,12 @@ function ImportHistory({
 
     if (imports.length === 0) {
         return (
-            <Paper withBorder p="xl">
-                <Stack align="center" gap="xs" ta="center">
-                    <IconInfoCircle aria-hidden="true" size={28} />
-                    <Text fw={600}>No OPML imports yet</Text>
-                    <Text c="dimmed" maw={480} size="sm">
-                        Import an OPML file to add its feeds and category paths.
-                    </Text>
-                </Stack>
-            </Paper>
+            <Stack gap={2} py="md">
+                <Text fw={600}>No OPML imports yet</Text>
+                <Text c="dimmed" maw={480} size="sm">
+                    Import an OPML file to add its feeds and category paths.
+                </Text>
+            </Stack>
         );
     }
 
@@ -342,17 +332,24 @@ export function OpmlPage() {
             pageTitle="Import & export"
             settingsNavigation
         >
-            <Stack gap="xl" maw={720} mx="auto" my="md">
+            <Stack
+                gap="xl"
+                maw={760}
+                mx="auto"
+                my="md"
+                px={{ base: 0, sm: 'md' }}
+            >
                 <Stack gap={4}>
-                    <Title order={1}>Settings</Title>
+                    <Title order={1}>Import &amp; export</Title>
                     <Text c="dimmed" size="sm">
-                        Manage your account, preferences, and data import/export
-                        tools.
+                        Move subscription lists into or out of Larafeed with
+                        OPML files.
                     </Text>
                 </Stack>
 
-                <Stack component="section" gap="lg" maw={520}>
-                    <Title order={2}>Import &amp; export</Title>
+                <Divider />
+
+                <Stack component="section" gap="lg" maw={600}>
                     <Stack gap="md">
                         <Title id="opml-upload-heading" order={3}>
                             Import OPML
@@ -437,6 +434,8 @@ export function OpmlPage() {
                         </Button>
                     </Stack>
                 </Stack>
+
+                <Divider />
 
                 <Stack
                     component="section"
