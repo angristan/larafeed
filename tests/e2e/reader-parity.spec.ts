@@ -267,6 +267,47 @@ test('keeps the unread page stable and generates a summary with one click', asyn
     expect(state.entryListRequests).toBe(1);
 });
 
+test('keeps queue filters in a dense vertical list', async ({ page }) => {
+    await mockReaderApi(page);
+    await page.goto('/feeds?filter=all&order_by=published_at&page=1');
+
+    const [unreadBox, readBox, favoritesBox] = await Promise.all([
+        page.getByRole('link', { name: /Unread/u, exact: true }).boundingBox(),
+        page.getByRole('link', { name: 'Read', exact: true }).boundingBox(),
+        page.getByRole('link', { name: 'Favorites', exact: true }).boundingBox(),
+    ]);
+
+    expect(unreadBox).not.toBeNull();
+    expect(readBox).not.toBeNull();
+    expect(favoritesBox).not.toBeNull();
+    expect(Math.abs((unreadBox?.x ?? 0) - (readBox?.x ?? 0))).toBeLessThan(1);
+    expect(Math.abs((readBox?.x ?? 0) - (favoritesBox?.x ?? 0))).toBeLessThan(
+        1,
+    );
+    expect(readBox?.y).toBeGreaterThanOrEqual(
+        (unreadBox?.y ?? 0) + (unreadBox?.height ?? 0),
+    );
+    expect(favoritesBox?.y).toBeGreaterThanOrEqual(
+        (readBox?.y ?? 0) + (readBox?.height ?? 0),
+    );
+    expect(unreadBox?.height).toBeGreaterThanOrEqual(32);
+    expect(unreadBox?.height).toBeLessThan(40);
+    await expect(page.getByText('Queue', { exact: true })).toHaveCount(0);
+
+    for (const label of ['Unread', 'Read', 'Favorites']) {
+        const dimensions = await page
+            .getByText(label, { exact: true })
+            .first()
+            .evaluate((element) => ({
+                clientWidth: element.clientWidth,
+                scrollWidth: element.scrollWidth,
+            }));
+        expect(dimensions.scrollWidth).toBeLessThanOrEqual(
+            dimensions.clientWidth,
+        );
+    }
+});
+
 test('unsubscribes from a feed after confirmation', async ({ page }) => {
     const state = await mockReaderApi(page);
     await page.goto('/feeds?filter=all&order_by=published_at&page=1');

@@ -26,7 +26,9 @@
 }
 
 .mainLinks {
-    padding: var(--ds-space-1) var(--ds-space-2) var(--ds-space-3);
+    display: grid;
+    gap: 1px;
+    padding: var(--ds-space-2);
 }
 
 .collectionsHeader {
@@ -45,11 +47,12 @@
 .mainLink {
     display: flex;
     width: 100%;
-    min-height: 44px;
+    min-width: 0;
+    min-height: 32px;
     align-items: center;
-    padding: var(--ds-space-2) var(--ds-space-3);
+    padding: 3px var(--ds-space-2);
     border: 1px solid transparent;
-    border-radius: var(--ds-radius-md);
+    border-radius: var(--ds-radius-sm);
     color: var(--ds-muted);
     font-size: var(--mantine-font-size-xs);
     font-weight: 650;
@@ -84,10 +87,20 @@
     min-width: 0;
     flex: 1;
     align-items: center;
+    gap: var(--ds-space-2);
+}
+
+.mainLinkInner span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .mainLinkIcon {
-    margin-right: var(--ds-space-3);
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
     color: var(--ds-subtle);
 }
 
@@ -421,6 +434,10 @@
 }
 
 @media (hover: none), (pointer: coarse) {
+    .mainLink {
+        min-height: 44px;
+    }
+
     .managementControl,
     .managementMenuTarget,
     .categoryDisclosure {

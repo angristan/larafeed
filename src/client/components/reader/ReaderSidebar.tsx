@@ -5,7 +5,6 @@ import {
     Badge,
     Button,
     Collapse,
-    Divider,
     Fieldset,
     Group,
     Indicator,
@@ -1252,9 +1251,6 @@ export function ReaderSidebar({
             </ApplicationSidebarHeader>
 
             <AppShell.Section>
-                <Text className={classes.sectionLabel} c="dimmed" size="xs">
-                    Queue
-                </Text>
                 <div className={classes.mainLinks}>
                     <FilterLink
                         badgeVariant="filled"
@@ -1300,8 +1296,6 @@ export function ReaderSidebar({
                     />
                 </div>
             </AppShell.Section>
-
-            <Divider mb="sm" />
 
             <AppShell.Section>
                 <Text className={classes.sectionLabel} c="dimmed" size="xs">
