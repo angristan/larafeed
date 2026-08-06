@@ -8,7 +8,10 @@ import {
     type FeedUpdatedResult,
     makeFeedRefreshService,
 } from '../feeds/service';
-import { DEFAULT_REFRESH_INTERVAL_MS } from '../jobs';
+import {
+    DEFAULT_REFRESH_INTERVAL_MS,
+    UNCHANGED_REFRESH_INTERVALS_MS,
+} from '../jobs';
 import {
     recordHandledFailure,
     safeErrorClass,
@@ -428,6 +431,17 @@ export const makeOpmlOrchestrator = (
                     ),
                 );
                 const completedAt = now();
+                const baseInterval =
+                    entries.length === 0
+                        ? UNCHANGED_REFRESH_INTERVALS_MS[0]
+                        : DEFAULT_REFRESH_INTERVAL_MS;
+                const refreshInterval =
+                    discovered.entryWindowTruncated === true
+                        ? DEFAULT_REFRESH_INTERVAL_MS
+                        : Math.max(
+                              baseInterval,
+                              discovered.publisherRefreshIntervalMs ?? 0,
+                          );
                 const [categoryId, historyId] = await Promise.all([
                     generateId(),
                     generateId(),
@@ -448,11 +462,15 @@ export const makeOpmlOrchestrator = (
                     faviconUrl: safeSiteUrl(discovered.feed.faviconUrl),
                     etag: discovered.etag,
                     lastModified: discovered.lastModified,
+                    publisherRefreshIntervalMs:
+                        discovered.publisherRefreshIntervalMs ?? null,
+                    entryWindowTruncated:
+                        discovered.entryWindowTruncated ?? false,
                     httpStatus: discovered.httpStatus,
                     durationMs: Math.max(0, completedAt - startedAt),
                     entries,
                     completedAt,
-                    nextRefreshAt: completedAt + DEFAULT_REFRESH_INTERVAL_MS,
+                    nextRefreshAt: completedAt + refreshInterval,
                 });
                 return { action: 'ack', reason: completion.state };
             } catch (cause) {

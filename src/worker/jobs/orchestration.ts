@@ -16,7 +16,6 @@ import {
     DEFAULT_JOB_LEASE_MS,
     DEFAULT_MAX_ATTEMPTS,
     DEFAULT_OUTBOX_LEASE_MS,
-    DEFAULT_REFRESH_INTERVAL_MS,
     DEFAULT_REFRESH_REDRIVE_AGE_MS,
     FEED_REFRESH_RETENTION_MS,
     MANUAL_REFRESH_COOLDOWN_MS,
@@ -457,9 +456,9 @@ export const makeJobOrchestrator = (
                 completedAt,
                 etag: result.etag,
                 lastModified: result.lastModified,
-                nextRefreshAt:
-                    result.nextRefreshAt ??
-                    completedAt + DEFAULT_REFRESH_INTERVAL_MS,
+                nextRefreshAt: result.nextRefreshAt ?? null,
+                publisherRefreshIntervalMs: result.publisherRefreshIntervalMs,
+                entryWindowTruncated: result.entryWindowTruncated,
                 httpStatus: result.httpStatus,
                 durationMs: result.durationMs ?? null,
                 notModified: result.type === 'not_modified',

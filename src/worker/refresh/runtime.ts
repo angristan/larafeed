@@ -144,6 +144,8 @@ export const makeRefreshProcessor = (
                     type: 'not_modified',
                     etag: result.etag,
                     lastModified: result.lastModified,
+                    publisherRefreshIntervalMs:
+                        result.publisherRefreshIntervalMs,
                     httpStatus: 304,
                     durationMs,
                 };
@@ -160,6 +162,8 @@ export const makeRefreshProcessor = (
                 type: 'success',
                 etag: result.etag,
                 lastModified: result.lastModified,
+                publisherRefreshIntervalMs: result.publisherRefreshIntervalMs,
+                entryWindowTruncated: result.entryWindowTruncated,
                 httpStatus: result.httpStatus,
                 durationMs,
                 feedName: result.feed.title,

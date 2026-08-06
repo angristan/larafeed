@@ -71,7 +71,7 @@ flowchart LR
 - The frontend uses React with the amazing [Mantine](https://mantine.dev/) components and hooks, React Router, and TanStack Query.
 - D1 stores users, subscriptions, entries, sessions, and durable job state.
 - Queues process feed discovery, refreshes, and favicons one feed at a time.
-- Feed requests use conditional HTTP headers to avoid downloading unchanged content.
+- Feed requests use conditional HTTP headers to avoid downloading unchanged content, then adapt their next refresh from observed changes and publisher cache hints.
 - Cloudflare Images proxies article images for privacy and performance.
 - AI summaries use Gemini through Cloudflare AI Gateway and are cached in D1.
 - Google Reader and Fever APIs are implemented from scratch.

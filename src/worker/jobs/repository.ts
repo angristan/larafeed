@@ -1,5 +1,6 @@
 import { Effect } from 'effect';
 
+import { MAX_PUBLISHER_REFRESH_INTERVAL_MS } from '../feeds/limits';
 import type { D1, D1Statement } from '../infrastructure/d1';
 import { parseStoredFilterRules } from '../subscriptions/filter';
 import {
@@ -35,6 +36,7 @@ import {
     type RefreshJobClaim,
     type RefreshRedriveResult,
     type RefreshTrigger,
+    UNCHANGED_REFRESH_INTERVALS_MS,
 } from './types';
 
 interface JobRow {
@@ -1370,6 +1372,22 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     : Math.max(latest, entry.publishedAt),
             null,
         );
+        const publisherHint = input.publisherRefreshIntervalMs;
+        if (
+            publisherHint !== undefined &&
+            publisherHint !== null &&
+            (!Number.isSafeInteger(publisherHint) ||
+                publisherHint < 1 ||
+                publisherHint > MAX_PUBLISHER_REFRESH_INTERVAL_MS)
+        ) {
+            throw new JobInvariantError(
+                operation,
+                'invalid publisher refresh interval',
+            );
+        }
+        const publisherHintProvided = publisherHint !== undefined;
+        const entryWindowStateProvided =
+            input.entryWindowTruncated !== undefined;
 
         statements.push({
             sql: `UPDATE feeds
@@ -1383,15 +1401,20 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                             AND favicon_asset_hash IS NULL THEN NULL
                         ELSE favicon_is_dark END,
                     favicon_url = CASE WHEN ? = 1 THEN ? ELSE favicon_url END,
-                    etag = ?, last_modified = ?, consecutive_failures = 0,
+                    etag = ?, last_modified = ?,
+                    publisher_refresh_interval_ms = CASE
+                        WHEN ? = 1 THEN ? ELSE publisher_refresh_interval_ms END,
+                    entry_window_truncated = CASE
+                        WHEN ? = 1 THEN ? ELSE entry_window_truncated END,
+                    consecutive_failures = 0,
                     consecutive_not_found_failures = 0, is_gone = 0,
                     last_attempt_at = ?, last_successful_refresh_at = ?,
                     latest_entry_at = CASE
                         WHEN ? IS NULL THEN latest_entry_at
                         WHEN latest_entry_at IS NULL THEN ?
                         ELSE MAX(latest_entry_at, ?) END,
-                    next_refresh_at = ?, last_error_class = NULL,
-                    last_error_message = NULL, updated_at = ?
+                    last_error_class = NULL, last_error_message = NULL,
+                    updated_at = ?
                 WHERE id = ? AND EXISTS (
                     SELECT 1 FROM jobs j WHERE ${commitPredicate}
                 )`,
@@ -1407,12 +1430,15 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 input.faviconUrl ?? null,
                 input.etag,
                 input.lastModified,
+                publisherHintProvided ? 1 : 0,
+                publisherHint ?? null,
+                entryWindowStateProvided ? 1 : 0,
+                input.entryWindowTruncated === true ? 1 : 0,
                 input.completedAt,
                 input.completedAt,
                 latestEntryAt,
                 latestEntryAt,
                 latestEntryAt,
-                Math.max(input.completedAt, input.nextRefreshAt),
                 input.completedAt,
                 input.claim.feedId,
                 ...conditionBindings,
@@ -1670,6 +1696,59 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
         mutationKinds.push('exactlyOne');
         statements.push(dailyRefreshAggregate(input.historyId, true));
         mutationKinds.push('exactlyOne');
+
+        const createdDuringRefresh = `EXISTS (
+            SELECT 1 FROM feed_refreshes
+            WHERE id = ? AND feed_id = ? AND entries_created > 0
+        )`;
+        statements.push({
+            sql: `UPDATE feeds
+                SET consecutive_unchanged_refreshes = CASE
+                        WHEN entry_window_truncated = 1
+                          OR ${createdDuringRefresh}
+                        THEN 0
+                        ELSE MIN(consecutive_unchanged_refreshes + 1, 5)
+                    END,
+                    next_refresh_at = CASE
+                        WHEN ? IS NOT NULL THEN MAX(?, ?)
+                        ELSE ? + CASE
+                            WHEN entry_window_truncated = 1 THEN ?
+                            ELSE MAX(
+                                CASE
+                                    WHEN ${createdDuringRefresh} THEN ?
+                                    WHEN consecutive_unchanged_refreshes <= 0 THEN ?
+                                    WHEN consecutive_unchanged_refreshes = 1 THEN ?
+                                    WHEN consecutive_unchanged_refreshes = 2 THEN ?
+                                    WHEN consecutive_unchanged_refreshes = 3 THEN ?
+                                    ELSE ?
+                                END,
+                                COALESCE(publisher_refresh_interval_ms, 0)
+                            )
+                        END
+                    END,
+                    updated_at = MAX(updated_at, ?)
+                WHERE id = ? AND EXISTS (
+                    SELECT 1 FROM jobs j WHERE ${commitPredicate}
+                )`,
+            bindings: [
+                input.historyId,
+                input.claim.feedId,
+                input.nextRefreshAt,
+                input.completedAt,
+                input.nextRefreshAt,
+                input.completedAt,
+                DEFAULT_REFRESH_INTERVAL_MS,
+                input.historyId,
+                input.claim.feedId,
+                DEFAULT_REFRESH_INTERVAL_MS,
+                ...UNCHANGED_REFRESH_INTERVALS_MS,
+                input.completedAt,
+                input.claim.feedId,
+                ...conditionBindings,
+            ],
+        });
+        mutationKinds.push('exactlyOne');
+
         statements.push({
             sql: `UPDATE jobs
                 SET state = 'succeeded', lease_owner = NULL,

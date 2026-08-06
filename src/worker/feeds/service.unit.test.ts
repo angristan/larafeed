@@ -16,6 +16,7 @@ import {
     MAX_FEED_REDIRECTS,
     MAX_FEED_RESPONSE_BYTES,
     makeFeedRefreshService,
+    publisherRefreshInterval,
 } from './service';
 
 const source = {
@@ -74,6 +75,86 @@ describe('feed refresh service', () => {
         expect(headers.get('accept')).toContain('application/feed+json');
         expect(headers.get('accept')).toContain('application/json');
         expect(init?.signal).toBeInstanceOf(AbortSignal);
+    });
+
+    it('parses and bounds HTTP refresh hints', async () => {
+        const now = Date.parse('2026-07-18T12:00:00Z');
+
+        expect(
+            publisherRefreshInterval(
+                new Headers({
+                    'cache-control': 'public, max-age="3600"',
+                    expires: 'Sat, 18 Jul 2026 15:00:00 GMT',
+                }),
+                now,
+            ),
+        ).toBe(3 * 60 * 60_000);
+        expect(
+            publisherRefreshInterval(
+                new Headers({ 'cache-control': 'max-age=999999' }),
+                now,
+            ),
+        ).toBe(24 * 60 * 60_000);
+        expect(
+            publisherRefreshInterval(
+                new Headers({
+                    'cache-control': 'max-age=invalid',
+                    expires: 'Sat, 18 Jul 2026 11:00:00 GMT',
+                }),
+                now,
+            ),
+        ).toBeUndefined();
+    });
+
+    it('combines HTTP and RSS refresh hints on updated feeds', async () => {
+        const now = Date.parse('2026-07-18T12:00:00Z');
+        const fetchMock = vi.fn(async () =>
+            Promise.resolve(
+                new Response(
+                    `<rss><channel><title>Hinted</title><ttl>120</ttl></channel></rss>`,
+                    {
+                        headers: {
+                            'cache-control': 'max-age=3600',
+                            'content-type': 'application/rss+xml',
+                            expires: 'Sat, 18 Jul 2026 15:00:00 GMT',
+                        },
+                    },
+                ),
+            ),
+        );
+        const service = makeFeedRefreshService({
+            fetch: fetchMock,
+            now: () => now,
+        });
+
+        await expect(
+            Effect.runPromise(service.refresh(source)),
+        ).resolves.toMatchObject({
+            kind: 'updated',
+            publisherRefreshIntervalMs: 3 * 60 * 60_000,
+            entryWindowTruncated: false,
+        });
+    });
+
+    it('returns HTTP refresh hints with 304 responses', async () => {
+        const fetchMock = vi.fn(
+            async () =>
+                new Response(null, {
+                    status: 304,
+                    headers: { 'cache-control': 'max-age=7200' },
+                }),
+        );
+        const service = makeFeedRefreshService({
+            fetch: fetchMock,
+            now: () => Date.parse('2026-07-18T12:00:00Z'),
+        });
+
+        await expect(
+            Effect.runPromise(service.refresh(source)),
+        ).resolves.toMatchObject({
+            kind: 'not-modified',
+            publisherRefreshIntervalMs: 2 * 60 * 60_000,
+        });
     });
 
     it('manually validates every redirect and resolves relative locations', async () => {

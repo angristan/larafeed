@@ -28,12 +28,13 @@ describe('refresh runtime adapter', () => {
             now: () => 1_900_000_000_000,
             fetch: async () =>
                 new Response(
-                    `<rss><channel><title>Example</title><link>https://example.test</link>
+                    `<rss><channel><title>Example</title><link>https://example.test</link><ttl>120</ttl>
                     <item><guid>entry-1</guid><title>One</title>
                     <description><![CDATA[<p>Hello</p><script>alert(1)</script>]]></description>
                     </item></channel></rss>`,
                     {
                         headers: {
+                            'cache-control': 'max-age=3600',
                             'content-type': 'application/rss+xml',
                             etag: '"v2"',
                         },
@@ -49,6 +50,8 @@ describe('refresh runtime adapter', () => {
             feedName: 'Example',
             siteUrl: 'https://example.test/',
             faviconUrl: 'https://example.test/favicon.ico',
+            publisherRefreshIntervalMs: 2 * 60 * 60_000,
+            entryWindowTruncated: false,
             entries: [
                 {
                     sourceId: 'entry-1',

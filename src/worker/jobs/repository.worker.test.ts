@@ -230,6 +230,123 @@ describe('durable feed refresh jobs', () => {
         });
     });
 
+    it('adapts successful schedules from created entries, hints, and truncation', async () => {
+        const now = 2_100_000_450_000;
+        const feedId = 314_001;
+        let sequence = 314_100;
+        await insertFeed(feedId, now);
+
+        const commit = async (input: {
+            readonly completedAt: number;
+            readonly entries?: readonly {
+                readonly key: number;
+                readonly sourceId: string;
+            }[];
+            readonly publisherRefreshIntervalMs?: number | null;
+            readonly entryWindowTruncated?: boolean;
+            readonly notModified?: boolean;
+        }) => {
+            sequence += 10;
+            const operationId = `adaptive-${sequence}`;
+            await createJob(feedId, sequence, input.completedAt - 1, {
+                operationId,
+            });
+            const jobClaim = await claim(operationId, input.completedAt - 1);
+            await repository.commitRefresh({
+                claim: jobClaim,
+                subscriptionFilterRevisions: [],
+                historyId: sequence + 2,
+                completedAt: input.completedAt,
+                etag: null,
+                lastModified: null,
+                nextRefreshAt: null,
+                publisherRefreshIntervalMs: input.publisherRefreshIntervalMs,
+                entryWindowTruncated: input.entryWindowTruncated,
+                httpStatus: input.notModified === true ? 304 : 200,
+                durationMs: 1,
+                notModified: input.notModified === true,
+                entries: (input.entries ?? []).map((entry) => ({
+                    deduplicationKey: bytes(entry.key),
+                    sourceId: entry.sourceId,
+                    title: entry.sourceId,
+                    url: null,
+                    author: null,
+                    publishedAt: input.completedAt,
+                    sourceUpdatedAt: null,
+                    updateMask: allEntryFields,
+                    content: { type: 'empty' as const },
+                    filteredUserIds: [],
+                })),
+            });
+            return first<{
+                readonly consecutive_unchanged_refreshes: number;
+                readonly publisher_refresh_interval_ms: number | null;
+                readonly entry_window_truncated: number;
+                readonly next_refresh_at: number;
+            }>(
+                `SELECT consecutive_unchanged_refreshes,
+                    publisher_refresh_interval_ms, entry_window_truncated,
+                    next_refresh_at FROM feeds WHERE id = ?`,
+                [feedId],
+            );
+        };
+
+        for (const [index, interval] of [
+            30 * 60_000,
+            60 * 60_000,
+            2 * 60 * 60_000,
+            6 * 60 * 60_000,
+            24 * 60 * 60_000,
+        ].entries()) {
+            const completedAt = now + index * 10;
+            await expect(
+                commit({ completedAt, notModified: true }),
+            ).resolves.toMatchObject({
+                consecutive_unchanged_refreshes: index + 1,
+                next_refresh_at: completedAt + interval,
+            });
+        }
+
+        const activeAt = now + 60;
+        await expect(
+            commit({
+                completedAt: activeAt,
+                entries: [{ key: 91, sourceId: 'active-entry' }],
+                publisherRefreshIntervalMs: 2 * 60 * 60_000,
+            }),
+        ).resolves.toMatchObject({
+            consecutive_unchanged_refreshes: 0,
+            publisher_refresh_interval_ms: 2 * 60 * 60_000,
+            next_refresh_at: activeAt + 2 * 60 * 60_000,
+        });
+
+        const duplicateAt = activeAt + 10;
+        await expect(
+            commit({
+                completedAt: duplicateAt,
+                entries: [{ key: 91, sourceId: 'active-entry' }],
+            }),
+        ).resolves.toMatchObject({
+            consecutive_unchanged_refreshes: 1,
+            publisher_refresh_interval_ms: 2 * 60 * 60_000,
+            next_refresh_at: duplicateAt + 2 * 60 * 60_000,
+        });
+
+        const truncatedAt = duplicateAt + 10;
+        await expect(
+            commit({
+                completedAt: truncatedAt,
+                publisherRefreshIntervalMs: 24 * 60 * 60_000,
+                entryWindowTruncated: true,
+            }),
+        ).resolves.toMatchObject({
+            consecutive_unchanged_refreshes: 0,
+            publisher_refresh_interval_ms: 24 * 60 * 60_000,
+            entry_window_truncated: 1,
+            next_refresh_at: truncatedAt + DEFAULT_REFRESH_INTERVAL_MS,
+        });
+    });
+
     it('allocates non-reused IDs for watermarks and Fever cursors', async () => {
         const now = 2_100_000_500_000;
         const userId = 315_001;

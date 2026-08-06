@@ -89,6 +89,23 @@ describe('feed parser', () => {
             new TextEncoder().encode(second?.contentHtml ?? '').byteLength,
         );
         expect(second?.deduplicationKey).toHaveLength(32);
+        expect(feed.entryWindowTruncated).toBe(false);
+    });
+
+    it('parses and bounds RSS refresh TTL hints', async () => {
+        const hinted = await parse(`<rss><channel>
+            <title>Hinted</title><ttl>120</ttl>
+        </channel></rss>`);
+        const bounded = await parse(`<rss><channel>
+            <title>Bounded</title><ttl>999999</ttl>
+        </channel></rss>`);
+        const invalid = await parse(`<rss><channel>
+            <title>Invalid</title><ttl>1e2</ttl>
+        </channel></rss>`);
+
+        expect(hinted.metadata.refreshIntervalMs).toBe(2 * 60 * 60_000);
+        expect(bounded.metadata.refreshIntervalMs).toBe(24 * 60 * 60_000);
+        expect(invalid.metadata).not.toHaveProperty('refreshIntervalMs');
     });
 
     it('decodes RSS title entities once and skips future entries', async () => {
@@ -595,6 +612,7 @@ describe('feed parser', () => {
         expect(feed.entries.some((entry) => entry.sourceId === '20')).toBe(
             false,
         );
+        expect(feed.entryWindowTruncated).toBe(true);
     });
 
     it.each([
@@ -630,6 +648,7 @@ describe('feed parser', () => {
         expect(feed.entries).toHaveLength(MAX_FEED_ENTRIES);
         expect(feed.entries[0]?.sourceId).toBe('19');
         expect(feed.entries.at(-1)?.sourceId).toBe('0');
+        expect(feed.entryWindowTruncated).toBe(true);
     });
 
     it('uses fetch time for missing or invalid dates without feed-date leakage', async () => {

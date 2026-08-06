@@ -92,6 +92,8 @@ export interface DiscoveredFeedInput {
     readonly faviconUrl: string | null;
     readonly etag: string | null;
     readonly lastModified: string | null;
+    readonly publisherRefreshIntervalMs?: number | null;
+    readonly entryWindowTruncated?: boolean;
     readonly httpStatus: number;
     readonly durationMs: number;
     readonly entries: readonly ProcessedRefreshEntry[];
@@ -720,10 +722,14 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                     {
                         sql: `INSERT INTO feeds
                             (id, name, feed_url, site_url, favicon_url,
-                             etag, last_modified, is_gone,
-                             consecutive_failures, next_refresh_at,
+                             etag, last_modified,
+                             publisher_refresh_interval_ms,
+                             entry_window_truncated,
+                             consecutive_unchanged_refreshes,
+                             is_gone, consecutive_failures, next_refresh_at,
                              created_at, updated_at)
-                            SELECT sequence.next_id, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?
+                            SELECT sequence.next_id, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                                0, 0, ?, ?, ?
                             FROM feed_id_sequence sequence
                             WHERE sequence.singleton = 1
                               AND EXISTS (
@@ -738,6 +744,12 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                             input.faviconUrl,
                             input.etag,
                             input.lastModified,
+                            input.publisherRefreshIntervalMs ?? null,
+                            input.entryWindowTruncated === true ? 1 : 0,
+                            input.entryWindowTruncated === true ||
+                            input.entries.length > 0
+                                ? 0
+                                : 1,
                             input.nextRefreshAt,
                             input.now,
                             input.now,
@@ -874,6 +886,9 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                     sql: `UPDATE feeds
                         SET last_attempt_at = ?, last_successful_refresh_at = ?,
                             latest_entry_at = ?, next_refresh_at = ?,
+                            publisher_refresh_interval_ms = ?,
+                            entry_window_truncated = ?,
+                            consecutive_unchanged_refreshes = ?,
                             last_error_class = NULL, last_error_message = NULL,
                             updated_at = ?
                         WHERE feed_url = ? AND EXISTS (
@@ -886,6 +901,12 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                         input.now,
                         latestEntryAt,
                         input.nextRefreshAt,
+                        input.publisherRefreshIntervalMs ?? null,
+                        input.entryWindowTruncated === true ? 1 : 0,
+                        input.entryWindowTruncated === true ||
+                        input.entries.length > 0
+                            ? 0
+                            : 1,
                         input.now,
                         input.feedUrl,
                         input.historyId,

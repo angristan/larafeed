@@ -1054,10 +1054,14 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
             {
                 sql: `INSERT INTO feeds (
                         id, name, feed_url, site_url, favicon_url,
-                        etag, last_modified, is_gone, consecutive_failures,
+                        etag, last_modified, publisher_refresh_interval_ms,
+                        entry_window_truncated,
+                        consecutive_unchanged_refreshes,
+                        is_gone, consecutive_failures,
                         next_refresh_at, created_at, updated_at
                     )
-                    SELECT sequence.next_id, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?
+                    SELECT sequence.next_id, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                        0, 0, ?, ?, ?
                     FROM feed_id_sequence sequence
                     WHERE sequence.singleton = 1
                         AND EXISTS (SELECT 1 FROM jobs j WHERE ${leasePredicate})
@@ -1069,6 +1073,12 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                     input.faviconUrl,
                     input.etag,
                     input.lastModified,
+                    input.publisherRefreshIntervalMs ?? null,
+                    input.entryWindowTruncated === true ? 1 : 0,
+                    input.entryWindowTruncated === true ||
+                    input.entries.length > 0
+                        ? 0
+                        : 1,
                     input.nextRefreshAt,
                     input.completedAt,
                     input.completedAt,
@@ -1201,6 +1211,9 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                     consecutive_failures = 0,
                     last_attempt_at = ?, last_successful_refresh_at = ?,
                     latest_entry_at = ?, next_refresh_at = ?,
+                    publisher_refresh_interval_ms = ?,
+                    entry_window_truncated = ?,
+                    consecutive_unchanged_refreshes = ?,
                     last_error_class = NULL, last_error_message = NULL,
                     updated_at = ?
                 WHERE feed_url = ? AND EXISTS (
@@ -1218,6 +1231,11 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                 input.completedAt,
                 latestEntryAt,
                 input.nextRefreshAt,
+                input.publisherRefreshIntervalMs ?? null,
+                input.entryWindowTruncated === true ? 1 : 0,
+                input.entryWindowTruncated === true || input.entries.length > 0
+                    ? 0
+                    : 1,
                 input.completedAt,
                 input.feedUrl,
                 input.historyId,

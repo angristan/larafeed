@@ -10,7 +10,10 @@ import {
     FeedTimeoutError,
     isFeedRefreshError,
 } from './errors';
-import { MAX_FEED_RESPONSE_BYTES } from './limits';
+import {
+    MAX_FEED_RESPONSE_BYTES,
+    MAX_PUBLISHER_REFRESH_INTERVAL_MS,
+} from './limits';
 import {
     type NormalizedFeedEntry,
     type NormalizedFeedMetadata,
@@ -60,6 +63,8 @@ interface FeedResponseMetadata {
     readonly finalUrl: string;
     readonly etag: string | null;
     readonly lastModified: string | null;
+    readonly publisherRefreshIntervalMs?: number | null;
+    readonly entryWindowTruncated?: boolean;
     readonly httpStatus: number;
 }
 
@@ -110,21 +115,53 @@ const requestHeaders = (feed: AuthoritativeFeedSource): Headers => {
     return headers;
 };
 
+const boundedRefreshInterval = (value: number): number | undefined =>
+    Number.isFinite(value) && value > 0
+        ? Math.min(
+              MAX_PUBLISHER_REFRESH_INTERVAL_MS,
+              Math.max(1, Math.trunc(value)),
+          )
+        : undefined;
+
+export const publisherRefreshInterval = (
+    headers: Headers,
+    now: number,
+): number | undefined => {
+    let cacheControlInterval: number | undefined;
+    for (const directive of (headers.get('cache-control') ?? '').split(',')) {
+        const match = /^max-age\s*=\s*"?(\d+)"?$/iu.exec(directive.trim());
+        if (match === null) continue;
+        cacheControlInterval = boundedRefreshInterval(Number(match[1]) * 1_000);
+        break;
+    }
+
+    const expiresAt = Date.parse(headers.get('expires') ?? '');
+    const expiresInterval = boundedRefreshInterval(expiresAt - now);
+    if (cacheControlInterval === undefined) return expiresInterval;
+    if (expiresInterval === undefined) return cacheControlInterval;
+    return Math.max(cacheControlInterval, expiresInterval);
+};
+
 const responseMetadata = (
     response: Response,
     finalUrl: URL,
     previous: AuthoritativeFeedSource,
+    now: number,
 ): FeedResponseMetadata => {
     const etag = safeConditionalHeader(response.headers.get('etag'));
     const lastModified = safeConditionalHeader(
         response.headers.get('last-modified'),
     );
+    const refreshInterval = publisherRefreshInterval(response.headers, now);
     return {
         finalUrl: finalUrl.href,
         etag: etag ?? (response.status === 304 ? previous.etag : null),
         lastModified:
             lastModified ??
             (response.status === 304 ? previous.lastModified : null),
+        ...(refreshInterval === undefined
+            ? {}
+            : { publisherRefreshIntervalMs: refreshInterval }),
         httpStatus: response.status,
     };
 };
@@ -423,7 +460,12 @@ const fetchFeed = async (
                 await response.body?.cancel();
                 return {
                     kind: 'not-modified',
-                    ...responseMetadata(response, currentUrl, feed),
+                    ...responseMetadata(
+                        response,
+                        currentUrl,
+                        feed,
+                        dependencies.now(),
+                    ),
                 };
             }
 
@@ -461,15 +503,31 @@ const fetchFeed = async (
                 throw new FeedNetworkError();
             }
 
+            const fetchedAt = dependencies.now();
             const parsed = await parseFeedDocument(body, {
                 finalUrl: currentUrl,
-                fetchedAt: dependencies.now(),
+                fetchedAt,
                 contentType: response.headers.get('content-type'),
                 webCrypto: dependencies.webCrypto,
             });
+            const metadata = responseMetadata(
+                response,
+                currentUrl,
+                feed,
+                fetchedAt,
+            );
+            const publisherIntervals = [
+                metadata.publisherRefreshIntervalMs,
+                parsed.metadata.refreshIntervalMs ?? undefined,
+            ].filter((value): value is number => value !== undefined);
             return {
                 kind: 'updated',
-                ...responseMetadata(response, currentUrl, feed),
+                ...metadata,
+                publisherRefreshIntervalMs:
+                    publisherIntervals.length === 0
+                        ? null
+                        : Math.max(...publisherIntervals),
+                entryWindowTruncated: parsed.entryWindowTruncated,
                 feed: parsed.metadata,
                 entries: parsed.entries,
             };

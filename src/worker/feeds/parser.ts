@@ -2,7 +2,10 @@ import { ALL_ENTITIES, COMMON_HTML } from '@nodable/entities';
 import { XMLParser } from 'fast-xml-parser';
 
 import { FeedParseError } from './errors';
-import { MAX_XML_ENTITY_EXPANSIONS } from './limits';
+import {
+    MAX_PUBLISHER_REFRESH_INTERVAL_MS,
+    MAX_XML_ENTITY_EXPANSIONS,
+} from './limits';
 import { MAX_CONTENT_BYTES, sanitizeArticleHtml } from './sanitize';
 
 // Keep initial imports and refreshes bounded while retaining the newest posts.
@@ -26,6 +29,7 @@ export interface NormalizedFeedMetadata {
     readonly faviconUrl: string | null;
     readonly description: string | null;
     readonly sourceUpdatedAt: number | null;
+    readonly refreshIntervalMs?: number | null;
 }
 
 export interface NormalizedFeedEntry {
@@ -47,6 +51,7 @@ export interface NormalizedFeedEntry {
 export interface ParsedFeed {
     readonly metadata: NormalizedFeedMetadata;
     readonly entries: readonly NormalizedFeedEntry[];
+    readonly entryWindowTruncated: boolean;
 }
 
 interface ParseFeedOptions {
@@ -402,6 +407,17 @@ const metadataFromShape = (
         ),
     );
 
+    const ttlText =
+        shape.kind === 'rss' ? firstText(shape.metadata, 'ttl') : undefined;
+    const ttlMinutes =
+        ttlText !== undefined && /^\d+$/u.test(ttlText)
+            ? Number(ttlText)
+            : Number.NaN;
+    const refreshIntervalMs =
+        Number.isSafeInteger(ttlMinutes) && ttlMinutes > 0
+            ? Math.min(MAX_PUBLISHER_REFRESH_INTERVAL_MS, ttlMinutes * 60_000)
+            : null;
+
     return {
         title,
         siteUrl,
@@ -412,6 +428,7 @@ const metadataFromShape = (
                 4_000,
             ) ?? null,
         sourceUpdatedAt,
+        ...(refreshIntervalMs === null ? {} : { refreshIntervalMs }),
     };
 };
 
@@ -714,7 +731,10 @@ const digestIdentity = async (
 const entriesFromCandidates = async (
     candidates: readonly EntryCandidate[],
     webCrypto: Crypto,
-): Promise<readonly NormalizedFeedEntry[]> => {
+): Promise<{
+    readonly entries: readonly NormalizedFeedEntry[];
+    readonly truncated: boolean;
+}> => {
     const sorted = [...candidates].sort((left, right) => {
         if (left.sortTimestamp === null && right.sortTimestamp === null) {
             return left.sourceIndex - right.sourceIndex;
@@ -732,9 +752,8 @@ const entriesFromCandidates = async (
     });
     const entries: NormalizedFeedEntry[] = [];
     const seen = new Set<string>();
+    let truncated = false;
     for (const candidate of sorted) {
-        if (entries.length === MAX_FEED_ENTRIES) break;
-
         const deduplicationKey = await digestIdentity(
             candidate.sourceIdentity,
             webCrypto,
@@ -746,6 +765,10 @@ const entriesFromCandidates = async (
             continue;
         }
         seen.add(key);
+        if (entries.length === MAX_FEED_ENTRIES) {
+            truncated = true;
+            break;
+        }
 
         const { sortTimestamp: _, sourceIndex: __, ...entry } = candidate;
         entries.push({
@@ -756,7 +779,7 @@ const entriesFromCandidates = async (
     // D1 assigns sequence IDs in iteration order. Reverse only after selecting
     // and deduplicating newest-first so duplicate precedence stays unchanged,
     // while newer entries receive higher IDs within each refresh batch.
-    return entries.reverse();
+    return { entries: entries.reverse(), truncated };
 };
 
 export const parseFeedDocument = async (
@@ -844,9 +867,13 @@ export const parseFeedDocument = async (
             );
     }
 
-    const entries = await entriesFromCandidates(
+    const selection = await entriesFromCandidates(
         candidates,
         options.webCrypto ?? globalThis.crypto,
     );
-    return { metadata, entries };
+    return {
+        metadata,
+        entries: selection.entries,
+        entryWindowTruncated: selection.truncated,
+    };
 };

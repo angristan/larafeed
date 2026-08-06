@@ -1,4 +1,5 @@
 export const MAX_FEED_RESPONSE_BYTES = 10 * 1024 * 1024;
+export const MAX_PUBLISHER_REFRESH_INTERVAL_MS = 24 * 60 * 60_000;
 
 // DTDs and custom entities are rejected before XML parsing. The shortest
 // supported built-in or numeric reference is four bytes, so a bounded feed

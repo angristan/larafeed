@@ -12,6 +12,13 @@ export const DEFAULT_MAX_ATTEMPTS = 8;
 export const DEFAULT_JOB_LEASE_MS = 5 * 60_000;
 export const DEFAULT_OUTBOX_LEASE_MS = 60_000;
 export const DEFAULT_REFRESH_INTERVAL_MS = 15 * 60_000;
+export const UNCHANGED_REFRESH_INTERVALS_MS = [
+    30 * 60_000,
+    60 * 60_000,
+    2 * 60 * 60_000,
+    6 * 60 * 60_000,
+    24 * 60 * 60_000,
+] as const;
 export const DEFAULT_REFRESH_REDRIVE_AGE_MS = 15 * 60_000;
 export const MANUAL_REFRESH_COOLDOWN_MS = 5 * 60_000;
 export const MAX_BACKOFF_MS = 6 * 60 * 60_000;
@@ -162,6 +169,10 @@ interface RefreshCompletionBase {
     readonly etag: string | null;
     readonly lastModified: string | null;
     readonly nextRefreshAt?: number;
+    /** Undefined preserves the previous hint, while null clears it. */
+    readonly publisherRefreshIntervalMs?: number | null;
+    /** Undefined preserves the previous entry-window state. */
+    readonly entryWindowTruncated?: boolean;
     readonly httpStatus: number;
     readonly durationMs?: number;
 }
@@ -205,7 +216,12 @@ export interface CommitRefreshInput {
     readonly completedAt: number;
     readonly etag: string | null;
     readonly lastModified: string | null;
-    readonly nextRefreshAt: number;
+    /** Null lets the repository calculate the adaptive successful schedule. */
+    readonly nextRefreshAt: number | null;
+    /** Undefined preserves the previous hint, while null clears it. */
+    readonly publisherRefreshIntervalMs?: number | null;
+    /** Undefined preserves the previous entry-window state. */
+    readonly entryWindowTruncated?: boolean;
     readonly httpStatus: number;
     readonly durationMs: number | null;
     readonly notModified: boolean;

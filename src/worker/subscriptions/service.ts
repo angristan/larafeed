@@ -11,7 +11,10 @@ import { generateSafeId } from '../auth/crypto';
 import type { FeedRefreshError } from '../feeds/errors';
 import { validateFeedUrl } from '../feeds/policy';
 import type { FeedUpdatedResult } from '../feeds/service';
-import { DEFAULT_REFRESH_INTERVAL_MS } from '../jobs';
+import {
+    DEFAULT_REFRESH_INTERVAL_MS,
+    UNCHANGED_REFRESH_INTERVALS_MS,
+} from '../jobs';
 import { prepareRefreshEntry } from '../refresh/entries';
 import {
     SubscriptionConflict,
@@ -259,6 +262,18 @@ export const makeSubscriptionService = (
                               );
                               const completedAt = now();
                               const feedUrl = discovered.finalUrl;
+                              const baseInterval =
+                                  entries.length === 0
+                                      ? UNCHANGED_REFRESH_INTERVALS_MS[0]
+                                      : DEFAULT_REFRESH_INTERVAL_MS;
+                              const refreshInterval =
+                                  discovered.entryWindowTruncated === true
+                                      ? DEFAULT_REFRESH_INTERVAL_MS
+                                      : Math.max(
+                                            baseInterval,
+                                            discovered.publisherRefreshIntervalMs ??
+                                                0,
+                                        );
                               return yield* repository.subscribeDiscovered({
                                   feedUrl,
                                   name: discovered.feed.title || feedUrl,
@@ -266,6 +281,11 @@ export const makeSubscriptionService = (
                                   faviconUrl: discovered.feed.faviconUrl,
                                   etag: discovered.etag,
                                   lastModified: discovered.lastModified,
+                                  publisherRefreshIntervalMs:
+                                      discovered.publisherRefreshIntervalMs ??
+                                      null,
+                                  entryWindowTruncated:
+                                      discovered.entryWindowTruncated ?? false,
                                   httpStatus: discovered.httpStatus,
                                   durationMs: Math.max(
                                       0,
@@ -276,8 +296,7 @@ export const makeSubscriptionService = (
                                   categoryId,
                                   userId,
                                   now: completedAt,
-                                  nextRefreshAt:
-                                      completedAt + DEFAULT_REFRESH_INTERVAL_MS,
+                                  nextRefreshAt: completedAt + refreshInterval,
                               });
                           })
                         : {
