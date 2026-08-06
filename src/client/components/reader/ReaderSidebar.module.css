@@ -337,9 +337,8 @@
     border-color: transparent;
     color: var(--ds-sage);
     background: color-mix(in srgb, var(--ds-sage-surface) 72%, transparent);
-    box-shadow:
-        inset 2px 0 0 var(--ds-sage),
-        inset 0 1px 0 color-mix(in srgb, var(--ds-glass-highlight) 56%, transparent);
+    box-shadow: inset 0 1px 0
+        color-mix(in srgb, var(--ds-glass-highlight) 56%, transparent);
 }
 
 .feedRow {
@@ -398,16 +397,16 @@
 .managementMenuItem[data-hovered] {
     color: var(--ds-ink);
     background: color-mix(in srgb, var(--ds-sage-surface) 58%, transparent);
-    box-shadow:
-        inset 2px 0 0 var(--ds-sage),
-        inset 0 1px 0 color-mix(in srgb, var(--ds-glass-highlight) 58%, transparent);
+    box-shadow: inset 0 1px 0
+        color-mix(in srgb, var(--ds-glass-highlight) 58%, transparent);
 }
 
 .managementMenuItem[data-color='red']:hover,
 .managementMenuItem[data-color='red'][data-hovered] {
     color: var(--ds-rust);
     background: var(--ds-rust-surface);
-    box-shadow: inset 2px 0 0 var(--ds-rust);
+    box-shadow: inset 0 1px 0
+        color-mix(in srgb, var(--ds-glass-highlight) 48%, transparent);
 }
 
 .managementMenuLabel {

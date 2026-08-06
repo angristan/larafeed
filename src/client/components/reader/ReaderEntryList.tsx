@@ -21,6 +21,7 @@ import classes from './Reader.module.css';
 
 interface ReaderEntryListProps {
     readonly state: ReaderState;
+    readonly scopeTitle: string;
     readonly page: ReaderEntryPage | undefined;
     readonly isPending: boolean;
     readonly isFetching: boolean;
@@ -33,6 +34,10 @@ interface ReaderEntryListProps {
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, {
     numeric: 'auto',
+});
+const absoluteTimeFormatter = new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
 });
 
 function formatRelativeTime(timestamp: number): string {
@@ -58,15 +63,40 @@ function formatRelativeTime(timestamp: number): string {
     return relativeTimeFormatter.format(seconds, 'second');
 }
 
-const filterTitles = {
-    all: 'All entries',
-    unread: 'Unread entries',
-    read: 'Read entries',
-    favorites: 'Favorites',
+const emptyStates = {
+    all: {
+        title: 'No entries yet',
+        message: 'New entries will appear after the next feed refresh.',
+    },
+    unread: {
+        title: 'You’re all caught up',
+        message: 'New unread entries will appear here.',
+    },
+    read: {
+        title: 'No read entries',
+        message: 'Entries you open will appear here.',
+    },
+    favorites: {
+        title: 'No favorites yet',
+        message: 'Star an entry to keep it here.',
+    },
 } as const;
+
+function formatEntryRange(page: ReaderEntryPage): string {
+    const { page: pageNumber, pageSize, total } = page.pagination;
+    if (total === 0) return '0 entries';
+    if (total === 1) return '1 entry';
+
+    const first = (pageNumber - 1) * pageSize + 1;
+    const last = Math.min(pageNumber * pageSize, total);
+    return total <= pageSize
+        ? `${total.toLocaleString()} entries`
+        : `${first.toLocaleString()}–${last.toLocaleString()} of ${total.toLocaleString()}`;
+}
 
 export function ReaderEntryList({
     state,
+    scopeTitle,
     page,
     isPending,
     isFetching,
@@ -84,12 +114,7 @@ export function ReaderEntryList({
         }
     }, [isPlaceholderData, page?.pagination.page]);
 
-    const scopeTitle =
-        state.feedId !== null
-            ? 'Feed entries'
-            : state.categoryId !== null
-              ? 'Category entries'
-              : filterTitles[state.filter];
+    const emptyState = emptyStates[state.filter];
 
     return (
         <section
@@ -98,14 +123,14 @@ export function ReaderEntryList({
             className={classes.entryList}
         >
             <header className={classes.listHeader}>
-                <div>
-                    <Text fw={700} size="sm">
+                <div className={classes.listHeaderCopy}>
+                    <Text fw={700} size="sm" title={scopeTitle} truncate>
                         {scopeTitle}
                     </Text>
                     <Text c="dimmed" size="xs">
                         {page === undefined
                             ? 'Loading entries'
-                            : `${page.pagination.total.toLocaleString()} total`}
+                            : formatEntryRange(page)}
                     </Text>
                 </div>
                 {isFetching && page !== undefined && (
@@ -179,11 +204,10 @@ export function ReaderEntryList({
                         <Center className={classes.emptyEntries}>
                             <Stack align="center" gap={4} ta="center">
                                 <Text fw={650} size="sm">
-                                    No entries here
+                                    {emptyState.title}
                                 </Text>
                                 <Text c="dimmed" maw={260} size="xs">
-                                    Choose another feed or filter, or wait for
-                                    the next refresh.
+                                    {emptyState.message}
                                 </Text>
                             </Stack>
                         </Center>
@@ -195,6 +219,13 @@ export function ReaderEntryList({
                                 const active = state.entryId === entry.id;
                                 const feedName =
                                     entry.customFeedName ?? entry.feedName;
+                                const sourceName =
+                                    state.feedId !== null && entry.author
+                                        ? entry.author
+                                        : feedName;
+                                const publishedDate = new Date(
+                                    entry.publishedAt,
+                                );
                                 return (
                                     <li
                                         className={classes.entryItem}
@@ -220,30 +251,36 @@ export function ReaderEntryList({
                                                 entryId: entry.id,
                                             })}
                                         >
-                                            <span
-                                                aria-hidden="true"
-                                                className={classes.unreadMarker}
-                                                data-read={
-                                                    entry.read || undefined
-                                                }
-                                            />
                                             <span className={classes.entryCopy}>
                                                 <span
                                                     className={
-                                                        classes.entryTitle
+                                                        classes.entryTitleSlot
                                                     }
                                                 >
-                                                    {entry.title ||
-                                                        'Untitled entry'}
-                                                    {entry.starred && (
-                                                        <IconStarFilled
-                                                            aria-label="Favorite"
+                                                    <span
+                                                        className={
+                                                            classes.entryTitleRow
+                                                        }
+                                                    >
+                                                        <span
+                                                            aria-hidden="true"
                                                             className={
-                                                                classes.starredIcon
+                                                                classes.unreadMarker
                                                             }
-                                                            size={14}
+                                                            data-read={
+                                                                entry.read ||
+                                                                undefined
+                                                            }
                                                         />
-                                                    )}
+                                                        <span
+                                                            className={
+                                                                classes.entryTitle
+                                                            }
+                                                        >
+                                                            {entry.title ||
+                                                                'Untitled entry'}
+                                                        </span>
+                                                    </span>
                                                 </span>
                                                 <span
                                                     className={
@@ -259,22 +296,42 @@ export function ReaderEntryList({
                                                             isDark={
                                                                 entry.faviconIsDark
                                                             }
-                                                            size={18}
+                                                            size={16}
                                                             src={
                                                                 entry.faviconUrl
                                                             }
                                                         />
-                                                        <span>{feedName}</span>
+                                                        <span
+                                                            title={sourceName}
+                                                        >
+                                                            {sourceName}
+                                                        </span>
                                                     </span>
-                                                    <time
-                                                        dateTime={new Date(
-                                                            entry.publishedAt,
-                                                        ).toISOString()}
+                                                    <span
+                                                        className={
+                                                            classes.entryMetaTail
+                                                        }
                                                     >
-                                                        {formatRelativeTime(
-                                                            entry.publishedAt,
+                                                        {entry.starred && (
+                                                            <IconStarFilled
+                                                                aria-label="Favorite"
+                                                                className={
+                                                                    classes.starredIcon
+                                                                }
+                                                                size={13}
+                                                            />
                                                         )}
-                                                    </time>
+                                                        <time
+                                                            dateTime={publishedDate.toISOString()}
+                                                            title={absoluteTimeFormatter.format(
+                                                                publishedDate,
+                                                            )}
+                                                        >
+                                                            {formatRelativeTime(
+                                                                entry.publishedAt,
+                                                            )}
+                                                        </time>
+                                                    </span>
                                                 </span>
                                             </span>
                                         </Link>

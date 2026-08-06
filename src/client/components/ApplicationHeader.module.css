@@ -333,17 +333,6 @@
             inset 0 -1px 0 var(--ds-glass-refraction);
     }
 
-    .railLink[data-active]::before {
-        position: absolute;
-        top: 9px;
-        bottom: 9px;
-        left: -9px;
-        width: 3px;
-        border-radius: 0 var(--ds-radius-xs) var(--ds-radius-xs) 0;
-        background: var(--ds-sage);
-        box-shadow: 0 0 10px color-mix(in srgb, var(--ds-sage) 34%, transparent);
-        content: '';
-    }
 
     .railUtilities {
         display: flex;
