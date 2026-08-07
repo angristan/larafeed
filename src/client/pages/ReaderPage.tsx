@@ -285,7 +285,7 @@ export function ReaderPage() {
                     data-detail={state.entryId !== null || undefined}
                     radius="xs"
                     size="sm"
-                    spacing="md"
+                    spacing={0}
                 >
                     <Split.Pane
                         className={classes.listPaneContainer}

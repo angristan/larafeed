@@ -583,21 +583,15 @@ export function ReaderEntryDetail({
                         >
                             {entry.title || 'Untitled entry'}
                         </Title>
-                        <Flex justify="space-between">
-                            <Text
-                                aria-label="Estimated reading time at 300 words per minute"
-                                c="dimmed"
-                                size="sm"
-                            >
-                                {readingTime === null
-                                    ? ''
-                                    : readingTimeLabel(readingTime)}
-                            </Text>
-                            <Text c="dimmed" size="sm">
-                                {entry.author ? `${entry.author} • ` : ''}
-                                {formatRelativeTime(entry.publishedAt)}
-                            </Text>
-                        </Flex>
+                        <Text c="dimmed" size="sm">
+                            {entry.author ? `${entry.author} • ` : ''}
+                            {formatRelativeTime(entry.publishedAt)}
+                            {readingTime !== null && (
+                                <span title="Estimated reading time at 300 words per minute">
+                                    {` • ${readingTimeLabel(readingTime)}`}
+                                </span>
+                            )}
+                        </Text>
 
                         <div hidden={summarize}>
                             {entry.contentHtml === null ||
