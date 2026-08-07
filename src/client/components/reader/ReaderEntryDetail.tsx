@@ -28,7 +28,6 @@ import {
     IconBrain,
     IconCircle,
     IconCircleFilled,
-    IconDots,
     IconExternalLink,
     IconRefresh,
     IconRobot,
@@ -392,6 +391,35 @@ export function ReaderEntryDetail({
                                     categories={
                                         management.data?.categories ?? []
                                     }
+                                    entrySection={
+                                        <>
+                                            <Menu.Label>Entry</Menu.Label>
+                                            <Menu.Item
+                                                disabled={archivePending}
+                                                leftSection={
+                                                    entry.archived ? (
+                                                        <IconArchiveOff
+                                                            size={14}
+                                                        />
+                                                    ) : (
+                                                        <IconArchive
+                                                            size={14}
+                                                        />
+                                                    )
+                                                }
+                                                onClick={() =>
+                                                    onSetArchived(
+                                                        !entry.archived,
+                                                    )
+                                                }
+                                            >
+                                                {entry.archived
+                                                    ? 'Restore entry'
+                                                    : 'Archive entry'}
+                                            </Menu.Item>
+                                            <Menu.Divider />
+                                        </>
+                                    }
                                     managed={managedSubscription}
                                     onUnsubscribed={onBack}
                                     subscription={{
@@ -525,38 +553,6 @@ export function ReaderEntryDetail({
                                 )}
                             </ActionIcon>
                         </Tooltip>
-
-                        <Menu shadow="md">
-                            <Menu.Target>
-                                <ActionIcon
-                                    aria-label="Archive entry"
-                                    color="gray"
-                                    variant="subtle"
-                                >
-                                    <IconDots size={15} stroke={1.5} />
-                                </ActionIcon>
-                            </Menu.Target>
-                            <Menu.Dropdown>
-                                <Menu.Label>Manage entry</Menu.Label>
-                                <Menu.Item
-                                    leftSection={
-                                        entry.archived ? (
-                                            <IconArchiveOff size={14} />
-                                        ) : (
-                                            <IconArchive size={14} />
-                                        )
-                                    }
-                                    disabled={archivePending}
-                                    onClick={() =>
-                                        onSetArchived(!entry.archived)
-                                    }
-                                >
-                                    {entry.archived
-                                        ? 'Restore entry'
-                                        : 'Archive entry'}
-                                </Menu.Item>
-                            </Menu.Dropdown>
-                        </Menu>
                     </Group>
                 </Flex>
             </div>

@@ -81,7 +81,7 @@ export async function invalidateSubscriptionReadModels(
         queryClient.invalidateQueries({ queryKey: categoryKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: readerKeys.counts() }),
-        queryClient.invalidateQueries({ queryKey: entryKeys.finiteLists() }),
+        queryClient.invalidateQueries({ queryKey: entryKeys.lists() }),
     ]);
 }
 

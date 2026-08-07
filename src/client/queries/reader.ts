@@ -1,4 +1,9 @@
-import { type QueryClient, queryOptions } from '@tanstack/react-query';
+import {
+    type InfiniteData,
+    infiniteQueryOptions,
+    type QueryClient,
+    queryOptions,
+} from '@tanstack/react-query';
 import { Effect } from 'effect';
 
 import {
@@ -33,9 +38,9 @@ export const subscriptionKeys = {
 
 export const entryKeys = {
     all: [...readerKeys.all, 'entries'] as const,
-    finiteLists: () => [...entryKeys.all, 'finite-list'] as const,
-    list: (input: ReaderEntryListInput) =>
-        [...entryKeys.finiteLists(), input] as const,
+    lists: () => [...entryKeys.all, 'infinite-list'] as const,
+    list: (scope: ReaderEntryListScope) =>
+        [...entryKeys.lists(), scope] as const,
     details: () => [...entryKeys.all, 'detail'] as const,
     detail: (entryId: number) => [...entryKeys.details(), entryId] as const,
     interactions: () => [...entryKeys.all, 'interaction'] as const,
@@ -64,55 +69,19 @@ export const readerCountsQueryOptions = queryOptions({
     retry: false,
 });
 
-function sameEntryListExceptPage(
-    previous: ReaderEntryListInput,
-    next: ReaderEntryListInput,
-): boolean {
-    return (
-        previous.feedId === next.feedId &&
-        previous.categoryId === next.categoryId &&
-        previous.filter === next.filter &&
-        previous.orderBy === next.orderBy &&
-        previous.pageSize === next.pageSize &&
-        previous.page !== next.page
-    );
-}
+export type ReaderEntryListScope = Omit<ReaderEntryListInput, 'page'>;
 
-function isEntryListInput(value: unknown): value is ReaderEntryListInput {
-    if (typeof value !== 'object' || value === null) {
-        return false;
-    }
-
-    const input = value as Partial<ReaderEntryListInput>;
-    return (
-        (typeof input.feedId === 'number' || input.feedId === null) &&
-        (typeof input.categoryId === 'number' || input.categoryId === null) &&
-        typeof input.filter === 'string' &&
-        typeof input.orderBy === 'string' &&
-        typeof input.page === 'number' &&
-        typeof input.pageSize === 'number'
-    );
-}
-
-export function shouldRetainPreviousEntryPage(
-    previousQueryKey: readonly unknown[] | undefined,
-    next: ReaderEntryListInput,
-): boolean {
-    const previousInput = previousQueryKey?.at(-1);
-    return (
-        isEntryListInput(previousInput) &&
-        sameEntryListExceptPage(previousInput, next)
-    );
-}
-
-export function entryListQueryOptions(input: ReaderEntryListInput) {
-    return queryOptions({
-        queryKey: entryKeys.list(input),
-        queryFn: ({ signal }) =>
-            Effect.runPromise(listEntries(input), { signal }),
-        placeholderData: (previousData, previousQuery) =>
-            shouldRetainPreviousEntryPage(previousQuery?.queryKey, input)
-                ? previousData
+export function entryListInfiniteQueryOptions(scope: ReaderEntryListScope) {
+    return infiniteQueryOptions({
+        queryKey: entryKeys.list(scope),
+        queryFn: ({ pageParam, signal }) =>
+            Effect.runPromise(listEntries({ ...scope, page: pageParam }), {
+                signal,
+            }),
+        initialPageParam: 1,
+        getNextPageParam: (lastPage) =>
+            lastPage.pagination.page < lastPage.pagination.totalPages
+                ? lastPage.pagination.page + 1
                 : undefined,
         staleTime: 20_000,
         retry: false,
@@ -165,16 +134,19 @@ export function reconcileReaderInteraction(
                   },
     );
 
-    queryClient.setQueriesData<ReaderEntryPage>(
-        { queryKey: entryKeys.finiteLists() },
+    queryClient.setQueriesData<InfiniteData<ReaderEntryPage>>(
+        { queryKey: entryKeys.lists() },
         (current) =>
             current === undefined
                 ? current
                 : {
                       ...current,
-                      entries: current.entries.map((entry) =>
-                          patchEntry(entry, interaction),
-                      ),
+                      pages: current.pages.map((page) => ({
+                          ...page,
+                          entries: page.entries.map((entry) =>
+                              patchEntry(entry, interaction),
+                          ),
+                      })),
                   },
     );
 }
@@ -195,7 +167,7 @@ export async function invalidateReaderAfterReadThrough(
     queryClient: QueryClient,
 ): Promise<void> {
     await Promise.all([
-        queryClient.invalidateQueries({ queryKey: entryKeys.finiteLists() }),
+        queryClient.invalidateQueries({ queryKey: entryKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: readerKeys.counts() }),
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.lists() }),
     ]);

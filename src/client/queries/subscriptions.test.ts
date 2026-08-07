@@ -94,7 +94,6 @@ describe('subscription management query contracts', () => {
                 categoryId: null,
                 filter: 'all',
                 orderBy: 'published_at',
-                page: 1,
                 pageSize: 50,
             }),
         ] as const;

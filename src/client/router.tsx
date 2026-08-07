@@ -24,7 +24,7 @@ import { chartQueryOptions } from './queries/charts';
 import {
     categoryListQueryOptions,
     entryDetailQueryOptions,
-    entryListQueryOptions,
+    entryListInfiniteQueryOptions,
     readerCountsQueryOptions,
     subscriptionListQueryOptions,
 } from './queries/reader';
@@ -198,13 +198,12 @@ async function readerLoader(args: LoaderFunctionArgs) {
         queryClient.prefetchQuery(categoryListQueryOptions),
         queryClient.prefetchQuery(subscriptionListQueryOptions),
         queryClient.prefetchQuery(readerCountsQueryOptions),
-        queryClient.prefetchQuery(
-            entryListQueryOptions({
+        queryClient.prefetchInfiniteQuery(
+            entryListInfiniteQueryOptions({
                 feedId: state.feedId,
                 categoryId: state.categoryId,
                 filter: state.filter,
                 orderBy: state.orderBy,
-                page: state.page,
                 pageSize: READER_PAGE_SIZE,
             }),
         ),

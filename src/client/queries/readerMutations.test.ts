@@ -31,10 +31,7 @@ describe('feed read-through mutation', () => {
                 mutations: { retry: false },
             },
         });
-        const entryListKey = [
-            ...entryKeys.finiteLists(),
-            'cached-page',
-        ] as const;
+        const entryListKey = [...entryKeys.lists(), 'cached-page'] as const;
         queryClient.setQueryData(entryListKey, { entries: [] });
         queryClient.setQueryData(readerKeys.counts(), { unread: 2 });
         queryClient.setQueryData(subscriptionKeys.list(), {
@@ -91,10 +88,7 @@ describe('category read-through mutation', () => {
                 mutations: { retry: false },
             },
         });
-        const entryListKey = [
-            ...entryKeys.finiteLists(),
-            'cached-page',
-        ] as const;
+        const entryListKey = [...entryKeys.lists(), 'cached-page'] as const;
         queryClient.setQueryData(entryListKey, { entries: [] });
         queryClient.setQueryData(readerKeys.counts(), { unread: 2 });
         queryClient.setQueryData(subscriptionKeys.list(), {

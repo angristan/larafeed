@@ -6,7 +6,11 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+    useInfiniteQuery,
+    useQuery,
+    useQueryClient,
+} from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
 
@@ -20,19 +24,12 @@ import { authSessionQueryOptions } from '../queries/auth';
 import {
     categoryListQueryOptions,
     entryDetailQueryOptions,
-    entryListQueryOptions,
+    entryListInfiniteQueryOptions,
     readerCountsQueryOptions,
     subscriptionListQueryOptions,
 } from '../queries/reader';
 import { useEntryInteractionMutations } from '../queries/readerMutations';
 import { parseReaderState, READER_PAGE_SIZE, readerHref } from '../readerState';
-
-const filterTitles = {
-    all: 'All entries',
-    unread: 'Unread entries',
-    read: 'Read entries',
-    favorites: 'Favorites',
-} as const;
 
 function firstError(...errors: Array<Error | null>): Error | null {
     return errors.find((error) => error !== null) ?? null;
@@ -61,15 +58,18 @@ export function ReaderPage() {
     const categoriesQuery = useQuery(categoryListQueryOptions);
     const subscriptionsQuery = useQuery(subscriptionListQueryOptions);
     const countsQuery = useQuery(readerCountsQueryOptions);
-    const entryPageQuery = useQuery(
-        entryListQueryOptions({
+    const entryListQuery = useInfiniteQuery(
+        entryListInfiniteQueryOptions({
             feedId: state.feedId,
             categoryId: state.categoryId,
             filter: state.filter,
             orderBy: state.orderBy,
-            page: state.page,
             pageSize: READER_PAGE_SIZE,
         }),
+    );
+    const listEntries = useMemo(
+        () => entryListQuery.data?.pages.flatMap((page) => page.entries) ?? [],
+        [entryListQuery.data],
     );
 
     const selectedEntryId = state.entryId ?? 1;
@@ -120,29 +120,6 @@ export function ReaderPage() {
     }, [state.entryId]);
 
     useEffect(() => {
-        const pagination = entryPageQuery.data?.pagination;
-        if (
-            pagination === undefined ||
-            entryPageQuery.isPlaceholderData ||
-            state.page <= Math.max(1, pagination.totalPages)
-        ) {
-            return;
-        }
-
-        void navigate(
-            readerHref(state, {
-                page: Math.max(1, pagination.totalPages),
-            }),
-            { replace: true },
-        );
-    }, [
-        entryPageQuery.data?.pagination,
-        entryPageQuery.isPlaceholderData,
-        navigate,
-        state,
-    ]);
-
-    useEffect(() => {
         const navigateList = (event: KeyboardEvent) => {
             if (
                 event.defaultPrevented ||
@@ -154,33 +131,40 @@ export function ReaderPage() {
                 return;
             }
 
-            if (entryPageQuery.isPlaceholderData) {
-                return;
-            }
-
             const key = event.key.toLowerCase();
             if (key !== 'j' && key !== 'k') {
                 return;
             }
 
-            const entries = entryPageQuery.data?.entries ?? [];
-            if (entries.length === 0) {
+            if (listEntries.length === 0) {
                 return;
             }
 
-            const currentIndex = entries.findIndex(
+            const currentIndex = listEntries.findIndex(
                 (entry) => entry.id === state.entryId,
             );
             const nextIndex =
                 currentIndex === -1 ? 0 : currentIndex + (key === 'j' ? 1 : -1);
-            if (nextIndex < 0 || nextIndex >= entries.length) {
+            if (nextIndex < 0) {
+                return;
+            }
+            if (nextIndex >= listEntries.length) {
+                // The selection stays on the last loaded entry; the next
+                // page continues the walk once it arrives.
+                if (
+                    entryListQuery.hasNextPage &&
+                    !entryListQuery.isFetchingNextPage
+                ) {
+                    event.preventDefault();
+                    void entryListQuery.fetchNextPage();
+                }
                 return;
             }
 
             event.preventDefault();
             void navigate(
                 readerHref(state, {
-                    entryId: entries[nextIndex].id,
+                    entryId: listEntries[nextIndex].id,
                     summarize: state.summarize,
                 }),
             );
@@ -188,12 +172,7 @@ export function ReaderPage() {
 
         window.addEventListener('keydown', navigateList);
         return () => window.removeEventListener('keydown', navigateList);
-    }, [
-        entryPageQuery.data?.entries,
-        entryPageQuery.isPlaceholderData,
-        navigate,
-        state,
-    ]);
+    }, [listEntries, entryListQuery, navigate, state]);
 
     if (sessionQuery.data !== undefined && !sessionQuery.data.authenticated) {
         return <Navigate to="/login" replace />;
@@ -210,24 +189,6 @@ export function ReaderPage() {
         entryMutations.star.error,
         entryMutations.archive.error,
     );
-    const selectedSubscription = subscriptions?.find(
-        (subscription) => subscription.feedId === state.feedId,
-    );
-    const baseScopeTitle =
-        state.feedId !== null
-            ? (selectedSubscription?.customFeedName ??
-              selectedSubscription?.feedName ??
-              'Feed entries')
-            : state.categoryId !== null
-              ? (categoriesQuery.data?.categories.find(
-                    (category) => category.id === state.categoryId,
-                )?.name ?? 'Category entries')
-              : filterTitles[state.filter];
-    const entryListTitle =
-        (state.feedId !== null || state.categoryId !== null) &&
-        state.filter !== 'all'
-            ? `${baseScopeTitle}: ${filterTitles[state.filter]}`
-            : baseScopeTitle;
 
     const backToList = () => {
         returnFocusEntryId.current = state.entryId;
@@ -293,22 +254,32 @@ export function ReaderPage() {
                         minWidth={300}
                     >
                         <ReaderEntryList
-                            error={entryPageQuery.error}
-                            isFetching={entryPageQuery.isFetching}
-                            isPending={entryPageQuery.isPending}
-                            isPlaceholderData={entryPageQuery.isPlaceholderData}
-                            onPageChange={(page) =>
-                                void navigate(readerHref(state, { page }))
+                            entries={listEntries}
+                            error={entryListQuery.error}
+                            hasNextPage={entryListQuery.hasNextPage}
+                            isFetching={entryListQuery.isFetching}
+                            isFetchingNextPage={
+                                entryListQuery.isFetchingNextPage
                             }
+                            isPending={entryListQuery.isPending}
+                            onLoadMore={() => {
+                                if (
+                                    entryListQuery.hasNextPage &&
+                                    !entryListQuery.isFetchingNextPage
+                                ) {
+                                    void entryListQuery.fetchNextPage();
+                                }
+                            }}
                             onPrefetchEntry={(entryId) => {
                                 void queryClient.prefetchQuery(
                                     entryDetailQueryOptions(entryId),
                                 );
                             }}
-                            onRetry={() => void entryPageQuery.refetch()}
-                            page={entryPageQuery.data}
-                            scopeTitle={entryListTitle}
+                            onRetry={() => void entryListQuery.refetch()}
                             state={state}
+                            total={
+                                entryListQuery.data?.pages[0]?.pagination.total
+                            }
                         />
                     </Split.Pane>
                     <Split.Pane className={classes.detailPaneContainer} grow>

@@ -114,8 +114,10 @@
     background: color-mix(in srgb, var(--ds-paper) 42%, transparent);
 }
 
+/* 55px content + the 1px border on .detailToolbar totals 56px, matching
+   .listHeader, whose border-box min-height already includes its border. */
 .detailHeader {
-    min-height: 54px;
+    min-height: 55px;
     padding: 7px var(--ds-space-3);
 }
 
@@ -250,10 +252,12 @@
 
 .entry {
     position: relative;
-    display: block;
-    min-height: 74px;
-    padding: var(--ds-space-2) var(--ds-space-4) var(--ds-space-2)
-        var(--ds-space-3);
+    display: grid;
+    min-height: 56px;
+    grid-template-columns: 5px minmax(0, 1fr);
+    gap: var(--ds-space-3);
+    align-items: stretch;
+    padding: 8px var(--ds-space-4) 8px var(--ds-space-3);
     scroll-margin-block-start: 57px;
     color: var(--ds-ink);
     text-decoration: none;
@@ -275,8 +279,7 @@
 .activeEntry {
     color: var(--ds-ink);
     background: color-mix(in srgb, var(--ds-sage-surface) 78%, var(--ds-paper));
-    outline: 1px solid var(--ds-line-strong);
-    outline-offset: -1px;
+    box-shadow: inset 2px 0 0 var(--ds-sage);
 }
 
 .readEntry {
@@ -287,7 +290,7 @@
     width: 6px;
     height: 6px;
     align-self: start;
-    margin-top: 5px;
+    margin-top: 7px;
     border: 1px solid var(--ds-accent-border);
     border-radius: 50%;
     background: var(--ds-accent);
@@ -305,51 +308,36 @@
     min-width: 0;
     flex-direction: column;
     justify-content: center;
-    gap: var(--ds-space-1);
-}
-
-.entryTitleSlot {
-    display: flex;
-    min-height: 2.6em;
-    align-items: center;
-    font-size: 0.8125rem;
-    line-height: 1.3;
-}
-
-.entryTitleRow {
-    display: grid;
-    width: 100%;
-    min-width: 0;
-    grid-template-columns: 5px minmax(0, 1fr);
-    gap: var(--ds-space-2);
-    align-items: start;
+    gap: 5px;
 }
 
 .entryTitle {
     overflow-wrap: anywhere;
 }
 
-.entryTitleRow > .entryTitle {
+.entryCopy > .entryTitle {
     display: -webkit-box;
     overflow: hidden;
-    font: inherit;
+    font-size: 0.8125rem;
     font-weight: 650;
+    line-height: 1.35;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
 }
 
-.readEntry .entryTitleRow > .entryTitle {
+.readEntry .entryCopy > .entryTitle {
     font-weight: 520;
 }
 
 .starredIcon {
-    flex: 0 0 auto;
+    display: inline;
+    margin-left: var(--ds-space-1);
     color: var(--ds-accent);
+    vertical-align: -2px;
 }
 
 .entryMeta,
-.feedMeta,
-.entryMetaTail {
+.feedMeta {
     display: flex;
     min-width: 0;
     align-items: center;
@@ -358,14 +346,8 @@
 .entryMeta {
     justify-content: space-between;
     gap: var(--ds-space-2);
-    padding-inline-start: calc(5px + var(--ds-space-2));
     color: var(--ds-subtle);
     font-size: 0.6875rem;
-}
-
-.entryMetaTail {
-    flex: 0 0 auto;
-    gap: var(--ds-space-2);
 }
 
 .feedMeta {
@@ -385,8 +367,8 @@
 }
 
 .entrySkeleton {
-    min-height: 74px;
-    padding: var(--ds-space-3);
+    min-height: 56px;
+    padding: var(--ds-space-3) var(--ds-space-4);
     border-bottom: 1px solid var(--ds-line);
 }
 
@@ -395,12 +377,12 @@
     padding: var(--ds-space-6);
 }
 
-.listPagination {
-    flex: 0 0 auto;
-    padding: var(--ds-space-2) var(--ds-space-3);
-    border-top: 1px solid var(--ds-line);
-    background: var(--ds-surface-work-header);
-    overflow-x: auto;
+.listSentinel {
+    height: 1px;
+}
+
+.listLoadingMore {
+    padding: var(--ds-space-3);
 }
 
 .articleScrollContent {
@@ -427,8 +409,8 @@
     margin-top: var(--ds-space-5);
     overflow-wrap: anywhere;
     color: var(--ds-ink);
-    font-size: 0.9375rem;
-    line-height: 1.68;
+    font-size: 1rem;
+    line-height: 1.72;
 }
 
 .articleContent :global(img),
@@ -553,6 +535,25 @@
 
 .mobileOnly {
     display: none;
+}
+
+/* The split handle is 9px wide with the 1px divider centered in it, so each
+   pane ends 4px short of the line and the glass bars show a paper notch next
+   to the divider. Stretch the panes under the handle so their chrome meets
+   the line, and float the handle above them to keep its full grab area. */
+@media (min-width: 68.75em) {
+    .listPaneContainer {
+        margin-right: -4px;
+    }
+
+    .detailPaneContainer {
+        margin-left: -4px;
+    }
+
+    .readerGrid :global(button[aria-label='Resize']) {
+        position: relative;
+        z-index: 11;
+    }
 }
 
 @media (max-width: 68.74em) and (min-width: 43.75em) {

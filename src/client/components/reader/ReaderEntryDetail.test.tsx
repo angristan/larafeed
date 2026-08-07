@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import type { ReaderEntry } from '../../api/reader';
+import { subscriptionManagementKeys } from '../../queries/subscriptions';
 import { summaryKeys } from '../../queries/summaries';
 import { ReaderEntryDetail } from './ReaderEntryDetail';
 
@@ -28,6 +29,33 @@ const entry: ReaderEntry = {
     archivedAt: null,
 };
 
+const managedSubscription = {
+    feedId: entry.feedId,
+    categoryId: 1,
+    categoryName: 'Technology',
+    feedName: entry.feedName,
+    customFeedName: null,
+    feedUrl: 'https://example.test/feed.xml',
+    siteUrl: 'https://example.test/',
+    faviconUrl: null,
+    faviconIsDark: null,
+    entryCount: 1,
+    unreadCount: 0,
+    isGone: false,
+    consecutiveFailures: 0,
+    lastAttemptAt: null,
+    lastSuccessfulRefreshAt: null,
+    lastFailedRefreshAt: null,
+    lastErrorClass: null,
+    lastErrorMessage: null,
+    filterRules: {
+        excludeTitle: [],
+        excludeContent: [],
+        excludeAuthor: [],
+    },
+    refreshes: [],
+};
+
 const renderDetail = (summary?: unknown, summarize = false): string => {
     const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false } },
@@ -35,6 +63,10 @@ const renderDetail = (summary?: unknown, summarize = false): string => {
     if (summary !== undefined) {
         queryClient.setQueryData(summaryKeys.detail(entry.id), summary);
     }
+    queryClient.setQueryData(subscriptionManagementKeys.list(), {
+        categories: [{ id: 1, name: 'Technology', subscriptionCount: 1 }],
+        subscriptions: [managedSubscription],
+    });
 
     return renderToStaticMarkup(
         <QueryClientProvider client={queryClient}>
@@ -83,7 +115,7 @@ describe('ReaderEntryDetail summaries', () => {
         expect(markup).toContain(
             'aria-label="Open original article in a new tab"',
         );
-        expect(markup).toContain('aria-label="Archive entry"');
+        expect(markup).toContain('aria-label="Manage Feed"');
         expect(markup).toContain('AI summary');
         expect(markup).toContain('less than a minute read');
         expect(markup).toContain(

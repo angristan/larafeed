@@ -4,7 +4,6 @@ import {
     Center,
     Group,
     Loader,
-    Pagination,
     ScrollArea,
     Skeleton,
     Stack,
@@ -21,23 +20,20 @@ import classes from './Reader.module.css';
 
 interface ReaderEntryListProps {
     readonly state: ReaderState;
-    readonly scopeTitle: string;
-    readonly page: ReaderEntryPage | undefined;
+    readonly entries: ReaderEntryPage['entries'];
+    readonly total: number | undefined;
     readonly isPending: boolean;
     readonly isFetching: boolean;
-    readonly isPlaceholderData: boolean;
+    readonly isFetchingNextPage: boolean;
+    readonly hasNextPage: boolean;
     readonly error: Error | null;
     readonly onRetry: () => void;
     readonly onPrefetchEntry: (entryId: number) => void;
-    readonly onPageChange: (page: number) => void;
+    readonly onLoadMore: () => void;
 }
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, {
     numeric: 'auto',
-});
-const absoluteTimeFormatter = new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
 });
 
 function formatRelativeTime(timestamp: number): string {
@@ -63,58 +59,70 @@ function formatRelativeTime(timestamp: number): string {
     return relativeTimeFormatter.format(seconds, 'second');
 }
 
-const emptyStates = {
-    all: {
-        title: 'No entries yet',
-        message: 'New entries will appear after the next feed refresh.',
-    },
-    unread: {
-        title: 'You’re all caught up',
-        message: 'New unread entries will appear here.',
-    },
-    read: {
-        title: 'No read entries',
-        message: 'Entries you open will appear here.',
-    },
-    favorites: {
-        title: 'No favorites yet',
-        message: 'Star an entry to keep it here.',
-    },
+const filterTitles = {
+    all: 'All entries',
+    unread: 'Unread entries',
+    read: 'Read entries',
+    favorites: 'Favorites',
 } as const;
 
-function formatEntryRange(page: ReaderEntryPage): string {
-    const { page: pageNumber, pageSize, total } = page.pagination;
-    if (total === 0) return '0 entries';
-    if (total === 1) return '1 entry';
-
-    const first = (pageNumber - 1) * pageSize + 1;
-    const last = Math.min(pageNumber * pageSize, total);
-    return total <= pageSize
-        ? `${total.toLocaleString()} entries`
-        : `${first.toLocaleString()}–${last.toLocaleString()} of ${total.toLocaleString()}`;
-}
+const orderLabels = {
+    published_at: 'Published',
+    created_at: 'Added',
+} as const;
 
 export function ReaderEntryList({
     state,
-    scopeTitle,
-    page,
+    entries,
+    total,
     isPending,
     isFetching,
-    isPlaceholderData,
+    isFetchingNextPage,
+    hasNextPage,
     error,
     onRetry,
     onPrefetchEntry,
-    onPageChange,
+    onLoadMore,
 }: ReaderEntryListProps) {
     const viewport = useRef<HTMLDivElement>(null);
+    const sentinel = useRef<HTMLDivElement>(null);
+    const loadMore = useRef(onLoadMore);
+    loadMore.current = onLoadMore;
+
+    const scopeKey = `${state.feedId}:${state.categoryId}:${state.filter}:${state.orderBy}`;
+    // biome-ignore lint/correctness/useExhaustiveDependencies: the scroll position resets whenever the list scope changes
+    useEffect(() => {
+        viewport.current?.scrollTo({ top: 0, behavior: 'instant' });
+    }, [scopeKey]);
 
     useEffect(() => {
-        if (!isPlaceholderData && page?.pagination.page !== undefined) {
-            viewport.current?.scrollTo({ top: 0, behavior: 'instant' });
+        const target = sentinel.current;
+        if (
+            target === null ||
+            !hasNextPage ||
+            typeof IntersectionObserver === 'undefined'
+        ) {
+            return;
         }
-    }, [isPlaceholderData, page?.pagination.page]);
 
-    const emptyState = emptyStates[state.filter];
+        const observer = new IntersectionObserver(
+            (observed) => {
+                if (observed.some((entry) => entry.isIntersecting)) {
+                    loadMore.current();
+                }
+            },
+            { root: viewport.current, rootMargin: '320px 0px' },
+        );
+        observer.observe(target);
+        return () => observer.disconnect();
+    }, [hasNextPage]);
+
+    const scopeTitle =
+        state.feedId !== null
+            ? 'Feed entries'
+            : state.categoryId !== null
+              ? 'Category entries'
+              : filterTitles[state.filter];
 
     return (
         <section
@@ -123,19 +131,24 @@ export function ReaderEntryList({
             className={classes.entryList}
         >
             <header className={classes.listHeader}>
-                <div className={classes.listHeaderCopy}>
-                    <Text fw={700} size="sm" title={scopeTitle} truncate>
+                <div>
+                    <Text fw={700} size="sm">
                         {scopeTitle}
                     </Text>
                     <Text c="dimmed" size="xs">
-                        {page === undefined
+                        {total === undefined
                             ? 'Loading entries'
-                            : formatEntryRange(page)}
+                            : `${total.toLocaleString()} total`}
                     </Text>
                 </div>
-                {isFetching && page !== undefined && (
-                    <Loader aria-label="Refreshing entries" size="xs" />
-                )}
+                <Group gap="xs" wrap="nowrap">
+                    <Text c="dimmed" size="xs">
+                        {orderLabels[state.orderBy]}
+                    </Text>
+                    {isFetching && !isPending && !isFetchingNextPage && (
+                        <Loader aria-label="Refreshing entries" size="xs" />
+                    )}
+                </Group>
             </header>
 
             <ScrollArea
@@ -143,12 +156,11 @@ export function ReaderEntryList({
                 classNames={{
                     scrollbar: classes.readerScrollbar,
                     thumb: classes.readerScrollbarThumb,
-                    viewport: classes.entryListViewport,
                 }}
                 viewportRef={viewport}
             >
                 <div className={classes.entryScrollContent}>
-                    {isPending && page === undefined && (
+                    {isPending && (
                         <Stack gap={0} aria-label="Loading entries">
                             {[
                                 'first',
@@ -177,7 +189,7 @@ export function ReaderEntryList({
                         </Stack>
                     )}
 
-                    {error !== null && page === undefined && (
+                    {error !== null && entries.length === 0 && (
                         <Center p="xl">
                             <Alert color="red" title="Entries unavailable">
                                 <Stack gap="sm">
@@ -200,32 +212,26 @@ export function ReaderEntryList({
                         </Center>
                     )}
 
-                    {page !== undefined && page.entries.length === 0 && (
+                    {!isPending && error === null && entries.length === 0 && (
                         <Center className={classes.emptyEntries}>
                             <Stack align="center" gap={4} ta="center">
                                 <Text fw={650} size="sm">
-                                    {emptyState.title}
+                                    No entries here
                                 </Text>
                                 <Text c="dimmed" maw={260} size="xs">
-                                    {emptyState.message}
+                                    Choose another feed or filter, or wait for
+                                    the next refresh.
                                 </Text>
                             </Stack>
                         </Center>
                     )}
 
-                    {page !== undefined && page.entries.length > 0 && (
+                    {entries.length > 0 && (
                         <ul className={classes.entriesList}>
-                            {page.entries.map((entry) => {
+                            {entries.map((entry) => {
                                 const active = state.entryId === entry.id;
                                 const feedName =
                                     entry.customFeedName ?? entry.feedName;
-                                const sourceName =
-                                    state.feedId !== null && entry.author
-                                        ? entry.author
-                                        : feedName;
-                                const publishedDate = new Date(
-                                    entry.publishedAt,
-                                );
                                 return (
                                     <li
                                         className={classes.entryItem}
@@ -251,36 +257,30 @@ export function ReaderEntryList({
                                                 entryId: entry.id,
                                             })}
                                         >
+                                            <span
+                                                aria-hidden="true"
+                                                className={classes.unreadMarker}
+                                                data-read={
+                                                    entry.read || undefined
+                                                }
+                                            />
                                             <span className={classes.entryCopy}>
                                                 <span
                                                     className={
-                                                        classes.entryTitleSlot
+                                                        classes.entryTitle
                                                     }
                                                 >
-                                                    <span
-                                                        className={
-                                                            classes.entryTitleRow
-                                                        }
-                                                    >
-                                                        <span
-                                                            aria-hidden="true"
+                                                    {entry.title ||
+                                                        'Untitled entry'}
+                                                    {entry.starred && (
+                                                        <IconStarFilled
+                                                            aria-label="Favorite"
                                                             className={
-                                                                classes.unreadMarker
+                                                                classes.starredIcon
                                                             }
-                                                            data-read={
-                                                                entry.read ||
-                                                                undefined
-                                                            }
+                                                            size={14}
                                                         />
-                                                        <span
-                                                            className={
-                                                                classes.entryTitle
-                                                            }
-                                                        >
-                                                            {entry.title ||
-                                                                'Untitled entry'}
-                                                        </span>
-                                                    </span>
+                                                    )}
                                                 </span>
                                                 <span
                                                     className={
@@ -296,42 +296,22 @@ export function ReaderEntryList({
                                                             isDark={
                                                                 entry.faviconIsDark
                                                             }
-                                                            size={16}
+                                                            size={18}
                                                             src={
                                                                 entry.faviconUrl
                                                             }
                                                         />
-                                                        <span
-                                                            title={sourceName}
-                                                        >
-                                                            {sourceName}
-                                                        </span>
+                                                        <span>{feedName}</span>
                                                     </span>
-                                                    <span
-                                                        className={
-                                                            classes.entryMetaTail
-                                                        }
+                                                    <time
+                                                        dateTime={new Date(
+                                                            entry.publishedAt,
+                                                        ).toISOString()}
                                                     >
-                                                        {entry.starred && (
-                                                            <IconStarFilled
-                                                                aria-label="Favorite"
-                                                                className={
-                                                                    classes.starredIcon
-                                                                }
-                                                                size={13}
-                                                            />
+                                                        {formatRelativeTime(
+                                                            entry.publishedAt,
                                                         )}
-                                                        <time
-                                                            dateTime={publishedDate.toISOString()}
-                                                            title={absoluteTimeFormatter.format(
-                                                                publishedDate,
-                                                            )}
-                                                        >
-                                                            {formatRelativeTime(
-                                                                entry.publishedAt,
-                                                            )}
-                                                        </time>
-                                                    </span>
+                                                    </time>
                                                 </span>
                                             </span>
                                         </Link>
@@ -340,27 +320,23 @@ export function ReaderEntryList({
                             })}
                         </ul>
                     )}
+                    {hasNextPage && (
+                        <div
+                            aria-hidden="true"
+                            className={classes.listSentinel}
+                            ref={sentinel}
+                        />
+                    )}
+                    {isFetchingNextPage && (
+                        <Center className={classes.listLoadingMore}>
+                            <Loader
+                                aria-label="Loading more entries"
+                                size="xs"
+                            />
+                        </Center>
+                    )}
                 </div>
             </ScrollArea>
-
-            {page !== undefined && (
-                <footer className={classes.listPagination}>
-                    <Pagination.Root
-                        onChange={onPageChange}
-                        size="sm"
-                        total={page.pagination.totalPages}
-                        value={state.page}
-                    >
-                        <Group gap={7} justify="center" wrap="nowrap">
-                            <Pagination.First />
-                            <Pagination.Previous />
-                            <Pagination.Items />
-                            <Pagination.Next />
-                            <Pagination.Last />
-                        </Group>
-                    </Pagination.Root>
-                </footer>
-            )}
         </section>
     );
 }

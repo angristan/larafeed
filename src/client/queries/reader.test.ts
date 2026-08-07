@@ -1,20 +1,23 @@
-import { QueryClient, QueryObserver } from '@tanstack/react-query';
+import {
+    type InfiniteData,
+    QueryClient,
+    QueryObserver,
+} from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
     ReaderEntry,
-    ReaderEntryListInput,
     ReaderEntryPage,
     ReaderInteraction,
 } from '../api/reader';
 import {
     categoryKeys,
     entryKeys,
-    entryListQueryOptions,
+    entryListInfiniteQueryOptions,
     invalidateReaderAfterInteraction,
+    type ReaderEntryListScope,
     readerKeys,
     reconcileReaderInteraction,
-    shouldRetainPreviousEntryPage,
     subscriptionKeys,
 } from './reader';
 import {
@@ -22,12 +25,11 @@ import {
     entryStarMutationOptions,
 } from './readerMutations';
 
-const listInput: ReaderEntryListInput = {
+const listScope: ReaderEntryListScope = {
     feedId: 3,
     categoryId: null,
     filter: 'unread',
     orderBy: 'published_at',
-    page: 2,
     pageSize: 30,
 };
 
@@ -72,11 +74,16 @@ const page: ReaderEntryPage = {
         },
     ],
     pagination: {
-        page: 2,
+        page: 1,
         pageSize: 30,
         total: 31,
         totalPages: 2,
     },
+};
+
+const infinitePage: InfiniteData<ReaderEntryPage> = {
+    pages: [page],
+    pageParams: [1],
 };
 
 const interaction: ReaderInteraction = {
@@ -91,13 +98,13 @@ const interaction: ReaderInteraction = {
 };
 
 describe('reader query contracts', () => {
-    it('includes every finite-list input in a hierarchical key', () => {
-        expect(entryKeys.list(listInput)).toEqual([
+    it('includes the whole list scope in a hierarchical key', () => {
+        expect(entryKeys.list(listScope)).toEqual([
             'protected',
             'reader',
             'entries',
-            'finite-list',
-            listInput,
+            'infinite-list',
+            listScope,
         ]);
         expect(entryKeys.detail(7)).toEqual([
             'protected',
@@ -106,39 +113,31 @@ describe('reader query contracts', () => {
             'detail',
             7,
         ]);
-        expect(entryListQueryOptions(listInput).queryKey).toEqual(
-            entryKeys.list(listInput),
+        expect(entryListInfiniteQueryOptions(listScope).queryKey).toEqual(
+            entryKeys.list(listScope),
         );
     });
 
-    it('retains placeholder data only for a page transition', () => {
+    it('requests the next page until the last page is loaded', () => {
+        const options = entryListInfiniteQueryOptions(listScope);
+        expect(options.initialPageParam).toBe(1);
+        expect(options.getNextPageParam(page, [page], 1, [1])).toBe(2);
+
+        const lastPage: ReaderEntryPage = {
+            ...page,
+            pagination: { ...page.pagination, page: 2 },
+        };
         expect(
-            shouldRetainPreviousEntryPage(entryKeys.list(listInput), {
-                ...listInput,
-                page: 3,
-            }),
-        ).toBe(true);
-        expect(
-            shouldRetainPreviousEntryPage(entryKeys.list(listInput), {
-                ...listInput,
-                filter: 'favorites',
-                page: 1,
-            }),
-        ).toBe(false);
-        expect(
-            shouldRetainPreviousEntryPage(entryKeys.list(listInput), listInput),
-        ).toBe(false);
-        expect(entryListQueryOptions(listInput).placeholderData).toBeTypeOf(
-            'function',
-        );
+            options.getNextPageParam(lastPage, [page, lastPage], 2, [1, 2]),
+        ).toBeUndefined();
     });
 
-    it('patches retained detail and finite-list data from authoritative results', () => {
+    it('patches retained detail and list data from authoritative results', () => {
         const queryClient = new QueryClient();
         queryClient.setQueryData<ReaderEntry>(entryKeys.detail(7), detail);
-        queryClient.setQueryData<ReaderEntryPage>(
-            entryKeys.list(listInput),
-            page,
+        queryClient.setQueryData<InfiniteData<ReaderEntryPage>>(
+            entryKeys.list(listScope),
+            infinitePage,
         );
 
         reconcileReaderInteraction(queryClient, interaction);
@@ -151,14 +150,18 @@ describe('reader query contracts', () => {
             archived: false,
         });
         expect(
-            queryClient.getQueryData(entryKeys.list(listInput)),
+            queryClient.getQueryData(entryKeys.list(listScope)),
         ).toMatchObject({
-            entries: [
+            pages: [
                 {
-                    id: 7,
-                    read: true,
-                    starred: true,
-                    archived: false,
+                    entries: [
+                        {
+                            id: 7,
+                            read: true,
+                            starred: true,
+                            archived: false,
+                        },
+                    ],
                 },
             ],
         });
@@ -170,7 +173,7 @@ describe('reader query contracts', () => {
         });
         const queryFn = vi.fn(() => Promise.resolve(page));
         const observer = new QueryObserver(queryClient, {
-            queryKey: entryKeys.list(listInput),
+            queryKey: entryKeys.list(listScope),
             queryFn,
         });
         const unsubscribe = observer.subscribe(() => undefined);
@@ -186,7 +189,7 @@ describe('reader query contracts', () => {
         expect(queryFn).toHaveBeenCalledTimes(1);
         expect(observer.getCurrentResult().data).toEqual(page);
         expect(
-            queryClient.getQueryState(entryKeys.list(listInput))?.isInvalidated,
+            queryClient.getQueryState(entryKeys.list(listScope))?.isInvalidated,
         ).toBe(false);
         expect(
             queryClient.getQueryState(readerKeys.counts())?.isInvalidated,

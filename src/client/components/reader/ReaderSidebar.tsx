@@ -563,12 +563,14 @@ export function FeedActions({
     categories,
     onUnsubscribed,
     showCount = false,
+    entrySection,
 }: {
     readonly subscription: ReaderSubscriptionList['subscriptions'][number];
     readonly managed: ManagedSubscription | undefined;
     readonly categories: readonly ManagedCategory[];
     readonly onUnsubscribed?: () => void;
     readonly showCount?: boolean;
+    readonly entrySection?: ReactNode;
 }) {
     const queryClient = useQueryClient();
     const refresh = useMutation(
@@ -793,6 +795,7 @@ export function FeedActions({
                         </ActionIcon>
                     </Menu.Target>
                     <Menu.Dropdown>
+                        {entrySection}
                         <Menu.Label>Manage feed</Menu.Label>
                         <Menu.Item
                             component="a"
@@ -1428,7 +1431,6 @@ function CategoryGroup({
                     className={classes.categoryNavigation}
                     component={Link}
                     label={categoryName}
-                    leftSection={<IconRss size={15} stroke={1.5} />}
                     onClick={onNavigate}
                     to={readerHref(state, {
                         categoryId: active ? null : categoryId,
