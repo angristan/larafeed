@@ -14,6 +14,12 @@ describe('representative D1 fixture generator', () => {
         const second = await generateRepresentativeFixture(config);
 
         expect(first).toEqual(second);
+        expect(first.expectedCounts.jobs).toBe(
+            config.feeds + config.historicalRefreshJobs,
+        );
+        expect(first.expectedCounts.outbox_messages).toBe(
+            config.feeds + config.historicalRefreshJobs,
+        );
     });
 
     it('classifies near-limit, oversized, equal-time, late-old, and sparse states', async () => {

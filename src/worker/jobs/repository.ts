@@ -1066,20 +1066,20 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         CASE WHEN o.attempt_count >= ?
                                   OR j.attempt_count >= j.max_attempts
                             THEN 1 ELSE 0 END AS exhausted
-                    FROM outbox_messages o
-                    JOIN jobs j ON j.id = o.job_id
-                    WHERE o.topic = ? AND o.state = 'sent'
-                      AND o.updated_at <= ?
-                      AND j.kind = ? AND j.state IN ('queued', 'failed')
+                    FROM jobs j
+                    JOIN outbox_messages o ON o.job_id = j.id
+                    WHERE j.kind = ? AND j.state IN ('queued', 'failed')
                       AND j.updated_at <= ? AND j.available_at <= ?
-                    ORDER BY o.updated_at, o.id LIMIT ?`,
+                      AND o.topic = ? AND o.state = 'sent'
+                      AND o.updated_at <= ?
+                    ORDER BY j.updated_at, j.id LIMIT ?`,
                 bindings: [
                     MAX_OUTBOX_ATTEMPTS,
-                    FEED_REFRESH_TOPIC,
-                    input.staleBefore,
                     FEED_REFRESH_JOB_KIND,
                     input.staleBefore,
                     input.now,
+                    FEED_REFRESH_TOPIC,
+                    input.staleBefore,
                     bounded,
                 ],
             }),
@@ -1108,59 +1108,15 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             return { redriven: 0, deadLettered: 0 };
         }
 
-        if (exhaustedIds.length === 0) {
-            const result = await run(
-                operation,
-                d1.run({
-                    sql: `UPDATE outbox_messages
-                        SET state = 'pending',
-                            attempt_count = attempt_count + 1,
-                            available_at = ?, sent_at = NULL,
-                            last_error_class = 'queue_delivery_lost',
-                            last_error_message = 'Queue delivery was not observed',
-                            updated_at = ?
-                        WHERE id IN (
-                            SELECT CAST(value AS INTEGER) FROM json_each(?)
-                        ) AND topic = ? AND state = 'sent'
-                          AND attempt_count < ? AND updated_at <= ?
-                          AND EXISTS (
-                            SELECT 1 FROM jobs j
-                            WHERE j.id = outbox_messages.job_id
-                              AND j.kind = ?
-                              AND j.state IN ('queued', 'failed')
-                              AND j.attempt_count < j.max_attempts
-                              AND j.updated_at <= ? AND j.available_at <= ?
-                          )`,
-                    bindings: [
-                        input.now,
-                        input.now,
-                        JSON.stringify(redriveIds),
-                        FEED_REFRESH_TOPIC,
-                        MAX_OUTBOX_ATTEMPTS,
-                        input.staleBefore,
-                        FEED_REFRESH_JOB_KIND,
-                        input.staleBefore,
-                        input.now,
-                    ],
-                }),
-            );
-            const redriven = changeCount(operation, result);
-            if (redriven > redriveIds.length) {
-                throw new JobInvariantError(
-                    operation,
-                    'invalid redrive reconciliation',
-                );
-            }
-            return { redriven, deadLettered: 0 };
-        }
-
         const redriveJson = JSON.stringify(redriveIds);
         const exhaustedJson = JSON.stringify(exhaustedIds);
+        const terminalMutationCount = 3;
         const results = await run(
             operation,
-            d1.batch([
-                {
-                    sql: `UPDATE jobs
+            d1.batch(
+                [
+                    {
+                        sql: `UPDATE jobs
                         SET state = 'dead_lettered', completed_at = ?,
                             last_error_class = 'queue_redrive_exhausted',
                             last_error_message = 'Queue redrive attempts exhausted',
@@ -1176,19 +1132,19 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                               )
                         ) AND kind = ? AND state IN ('queued', 'failed')
                           AND updated_at <= ? AND available_at <= ?`,
-                    bindings: [
-                        input.now,
-                        input.now,
-                        exhaustedJson,
-                        FEED_REFRESH_TOPIC,
-                        MAX_OUTBOX_ATTEMPTS,
-                        FEED_REFRESH_JOB_KIND,
-                        input.staleBefore,
-                        input.now,
-                    ],
-                },
-                {
-                    sql: `UPDATE feeds
+                        bindings: [
+                            input.now,
+                            input.now,
+                            exhaustedJson,
+                            FEED_REFRESH_TOPIC,
+                            MAX_OUTBOX_ATTEMPTS,
+                            FEED_REFRESH_JOB_KIND,
+                            input.staleBefore,
+                            input.now,
+                        ],
+                    },
+                    {
+                        sql: `UPDATE feeds
                         SET next_refresh_at = MAX(
                                 next_refresh_at + 1,
                                 ? + ${DEFAULT_REFRESH_INTERVAL_MS}
@@ -1206,17 +1162,17 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                               AND j.updated_at = ?
                               AND json_extract(j.payload_json, '$.trigger') = 'scheduled'
                         )`,
-                    bindings: [
-                        input.now,
-                        input.now,
-                        exhaustedJson,
-                        FEED_REFRESH_TOPIC,
-                        FEED_REFRESH_JOB_KIND,
-                        input.now,
-                    ],
-                },
-                {
-                    sql: `UPDATE outbox_messages
+                        bindings: [
+                            input.now,
+                            input.now,
+                            exhaustedJson,
+                            FEED_REFRESH_TOPIC,
+                            FEED_REFRESH_JOB_KIND,
+                            input.now,
+                        ],
+                    },
+                    {
+                        sql: `UPDATE outbox_messages
                         SET state = 'dead_lettered', sent_at = NULL,
                             last_error_class = 'queue_redrive_exhausted',
                             last_error_message = 'Queue redrive attempts exhausted',
@@ -1231,16 +1187,16 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                               AND j.last_error_class = 'queue_redrive_exhausted'
                               AND j.updated_at = ?
                           )`,
-                    bindings: [
-                        input.now,
-                        exhaustedJson,
-                        FEED_REFRESH_TOPIC,
-                        FEED_REFRESH_JOB_KIND,
-                        input.now,
-                    ],
-                },
-                {
-                    sql: `UPDATE outbox_messages
+                        bindings: [
+                            input.now,
+                            exhaustedJson,
+                            FEED_REFRESH_TOPIC,
+                            FEED_REFRESH_JOB_KIND,
+                            input.now,
+                        ],
+                    },
+                    {
+                        sql: `UPDATE outbox_messages
                         SET state = 'pending',
                             attempt_count = attempt_count + 1,
                             available_at = ?, sent_at = NULL,
@@ -1259,24 +1215,42 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                               AND j.attempt_count < j.max_attempts
                               AND j.updated_at <= ? AND j.available_at <= ?
                           )`,
-                    bindings: [
-                        input.now,
-                        input.now,
-                        redriveJson,
-                        FEED_REFRESH_TOPIC,
-                        MAX_OUTBOX_ATTEMPTS,
-                        input.staleBefore,
-                        FEED_REFRESH_JOB_KIND,
-                        input.staleBefore,
-                        input.now,
-                    ],
-                },
-            ]),
+                        bindings: [
+                            input.now,
+                            input.now,
+                            redriveJson,
+                            FEED_REFRESH_TOPIC,
+                            MAX_OUTBOX_ATTEMPTS,
+                            input.staleBefore,
+                            FEED_REFRESH_JOB_KIND,
+                            input.staleBefore,
+                            input.now,
+                        ],
+                    },
+                ].filter((_, index) =>
+                    index < terminalMutationCount
+                        ? exhaustedIds.length > 0
+                        : redriveIds.length > 0,
+                ),
+            ),
         );
-        const terminalJobs = changeCount(operation, results[0]);
-        const advancedFeeds = changeCount(operation, results[1]);
-        const terminalOutbox = changeCount(operation, results[2]);
-        const redriven = changeCount(operation, results[3]);
+        const hasTerminalMutations = exhaustedIds.length > 0;
+        const terminalJobs = hasTerminalMutations
+            ? changeCount(operation, results[0])
+            : 0;
+        const advancedFeeds = hasTerminalMutations
+            ? changeCount(operation, results[1])
+            : 0;
+        const terminalOutbox = hasTerminalMutations
+            ? changeCount(operation, results[2])
+            : 0;
+        const redriven =
+            redriveIds.length === 0
+                ? 0
+                : changeCount(
+                      operation,
+                      results[hasTerminalMutations ? terminalMutationCount : 0],
+                  );
         if (
             terminalJobs > exhaustedIds.length ||
             advancedFeeds > terminalJobs ||

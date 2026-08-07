@@ -110,6 +110,27 @@ export const queryPlanSpecs = (
             required: ['outbox_messages_pending'],
         },
         {
+            name: 'refresh.reconcile',
+            sql: `SELECT o.id
+                FROM jobs j
+                JOIN outbox_messages o ON o.job_id = j.id
+                WHERE j.kind = 'feed_refresh'
+                    AND j.state IN ('queued', 'failed')
+                    AND j.updated_at <= ? AND j.available_at <= ?
+                    AND o.topic = 'feed-refresh' AND o.state = 'sent'
+                    AND o.updated_at <= ?
+                ORDER BY j.updated_at, j.id LIMIT 10`,
+            bindings: [
+                fixture.generatedAt,
+                fixture.generatedAt,
+                fixture.generatedAt,
+            ],
+            required: [
+                'jobs_feed_refresh_reconcile',
+                'sqlite_autoindex_outbox_messages_1',
+            ],
+        },
+        {
             name: 'history.cleanup',
             sql: `SELECT old.id FROM feed_refreshes old
                 WHERE old.refreshed_at < ?

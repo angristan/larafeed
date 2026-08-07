@@ -876,6 +876,90 @@ describe('durable feed refresh jobs', () => {
         ).resolves.toEqual({ redriven: 1, deadLettered: 0 });
     });
 
+    it('reconciles redriven and exhausted jobs in one bounded batch', async () => {
+        const now = 2_100_001_400_000;
+        const redriveFeedId = 324_301;
+        const exhaustedFeedId = 324_311;
+        const redriveOperationId = `feed-refresh:scheduled:${redriveFeedId}:${now}`;
+        const exhaustedOperationId = `feed-refresh:scheduled:${exhaustedFeedId}:${now}`;
+        await settlePendingOutbox(now);
+        await run(
+            d1.run({
+                sql: `UPDATE jobs SET state = 'canceled', completed_at = ?,
+                        lease_owner = NULL, lease_expires_at = NULL,
+                        updated_at = MAX(updated_at, ?)
+                    WHERE kind = 'feed_refresh'
+                      AND state IN ('pending', 'queued', 'failed', 'running')`,
+                bindings: [now, now],
+            }),
+        );
+
+        for (const [feedId, operationId, jobId] of [
+            [redriveFeedId, redriveOperationId, 324_401],
+            [exhaustedFeedId, exhaustedOperationId, 324_411],
+        ] as const) {
+            await insertFeed(feedId, now);
+            await createJob(feedId, jobId, now, {
+                operationId,
+                trigger: 'scheduled',
+            });
+            const [message] = await repository.leaseOutbox({
+                owner: `mixed-dispatch-${feedId}`,
+                now,
+                leaseMs: 1_000,
+                limit: 1,
+            });
+            if (message === undefined) throw new Error('Expected outbox lease');
+            await repository.markDispatched(message, now);
+            if (feedId === exhaustedFeedId) {
+                await run(
+                    d1.run({
+                        sql: `UPDATE outbox_messages SET attempt_count = ?
+                            WHERE id = ?`,
+                        bindings: [MAX_OUTBOX_ATTEMPTS, message.id],
+                    }),
+                );
+            }
+        }
+
+        const reconciledAt = now + DEFAULT_REFRESH_REDRIVE_AGE_MS;
+        await expect(
+            repository.reconcileStrandedRefreshJobs({
+                now: reconciledAt,
+                staleBefore: now,
+                limit: 2,
+            }),
+        ).resolves.toEqual({ redriven: 1, deadLettered: 1 });
+        await expect(
+            run(
+                d1.all<{
+                    operation_id: string;
+                    job_state: string;
+                    outbox_state: string;
+                }>({
+                    sql: `SELECT j.operation_id, j.state AS job_state,
+                            o.state AS outbox_state
+                        FROM jobs j
+                        JOIN outbox_messages o ON o.job_id = j.id
+                        WHERE j.operation_id IN (?, ?)
+                        ORDER BY j.operation_id`,
+                    bindings: [redriveOperationId, exhaustedOperationId],
+                }),
+            ).then((result) => result.results),
+        ).resolves.toEqual([
+            {
+                operation_id: redriveOperationId,
+                job_state: 'queued',
+                outbox_state: 'pending',
+            },
+            {
+                operation_id: exhaustedOperationId,
+                job_state: 'dead_lettered',
+                outbox_state: 'dead_lettered',
+            },
+        ]);
+    });
+
     it('exhausts redrive recovery once, advances scheduled feeds, and excludes terminal jobs', async () => {
         const now = 2_100_001_450_000;
         const feedId = 324_501;

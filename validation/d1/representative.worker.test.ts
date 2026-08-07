@@ -300,6 +300,7 @@ describe('production-shaped D1 validation', () => {
             string,
             readonly Record<string, unknown>[]
         >();
+        const queryRowsRead = new Map<string, number>();
         for (const spec of queryPlanSpecs(fixture)) {
             const result = await env.DB.prepare(
                 `EXPLAIN QUERY PLAN ${spec.sql}`,
@@ -317,6 +318,7 @@ describe('production-shaped D1 validation', () => {
                 .bind(...spec.bindings)
                 .all<Record<string, unknown>>();
             queryResults.set(spec.name, queryResult.results);
+            queryRowsRead.set(spec.name, queryResult.meta.rows_read);
         }
         const firstId = (name: string): number | undefined => {
             const id = queryResults.get(name)?.[0]?.id;
@@ -344,6 +346,7 @@ describe('production-shaped D1 validation', () => {
             'reader.detail': fixture.semantics.lateOldEntryId,
             'refresh.due': 10_000,
             'outbox.lease': 3_000_000,
+            'refresh.reconcile': 3_000_002,
             'history.cleanup': 4_000_000,
         };
         for (const [name, expectedId] of Object.entries(expectedFirstIds)) {
@@ -356,6 +359,15 @@ describe('production-shaped D1 validation', () => {
                 ),
             );
         }
+        const reconciliationRowsRead =
+            queryRowsRead.get('refresh.reconcile') ?? Number.POSITIVE_INFINITY;
+        checks.push(
+            check(
+                'query_reads.refresh.reconcile',
+                reconciliationRowsRead <= fixture.config.feeds + 10,
+                `rows_read=${reconciliationRowsRead} historical_jobs=${fixture.config.historicalRefreshJobs}`,
+            ),
+        );
         const detailContent =
             queryResults.get('reader.detail')?.[0]?.content_html;
         checks.push(

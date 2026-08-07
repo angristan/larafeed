@@ -6,6 +6,7 @@ export interface FixtureConfig {
     readonly feeds: number;
     readonly entriesPerFeed: number;
     readonly normalContentBytes: number;
+    readonly historicalRefreshJobs: number;
 }
 
 export type FixtureValue = null | string | number | Uint8Array;
@@ -51,6 +52,7 @@ export const FIXTURE_PROFILES: Readonly<
         feeds: 8,
         entriesPerFeed: 32,
         normalContentBytes: 2_048,
+        historicalRefreshJobs: 256,
     },
     large: {
         profile: 'large',
@@ -58,6 +60,7 @@ export const FIXTURE_PROFILES: Readonly<
         feeds: 60,
         entriesPerFeed: 200,
         normalContentBytes: 8_192,
+        historicalRefreshJobs: 16_000,
     },
 };
 
@@ -283,6 +286,11 @@ export const resolveFixtureConfig = (
             overrides.normalContentBytes ?? base.normalContentBytes,
             256,
         ),
+        historicalRefreshJobs: integer(
+            'historicalRefreshJobs',
+            overrides.historicalRefreshJobs ?? base.historicalRefreshJobs,
+            0,
+        ),
     };
 };
 
@@ -435,7 +443,7 @@ export const generateRepresentativeFixture = async (
         rows.outbox_messages.push([
             3_000_000 + feedIndex,
             jobId,
-            'feed_refresh',
+            'feed-refresh',
             JSON.stringify({ operationId }),
             outboxState,
             stateIndex === 3 ? 5 : 0,
@@ -465,6 +473,50 @@ export const generateRepresentativeFixture = async (
                 refreshedAt,
             ]);
         }
+    }
+
+    for (
+        let historyIndex = 0;
+        historyIndex < checked.historicalRefreshJobs;
+        historyIndex += 1
+    ) {
+        const jobId = 20_000_000 + historyIndex;
+        const outboxId = 30_000_000 + historyIndex;
+        const operationId = `refresh:fixture:historical:${historyIndex}`;
+        const completedAt = FIXTURE_NOW - (historyIndex + 1) * 1_000;
+        rows.jobs.push([
+            jobId,
+            operationId,
+            'feed_refresh',
+            'succeeded',
+            JSON.stringify({
+                feedId: feedId(historyIndex % checked.feeds),
+                trigger: 'scheduled',
+            }),
+            1,
+            5,
+            completedAt,
+            null,
+            null,
+            completedAt - 1_000,
+            completedAt,
+            completedAt - 2_000,
+            completedAt,
+        ]);
+        rows.outbox_messages.push([
+            outboxId,
+            jobId,
+            'feed-refresh',
+            JSON.stringify({ operationId }),
+            'sent',
+            0,
+            completedAt - 2_000,
+            null,
+            null,
+            completedAt - 1_000,
+            completedAt - 2_000,
+            completedAt,
+        ]);
     }
 
     for (let userIndex = 0; userIndex < checked.users; userIndex += 1) {
