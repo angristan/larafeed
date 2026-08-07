@@ -35,6 +35,13 @@ function firstError(...errors: Array<Error | null>): Error | null {
     return errors.find((error) => error !== null) ?? null;
 }
 
+const filterTitles = {
+    all: 'All entries',
+    unread: 'Unread entries',
+    read: 'Read entries',
+    favorites: 'Favorites',
+} as const;
+
 function isEditableTarget(target: EventTarget | null): boolean {
     return (
         target instanceof HTMLInputElement ||
@@ -189,6 +196,24 @@ export function ReaderPage() {
         entryMutations.star.error,
         entryMutations.archive.error,
     );
+    const selectedSubscription = subscriptions?.find(
+        (subscription) => subscription.feedId === state.feedId,
+    );
+    const baseScopeTitle =
+        state.feedId !== null
+            ? (selectedSubscription?.customFeedName ??
+              selectedSubscription?.feedName ??
+              'Feed entries')
+            : state.categoryId !== null
+              ? (categoriesQuery.data?.categories.find(
+                    (category) => category.id === state.categoryId,
+                )?.name ?? 'Category entries')
+              : filterTitles[state.filter];
+    const entryListTitle =
+        (state.feedId !== null || state.categoryId !== null) &&
+        state.filter !== 'all'
+            ? `${baseScopeTitle}: ${filterTitles[state.filter]}`
+            : baseScopeTitle;
 
     const backToList = () => {
         returnFocusEntryId.current = state.entryId;
@@ -255,6 +280,7 @@ export function ReaderPage() {
                     >
                         <ReaderEntryList
                             entries={listEntries}
+                            scopeTitle={entryListTitle}
                             error={entryListQuery.error}
                             hasNextPage={entryListQuery.hasNextPage}
                             isFetching={entryListQuery.isFetching}

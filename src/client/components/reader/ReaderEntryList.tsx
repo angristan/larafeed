@@ -20,6 +20,7 @@ import classes from './Reader.module.css';
 
 interface ReaderEntryListProps {
     readonly state: ReaderState;
+    readonly scopeTitle: string;
     readonly entries: ReaderEntryPage['entries'];
     readonly total: number | undefined;
     readonly isPending: boolean;
@@ -34,6 +35,10 @@ interface ReaderEntryListProps {
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, {
     numeric: 'auto',
+});
+const absoluteTimeFormatter = new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
 });
 
 function formatRelativeTime(timestamp: number): string {
@@ -59,11 +64,23 @@ function formatRelativeTime(timestamp: number): string {
     return relativeTimeFormatter.format(seconds, 'second');
 }
 
-const filterTitles = {
-    all: 'All entries',
-    unread: 'Unread entries',
-    read: 'Read entries',
-    favorites: 'Favorites',
+const emptyStates = {
+    all: {
+        title: 'No entries yet',
+        message: 'New entries will appear after the next feed refresh.',
+    },
+    unread: {
+        title: 'You’re all caught up',
+        message: 'New unread entries will appear here.',
+    },
+    read: {
+        title: 'No read entries',
+        message: 'Entries you open will appear here.',
+    },
+    favorites: {
+        title: 'No favorites yet',
+        message: 'Star an entry to keep it here.',
+    },
 } as const;
 
 const orderLabels = {
@@ -73,6 +90,7 @@ const orderLabels = {
 
 export function ReaderEntryList({
     state,
+    scopeTitle,
     entries,
     total,
     isPending,
@@ -89,6 +107,7 @@ export function ReaderEntryList({
     const loadMore = useRef(onLoadMore);
     loadMore.current = onLoadMore;
 
+    const emptyState = emptyStates[state.filter];
     const scopeKey = `${state.feedId}:${state.categoryId}:${state.filter}:${state.orderBy}`;
     // biome-ignore lint/correctness/useExhaustiveDependencies: the scroll position resets whenever the list scope changes
     useEffect(() => {
@@ -117,13 +136,6 @@ export function ReaderEntryList({
         return () => observer.disconnect();
     }, [hasNextPage]);
 
-    const scopeTitle =
-        state.feedId !== null
-            ? 'Feed entries'
-            : state.categoryId !== null
-              ? 'Category entries'
-              : filterTitles[state.filter];
-
     return (
         <section
             aria-busy={isPending || isFetching}
@@ -131,8 +143,8 @@ export function ReaderEntryList({
             className={classes.entryList}
         >
             <header className={classes.listHeader}>
-                <div>
-                    <Text fw={700} size="sm">
+                <div className={classes.listHeaderCopy}>
+                    <Text fw={700} size="sm" title={scopeTitle} truncate>
                         {scopeTitle}
                     </Text>
                     <Text c="dimmed" size="xs">
@@ -156,6 +168,7 @@ export function ReaderEntryList({
                 classNames={{
                     scrollbar: classes.readerScrollbar,
                     thumb: classes.readerScrollbarThumb,
+                    viewport: classes.entryListViewport,
                 }}
                 viewportRef={viewport}
             >
@@ -216,11 +229,10 @@ export function ReaderEntryList({
                         <Center className={classes.emptyEntries}>
                             <Stack align="center" gap={4} ta="center">
                                 <Text fw={650} size="sm">
-                                    No entries here
+                                    {emptyState.title}
                                 </Text>
                                 <Text c="dimmed" maw={260} size="xs">
-                                    Choose another feed or filter, or wait for
-                                    the next refresh.
+                                    {emptyState.message}
                                 </Text>
                             </Stack>
                         </Center>
@@ -301,12 +313,17 @@ export function ReaderEntryList({
                                                                 entry.faviconUrl
                                                             }
                                                         />
-                                                        <span>{feedName}</span>
+                                                        <span title={feedName}>
+                                                            {feedName}
+                                                        </span>
                                                     </span>
                                                     <time
                                                         dateTime={new Date(
                                                             entry.publishedAt,
                                                         ).toISOString()}
+                                                        title={absoluteTimeFormatter.format(
+                                                            entry.publishedAt,
+                                                        )}
                                                     >
                                                         {formatRelativeTime(
                                                             entry.publishedAt,

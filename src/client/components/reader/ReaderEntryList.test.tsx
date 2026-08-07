@@ -43,6 +43,7 @@ function render(overrides: Partial<Parameters<typeof ReaderEntryList>[0]>) {
                 <ReaderEntryList
                     entries={entries}
                     error={null}
+                    scopeTitle="All entries"
                     hasNextPage={false}
                     isFetching={false}
                     isFetchingNextPage={false}
