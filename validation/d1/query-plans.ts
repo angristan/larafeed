@@ -112,7 +112,7 @@ export const queryPlanSpecs = (
         {
             name: 'refresh.reconcile',
             sql: `SELECT o.id
-                FROM jobs j
+                FROM jobs j INDEXED BY jobs_feed_refresh_reconcile
                 JOIN outbox_messages o ON o.job_id = j.id
                 WHERE j.kind = 'feed_refresh'
                     AND j.state IN ('queued', 'failed')

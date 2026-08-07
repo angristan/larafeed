@@ -1066,16 +1066,16 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         CASE WHEN o.attempt_count >= ?
                                   OR j.attempt_count >= j.max_attempts
                             THEN 1 ELSE 0 END AS exhausted
-                    FROM jobs j
+                    FROM jobs j INDEXED BY jobs_feed_refresh_reconcile
                     JOIN outbox_messages o ON o.job_id = j.id
-                    WHERE j.kind = ? AND j.state IN ('queued', 'failed')
+                    WHERE j.kind = 'feed_refresh'
+                      AND j.state IN ('queued', 'failed')
                       AND j.updated_at <= ? AND j.available_at <= ?
                       AND o.topic = ? AND o.state = 'sent'
                       AND o.updated_at <= ?
                     ORDER BY j.updated_at, j.id LIMIT ?`,
                 bindings: [
                     MAX_OUTBOX_ATTEMPTS,
-                    FEED_REFRESH_JOB_KIND,
                     input.staleBefore,
                     input.now,
                     FEED_REFRESH_TOPIC,
