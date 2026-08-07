@@ -321,12 +321,6 @@ function ChartsDashboard({
     readonly data: ChartData;
     readonly view: ChartReportView;
 }) {
-    const dateRangeLabel =
-        data.window.startDate === data.window.endDate
-            ? formatDate(data.window.startDate)
-            : `${formatDate(data.window.startDate)} → ${formatDate(
-                  data.window.endDate,
-              )}`;
     const reads = heatmapData(data.days, 'markedRead');
     const entries = heatmapData(data.days, 'received');
     const saved = heatmapData(data.days, 'saved');
@@ -463,7 +457,7 @@ function ChartsDashboard({
             {view === 'overview' && (
                 <Stack gap="md">
                     <ChartSurface
-                        detail={`Arrivals, reads, and saves · ${dateRangeLabel}`}
+                        detail="Arrivals, reads, and saves"
                         primary
                         title="Reading flow"
                     >
@@ -550,7 +544,7 @@ function ChartsDashboard({
             {view === 'reading' && (
                 <Stack component="section" gap="md">
                     <ChartSurface
-                        detail={`Arrivals, reads, and saves · ${dateRangeLabel}`}
+                        detail="Arrivals, reads, and saves"
                         primary
                         title="Reading flow"
                     >
@@ -651,7 +645,7 @@ function ChartsDashboard({
                     {data.summary.refreshAttempts > 0 ? (
                         <Stack gap="md">
                             <ChartSurface
-                                detail={`Successful and failed refreshes · ${dateRangeLabel}`}
+                                detail="Successful and failed refreshes"
                                 primary
                                 title="Refresh attempts"
                             >
@@ -737,7 +731,7 @@ function ChartsDashboard({
             {view === 'backlog' && (
                 <Stack component="section" gap="md">
                     <ChartSurface
-                        detail={`Unread pressure over time · ${dateRangeLabel}`}
+                        detail="Unread pressure over time"
                         primary
                         title="Unread backlog"
                     >

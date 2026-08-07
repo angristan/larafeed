@@ -12,8 +12,15 @@
 
 .contentHeader {
     display: grid;
-    gap: var(--ds-space-1);
+    gap: 2px;
     padding-inline: var(--ds-space-1);
+}
+
+/* Page titles are wayfinding inside an app shell, not editorial headlines. */
+.contentHeader h1 {
+    font-size: 1.35rem;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
 }
 
 .contentHeader p {

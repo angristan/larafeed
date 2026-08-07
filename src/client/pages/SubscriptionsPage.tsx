@@ -703,10 +703,6 @@ function SubscriptionWorkspace({
                                     <Title id="audit-filters-heading" order={2}>
                                         Search &amp; Filter
                                     </Title>
-                                    <Text c="dimmed" size="xs">
-                                        Refine the subscriptions table in real
-                                        time.
-                                    </Text>
                                 </Stack>
                                 <Button
                                     color="gray"

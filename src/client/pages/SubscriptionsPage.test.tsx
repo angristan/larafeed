@@ -111,7 +111,6 @@ describe('SubscriptionsPage', () => {
         );
 
         expect(markup).toContain('Search &amp; Filter');
-        expect(markup).toContain('Refine the subscriptions table in real time');
         expect(markup).toContain('No subscriptions match the current filters');
     });
 
