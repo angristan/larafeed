@@ -1108,6 +1108,52 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             return { redriven: 0, deadLettered: 0 };
         }
 
+        if (exhaustedIds.length === 0) {
+            const result = await run(
+                operation,
+                d1.run({
+                    sql: `UPDATE outbox_messages
+                        SET state = 'pending',
+                            attempt_count = attempt_count + 1,
+                            available_at = ?, sent_at = NULL,
+                            last_error_class = 'queue_delivery_lost',
+                            last_error_message = 'Queue delivery was not observed',
+                            updated_at = ?
+                        WHERE id IN (
+                            SELECT CAST(value AS INTEGER) FROM json_each(?)
+                        ) AND topic = ? AND state = 'sent'
+                          AND attempt_count < ? AND updated_at <= ?
+                          AND EXISTS (
+                            SELECT 1 FROM jobs j
+                            WHERE j.id = outbox_messages.job_id
+                              AND j.kind = ?
+                              AND j.state IN ('queued', 'failed')
+                              AND j.attempt_count < j.max_attempts
+                              AND j.updated_at <= ? AND j.available_at <= ?
+                          )`,
+                    bindings: [
+                        input.now,
+                        input.now,
+                        JSON.stringify(redriveIds),
+                        FEED_REFRESH_TOPIC,
+                        MAX_OUTBOX_ATTEMPTS,
+                        input.staleBefore,
+                        FEED_REFRESH_JOB_KIND,
+                        input.staleBefore,
+                        input.now,
+                    ],
+                }),
+            );
+            const redriven = changeCount(operation, result);
+            if (redriven > redriveIds.length) {
+                throw new JobInvariantError(
+                    operation,
+                    'invalid redrive reconciliation',
+                );
+            }
+            return { redriven, deadLettered: 0 };
+        }
+
         const redriveJson = JSON.stringify(redriveIds);
         const exhaustedJson = JSON.stringify(exhaustedIds);
         const results = await run(
