@@ -196,11 +196,9 @@ describe('summary D1 repository', () => {
         const service = makeSummaryService({
             config: {
                 enabled: true,
-                accountId: '0123456789abcdef0123456789abcdef',
                 gatewayName: 'larafeed-ai',
                 model: key.model,
                 promptVersion: 'entry-summary-v1',
-                apiKey: 'secret',
             },
             repository,
             provider: {

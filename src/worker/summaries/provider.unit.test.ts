@@ -1,145 +1,131 @@
 import { Effect } from 'effect';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import type { SummaryConfig } from './config';
+import type { EnabledSummaryConfig } from './config';
 import { SummaryProviderError } from './errors';
 import {
     makeSummaryProvider,
     SUMMARY_MAX_OUTPUT_TOKENS,
     SUMMARY_MAX_PROVIDER_BODY_BYTES,
+    type SummaryModelRunner,
 } from './provider';
 
-const config: SummaryConfig = {
+const config: EnabledSummaryConfig = {
     enabled: true,
-    accountId: '0123456789abcdef0123456789abcdef',
     gatewayName: 'larafeed-ai',
-    model: 'gemini-2.5-flash',
+    model: '@cf/mistralai/mistral-small-3.1-24b-instruct',
     promptVersion: 'entry-summary-v1',
-    apiKey: 'gemini-secret',
 };
-const success = (text = '<p>Concise.</p>') =>
-    Response.json({
-        candidates: [{ content: { parts: [{ text }] } }],
-    });
 
-afterEach(() => {
-    vi.unstubAllGlobals();
-});
+type RunMock = ReturnType<typeof vi.fn<SummaryModelRunner['run']>>;
+const runner = (run: RunMock): SummaryModelRunner => ({ run });
 
-describe('Gemini AI Gateway provider', () => {
-    it('uses the explicit Gateway URL, secret header, and bounded body', async () => {
-        const fetchMock = vi.fn<
-            (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
-        >(() => Promise.resolve(success()));
-        vi.stubGlobal('fetch', fetchMock);
+describe('Workers AI binding provider', () => {
+    it('runs the configured model through the configured gateway', async () => {
+        const run = vi.fn<SummaryModelRunner['run']>(() =>
+            Promise.resolve({ response: '<p>Concise.</p>' }),
+        );
 
         await expect(
             Effect.runPromise(
-                makeSummaryProvider(config).generate({
+                makeSummaryProvider(config, runner(run)).generate({
                     title: 'Private title',
                     articleText: 'Private article text',
                 }),
             ),
         ).resolves.toBe('<p>Concise.</p>');
 
-        const [url, init] = fetchMock.mock.calls[0] ?? [];
-        expect(url).toBe(
-            'https://gateway.ai.cloudflare.com/v1/0123456789abcdef0123456789abcdef/larafeed-ai/google-ai-studio/v1beta/models/gemini-2.5-flash:generateContent',
-        );
-        expect(init).toMatchObject({
-            method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'X-Goog-Api-Key': 'gemini-secret',
-                'cf-aig-collect-log': 'false',
-                'cf-aig-skip-cache': 'true',
+        const [model, inputs, options] = run.mock.calls[0] ?? [];
+        expect(model).toBe('@cf/mistralai/mistral-small-3.1-24b-instruct');
+        expect(options).toEqual({
+            gateway: {
+                id: 'larafeed-ai',
+                skipCache: true,
             },
         });
-        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-        expect(body).toMatchObject({
-            generationConfig: {
-                temperature: 0.2,
-                maxOutputTokens: SUMMARY_MAX_OUTPUT_TOKENS,
-                responseMimeType: 'text/plain',
-            },
+        expect(inputs).toMatchObject({
+            max_tokens: SUMMARY_MAX_OUTPUT_TOKENS,
+            temperature: 0.2,
         });
         expect(SUMMARY_MAX_OUTPUT_TOKENS).toBe(512);
-        expect(JSON.stringify(body)).toContain('Private title');
-        expect(JSON.stringify(body)).toContain('Private article text');
-        expect(JSON.stringify(body)).toContain(
+        const encoded = JSON.stringify(inputs);
+        expect(encoded).toContain('Private title');
+        expect(encoded).toContain('Private article text');
+        expect(encoded).toContain(
             'Summarize the following article in 3-4 sentences.',
         );
-        expect(JSON.stringify(body)).toContain(
-            'short paragraphs using HTML <p> tags',
-        );
-        expect(JSON.stringify(body)).toContain('aggregator post or excerpt');
-        expect(JSON.stringify(body)).toContain('Use passive voice.');
-        expect(JSON.stringify(body)).not.toContain('userId');
+        expect(encoded).toContain('short paragraphs using HTML <p> tags');
+        expect(encoded).toContain('aggregator post or excerpt');
+        expect(encoded).toContain('Use passive voice.');
+        expect(encoded).not.toContain('userId');
     });
 
-    it('performs at most one retry for transport, 429, and 5xx failures', async () => {
+    it('performs at most one retry for transport and rate-limit failures', async () => {
         for (const firstFailure of [
             () => Promise.reject(new TypeError('network details')),
-            () => Promise.resolve(new Response('private', { status: 429 })),
-            () => Promise.resolve(new Response('private', { status: 503 })),
+            () => Promise.reject(new Error('429 rate limit exceeded')),
+            () => Promise.reject(new Error('capacity temporarily exceeded')),
         ]) {
-            const fetchMock = vi
-                .fn<() => Promise<Response>>()
+            const run = vi
+                .fn<SummaryModelRunner['run']>()
                 .mockImplementationOnce(firstFailure)
-                .mockResolvedValueOnce(success('retried'));
-            vi.stubGlobal('fetch', fetchMock);
+                .mockResolvedValueOnce({ response: 'retried' });
 
             await expect(
                 Effect.runPromise(
-                    makeSummaryProvider(config).generate({
+                    makeSummaryProvider(config, runner(run)).generate({
                         title: 'Title',
                         articleText: 'Article',
                     }),
                 ),
             ).resolves.toBe('retried');
-            expect(fetchMock).toHaveBeenCalledTimes(2);
+            expect(run).toHaveBeenCalledTimes(2);
         }
     });
 
-    it('does not retry rejected requests or oversized provider responses', async () => {
-        const rejected = vi.fn(() =>
-            Promise.resolve(
-                new Response('private provider details', { status: 400 }),
-            ),
+    it('does not retry malformed or oversized provider responses', async () => {
+        const malformed = vi.fn<SummaryModelRunner['run']>(() =>
+            Promise.resolve({ unexpected: 'private provider details' }),
         );
-        vi.stubGlobal('fetch', rejected);
         const error = await Effect.runPromise(
-            makeSummaryProvider(config).generate({
+            makeSummaryProvider(config, runner(malformed)).generate({
                 title: 'Title',
                 articleText: 'Article',
             }),
         ).catch((cause: unknown) => cause);
         expect(error).toBeInstanceOf(SummaryProviderError);
-        expect(error).toMatchObject({ kind: 'rejected', status: 400 });
+        expect(error).toMatchObject({ kind: 'invalid_response' });
         expect(String(error)).not.toContain('private provider details');
-        expect(rejected).toHaveBeenCalledTimes(1);
+        expect(malformed).toHaveBeenCalledTimes(1);
 
-        const oversized = vi.fn(() =>
-            Promise.resolve(
-                new Response('x', {
-                    headers: {
-                        'Content-Length': String(
-                            SUMMARY_MAX_PROVIDER_BODY_BYTES + 1,
-                        ),
-                    },
-                }),
-            ),
+        const oversized = vi.fn<SummaryModelRunner['run']>(() =>
+            Promise.resolve({
+                response: 'x'.repeat(SUMMARY_MAX_PROVIDER_BODY_BYTES + 1),
+            }),
         );
-        vi.stubGlobal('fetch', oversized);
         await expect(
             Effect.runPromise(
-                makeSummaryProvider(config).generate({
+                makeSummaryProvider(config, runner(oversized)).generate({
                     title: 'Title',
                     articleText: 'Article',
                 }),
             ),
         ).rejects.toMatchObject({ kind: 'output_too_large' });
         expect(oversized).toHaveBeenCalledTimes(1);
+    });
+
+    it('never exposes provider error details in failures', async () => {
+        const run = vi.fn<SummaryModelRunner['run']>(() =>
+            Promise.reject(new Error('secret upstream diagnostics')),
+        );
+        const error = await Effect.runPromise(
+            makeSummaryProvider(config, runner(run)).generate({
+                title: 'Title',
+                articleText: 'Article',
+            }),
+        ).catch((cause: unknown) => cause);
+        expect(error).toBeInstanceOf(SummaryProviderError);
+        expect(String(error)).not.toContain('secret upstream diagnostics');
+        expect(run).toHaveBeenCalledTimes(2);
     });
 });

@@ -11,7 +11,7 @@ npm run deploy:check      # portable deployment dry run
 npm run deploy            # checked migration and deployment of the portable environment
 ```
 
-Named maintainer environments use the matching `:production` or `:test` scripts. Each deployment script runs this fixed sequence:
+The named maintainer environment uses the matching `:production` scripts. Each deployment script runs this fixed sequence:
 
 ```text
 build -> deployment dry run -> remote D1 migration -> deploy the same build output
@@ -119,7 +119,7 @@ npm exec -- wrangler deployments list
 npm exec -- wrangler rollback VERSION_ID --message "rollback"
 ```
 
-Use `build:production` or `build:test` for a named environment. A Worker rollback does not reverse D1 migrations, data changes, Queue deliveries, Images transformations, or AI calls.
+Use `build:production` for the named production environment. A Worker rollback does not reverse D1 migrations, data changes, Queue deliveries, Images transformations, or AI calls.
 
 ## D1 recovery
 
@@ -141,7 +141,7 @@ npm exec -- wrangler d1 time-travel restore DB \
   --config wrangler.jsonc
 ```
 
-Add `--env production` or `--env test` only for the matching named environment. Confirm Cloudflare's current Time Travel retention before relying on a recovery point.
+Add `--env production` only for the named production environment. Confirm Cloudflare's current Time Travel retention before relying on a recovery point.
 
 After restore:
 

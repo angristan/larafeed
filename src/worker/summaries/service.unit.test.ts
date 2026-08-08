@@ -19,11 +19,9 @@ import {
 
 const config: SummaryConfig = {
     enabled: true,
-    accountId: '0123456789abcdef0123456789abcdef',
     gatewayName: 'larafeed-ai',
-    model: 'gemini-2.5-flash',
+    model: '@cf/mistralai/mistral-small-3.1-24b-instruct',
     promptVersion: 'entry-summary-v1',
-    apiKey: 'secret',
 };
 const entry: OwnedSummaryEntry = {
     entryId: 31,

@@ -17,7 +17,7 @@
         "TURNSTILE_ENABLED": "false",
         "AI_SUMMARY_ENABLED": "false",
         "AI_GATEWAY_NAME": "larafeed",
-        "AI_MODEL": "gemini-2.5-flash",
+        "AI_MODEL": "@cf/mistralai/mistral-small-3.1-24b-instruct",
         "REFRESH_SCHEDULER_ENABLED": "true",
         "REFRESH_DISPATCH_ENABLED": "true",
         "REFRESH_DUE_LIMIT": "5",
@@ -33,6 +33,7 @@
         "run_worker_first": ["/api/*", "/export", "/up"]
     },
     "images": { "binding": "IMAGES" },
+    "ai": { "binding": "AI" },
     "d1_databases": [
         {
             "binding": "DB",
@@ -116,9 +117,9 @@
                 "AUTH_CHALLENGE_TTL_SECONDS": "300",
                 "AUTH_SESSION_TTL_SECONDS": "2592000",
                 "TURNSTILE_ENABLED": "false",
-                "AI_SUMMARY_ENABLED": "false",
+                "AI_SUMMARY_ENABLED": "true",
                 "AI_GATEWAY_NAME": "larafeed",
-                "AI_MODEL": "gemini-2.5-flash",
+                "AI_MODEL": "@cf/mistralai/mistral-small-3.1-24b-instruct",
                 "REFRESH_SCHEDULER_ENABLED": "true",
                 "REFRESH_DISPATCH_ENABLED": "true",
                 "REFRESH_DUE_LIMIT": "10",
@@ -136,6 +137,7 @@
                 }
             ],
             "images": { "binding": "IMAGES" },
+            "ai": { "binding": "AI" },
             "d1_databases": [
                 {
                     "binding": "DB",
@@ -206,11 +208,7 @@
                 }
             }
         },
-        "test": {
-            "name": "larafeed-test",
-            "workers_dev": false,
-            "preview_urls": false,
-            "placement": { "mode": "smart" },
+        "vitest": {
             "secrets": { "required": ["AUTH_OPERATOR_SECRET"] },
             "vars": {
                 "AUTH_ENVIRONMENT": "test",
@@ -221,7 +219,7 @@
                 "TURNSTILE_ENABLED": "false",
                 "AI_SUMMARY_ENABLED": "false",
                 "AI_GATEWAY_NAME": "larafeed-test",
-                "AI_MODEL": "gemini-2.5-flash",
+                "AI_MODEL": "@cf/mistralai/mistral-small-3.1-24b-instruct",
                 "REFRESH_SCHEDULER_ENABLED": "true",
                 "REFRESH_DISPATCH_ENABLED": "true",
                 "REFRESH_DUE_LIMIT": "5",
@@ -232,13 +230,8 @@
                 "OPML_IMPORT_QUEUE_NAME": "larafeed-test-opml-import",
                 "FAVICON_REFRESH_QUEUE_NAME": "larafeed-test-favicon-refresh"
             },
-            "routes": [
-                {
-                    "pattern": "larafeedcf.stanislas.cloud",
-                    "custom_domain": true
-                }
-            ],
             "images": { "binding": "IMAGES" },
+            "ai": { "binding": "AI" },
             "d1_databases": [
                 {
                     "binding": "DB",
@@ -292,21 +285,6 @@
                         "max_concurrency": 1
                     }
                 ]
-            },
-            "triggers": { "crons": ["*/10 * * * *"] },
-            "observability": {
-                "enabled": true,
-                "logs": {
-                    "enabled": true,
-                    "head_sampling_rate": 1,
-                    "invocation_logs": true,
-                    "persist": true
-                },
-                "traces": {
-                    "enabled": true,
-                    "head_sampling_rate": 1,
-                    "persist": true
-                }
             }
         }
     }

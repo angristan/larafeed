@@ -24,7 +24,7 @@ export default defineConfig({
             },
             wrangler: {
                 configPath: './wrangler.jsonc',
-                environment: 'test',
+                environment: 'vitest',
             },
         })),
     ],

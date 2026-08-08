@@ -622,7 +622,7 @@ export function ReaderEntryDetail({
                                     size={16}
                                 />
                                 <Tooltip
-                                    label="Generated with Google Gemini"
+                                    label="Generated with Workers AI"
                                     position="right"
                                 >
                                     <Badge

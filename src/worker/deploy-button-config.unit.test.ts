@@ -64,21 +64,15 @@ describe('Deploy-to-Cloudflare configuration', () => {
             preview_urls: false,
             routes: [{ pattern: 'larafeed.stanislas.cloud' }],
         });
-        expect(wrangler.env?.test).toMatchObject({
-            name: 'larafeed-test',
-            workers_dev: false,
-            preview_urls: false,
-            routes: [{ pattern: 'larafeedcf.stanislas.cloud' }],
-        });
+        expect(wrangler.env?.test).toBeUndefined();
         expect(wrangler.env?.production?.placement).toEqual({ mode: 'smart' });
-        expect(wrangler.env?.test?.placement).toEqual({ mode: 'smart' });
         expect(wrangler.env?.production?.vars).toMatchObject({
             REFRESH_SCHEDULER_ENABLED: 'true',
             REFRESH_DISPATCH_ENABLED: 'true',
             OPML_IMPORT_ENABLED: 'true',
             FAVICON_REFRESH_ENABLED: 'true',
             IMAGES_ENABLED: 'true',
-            AI_SUMMARY_ENABLED: 'false',
+            AI_SUMMARY_ENABLED: 'true',
         });
     });
 
@@ -118,9 +112,6 @@ describe('Deploy-to-Cloudflare configuration', () => {
         expect(configuredKeys).toEqual(['AUTH_OPERATOR_SECRET']);
         expect(wrangler.secrets?.required).toEqual(['AUTH_OPERATOR_SECRET']);
         expect(wrangler.env?.production?.secrets?.required).toEqual([
-            'AUTH_OPERATOR_SECRET',
-        ]);
-        expect(wrangler.env?.test?.secrets?.required).toEqual([
             'AUTH_OPERATOR_SECRET',
         ]);
     });

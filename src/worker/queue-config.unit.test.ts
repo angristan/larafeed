@@ -15,7 +15,7 @@ interface EnvironmentConfig {
 interface QueueConfig extends EnvironmentConfig {
     readonly env?: {
         readonly production?: EnvironmentConfig;
-        readonly test?: EnvironmentConfig;
+        readonly vitest?: EnvironmentConfig;
     };
 }
 
@@ -26,7 +26,7 @@ const config = JSON.parse(
 const environments = [
     ['portable', config],
     ['production', config.env?.production],
-    ['test', config.env?.test],
+    ['vitest', config.env?.vitest],
 ] as const;
 
 const queueVariableNames = [

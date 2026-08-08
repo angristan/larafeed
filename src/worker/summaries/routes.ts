@@ -54,7 +54,7 @@ export const defaultSummaryRuntimeFactory: SummaryRuntimeFactory = (env) => {
                 config,
                 repository: makeSummaryRepository(d1),
                 ...(config.enabled
-                    ? { provider: makeSummaryProvider(config) }
+                    ? { provider: makeSummaryProvider(config, env.AI) }
                     : {}),
             }),
         })),

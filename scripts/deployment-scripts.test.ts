@@ -11,7 +11,6 @@ describe('deployment scripts', () => {
     it.each([
         ['deploy', 'build', 'd1:migrate'],
         ['deploy:production', 'build:production', 'd1:migrate:production'],
-        ['deploy:test', 'build:test', 'd1:migrate:test'],
     ])('%s checks one build before migration and deploys it without rebuilding', (scriptName, buildScript, migrationScript) => {
         expect(scripts[scriptName]?.split(' && ')).toEqual([
             `npm run ${buildScript}`,

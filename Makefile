@@ -28,17 +28,11 @@ types:
 d1-migrate:
 	npm run d1:migrate:local
 
-d1-migrate-test:
-	npm run d1:migrate:test
-
 d1-validate:
 	npm run d1:validate
 
 deploy-check:
 	npm run deploy:check
-
-deploy-test:
-	npm run deploy:test
 
 validate:
 	npm run validate

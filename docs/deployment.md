@@ -19,7 +19,7 @@ After the first deployment, open the D1 database settings and enable Read Replic
 
 ## Manual deployment
 
-Requirements: Node.js 24, npm, Bun, and an authenticated Wrangler session. The portable environment is the default, unnamed environment in `wrangler.jsonc`. The `production` and `test` named environments belong to this repository's maintainer. A fork must not use them without replacing every route and resource binding.
+Requirements: Node.js 24, npm, Bun, and an authenticated Wrangler session. The portable environment is the default, unnamed environment in `wrangler.jsonc`. The `production` named environment belongs to this repository's maintainer. A fork must not use it without replacing every route and resource binding.
 
 ### Provision a fresh portable environment
 
@@ -108,14 +108,9 @@ Migration `0018_favicon_svg_assets.sql` supports a safe Worker rollback. An olde
 
 ### AI summaries
 
-AI summaries are disabled by default. Create an AI Gateway with provider budgets and rate limits, then set these Worker secrets:
+AI summaries run on [Workers AI](https://developers.cloudflare.com/workers-ai/) through the `AI` binding, routed via [AI Gateway](https://developers.cloudflare.com/ai-gateway/). No API keys or secrets are needed; usage bills to the Workers plan (10,000 free Neurons per day, then $0.011 per 1,000 Neurons on Workers Paid).
 
-```bash
-npm exec -- wrangler secret put AI_GATEWAY_ACCOUNT_ID --config wrangler.jsonc
-npm exec -- wrangler secret put GEMINI_API_KEY --config wrangler.jsonc
-```
-
-Set `AI_GATEWAY_NAME`, `AI_MODEL`, and `AI_SUMMARY_ENABLED=true`, then deploy again. Prompt and response logging is disabled by the application.
+Set `AI_SUMMARY_ENABLED=true`, `AI_GATEWAY_NAME`, and `AI_MODEL` (a Workers AI model such as `@cf/mistralai/mistral-small-3.1-24b-instruct`), then deploy. The named gateway must exist in the account; use `default` to auto-create one on first use. Request logging follows the gateway's own settings (managed in `cloudflare-tf`).
 
 ## Next steps
 

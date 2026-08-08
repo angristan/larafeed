@@ -5,10 +5,8 @@ import { SummaryConfigError } from './errors';
 
 const valid = {
     AI_SUMMARY_ENABLED: 'true',
-    AI_GATEWAY_ACCOUNT_ID: '0123456789abcdef0123456789abcdef',
     AI_GATEWAY_NAME: 'larafeed-ai',
-    AI_MODEL: 'gemini-2.5-flash',
-    GEMINI_API_KEY: 'secret-key',
+    AI_MODEL: '@cf/mistralai/mistral-small-3.1-24b-instruct',
 } as unknown as Env;
 
 describe('summary config', () => {
@@ -25,28 +23,25 @@ describe('summary config', () => {
         });
     });
 
-    it('accepts only exact trusted Gateway configuration when enabled', async () => {
+    it('accepts only exact trusted Workers AI configuration when enabled', async () => {
         await expect(
             Effect.runPromise(parseSummaryConfig(valid)),
         ).resolves.toEqual({
             enabled: true,
-            accountId: '0123456789abcdef0123456789abcdef',
             gatewayName: 'larafeed-ai',
-            model: 'gemini-2.5-flash',
+            model: '@cf/mistralai/mistral-small-3.1-24b-instruct',
             promptVersion: SUMMARY_PROMPT_VERSION,
-            apiKey: 'secret-key',
         });
 
         for (const candidate of [
             { ...valid, AI_SUMMARY_ENABLED: 'TRUE' },
-            { ...valid, AI_GATEWAY_ACCOUNT_ID: '../account' },
             { ...valid, AI_GATEWAY_NAME: 'gateway/name' },
-            { ...valid, AI_MODEL: 'models/gemini' },
-            { ...valid, GEMINI_API_KEY: ' secret-key' },
-            { ...valid, AI_GATEWAY_ACCOUNT_ID: undefined },
+            { ...valid, AI_MODEL: 'gemini-2.5-flash' },
+            { ...valid, AI_MODEL: '@cf/meta' },
+            { ...valid, AI_MODEL: '@cf/meta/llama with spaces' },
+            { ...valid, AI_MODEL: '@cf/meta/llama/extra' },
             { ...valid, AI_GATEWAY_NAME: undefined },
             { ...valid, AI_MODEL: undefined },
-            { ...valid, GEMINI_API_KEY: undefined },
         ]) {
             const error = await Effect.runPromise(
                 parseSummaryConfig(candidate as unknown as Env),

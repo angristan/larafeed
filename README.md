@@ -55,7 +55,7 @@ flowchart LR
     Cron[Cron Triggers]
     Images[Cloudflare Images]
     AI[AI Gateway]
-    Gemini[Gemini]
+    WorkersAI[Workers AI]
     Feeds[Feed publishers]
 
     Browser <--> Worker
@@ -63,7 +63,7 @@ flowchart LR
     Worker <--> Queues
     Cron --> Worker
     Worker --> Images
-    Worker --> AI --> Gemini
+    Worker --> AI --> WorkersAI
     Worker --> Feeds
 ```
 
@@ -73,7 +73,7 @@ flowchart LR
 - Queues process feed discovery, refreshes, and favicons one feed at a time.
 - Feed requests use conditional HTTP headers to avoid downloading unchanged content, then adapt their next refresh from observed changes and publisher cache hints.
 - Cloudflare Images proxies article images for privacy and performance.
-- AI summaries use Gemini through Cloudflare AI Gateway and are cached in D1.
+- AI summaries use Workers AI through Cloudflare AI Gateway and are cached in D1.
 - Google Reader and Fever APIs are implemented from scratch.
   - I relied heavily on the implementations in [FreshRSS](https://github.com/FreshRSS/FreshRSS/tree/edge/p/api) and [Miniflux](https://github.com/miniflux/v2/tree/main/internal).
   - Using [Reeder Classic](https://reederapp.com/classic/) with Miniflux as a backend, I inspected the API calls with [mitmproxy](https://mitmproxy.org/) to reverse-engineer the protocols.

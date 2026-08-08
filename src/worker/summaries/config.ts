@@ -11,11 +11,9 @@ export interface DisabledSummaryConfig {
 
 export interface EnabledSummaryConfig {
     readonly enabled: true;
-    readonly accountId: string;
     readonly gatewayName: string;
     readonly model: string;
     readonly promptVersion: typeof SUMMARY_PROMPT_VERSION;
-    readonly apiKey: string;
 }
 
 export type SummaryConfig = DisabledSummaryConfig | EnabledSummaryConfig;
@@ -47,11 +45,6 @@ export const parseSummaryConfig = (
             };
         }
 
-        const accountId = yield* exactString(
-            env,
-            'AI_GATEWAY_ACCOUNT_ID',
-            /^[a-fA-F0-9]{32}$/u,
-        );
         const gatewayName = yield* exactString(
             env,
             'AI_GATEWAY_NAME',
@@ -60,23 +53,13 @@ export const parseSummaryConfig = (
         const model = yield* exactString(
             env,
             'AI_MODEL',
-            /^[A-Za-z0-9._-]{1,100}$/u,
+            /^@[a-z0-9-]{1,20}\/[A-Za-z0-9._-]{1,40}\/[A-Za-z0-9._-]{1,60}$/u,
         );
-        const apiKeyValue = envValue(env, 'GEMINI_API_KEY');
-        const apiKey =
-            typeof apiKeyValue === 'string' &&
-            apiKeyValue.length >= 1 &&
-            apiKeyValue.length <= 512 &&
-            apiKeyValue.trim() === apiKeyValue
-                ? apiKeyValue
-                : yield* Effect.fail(new SummaryConfigError());
 
         return {
             enabled: true,
-            accountId,
             gatewayName,
             model,
             promptVersion: SUMMARY_PROMPT_VERSION,
-            apiKey,
         };
     });

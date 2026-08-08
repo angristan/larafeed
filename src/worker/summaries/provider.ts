@@ -7,23 +7,23 @@ export const SUMMARY_PROVIDER_DEADLINE_MS = 15_000;
 export const SUMMARY_MAX_OUTPUT_TOKENS = 512;
 export const SUMMARY_MAX_PROVIDER_BODY_BYTES = 64_000;
 
-const GeminiResponse = Schema.Struct({
-    candidates: Schema.Array(
-        Schema.Struct({
-            content: Schema.Struct({
-                parts: Schema.Array(
-                    Schema.Struct({
-                        text: Schema.String,
-                    }),
-                ),
-            }),
-        }),
-    ),
+const WorkersAiResponse = Schema.Struct({
+    response: Schema.String,
 });
 
 export interface GenerateSummaryInput {
     readonly title: string;
     readonly articleText: string;
+}
+
+// Structural subset of the generated `Ai` binding type; keeps unit tests and
+// call sites decoupled from the model-name literal union in worker-configuration.
+export interface SummaryModelRunner {
+    run(
+        model: string,
+        inputs: Record<string, unknown>,
+        options?: Record<string, unknown>,
+    ): Promise<unknown>;
 }
 
 export interface SummaryProvider {
@@ -41,19 +41,13 @@ interface AttemptFailure {
         | 'rejected'
         | 'invalid_response'
         | 'output_too_large';
-    readonly status?: number;
     readonly retryable: boolean;
 }
 
 const attemptFailure = (
     kind: AttemptFailure['kind'],
     retryable: boolean,
-    status?: number,
-): AttemptFailure => ({
-    kind,
-    retryable,
-    ...(status === undefined ? {} : { status }),
-});
+): AttemptFailure => ({ kind, retryable });
 
 const isAttemptFailure = (value: unknown): value is AttemptFailure =>
     typeof value === 'object' &&
@@ -61,8 +55,18 @@ const isAttemptFailure = (value: unknown): value is AttemptFailure =>
     typeof Reflect.get(value, 'kind') === 'string' &&
     typeof Reflect.get(value, 'retryable') === 'boolean';
 
-const gatewayUrl = (config: EnabledSummaryConfig): string =>
-    `https://gateway.ai.cloudflare.com/v1/${encodeURIComponent(config.accountId)}/${encodeURIComponent(config.gatewayName)}/google-ai-studio/v1beta/models/${encodeURIComponent(config.model)}:generateContent`;
+// Binding errors surface as thrown Errors; classify without preserving the
+// provider message so upstream details never reach clients or logs.
+const classifyRunError = (cause: unknown): AttemptFailure => {
+    const message = cause instanceof Error ? cause.message.toLowerCase() : '';
+    if (message.includes('rate limit') || message.includes('429')) {
+        return attemptFailure('rate_limited', true);
+    }
+    if (message.includes('capacity') || message.includes('unavailable')) {
+        return attemptFailure('unavailable', true);
+    }
+    return attemptFailure('transport', true);
+};
 
 const prompt = (
     input: GenerateSummaryInput,
@@ -71,133 +75,62 @@ const prompt = (
 Title: ${input.title}
 Content: ${input.articleText}`;
 
-const readBoundedText = async (
-    response: Response,
-    signal: AbortSignal,
-): Promise<string> => {
-    const declaredLength = response.headers.get('content-length');
-    if (
-        declaredLength !== null &&
-        /^\d+$/u.test(declaredLength) &&
-        Number(declaredLength) > SUMMARY_MAX_PROVIDER_BODY_BYTES
-    ) {
-        throw attemptFailure('output_too_large', false, response.status);
-    }
-
-    if (response.body === null) return '';
-    const reader = response.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-
-    try {
-        while (true) {
-            if (signal.aborted) throw signal.reason;
-            const chunk = await reader.read();
-            if (chunk.done) break;
-            total += chunk.value.byteLength;
-            if (total > SUMMARY_MAX_PROVIDER_BODY_BYTES) {
-                await reader.cancel();
-                throw attemptFailure(
-                    'output_too_large',
-                    false,
-                    response.status,
-                );
-            }
-            chunks.push(chunk.value);
-        }
-    } finally {
-        reader.releaseLock();
-    }
-
-    const bytes = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) {
-        bytes.set(chunk, offset);
-        offset += chunk.byteLength;
-    }
-    return new TextDecoder().decode(bytes);
-};
+const utf8 = new TextEncoder();
 
 const requestAttempt = async (
     config: EnabledSummaryConfig,
+    ai: SummaryModelRunner,
     input: GenerateSummaryInput,
     outerSignal: AbortSignal,
     deadline: number,
 ): Promise<string> => {
-    const timeout = new AbortController();
     const remaining = Math.max(0, deadline - Date.now());
-    const timer = setTimeout(
-        () => timeout.abort(new DOMException('Timed out', 'TimeoutError')),
-        remaining,
-    );
-    const signal = AbortSignal.any([outerSignal, timeout.signal]);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(
+            () => reject(attemptFailure('timeout', true)),
+            remaining,
+        );
+    });
 
     try {
-        let response: Response;
+        let output: unknown;
         try {
-            response = await fetch(gatewayUrl(config), {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Goog-Api-Key': config.apiKey,
-                    'cf-aig-collect-log': 'false',
-                    'cf-aig-skip-cache': 'true',
-                },
-                body: JSON.stringify({
-                    contents: [
-                        {
-                            role: 'user',
-                            parts: [{ text: prompt(input) }],
-                        },
-                    ],
-                    generationConfig: {
+            output = await Promise.race([
+                ai.run(
+                    config.model,
+                    {
+                        messages: [{ role: 'user', content: prompt(input) }],
+                        max_tokens: SUMMARY_MAX_OUTPUT_TOKENS,
                         temperature: 0.2,
-                        maxOutputTokens: SUMMARY_MAX_OUTPUT_TOKENS,
-                        responseMimeType: 'text/plain',
                     },
-                }),
-                signal,
-            });
+                    {
+                        gateway: {
+                            id: config.gatewayName,
+                            skipCache: true,
+                        },
+                    },
+                ),
+                timedOut,
+            ]);
         } catch (cause) {
+            if (isAttemptFailure(cause)) throw cause;
             if (outerSignal.aborted) throw cause;
-            if (timeout.signal.aborted) {
-                throw attemptFailure('timeout', true);
-            }
-            throw attemptFailure('transport', true);
+            throw classifyRunError(cause);
         }
 
-        if (!response.ok) {
-            if (response.status === 429) {
-                throw attemptFailure('rate_limited', true, response.status);
-            }
-            if (response.status >= 500) {
-                throw attemptFailure('unavailable', true, response.status);
-            }
-            throw attemptFailure('rejected', false, response.status);
-        }
-
-        const encoded = await readBoundedText(response, signal);
-        let json: unknown;
+        let decoded: typeof WorkersAiResponse.Type;
         try {
-            json = JSON.parse(encoded);
+            decoded = Schema.decodeUnknownSync(WorkersAiResponse)(output);
         } catch {
-            throw attemptFailure('invalid_response', false, response.status);
+            throw attemptFailure('invalid_response', false);
         }
-
-        let decoded: typeof GeminiResponse.Type;
-        try {
-            decoded = Schema.decodeUnknownSync(GeminiResponse)(json);
-        } catch {
-            throw attemptFailure('invalid_response', false, response.status);
-        }
-        const text = decoded.candidates
-            .flatMap((candidate) => candidate.content.parts)
-            .map((part) => part.text)
-            .join('\n')
-            .trim();
+        const text = decoded.response.trim();
         if (text.length === 0) {
-            throw attemptFailure('invalid_response', false, response.status);
+            throw attemptFailure('invalid_response', false);
+        }
+        if (utf8.encode(text).byteLength > SUMMARY_MAX_PROVIDER_BODY_BYTES) {
+            throw attemptFailure('output_too_large', false);
         }
         return text;
     } finally {
@@ -207,6 +140,7 @@ const requestAttempt = async (
 
 export const makeSummaryProvider = (
     config: EnabledSummaryConfig,
+    ai: SummaryModelRunner,
 ): SummaryProvider => ({
     generate: (input) =>
         Effect.tryPromise({
@@ -216,6 +150,7 @@ export const makeSummaryProvider = (
                     try {
                         return await requestAttempt(
                             config,
+                            ai,
                             input,
                             signal,
                             deadline,
@@ -238,12 +173,7 @@ export const makeSummaryProvider = (
                 const failure = isAttemptFailure(cause)
                     ? cause
                     : attemptFailure('transport', false);
-                return new SummaryProviderError({
-                    kind: failure.kind,
-                    ...(failure.status === undefined
-                        ? {}
-                        : { status: failure.status }),
-                });
+                return new SummaryProviderError({ kind: failure.kind });
             },
         }),
 });
