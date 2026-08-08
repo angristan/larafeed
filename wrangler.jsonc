@@ -34,7 +34,6 @@
         "run_worker_first": ["/api/*", "/export", "/up"]
     },
     "images": { "binding": "IMAGES" },
-    "ai": { "binding": "AI" },
     "kv_namespaces": [
         {
             "binding": "FULL_CONTENT_KV",
