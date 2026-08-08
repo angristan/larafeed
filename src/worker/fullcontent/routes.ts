@@ -89,7 +89,7 @@ export const defaultFullContentRuntimeFactory: FullContentRuntimeFactory = (
                                   ),
                           }
                         : {}),
-                    ...(summaryConfig.enabled
+                    ...(summaryConfig.enabled && env.AI
                         ? {
                               provider: makeSummaryProvider(
                                   summaryConfig,

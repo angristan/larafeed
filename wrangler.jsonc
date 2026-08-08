@@ -246,7 +246,6 @@
                 "FAVICON_REFRESH_QUEUE_NAME": "larafeed-test-favicon-refresh"
             },
             "images": { "binding": "IMAGES" },
-            "ai": { "binding": "AI" },
             "kv_namespaces": [
                 {
                     "binding": "FULL_CONTENT_KV",
