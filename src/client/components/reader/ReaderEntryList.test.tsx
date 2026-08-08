@@ -43,12 +43,14 @@ function render(overrides: Partial<Parameters<typeof ReaderEntryList>[0]>) {
                     entries={entries}
                     error={null}
                     scopeTitle="All entries"
+                    hasNewEntries={false}
                     hasNextPage={false}
                     isFetching={false}
                     isFetchingNextPage={false}
                     isPending={false}
                     onLoadMore={() => undefined}
                     onPrefetchEntry={() => undefined}
+                    onShowNewEntries={() => undefined}
                     onRetry={() => undefined}
                     state={state}
                     total={entries.length}
@@ -71,6 +73,11 @@ describe('ReaderEntryList infinite list', () => {
     it('renders a load-more sentinel only while more pages exist', () => {
         expect(render({ hasNextPage: true })).toContain('listSentinel');
         expect(render({ hasNextPage: false })).not.toContain('listSentinel');
+    });
+
+    it('offers a refresh only when newer entries exist', () => {
+        expect(render({ hasNewEntries: true })).toContain('New entries');
+        expect(render({ hasNewEntries: false })).not.toContain('New entries');
     });
 
     it('announces loading of the next page', () => {

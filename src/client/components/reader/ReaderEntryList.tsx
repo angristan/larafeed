@@ -9,7 +9,7 @@ import {
     Stack,
     Text,
 } from '@mantine/core';
-import { IconRefresh, IconStarFilled } from '@tabler/icons-react';
+import { IconArrowUp, IconRefresh, IconStarFilled } from '@tabler/icons-react';
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 
@@ -27,10 +27,12 @@ interface ReaderEntryListProps {
     readonly isFetching: boolean;
     readonly isFetchingNextPage: boolean;
     readonly hasNextPage: boolean;
+    readonly hasNewEntries: boolean;
     readonly error: Error | null;
     readonly onRetry: () => void;
     readonly onPrefetchEntry: (entryId: number) => void;
     readonly onLoadMore: () => void;
+    readonly onShowNewEntries: () => void;
 }
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, {
@@ -97,10 +99,12 @@ export function ReaderEntryList({
     isFetching,
     isFetchingNextPage,
     hasNextPage,
+    hasNewEntries,
     error,
     onRetry,
     onPrefetchEntry,
     onLoadMore,
+    onShowNewEntries,
 }: ReaderEntryListProps) {
     const viewport = useRef<HTMLDivElement>(null);
     const sentinel = useRef<HTMLDivElement>(null);
@@ -154,6 +158,24 @@ export function ReaderEntryList({
                     </Text>
                 </div>
                 <Group gap="xs" wrap="nowrap">
+                    {hasNewEntries && (
+                        <Button
+                            leftSection={
+                                <IconArrowUp aria-hidden="true" size={12} />
+                            }
+                            onClick={() => {
+                                viewport.current?.scrollTo({
+                                    top: 0,
+                                    behavior: 'instant',
+                                });
+                                onShowNewEntries();
+                            }}
+                            size="compact-xs"
+                            variant="light"
+                        >
+                            New entries
+                        </Button>
+                    )}
                     <Text c="dimmed" size="xs">
                         {orderLabels[state.orderBy]}
                     </Text>

@@ -11,10 +11,14 @@ import {
     useQuery,
     useQueryClient,
 } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef } from 'react';
+import { Effect } from 'effect';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
 
-import type { ReaderEntryPage } from '../api/reader';
+import {
+    listEntries as fetchEntryPage,
+    type ReaderEntryPage,
+} from '../api/reader';
 import { ApplicationHeader } from '../components/ApplicationHeader';
 import classes from '../components/reader/Reader.module.css';
 import { ReaderEntryDetail } from '../components/reader/ReaderEntryDetail';
@@ -25,6 +29,7 @@ import { authSessionQueryOptions } from '../queries/auth';
 import {
     categoryListQueryOptions,
     entryDetailQueryOptions,
+    entryKeys,
     entryListInfiniteQueryOptions,
     readerCountsQueryOptions,
     subscriptionListQueryOptions,
@@ -95,6 +100,71 @@ export function ReaderPage() {
         () => flattenEntries(entryListQuery.data?.pages ?? []),
         [entryListQuery.data],
     );
+
+    // The list skips the focus refetch (it would replay every loaded page),
+    // so a refocus sends a one-entry probe instead: when something newer than
+    // the cached top exists, the list offers an explicit refresh.
+    const [hasNewEntries, setHasNewEntries] = useState(false);
+    const lastProbeAt = useRef(0);
+    const listScope = useMemo(
+        () => ({
+            feedId: state.feedId,
+            categoryId: state.categoryId,
+            filter: state.filter,
+            orderBy: state.orderBy,
+            pageSize: READER_PAGE_SIZE,
+        }),
+        [state.feedId, state.categoryId, state.filter, state.orderBy],
+    );
+
+    // biome-ignore lint/correctness/useExhaustiveDependencies: the pending-refresh hint resets whenever the list scope changes
+    useEffect(() => {
+        setHasNewEntries(false);
+        lastProbeAt.current = 0;
+    }, [listScope]);
+
+    useEffect(() => {
+        const probe = () => {
+            const newest = listEntries[0];
+            if (
+                document.visibilityState !== 'visible' ||
+                newest === undefined ||
+                Date.now() - lastProbeAt.current < 15_000
+            ) {
+                return;
+            }
+            lastProbeAt.current = Date.now();
+            const orderKey =
+                state.orderBy === 'created_at' ? 'createdAt' : 'publishedAt';
+            void Effect.runPromise(
+                fetchEntryPage({ ...listScope, cursor: null, pageSize: 1 }),
+            )
+                .then((page) => {
+                    const fresh = page.entries[0];
+                    if (
+                        fresh !== undefined &&
+                        (fresh[orderKey] > newest[orderKey] ||
+                            (fresh[orderKey] === newest[orderKey] &&
+                                fresh.id > newest.id))
+                    ) {
+                        setHasNewEntries(true);
+                    }
+                })
+                .catch(() => undefined);
+        };
+
+        window.addEventListener('focus', probe);
+        document.addEventListener('visibilitychange', probe);
+        return () => {
+            window.removeEventListener('focus', probe);
+            document.removeEventListener('visibilitychange', probe);
+        };
+    }, [listEntries, listScope, state.orderBy]);
+
+    const showNewEntries = useCallback(() => {
+        setHasNewEntries(false);
+        void queryClient.resetQueries({ queryKey: entryKeys.list(listScope) });
+    }, [listScope, queryClient]);
 
     const selectedEntryId = state.entryId ?? 1;
     const entryDetailQuery = useQuery({
@@ -307,6 +377,7 @@ export function ReaderPage() {
                     >
                         <ReaderEntryList
                             entries={listEntries}
+                            hasNewEntries={hasNewEntries}
                             scopeTitle={entryListTitle}
                             error={entryListQuery.error}
                             hasNextPage={entryListQuery.hasNextPage}
@@ -323,6 +394,7 @@ export function ReaderPage() {
                                     void entryListQuery.fetchNextPage();
                                 }
                             }}
+                            onShowNewEntries={showNewEntries}
                             onPrefetchEntry={(entryId) => {
                                 void queryClient.prefetchQuery(
                                     entryDetailQueryOptions(entryId),
