@@ -235,6 +235,18 @@
     min-width: 0;
 }
 
+.newEntriesChip {
+    animation: new-entries-in var(--ds-motion-standard)
+        var(--ds-motion-easing);
+}
+
+@keyframes new-entries-in {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+}
+
 .entryScrollContent {
     min-height: 100%;
     padding-top: 57px;
@@ -674,6 +686,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .newEntriesChip {
+        animation: none;
+    }
+
     .entry {
         transition: none;
     }

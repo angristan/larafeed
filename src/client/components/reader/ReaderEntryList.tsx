@@ -160,13 +160,21 @@ export function ReaderEntryList({
                 <Group gap="xs" wrap="nowrap">
                     {hasNewEntries && (
                         <Button
+                            className={classes.newEntriesChip}
                             leftSection={
                                 <IconArrowUp aria-hidden="true" size={12} />
                             }
                             onClick={() => {
-                                viewport.current?.scrollTo({
+                                const target = viewport.current;
+                                const reduceMotion = window.matchMedia(
+                                    '(prefers-reduced-motion: reduce)',
+                                ).matches;
+                                target?.scrollTo({
                                     top: 0,
-                                    behavior: 'instant',
+                                    behavior:
+                                        reduceMotion || target.scrollTop > 3_000
+                                            ? 'instant'
+                                            : 'smooth',
                                 });
                                 onShowNewEntries();
                             }}
