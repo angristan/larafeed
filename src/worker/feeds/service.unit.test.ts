@@ -194,18 +194,21 @@ describe('feed refresh service', () => {
         'https://service/feed',
         'https://feeds.example.com:8443/feed',
         'https://user:password@feeds.example.com/feed',
-    ])('rejects an unsafe redirect to %s without fetching it', async (location) => {
-        const fetchMock = vi.fn(
-            async () =>
-                new Response(null, { status: 302, headers: { location } }),
-        );
-        const service = makeFeedRefreshService({ fetch: fetchMock });
+    ])(
+        'rejects an unsafe redirect to %s without fetching it',
+        async (location) => {
+            const fetchMock = vi.fn(
+                async () =>
+                    new Response(null, { status: 302, headers: { location } }),
+            );
+            const service = makeFeedRefreshService({ fetch: fetchMock });
 
-        const error = await failure(service.refresh(source));
+            const error = await failure(service.refresh(source));
 
-        expect(error).toBeInstanceOf(FeedPolicyError);
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-    });
+            expect(error).toBeInstanceOf(FeedPolicyError);
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+        },
+    );
 
     it('bounds redirect traversal at five', async () => {
         const fetchMock = vi.fn(

@@ -1,16 +1,16 @@
 import { Schema } from 'effect';
 
-export class ChartValidationError extends Schema.TaggedErrorClass<ChartValidationError>()(
+export class ChartValidationError extends Schema.TaggedError<ChartValidationError>()(
     'ChartValidationError',
     {},
 ) {}
 
-export class ChartNotFound extends Schema.TaggedErrorClass<ChartNotFound>()(
+export class ChartNotFound extends Schema.TaggedError<ChartNotFound>()(
     'ChartNotFound',
     {},
 ) {}
 
-export class ChartStorageError extends Schema.TaggedErrorClass<ChartStorageError>()(
+export class ChartStorageError extends Schema.TaggedError<ChartStorageError>()(
     'ChartStorageError',
     {
         operation: Schema.String,
@@ -18,7 +18,7 @@ export class ChartStorageError extends Schema.TaggedErrorClass<ChartStorageError
     },
 ) {}
 
-export class ChartInvariantError extends Schema.TaggedErrorClass<ChartInvariantError>()(
+export class ChartInvariantError extends Schema.TaggedError<ChartInvariantError>()(
     'ChartInvariantError',
     {
         operation: Schema.String,

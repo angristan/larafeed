@@ -61,12 +61,12 @@ const rateLimitedAuthPaths = new Set([
     '/api/auth/operator/access-link',
 ]);
 
-export class HealthCheckUnavailable extends Schema.TaggedErrorClass<HealthCheckUnavailable>()(
+export class HealthCheckUnavailable extends Schema.TaggedError<HealthCheckUnavailable>()(
     'HealthCheckUnavailable',
     {},
 ) {}
 
-class ResponseEncodingError extends Schema.TaggedErrorClass<ResponseEncodingError>()(
+class ResponseEncodingError extends Schema.TaggedError<ResponseEncodingError>()(
     'ResponseEncodingError',
     {
         operation: Schema.Literals(['health', 'apiError']),

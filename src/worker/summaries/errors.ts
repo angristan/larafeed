@@ -1,46 +1,46 @@
 import { Schema } from 'effect';
 
-export class SummaryConfigError extends Schema.TaggedErrorClass<SummaryConfigError>()(
+export class SummaryConfigError extends Schema.TaggedError<SummaryConfigError>()(
     'SummaryConfigError',
     {},
 ) {}
 
-export class SummaryValidationError extends Schema.TaggedErrorClass<SummaryValidationError>()(
+export class SummaryValidationError extends Schema.TaggedError<SummaryValidationError>()(
     'SummaryValidationError',
     {},
 ) {}
 
-export class SummaryNotFound extends Schema.TaggedErrorClass<SummaryNotFound>()(
+export class SummaryNotFound extends Schema.TaggedError<SummaryNotFound>()(
     'SummaryNotFound',
     {},
 ) {}
 
-export class SummaryContentUnavailable extends Schema.TaggedErrorClass<SummaryContentUnavailable>()(
+export class SummaryContentUnavailable extends Schema.TaggedError<SummaryContentUnavailable>()(
     'SummaryContentUnavailable',
     {},
 ) {}
 
-export class SummaryFeatureDisabled extends Schema.TaggedErrorClass<SummaryFeatureDisabled>()(
+export class SummaryFeatureDisabled extends Schema.TaggedError<SummaryFeatureDisabled>()(
     'SummaryFeatureDisabled',
     {},
 ) {}
 
-export class SummaryRateLimited extends Schema.TaggedErrorClass<SummaryRateLimited>()(
+export class SummaryRateLimited extends Schema.TaggedError<SummaryRateLimited>()(
     'SummaryRateLimited',
     {},
 ) {}
 
-export class SummaryGenerationInProgress extends Schema.TaggedErrorClass<SummaryGenerationInProgress>()(
+export class SummaryGenerationInProgress extends Schema.TaggedError<SummaryGenerationInProgress>()(
     'SummaryGenerationInProgress',
     {},
 ) {}
 
-export class SummaryContentChanged extends Schema.TaggedErrorClass<SummaryContentChanged>()(
+export class SummaryContentChanged extends Schema.TaggedError<SummaryContentChanged>()(
     'SummaryContentChanged',
     {},
 ) {}
 
-export class SummaryStorageError extends Schema.TaggedErrorClass<SummaryStorageError>()(
+export class SummaryStorageError extends Schema.TaggedError<SummaryStorageError>()(
     'SummaryStorageError',
     {
         operation: Schema.String,
@@ -48,7 +48,7 @@ export class SummaryStorageError extends Schema.TaggedErrorClass<SummaryStorageE
     },
 ) {}
 
-export class SummaryInvariantError extends Schema.TaggedErrorClass<SummaryInvariantError>()(
+export class SummaryInvariantError extends Schema.TaggedError<SummaryInvariantError>()(
     'SummaryInvariantError',
     {
         operation: Schema.String,
@@ -66,7 +66,7 @@ export const SummaryProviderFailureKind = Schema.Literals([
 ]);
 export type SummaryProviderFailureKind = typeof SummaryProviderFailureKind.Type;
 
-export class SummaryProviderError extends Schema.TaggedErrorClass<SummaryProviderError>()(
+export class SummaryProviderError extends Schema.TaggedError<SummaryProviderError>()(
     'SummaryProviderError',
     {
         kind: SummaryProviderFailureKind,

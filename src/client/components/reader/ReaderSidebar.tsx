@@ -390,6 +390,7 @@ export function AddFeedModal({
                                     />{' '}
                                     Tip: drag this{' '}
                                     {/* biome-ignore lint/a11y/useValidAnchor: The trusted bookmarklet href is assigned after React's URL sanitizer runs. */}
+                                    {/* biome-ignore lint/a11y/noAmbiguousAnchorText: The surrounding sentence describes the bookmarklet action. */}
                                     <a ref={bookmarklet}>link</a> to your
                                     bookmark bar. When you are on a website,
                                     click it to open Larafeed with the URL

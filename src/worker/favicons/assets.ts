@@ -19,12 +19,12 @@ export const FaviconAssetHash = Schema.String.check(
     Schema.isPattern(HASH_PATTERN),
 );
 
-export class FaviconAssetStorageError extends Schema.TaggedErrorClass<FaviconAssetStorageError>()(
+export class FaviconAssetStorageError extends Schema.TaggedError<FaviconAssetStorageError>()(
     'FaviconAssetStorageError',
     {},
 ) {}
 
-export class FaviconAssetCandidateError extends Schema.TaggedErrorClass<FaviconAssetCandidateError>()(
+export class FaviconAssetCandidateError extends Schema.TaggedError<FaviconAssetCandidateError>()(
     'FaviconAssetCandidateError',
     {
         stage: Schema.Literals(['source', 'sanitize', 'transform', 'output']),

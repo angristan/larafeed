@@ -289,21 +289,24 @@ describe('subscription management service', () => {
         string,
         FeedRefreshError,
         SubscriptionFeedError['reason'],
-    ])[])('maps %s to an actionable subscription failure', async (_label, cause, reason) => {
-        const service = makeSubscriptionService({
-            repository: repository(),
-            discoverFeed: () => Effect.fail(cause),
-        });
+    ])[])(
+        'maps %s to an actionable subscription failure',
+        async (_label, cause, reason) => {
+            const service = makeSubscriptionService({
+                repository: repository(),
+                discoverFeed: () => Effect.fail(cause),
+            });
 
-        await expect(
-            Effect.runPromise(
-                service.createSubscription(7, {
-                    feedUrl: 'https://example.test/feed.xml',
-                    categoryId: 11,
-                }),
-            ),
-        ).rejects.toEqual(new SubscriptionFeedError({ reason }));
-    });
+            await expect(
+                Effect.runPromise(
+                    service.createSubscription(7, {
+                        feedUrl: 'https://example.test/feed.xml',
+                        categoryId: 11,
+                    }),
+                ),
+            ).rejects.toEqual(new SubscriptionFeedError({ reason }));
+        },
+    );
 
     it('reports locally invalid feed URLs before discovery', async () => {
         const discoverFeed = vi.fn(() => Effect.die('unused'));

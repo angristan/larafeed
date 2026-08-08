@@ -22,7 +22,7 @@ const FETCH_TIMEOUT_MS = 5_000;
 export const FAVICON_STALE_AFTER_MS = 30 * 24 * 60 * 60_000;
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 
-export class FaviconDiscoveryError extends Schema.TaggedErrorClass<FaviconDiscoveryError>()(
+export class FaviconDiscoveryError extends Schema.TaggedError<FaviconDiscoveryError>()(
     'FaviconDiscoveryError',
     {},
 ) {}

@@ -149,72 +149,71 @@ describe('manual refresh route', () => {
             code: 'rate_limited',
             retry: true,
         },
-    ])('returns typed $status admission failures', async ({
-        error,
-        status,
-        code,
-        retry,
-    }) => {
-        const session = {
-            sessionId: 11,
-            user: {
-                id: 12,
-                username: 'owner-errors',
-                displayName: 'Owner Errors',
-                isAdmin: false,
-            },
-            expiresAt: 2_000_000_000_000,
-            csrfTokenHash: new Uint8Array(32),
-        };
-        const requestManualRefresh = vi.fn(() => Promise.reject(error));
-        const app = new Hono<{ Bindings: Env }>();
-        registerRefreshRoutes(app, {
-            runtimeFactory: () =>
-                Effect.succeed({
-                    auth: {
-                        config,
-                        service: {
-                            authenticateSession: () => Effect.succeed(session),
-                            authorizeMutation: () => Effect.void,
-                        } as unknown as AuthService,
-                    },
-                    refresh: {
-                        config: {
-                            schedulerEnabled: false,
-                            dispatchEnabled: false,
-                            dueLimit: 5,
+    ])(
+        'returns typed $status admission failures',
+        async ({ error, status, code, retry }) => {
+            const session = {
+                sessionId: 11,
+                user: {
+                    id: 12,
+                    username: 'owner-errors',
+                    displayName: 'Owner Errors',
+                    isAdmin: false,
+                },
+                expiresAt: 2_000_000_000_000,
+                csrfTokenHash: new Uint8Array(32),
+            };
+            const requestManualRefresh = vi.fn(() => Promise.reject(error));
+            const app = new Hono<{ Bindings: Env }>();
+            registerRefreshRoutes(app, {
+                runtimeFactory: () =>
+                    Effect.succeed({
+                        auth: {
+                            config,
+                            service: {
+                                authenticateSession: () =>
+                                    Effect.succeed(session),
+                                authorizeMutation: () => Effect.void,
+                            } as unknown as AuthService,
                         },
-                        orchestrator: { requestManualRefresh },
-                    } as unknown as RefreshRuntime,
-                    d1: {
-                        first: () => Effect.succeed({ owned: 1 }),
-                    } as unknown as D1,
-                }),
-        });
+                        refresh: {
+                            config: {
+                                schedulerEnabled: false,
+                                dispatchEnabled: false,
+                                dueLimit: 5,
+                            },
+                            orchestrator: { requestManualRefresh },
+                        } as unknown as RefreshRuntime,
+                        d1: {
+                            first: () => Effect.succeed({ owned: 1 }),
+                        } as unknown as D1,
+                    }),
+            });
 
-        const response = await app.request(
-            '/api/feeds/4/refresh',
-            {
-                method: 'POST',
-                headers: {
-                    Origin: origin,
-                    'Content-Type': 'application/json',
-                    'X-CSRF-Token': 'csrf',
-                    Cookie: `${config.sessionCookie.name}=session; ${config.csrfCookie.name}=csrf`,
+            const response = await app.request(
+                '/api/feeds/4/refresh',
+                {
+                    method: 'POST',
+                    headers: {
+                        Origin: origin,
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': 'csrf',
+                        Cookie: `${config.sessionCookie.name}=session; ${config.csrfCookie.name}=csrf`,
+                    },
+                    body: '{}',
                 },
-                body: '{}',
-            },
-            {
-                AUTH_RATE_LIMITER: {
-                    limit: () => Promise.resolve({ success: true }),
-                },
-            } as unknown as Env,
-        );
+                {
+                    AUTH_RATE_LIMITER: {
+                        limit: () => Promise.resolve({ success: true }),
+                    },
+                } as unknown as Env,
+            );
 
-        expect(response.status).toBe(status);
-        await expect(response.json()).resolves.toMatchObject({
-            error: { code },
-        });
-        expect(response.headers.has('retry-after')).toBe(retry);
-    });
+            expect(response.status).toBe(status);
+            await expect(response.json()).resolves.toMatchObject({
+                error: { code },
+            });
+            expect(response.headers.has('retry-after')).toBe(retry);
+        },
+    );
 });

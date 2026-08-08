@@ -32,7 +32,7 @@ export interface ImageRepository {
     ) => Effect.Effect<ArticleImageSource | null, ImageStorageError>;
 }
 
-export class ImageStorageError extends Schema.TaggedErrorClass<ImageStorageError>()(
+export class ImageStorageError extends Schema.TaggedError<ImageStorageError>()(
     'ImageStorageError',
     {
         operation: Schema.String,

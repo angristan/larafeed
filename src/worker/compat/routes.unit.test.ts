@@ -279,39 +279,41 @@ describe('compatibility protocol routes', () => {
                 a: 'user/-/state/com.google/read',
             }),
         },
-    ])('applies IP then token limits to protected Google $name', async ({
-        path,
-        body,
-    }) => {
-        const harness = makeHarness({});
-        const response = await harness.app.request(
-            path,
-            {
-                ...(body === undefined ? {} : { method: 'POST', body }),
-                headers: {
-                    Authorization: 'GoogleLogin auth=opaque-token',
-                    'CF-Connecting-IP': '203.0.113.22',
-                    ...(body === undefined
-                        ? {}
-                        : {
-                              'content-type':
-                                  'application/x-www-form-urlencoded',
-                          }),
+    ])(
+        'applies IP then token limits to protected Google $name',
+        async ({ path, body }) => {
+            const harness = makeHarness({});
+            const response = await harness.app.request(
+                path,
+                {
+                    ...(body === undefined ? {} : { method: 'POST', body }),
+                    headers: {
+                        Authorization: 'GoogleLogin auth=opaque-token',
+                        'CF-Connecting-IP': '203.0.113.22',
+                        ...(body === undefined
+                            ? {}
+                            : {
+                                  'content-type':
+                                      'application/x-www-form-urlencoded',
+                              }),
+                    },
                 },
-            },
-            {} as Env,
-        );
+                {} as Env,
+            );
 
-        expect(response.status).toBe(200);
-        expect(harness.rateKeys).toEqual([
-            'compat:google:pre-auth:203.0.113.22',
-            'compat:google:token:91',
-        ]);
-        expect(harness.authenticateAppTokenCredential).toHaveBeenCalledWith({
-            plaintextToken: 'opaque-token',
-            requiredScope: 'google-reader',
-        });
-    });
+            expect(response.status).toBe(200);
+            expect(harness.rateKeys).toEqual([
+                'compat:google:pre-auth:203.0.113.22',
+                'compat:google:token:91',
+            ]);
+            expect(harness.authenticateAppTokenCredential).toHaveBeenCalledWith(
+                {
+                    plaintextToken: 'opaque-token',
+                    requiredScope: 'google-reader',
+                },
+            );
+        },
+    );
 
     it('keeps Google subscription favicon URLs empty', async () => {
         const harness = makeHarness({});

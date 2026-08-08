@@ -48,7 +48,7 @@ const ConfigReason = Schema.Literals([
     'insecure_origin',
 ]);
 
-export class AuthConfigError extends Schema.TaggedErrorClass<AuthConfigError>()(
+export class AuthConfigError extends Schema.TaggedError<AuthConfigError>()(
     'AuthConfigError',
     {
         field: ConfigField,

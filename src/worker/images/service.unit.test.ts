@@ -175,24 +175,27 @@ describe('feed image service', () => {
         'https://images.example.test:8443/icon.png',
         'https://images.example.test/icon.png#fragment',
         'file:///tmp/icon.png',
-    ])('rejects unsafe stored source %s before any subrequest', async (sourceUrl) => {
-        const binding = makeImages();
-        const fetch = vi.fn();
-        const service = makeImageService({
-            images: binding.images,
-            fetch: fetch as typeof globalThis.fetch,
-        });
+    ])(
+        'rejects unsafe stored source %s before any subrequest',
+        async (sourceUrl) => {
+            const binding = makeImages();
+            const fetch = vi.fn();
+            const service = makeImageService({
+                images: binding.images,
+                fetch: fetch as typeof globalThis.fetch,
+            });
 
-        await expect(
-            service.transformFeedImage({
-                sourceUrl,
-                preset: 'small',
-                accept: null,
-            }),
-        ).rejects.toMatchObject({ _tag: 'FeedImageUnavailable' });
-        expect(fetch).not.toHaveBeenCalled();
-        expect(binding.images.input).not.toHaveBeenCalled();
-    });
+            await expect(
+                service.transformFeedImage({
+                    sourceUrl,
+                    preset: 'small',
+                    accept: null,
+                }),
+            ).rejects.toMatchObject({ _tag: 'FeedImageUnavailable' });
+            expect(fetch).not.toHaveBeenCalled();
+            expect(binding.images.input).not.toHaveBeenCalled();
+        },
+    );
 
     it('validates every redirect and permits at most three', async () => {
         const binding = makeImages();

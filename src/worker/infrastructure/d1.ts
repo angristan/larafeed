@@ -13,7 +13,7 @@ export type D1Operation =
     | 'withSession'
     | 'getBookmark';
 
-export class D1OperationError extends Schema.TaggedErrorClass<D1OperationError>()(
+export class D1OperationError extends Schema.TaggedError<D1OperationError>()(
     'D1OperationError',
     {
         operation: Schema.Literals([

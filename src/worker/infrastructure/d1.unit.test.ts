@@ -366,25 +366,30 @@ describe('native D1 Effect adapter', () => {
                 database: FakeDatabase,
             ) => Effect.Effect<unknown, D1OperationError>,
         ]
-    >)('maps rejected %s promises without attaching SQL or bindings', async (operation, evaluate) => {
-        const nativeFailure = new Error('native unavailable');
-        const database = new FakeDatabase();
-        database.rejectedOperation = operation;
-        database.rejection = nativeFailure;
+    >)(
+        'maps rejected %s promises without attaching SQL or bindings',
+        async (operation, evaluate) => {
+            const nativeFailure = new Error('native unavailable');
+            const database = new FakeDatabase();
+            database.rejectedOperation = operation;
+            database.rejection = nativeFailure;
 
-        const error = await Effect.runPromise(Effect.flip(evaluate(database)));
+            const error = await Effect.runPromise(
+                Effect.flip(evaluate(database)),
+            );
 
-        expect(error).toBeInstanceOf(Error);
-        expect(error).toBeInstanceOf(D1OperationError);
-        expect(error).toMatchObject({
-            _tag: 'D1OperationError',
-            operation,
-            cause: nativeFailure,
-        });
-        expect(error).not.toHaveProperty('sql');
-        expect(error).not.toHaveProperty('bindings');
-        expect(error.message).not.toContain('secret');
-    });
+            expect(error).toBeInstanceOf(Error);
+            expect(error).toBeInstanceOf(D1OperationError);
+            expect(error).toMatchObject({
+                _tag: 'D1OperationError',
+                operation,
+                cause: nativeFailure,
+            });
+            expect(error).not.toHaveProperty('sql');
+            expect(error).not.toHaveProperty('bindings');
+            expect(error.message).not.toContain('secret');
+        },
+    );
 
     it('maps synchronous native session failures to tagged operations', async () => {
         const nativeFailure = new Error('session unavailable');

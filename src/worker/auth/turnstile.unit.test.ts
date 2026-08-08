@@ -230,30 +230,35 @@ describe('Turnstile Siteverify validator', () => {
             'hostname_mismatch',
         ],
         ['action mismatch', { action: 'other_action' }, 'action_mismatch'],
-    ])('rejects %s after a decoded response', async (_, responseOverrides, reason) => {
-        const fetchMock = vi.fn(async () => successResponse(responseOverrides));
-        const validator = makeTurnstileValidator({
-            secretKey,
-            expectedHostname,
-            fetch: fetchMock,
-        });
+    ])(
+        'rejects %s after a decoded response',
+        async (_, responseOverrides, reason) => {
+            const fetchMock = vi.fn(async () =>
+                successResponse(responseOverrides),
+            );
+            const validator = makeTurnstileValidator({
+                secretKey,
+                expectedHostname,
+                fetch: fetchMock,
+            });
 
-        const error = await Effect.runPromise(
-            Effect.flip(
-                validator.verify({
-                    token,
-                    expectedAction: 'passkey_authentication',
-                }),
-            ),
-        );
+            const error = await Effect.runPromise(
+                Effect.flip(
+                    validator.verify({
+                        token,
+                        expectedAction: 'passkey_authentication',
+                    }),
+                ),
+            );
 
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-        expect(error).toBeInstanceOf(Error);
-        expect(error).toBeInstanceOf(TurnstileRejectedError);
-        expect(error).toMatchObject({ reason });
-        expect(errorText(error)).not.toContain(token);
-        expect(errorText(error)).not.toContain(secretKey);
-    });
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+            expect(error).toBeInstanceOf(Error);
+            expect(error).toBeInstanceOf(TurnstileRejectedError);
+            expect(error).toMatchObject({ reason });
+            expect(errorText(error)).not.toContain(token);
+            expect(errorText(error)).not.toContain(secretKey);
+        },
+    );
 
     it('rejects invalid metadata before any subrequest', async () => {
         const cases = [

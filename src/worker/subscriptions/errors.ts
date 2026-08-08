@@ -1,16 +1,16 @@
 import { Schema } from 'effect';
 
-export class SubscriptionValidationError extends Schema.TaggedErrorClass<SubscriptionValidationError>()(
+export class SubscriptionValidationError extends Schema.TaggedError<SubscriptionValidationError>()(
     'SubscriptionValidationError',
     {},
 ) {}
 
-export class SubscriptionNotFound extends Schema.TaggedErrorClass<SubscriptionNotFound>()(
+export class SubscriptionNotFound extends Schema.TaggedError<SubscriptionNotFound>()(
     'SubscriptionNotFound',
     {},
 ) {}
 
-export class SubscriptionConflict extends Schema.TaggedErrorClass<SubscriptionConflict>()(
+export class SubscriptionConflict extends Schema.TaggedError<SubscriptionConflict>()(
     'SubscriptionConflict',
     {
         reason: Schema.Literals([
@@ -23,7 +23,7 @@ export class SubscriptionConflict extends Schema.TaggedErrorClass<SubscriptionCo
     },
 ) {}
 
-export class SubscriptionStorageError extends Schema.TaggedErrorClass<SubscriptionStorageError>()(
+export class SubscriptionStorageError extends Schema.TaggedError<SubscriptionStorageError>()(
     'SubscriptionStorageError',
     {
         operation: Schema.String,
@@ -31,19 +31,19 @@ export class SubscriptionStorageError extends Schema.TaggedErrorClass<Subscripti
     },
 ) {}
 
-export class SubscriptionInvariantError extends Schema.TaggedErrorClass<SubscriptionInvariantError>()(
+export class SubscriptionInvariantError extends Schema.TaggedError<SubscriptionInvariantError>()(
     'SubscriptionInvariantError',
     {
         operation: Schema.String,
     },
 ) {}
 
-export class SubscriptionRateLimited extends Schema.TaggedErrorClass<SubscriptionRateLimited>()(
+export class SubscriptionRateLimited extends Schema.TaggedError<SubscriptionRateLimited>()(
     'SubscriptionRateLimited',
     {},
 ) {}
 
-export class SubscriptionFeedError extends Schema.TaggedErrorClass<SubscriptionFeedError>()(
+export class SubscriptionFeedError extends Schema.TaggedError<SubscriptionFeedError>()(
     'SubscriptionFeedError',
     {
         reason: Schema.Literals([

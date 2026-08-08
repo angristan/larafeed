@@ -10,7 +10,7 @@ const RequestBodyErrorReasons = [
 
 export type RequestBodyErrorReason = (typeof RequestBodyErrorReasons)[number];
 
-export class RequestBodyError extends Schema.TaggedErrorClass<RequestBodyError>()(
+export class RequestBodyError extends Schema.TaggedError<RequestBodyError>()(
     'RequestBodyError',
     { reason: Schema.Literals(RequestBodyErrorReasons) },
 ) {}

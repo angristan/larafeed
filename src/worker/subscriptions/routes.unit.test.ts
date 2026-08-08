@@ -257,25 +257,28 @@ describe('subscription management routes', () => {
             'service_unavailable',
             'Feed discovery is temporarily unavailable',
         ],
-    ] as const)('maps %s feed failures to a safe actionable response', async (reason, status, code, message) => {
-        const response = await app(
-            subscriptionService({
-                createSubscription: () =>
-                    Effect.fail(new SubscriptionFeedError({ reason })),
-            }),
-        ).request(
-            '/api/subscriptions',
-            request('POST', {
-                feedUrl: 'https://example.test/feed.xml',
-                categoryId: 11,
-            }),
-        );
+    ] as const)(
+        'maps %s feed failures to a safe actionable response',
+        async (reason, status, code, message) => {
+            const response = await app(
+                subscriptionService({
+                    createSubscription: () =>
+                        Effect.fail(new SubscriptionFeedError({ reason })),
+                }),
+            ).request(
+                '/api/subscriptions',
+                request('POST', {
+                    feedUrl: 'https://example.test/feed.xml',
+                    categoryId: 11,
+                }),
+            );
 
-        expect(response.status).toBe(status);
-        await expect(decode(response, ApiErrorResponse)).resolves.toEqual({
-            error: { code, message },
-        });
-    });
+            expect(response.status).toBe(status);
+            await expect(decode(response, ApiErrorResponse)).resolves.toEqual({
+                error: { code, message },
+            });
+        },
+    );
 
     it('returns a typed 413 before decoding oversized JSON', async () => {
         const createSubscription = vi.fn();

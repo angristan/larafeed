@@ -23,19 +23,19 @@ export interface FaviconTarget {
     readonly faviconUpdatedAt: number | null;
 }
 
-export class FaviconStorageError extends Schema.TaggedErrorClass<FaviconStorageError>()(
+export class FaviconStorageError extends Schema.TaggedError<FaviconStorageError>()(
     'FaviconStorageError',
     { operation: Schema.String, cause: Schema.Defect() },
 ) {}
-export class FaviconNotFound extends Schema.TaggedErrorClass<FaviconNotFound>()(
+export class FaviconNotFound extends Schema.TaggedError<FaviconNotFound>()(
     'FaviconNotFound',
     {},
 ) {}
-export class FaviconConflict extends Schema.TaggedErrorClass<FaviconConflict>()(
+export class FaviconConflict extends Schema.TaggedError<FaviconConflict>()(
     'FaviconConflict',
     {},
 ) {}
-export class FaviconInvariantError extends Schema.TaggedErrorClass<FaviconInvariantError>()(
+export class FaviconInvariantError extends Schema.TaggedError<FaviconInvariantError>()(
     'FaviconInvariantError',
     { operation: Schema.String },
 ) {}

@@ -1,16 +1,16 @@
 import { Schema } from 'effect';
 
-export class ReaderValidationError extends Schema.TaggedErrorClass<ReaderValidationError>()(
+export class ReaderValidationError extends Schema.TaggedError<ReaderValidationError>()(
     'ReaderValidationError',
     {},
 ) {}
 
-export class ReaderNotFound extends Schema.TaggedErrorClass<ReaderNotFound>()(
+export class ReaderNotFound extends Schema.TaggedError<ReaderNotFound>()(
     'ReaderNotFound',
     {},
 ) {}
 
-export class ReaderStorageError extends Schema.TaggedErrorClass<ReaderStorageError>()(
+export class ReaderStorageError extends Schema.TaggedError<ReaderStorageError>()(
     'ReaderStorageError',
     {
         operation: Schema.String,
@@ -18,7 +18,7 @@ export class ReaderStorageError extends Schema.TaggedErrorClass<ReaderStorageErr
     },
 ) {}
 
-export class ReaderInvariantError extends Schema.TaggedErrorClass<ReaderInvariantError>()(
+export class ReaderInvariantError extends Schema.TaggedError<ReaderInvariantError>()(
     'ReaderInvariantError',
     {
         operation: Schema.String,

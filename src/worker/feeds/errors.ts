@@ -15,7 +15,7 @@ const FeedPolicyReason = Schema.Literals([
 
 export type FeedPolicyReason = typeof FeedPolicyReason.Type;
 
-export class FeedPolicyError extends Schema.TaggedErrorClass<FeedPolicyError>()(
+export class FeedPolicyError extends Schema.TaggedError<FeedPolicyError>()(
     'FeedPolicyError',
     {
         reason: FeedPolicyReason,
@@ -24,7 +24,7 @@ export class FeedPolicyError extends Schema.TaggedErrorClass<FeedPolicyError>()(
     readonly retryable = false;
 }
 
-export class FeedParseError extends Schema.TaggedErrorClass<FeedParseError>()(
+export class FeedParseError extends Schema.TaggedError<FeedParseError>()(
     'FeedParseError',
     {
         reason: Schema.Literals([
@@ -40,7 +40,7 @@ export class FeedParseError extends Schema.TaggedErrorClass<FeedParseError>()(
     readonly retryable = false;
 }
 
-export class FeedSizeError extends Schema.TaggedErrorClass<FeedSizeError>()(
+export class FeedSizeError extends Schema.TaggedError<FeedSizeError>()(
     'FeedSizeError',
     {
         limitBytes: Schema.Number,
@@ -49,7 +49,7 @@ export class FeedSizeError extends Schema.TaggedErrorClass<FeedSizeError>()(
     readonly retryable = false;
 }
 
-export class FeedHttpError extends Schema.TaggedErrorClass<FeedHttpError>()(
+export class FeedHttpError extends Schema.TaggedError<FeedHttpError>()(
     'FeedHttpError',
     {
         status: Schema.Number,
@@ -58,14 +58,14 @@ export class FeedHttpError extends Schema.TaggedErrorClass<FeedHttpError>()(
     },
 ) {}
 
-export class FeedNetworkError extends Schema.TaggedErrorClass<FeedNetworkError>()(
+export class FeedNetworkError extends Schema.TaggedError<FeedNetworkError>()(
     'FeedNetworkError',
     {},
 ) {
     readonly retryable = true;
 }
 
-export class FeedTimeoutError extends Schema.TaggedErrorClass<FeedTimeoutError>()(
+export class FeedTimeoutError extends Schema.TaggedError<FeedTimeoutError>()(
     'FeedTimeoutError',
     {
         timeoutMs: Schema.Number,

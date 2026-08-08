@@ -1,6 +1,6 @@
 import { Schema } from 'effect';
 
-export class AccountValidationError extends Schema.TaggedErrorClass<AccountValidationError>()(
+export class AccountValidationError extends Schema.TaggedError<AccountValidationError>()(
     'AccountValidationError',
     {
         field: Schema.optionalKey(
@@ -9,32 +9,32 @@ export class AccountValidationError extends Schema.TaggedErrorClass<AccountValid
     },
 ) {}
 
-export class AccountNotFound extends Schema.TaggedErrorClass<AccountNotFound>()(
+export class AccountNotFound extends Schema.TaggedError<AccountNotFound>()(
     'AccountNotFound',
     {},
 ) {}
 
-export class AccountConflict extends Schema.TaggedErrorClass<AccountConflict>()(
+export class AccountConflict extends Schema.TaggedError<AccountConflict>()(
     'AccountConflict',
     { field: Schema.optionalKey(Schema.Literal('email')) },
 ) {}
 
-export class AccountForbidden extends Schema.TaggedErrorClass<AccountForbidden>()(
+export class AccountForbidden extends Schema.TaggedError<AccountForbidden>()(
     'AccountForbidden',
     {},
 ) {}
 
-export class AccountFreshAuthenticationRequired extends Schema.TaggedErrorClass<AccountFreshAuthenticationRequired>()(
+export class AccountFreshAuthenticationRequired extends Schema.TaggedError<AccountFreshAuthenticationRequired>()(
     'AccountFreshAuthenticationRequired',
     {},
 ) {}
 
-export class AccountStorageError extends Schema.TaggedErrorClass<AccountStorageError>()(
+export class AccountStorageError extends Schema.TaggedError<AccountStorageError>()(
     'AccountStorageError',
     { operation: Schema.String, cause: Schema.Defect() },
 ) {}
 
-export class AccountInvariantError extends Schema.TaggedErrorClass<AccountInvariantError>()(
+export class AccountInvariantError extends Schema.TaggedError<AccountInvariantError>()(
     'AccountInvariantError',
     { operation: Schema.String },
 ) {}

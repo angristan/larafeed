@@ -36,7 +36,7 @@ const RequestKind = Schema.Literals([
     'http',
 ]);
 
-export class TurnstileInputError extends Schema.TaggedErrorClass<TurnstileInputError>()(
+export class TurnstileInputError extends Schema.TaggedError<TurnstileInputError>()(
     'TurnstileInputError',
     {
         field: Schema.Literals(['token', 'remoteIp', 'expectedAction']),
@@ -44,7 +44,7 @@ export class TurnstileInputError extends Schema.TaggedErrorClass<TurnstileInputE
     },
 ) {}
 
-export class TurnstileRequestError extends Schema.TaggedErrorClass<TurnstileRequestError>()(
+export class TurnstileRequestError extends Schema.TaggedError<TurnstileRequestError>()(
     'TurnstileRequestError',
     {
         kind: RequestKind,
@@ -52,14 +52,14 @@ export class TurnstileRequestError extends Schema.TaggedErrorClass<TurnstileRequ
     },
 ) {}
 
-export class TurnstileResponseError extends Schema.TaggedErrorClass<TurnstileResponseError>()(
+export class TurnstileResponseError extends Schema.TaggedError<TurnstileResponseError>()(
     'TurnstileResponseError',
     {
         reason: Schema.Literals(['invalid_json', 'invalid_schema']),
     },
 ) {}
 
-export class TurnstileRejectedError extends Schema.TaggedErrorClass<TurnstileRejectedError>()(
+export class TurnstileRejectedError extends Schema.TaggedError<TurnstileRejectedError>()(
     'TurnstileRejectedError',
     {
         reason: Schema.Literals([

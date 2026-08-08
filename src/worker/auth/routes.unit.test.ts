@@ -257,36 +257,39 @@ describe('authentication routes', () => {
     it.each([
         ['a different Origin', { Origin: 'https://attacker.example' }],
         ['a non-JSON media type', { 'Content-Type': 'text/plain' }],
-    ])('rejects public ceremonies with %s before service work', async (_, headers) => {
-        const authenticationOptions = vi.fn(() =>
-            Effect.succeed({
-                challengeId: 21,
-                options: { challenge: 'challenge' },
-            }),
-        );
-        const checkPublicCeremony = vi.fn(() => Effect.void);
-        const app = makeApp(makeService({ authenticationOptions }), {
-            checkPublicCeremony,
-        });
+    ])(
+        'rejects public ceremonies with %s before service work',
+        async (_, headers) => {
+            const authenticationOptions = vi.fn(() =>
+                Effect.succeed({
+                    challengeId: 21,
+                    options: { challenge: 'challenge' },
+                }),
+            );
+            const checkPublicCeremony = vi.fn(() => Effect.void);
+            const app = makeApp(makeService({ authenticationOptions }), {
+                checkPublicCeremony,
+            });
 
-        const response = await app.request(
-            '/api/auth/authentication/options',
-            publicJson({ turnstileToken: 'turnstile' }, headers),
-        );
+            const response = await app.request(
+                '/api/auth/authentication/options',
+                publicJson({ turnstileToken: 'turnstile' }, headers),
+            );
 
-        expect(response.status).toBe(403);
-        expectNoStore(response);
-        await expect(
-            decodeResponse(response, ApiErrorResponse),
-        ).resolves.toEqual({
-            error: {
-                code: 'csrf_invalid',
-                message: 'Request verification failed',
-            },
-        });
-        expect(authenticationOptions).not.toHaveBeenCalled();
-        expect(checkPublicCeremony).not.toHaveBeenCalled();
-    });
+            expect(response.status).toBe(403);
+            expectNoStore(response);
+            await expect(
+                decodeResponse(response, ApiErrorResponse),
+            ).resolves.toEqual({
+                error: {
+                    code: 'csrf_invalid',
+                    message: 'Request verification failed',
+                },
+            });
+            expect(authenticationOptions).not.toHaveBeenCalled();
+            expect(checkPublicCeremony).not.toHaveBeenCalled();
+        },
+    );
 
     it('passes only CF-Connecting-IP and sets secure session cookies after verification', async () => {
         const verifyAuthentication = vi.fn(() =>

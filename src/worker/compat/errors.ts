@@ -1,11 +1,11 @@
 import { Schema } from 'effect';
 
-export class CompatibilityValidationError extends Schema.TaggedErrorClass<CompatibilityValidationError>()(
+export class CompatibilityValidationError extends Schema.TaggedError<CompatibilityValidationError>()(
     'CompatibilityValidationError',
     {},
 ) {}
 
-export class CompatibilityStorageError extends Schema.TaggedErrorClass<CompatibilityStorageError>()(
+export class CompatibilityStorageError extends Schema.TaggedError<CompatibilityStorageError>()(
     'CompatibilityStorageError',
     {
         operation: Schema.String,
@@ -13,12 +13,12 @@ export class CompatibilityStorageError extends Schema.TaggedErrorClass<Compatibi
     },
 ) {}
 
-export class CompatibilityInvariantError extends Schema.TaggedErrorClass<CompatibilityInvariantError>()(
+export class CompatibilityInvariantError extends Schema.TaggedError<CompatibilityInvariantError>()(
     'CompatibilityInvariantError',
     { operation: Schema.String },
 ) {}
 
-export class CompatibilityRateLimited extends Schema.TaggedErrorClass<CompatibilityRateLimited>()(
+export class CompatibilityRateLimited extends Schema.TaggedError<CompatibilityRateLimited>()(
     'CompatibilityRateLimited',
     {},
 ) {}

@@ -25,17 +25,17 @@ const batch = (queue: string) => {
 };
 
 describe('Queue routing', () => {
-    it.each([
-        'foreign-feed-refresh',
-        'larafeed-test-feed-refresh-dlq',
-    ])('rejects unknown or retired Queue name %s', async (queue) => {
-        const item = batch(queue);
+    it.each(['foreign-feed-refresh', 'larafeed-test-feed-refresh-dlq'])(
+        'rejects unknown or retired Queue name %s',
+        async (queue) => {
+            const item = batch(queue);
 
-        await expect(worker.queue(item.batch, env)).rejects.toThrow(
-            'Unknown Queue binding',
-        );
-        expect(item.message.ack).not.toHaveBeenCalled();
-    });
+            await expect(worker.queue(item.batch, env)).rejects.toThrow(
+                'Unknown Queue binding',
+            );
+            expect(item.message.ack).not.toHaveBeenCalled();
+        },
+    );
 
     it('rejects duplicate configured Queue names before dispatch', async () => {
         const duplicate = 'larafeed-duplicate';

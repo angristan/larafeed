@@ -47,7 +47,7 @@ export interface FaviconRouteDependencies {
     readonly assetRepository?: FaviconAssetRepository;
     readonly cache?: Pick<Cache, 'match' | 'put'>;
 }
-class FaviconSchedulingError extends Schema.TaggedErrorClass<FaviconSchedulingError>()(
+class FaviconSchedulingError extends Schema.TaggedError<FaviconSchedulingError>()(
     'FaviconSchedulingError',
     {},
 ) {}
@@ -193,7 +193,7 @@ const errorResponse = (error: unknown): Response => {
         );
     }
 };
-class FaviconRateLimited extends Schema.TaggedErrorClass<FaviconRateLimited>()(
+class FaviconRateLimited extends Schema.TaggedError<FaviconRateLimited>()(
     'FaviconRateLimited',
     {},
 ) {}

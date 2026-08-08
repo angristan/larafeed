@@ -1,51 +1,51 @@
 import { Schema } from 'effect';
 
-export class AuthValidationError extends Schema.TaggedErrorClass<AuthValidationError>()(
+export class AuthValidationError extends Schema.TaggedError<AuthValidationError>()(
     'AuthValidationError',
     {},
 ) {}
 
-export class AuthenticationFailed extends Schema.TaggedErrorClass<AuthenticationFailed>()(
+export class AuthenticationFailed extends Schema.TaggedError<AuthenticationFailed>()(
     'AuthenticationFailed',
     {},
 ) {}
 
-export class Unauthenticated extends Schema.TaggedErrorClass<Unauthenticated>()(
+export class Unauthenticated extends Schema.TaggedError<Unauthenticated>()(
     'Unauthenticated',
     {},
 ) {}
 
-export class Forbidden extends Schema.TaggedErrorClass<Forbidden>()(
+export class Forbidden extends Schema.TaggedError<Forbidden>()(
     'Forbidden',
     {},
 ) {}
 
-export class CsrfInvalid extends Schema.TaggedErrorClass<CsrfInvalid>()(
+export class CsrfInvalid extends Schema.TaggedError<CsrfInvalid>()(
     'CsrfInvalid',
     {},
 ) {}
 
-export class AccessLinkInvalid extends Schema.TaggedErrorClass<AccessLinkInvalid>()(
+export class AccessLinkInvalid extends Schema.TaggedError<AccessLinkInvalid>()(
     'AccessLinkInvalid',
     {},
 ) {}
 
-export class AuthNotFound extends Schema.TaggedErrorClass<AuthNotFound>()(
+export class AuthNotFound extends Schema.TaggedError<AuthNotFound>()(
     'AuthNotFound',
     {},
 ) {}
 
-export class AuthConflict extends Schema.TaggedErrorClass<AuthConflict>()(
+export class AuthConflict extends Schema.TaggedError<AuthConflict>()(
     'AuthConflict',
     {},
 ) {}
 
-export class AuthRateLimited extends Schema.TaggedErrorClass<AuthRateLimited>()(
+export class AuthRateLimited extends Schema.TaggedError<AuthRateLimited>()(
     'AuthRateLimited',
     {},
 ) {}
 
-export class AuthStorageError extends Schema.TaggedErrorClass<AuthStorageError>()(
+export class AuthStorageError extends Schema.TaggedError<AuthStorageError>()(
     'AuthStorageError',
     {
         operation: Schema.String,
@@ -53,14 +53,14 @@ export class AuthStorageError extends Schema.TaggedErrorClass<AuthStorageError>(
     },
 ) {}
 
-export class AuthInvariantError extends Schema.TaggedErrorClass<AuthInvariantError>()(
+export class AuthInvariantError extends Schema.TaggedError<AuthInvariantError>()(
     'AuthInvariantError',
     {
         operation: Schema.String,
     },
 ) {}
 
-export class WebAuthnOperationError extends Schema.TaggedErrorClass<WebAuthnOperationError>()(
+export class WebAuthnOperationError extends Schema.TaggedError<WebAuthnOperationError>()(
     'WebAuthnOperationError',
     {
         operation: Schema.Literals([

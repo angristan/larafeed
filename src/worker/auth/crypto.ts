@@ -2,7 +2,7 @@ import { Effect, Schema } from 'effect';
 
 const CryptoOperation = Schema.Literals(['randomToken', 'sha256', 'safeId']);
 
-export class AuthCryptoError extends Schema.TaggedErrorClass<AuthCryptoError>()(
+export class AuthCryptoError extends Schema.TaggedError<AuthCryptoError>()(
     'AuthCryptoError',
     {
         operation: CryptoOperation,

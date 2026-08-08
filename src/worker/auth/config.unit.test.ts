@@ -166,17 +166,20 @@ describe('authentication configuration', () => {
         ],
     ] satisfies ReadonlyArray<
         readonly [string, Partial<AuthConfigBindings>, string]
-    >)('rejects %s without deriving trust from the request Host', async (_, overrides, reason) => {
-        const error = await parseFailure(productionBindings(overrides));
+    >)(
+        'rejects %s without deriving trust from the request Host',
+        async (_, overrides, reason) => {
+            const error = await parseFailure(productionBindings(overrides));
 
-        expect(error).toBeInstanceOf(Error);
-        expect(error).toBeInstanceOf(AuthConfigError);
-        expect(error).toMatchObject({
-            _tag: 'AuthConfigError',
-            field: 'AUTH_ORIGIN',
-            reason,
-        });
-    });
+            expect(error).toBeInstanceOf(Error);
+            expect(error).toBeInstanceOf(AuthConfigError);
+            expect(error).toMatchObject({
+                _tag: 'AuthConfigError',
+                field: 'AUTH_ORIGIN',
+                reason,
+            });
+        },
+    );
 
     it.each([
         ['29', '2592000'],
@@ -184,20 +187,23 @@ describe('authentication configuration', () => {
         ['300.5', '2592000'],
         ['300', '299'],
         ['300', '31536001'],
-    ])('rejects unsafe challenge/session TTLs (%s, %s)', async (challengeTtl, sessionTtl) => {
-        const error = await parseFailure(
-            productionBindings({
-                AUTH_CHALLENGE_TTL_SECONDS: challengeTtl,
-                AUTH_SESSION_TTL_SECONDS: sessionTtl,
-            }),
-        );
+    ])(
+        'rejects unsafe challenge/session TTLs (%s, %s)',
+        async (challengeTtl, sessionTtl) => {
+            const error = await parseFailure(
+                productionBindings({
+                    AUTH_CHALLENGE_TTL_SECONDS: challengeTtl,
+                    AUTH_SESSION_TTL_SECONDS: sessionTtl,
+                }),
+            );
 
-        expect(error).toBeInstanceOf(AuthConfigError);
-        expect(error).toMatchObject({
-            field: 'bindings',
-            reason: 'invalid',
-        });
-    });
+            expect(error).toBeInstanceOf(AuthConfigError);
+            expect(error).toMatchObject({
+                field: 'bindings',
+                reason: 'invalid',
+            });
+        },
+    );
 
     it('does not normalize whitespace or expose rejected secret values', async () => {
         const rejectedSecret = ' secret-that-must-not-leak ';

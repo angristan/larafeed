@@ -11,14 +11,17 @@ describe('deployment scripts', () => {
     it.each([
         ['deploy', 'build', 'd1:migrate'],
         ['deploy:production', 'build:production', 'd1:migrate:production'],
-    ])('%s checks one build before migration and deploys it without rebuilding', (scriptName, buildScript, migrationScript) => {
-        expect(scripts[scriptName]?.split(' && ')).toEqual([
-            `npm run ${buildScript}`,
-            'npm run deploy:artifact:check',
-            `npm run ${migrationScript}`,
-            'npm run deploy:artifact',
-        ]);
-    });
+    ])(
+        '%s checks one build before migration and deploys it without rebuilding',
+        (scriptName, buildScript, migrationScript) => {
+            expect(scripts[scriptName]?.split(' && ')).toEqual([
+                `npm run ${buildScript}`,
+                'npm run deploy:artifact:check',
+                `npm run ${migrationScript}`,
+                'npm run deploy:artifact',
+            ]);
+        },
+    );
 
     it('runs the canonical release gate before production deployment', () => {
         expect(scripts['release:production']).toBe(

@@ -545,52 +545,51 @@ describe('feed parser', () => {
         );
     });
 
-    it.each([
-        'RSS',
-        'Atom',
-        'JSON',
-    ] as const)('keeps only the newest twenty %s entries', async (kind) => {
-        const count = 53;
-        const dated = Array.from({ length: count }, (_, index) => ({
-            id: `${kind.toLowerCase()}-${index}`,
-            date: new Date(fetchedAt - index * 60_000).toISOString(),
-        })).reverse();
-        const document =
-            kind === 'RSS'
-                ? `<rss><channel><title>x</title>${dated
-                      .map(
-                          ({ id, date }) =>
-                              `<item><guid>${id}</guid><pubDate>${date}</pubDate></item>`,
-                      )
-                      .join('')}</channel></rss>`
-                : kind === 'Atom'
-                  ? `<feed><title>x</title>${dated
-                        .map(
-                            ({ id, date }) =>
-                                `<entry><id>${id}</id><updated>${date}</updated></entry>`,
-                        )
-                        .join('')}</feed>`
-                  : JSON.stringify({
-                        version: 'https://jsonfeed.org/version/1.1',
-                        title: 'x',
-                        items: dated.map(({ id, date }) => ({
-                            id,
-                            date_published: date,
-                            content_text: id,
-                        })),
-                    });
+    it.each(['RSS', 'Atom', 'JSON'] as const)(
+        'keeps only the newest twenty %s entries',
+        async (kind) => {
+            const count = 53;
+            const dated = Array.from({ length: count }, (_, index) => ({
+                id: `${kind.toLowerCase()}-${index}`,
+                date: new Date(fetchedAt - index * 60_000).toISOString(),
+            })).reverse();
+            const document =
+                kind === 'RSS'
+                    ? `<rss><channel><title>x</title>${dated
+                          .map(
+                              ({ id, date }) =>
+                                  `<item><guid>${id}</guid><pubDate>${date}</pubDate></item>`,
+                          )
+                          .join('')}</channel></rss>`
+                    : kind === 'Atom'
+                      ? `<feed><title>x</title>${dated
+                            .map(
+                                ({ id, date }) =>
+                                    `<entry><id>${id}</id><updated>${date}</updated></entry>`,
+                            )
+                            .join('')}</feed>`
+                      : JSON.stringify({
+                            version: 'https://jsonfeed.org/version/1.1',
+                            title: 'x',
+                            items: dated.map(({ id, date }) => ({
+                                id,
+                                date_published: date,
+                                content_text: id,
+                            })),
+                        });
 
-        const feed = await parse(document);
+            const feed = await parse(document);
 
-        expect(feed.entries).toHaveLength(MAX_FEED_ENTRIES);
-        expect(feed.entries.map((entry) => entry.sourceId)).toEqual(
-            Array.from(
-                { length: MAX_FEED_ENTRIES },
-                (_, index) =>
-                    `${kind.toLowerCase()}-${MAX_FEED_ENTRIES - 1 - index}`,
-            ),
-        );
-    });
+            expect(feed.entries).toHaveLength(MAX_FEED_ENTRIES);
+            expect(feed.entries.map((entry) => entry.sourceId)).toEqual(
+                Array.from(
+                    { length: MAX_FEED_ENTRIES },
+                    (_, index) =>
+                        `${kind.toLowerCase()}-${MAX_FEED_ENTRIES - 1 - index}`,
+                ),
+            );
+        },
+    );
 
     it('applies the limit after future-date filtering and deduplication', async () => {
         const items = Array.from(
@@ -615,41 +614,43 @@ describe('feed parser', () => {
         expect(feed.entryWindowTruncated).toBe(true);
     });
 
-    it.each([
-        'RSS',
-        'Atom',
-        'JSON',
-    ] as const)('selects twenty entries from %s documents containing over 1,000 items', async (kind) => {
-        const count = 1_005;
-        const document =
-            kind === 'RSS'
-                ? `<rss><channel><title>x</title>${Array.from(
-                      { length: count },
-                      (_, index) =>
-                          `<item><guid>${index}</guid><title>${index}</title></item>`,
-                  ).join('')}</channel></rss>`
-                : kind === 'Atom'
-                  ? `<feed><title>x</title>${Array.from(
-                        { length: count },
-                        (_, index) =>
-                            `<entry><id>${index}</id><title>${index}</title></entry>`,
-                    ).join('')}</feed>`
-                  : JSON.stringify({
-                        version: 'https://jsonfeed.org/version/1.1',
-                        title: 'x',
-                        items: Array.from({ length: count }, (_, index) => ({
-                            id: String(index),
-                            content_text: String(index),
-                        })),
-                    });
+    it.each(['RSS', 'Atom', 'JSON'] as const)(
+        'selects twenty entries from %s documents containing over 1,000 items',
+        async (kind) => {
+            const count = 1_005;
+            const document =
+                kind === 'RSS'
+                    ? `<rss><channel><title>x</title>${Array.from(
+                          { length: count },
+                          (_, index) =>
+                              `<item><guid>${index}</guid><title>${index}</title></item>`,
+                      ).join('')}</channel></rss>`
+                    : kind === 'Atom'
+                      ? `<feed><title>x</title>${Array.from(
+                            { length: count },
+                            (_, index) =>
+                                `<entry><id>${index}</id><title>${index}</title></entry>`,
+                        ).join('')}</feed>`
+                      : JSON.stringify({
+                            version: 'https://jsonfeed.org/version/1.1',
+                            title: 'x',
+                            items: Array.from(
+                                { length: count },
+                                (_, index) => ({
+                                    id: String(index),
+                                    content_text: String(index),
+                                }),
+                            ),
+                        });
 
-        const feed = await parse(document);
+            const feed = await parse(document);
 
-        expect(feed.entries).toHaveLength(MAX_FEED_ENTRIES);
-        expect(feed.entries[0]?.sourceId).toBe('19');
-        expect(feed.entries.at(-1)?.sourceId).toBe('0');
-        expect(feed.entryWindowTruncated).toBe(true);
-    });
+            expect(feed.entries).toHaveLength(MAX_FEED_ENTRIES);
+            expect(feed.entries[0]?.sourceId).toBe('19');
+            expect(feed.entries.at(-1)?.sourceId).toBe('0');
+            expect(feed.entryWindowTruncated).toBe(true);
+        },
+    );
 
     it('uses fetch time for missing or invalid dates without feed-date leakage', async () => {
         const feed = await parse(`<rss><channel>
