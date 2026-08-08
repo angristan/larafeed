@@ -72,8 +72,8 @@
     },
     "devDependencies": {
         "@biomejs/biome": "^2.4.16",
-        "@cloudflare/vite-plugin": "1.50.0",
-        "@cloudflare/vitest-pool-workers": "0.20.1",
+        "@cloudflare/vite-plugin": "1.51.1",
+        "@cloudflare/vitest-pool-workers": "0.20.3",
         "@effect/vitest": "4.0.0-beta.102",
         "@gfazioli/mantine-split-pane": "^1.1.5",
         "@mantine/core": "^9.0.2",
@@ -95,7 +95,7 @@
         "typescript": "^6.0.3",
         "vite": "7.3.6",
         "vitest": "4.1.10",
-        "wrangler": "4.118.0"
+        "wrangler": "4.120.0"
     },
     "dependencies": {
         "@mantine/charts": "9.0.2",
