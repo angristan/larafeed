@@ -7,6 +7,7 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
+    type InfiniteData,
     useInfiniteQuery,
     useQuery,
     useQueryClient,
@@ -161,9 +162,50 @@ export function ReaderPage() {
         };
     }, [listEntries, listScope, state.orderBy]);
 
+    // Merging into the cache keeps existing rows mounted, so accepting new
+    // entries never flashes skeletons or replays the whole list animation.
     const showNewEntries = useCallback(() => {
         setHasNewEntries(false);
-        void queryClient.resetQueries({ queryKey: entryKeys.list(listScope) });
+        void Effect.runPromise(
+            fetchEntryPage({ ...listScope, cursor: null }),
+        ).then(
+            (fresh) => {
+                const queryKey = entryKeys.list(listScope);
+                const current =
+                    queryClient.getQueryData<
+                        InfiniteData<ReaderEntryPage, string | null>
+                    >(queryKey);
+                const cachedTopId = current?.pages[0]?.entries[0]?.id;
+                const overlap =
+                    cachedTopId === undefined
+                        ? -1
+                        : fresh.entries.findIndex(
+                              (entry) => entry.id === cachedTopId,
+                          );
+                if (current === undefined || overlap === -1) {
+                    // More new entries than one page can stitch: start over.
+                    queryClient.setQueryData(queryKey, {
+                        pages: [fresh],
+                        pageParams: [null],
+                    });
+                    return;
+                }
+                const newEntries = fresh.entries.slice(0, overlap);
+                queryClient.setQueryData(queryKey, {
+                    ...current,
+                    pages: current.pages.map((page, index) =>
+                        index === 0
+                            ? {
+                                  ...page,
+                                  entries: [...newEntries, ...page.entries],
+                                  total: fresh.total,
+                              }
+                            : page,
+                    ),
+                });
+            },
+            () => setHasNewEntries(true),
+        );
     }, [listScope, queryClient]);
 
     const selectedEntryId = state.entryId ?? 1;
