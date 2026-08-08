@@ -119,7 +119,7 @@ export const articleText = (html: string, baseUrl: URL): string => {
 
 const summaryElements = new Set(['p', 'ul', 'ol', 'li', 'strong', 'em']);
 
-const providerHtml = (value: string): string => {
+export const providerHtml = (value: string): string => {
     const withoutFence = value
         .trim()
         .replace(/^```(?:html)?\s*/iu, '')

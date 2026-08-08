@@ -114,6 +114,27 @@
     background: color-mix(in srgb, var(--ds-paper) 42%, transparent);
 }
 
+/* Pressed state for the full-article toggle; wins over the flattened
+   toolbar background above through source order. Mirrors the theme's
+   filled ActionIcon treatment with the primary color. */
+.detailToolbar .fullToggle[aria-pressed='true'] {
+    border-color: color-mix(
+        in srgb,
+        var(--mantine-primary-color-filled) 72%,
+        var(--ds-ink)
+    );
+    background: var(--mantine-primary-color-filled);
+    color: var(--mantine-primary-color-contrast, var(--ds-paper));
+}
+
+.detailToolbar .fullToggle[aria-pressed='true']:hover {
+    background: color-mix(
+        in srgb,
+        var(--mantine-primary-color-filled) 88%,
+        var(--ds-ink)
+    );
+}
+
 /* 55px content + the 1px border on .detailToolbar totals 56px, matching
    .listHeader, whose border-box min-height already includes its border. */
 .detailHeader {

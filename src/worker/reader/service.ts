@@ -12,11 +12,14 @@ import type { ReaderEntryQuery, ReaderRepository } from './repository';
 export interface ReaderServiceDependencies {
     readonly repository: ReaderRepository;
     readonly now?: () => number;
+    // When the image proxy is disabled, article images keep their source URLs.
+    readonly proxyImages?: boolean;
 }
 
 export const makeReaderService = (dependencies: ReaderServiceDependencies) => {
     const { repository } = dependencies;
     const currentTime = dependencies.now ?? Date.now;
+    const proxyImages = dependencies.proxyImages ?? true;
 
     return {
         listCategories: (userId: number) =>
@@ -52,7 +55,7 @@ export const makeReaderService = (dependencies: ReaderServiceDependencies) => {
         findEntry: (userId: number, entryId: number) =>
             repository.findEntry(userId, entryId).pipe(
                 Effect.flatMap((entry) =>
-                    entry.contentHtml === null
+                    entry.contentHtml === null || !proxyImages
                         ? Effect.succeed(entry)
                         : Effect.tryPromise({
                               try: async () => ({

@@ -69,6 +69,7 @@ export const defaultReaderRuntimeFactory: ReaderRuntimeFactory = (env) => {
             auth,
             service: makeReaderService({
                 repository: makeReaderRepository(d1),
+                proxyImages: env.IMAGES_ENABLED === 'true',
             }),
         })),
     );

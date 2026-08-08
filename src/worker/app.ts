@@ -22,6 +22,10 @@ import {
     type FaviconRouteDependencies,
     registerFaviconRoutes,
 } from './favicons/routes';
+import {
+    type FullContentRouteDependencies,
+    registerFullContentRoutes,
+} from './fullcontent';
 import { reportUnexpectedHttpError } from './http/failures';
 import { type ImageRouteDependencies, registerImageRoutes } from './images';
 import { type OpmlRouteDependencies, registerOpmlRoutes } from './opml/routes';
@@ -79,6 +83,7 @@ export interface WorkerDependencies {
     readonly chartRoutes?: ChartRouteDependencies;
     readonly compatibilityRoutes?: CompatibilityRouteDependencies;
     readonly faviconRoutes?: FaviconRouteDependencies;
+    readonly fullContentRoutes?: FullContentRouteDependencies;
     readonly imageRoutes?: ImageRouteDependencies;
     readonly opmlRoutes?: OpmlRouteDependencies;
     readonly readerRoutes?: ReaderRouteDependencies;
@@ -249,6 +254,7 @@ export const createApp = (
     registerRefreshRoutes(app, dependencies.refreshRoutes);
     registerOpmlRoutes(app, dependencies.opmlRoutes);
     registerSummaryRoutes(app, dependencies.summaryRoutes);
+    registerFullContentRoutes(app, dependencies.fullContentRoutes);
     registerSubscriptionRoutes(app, dependencies.subscriptionRoutes);
 
     app.onError((error) => {

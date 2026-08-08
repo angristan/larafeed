@@ -100,6 +100,7 @@
     "dependencies": {
         "@mantine/charts": "9.0.2",
         "@mantine/spotlight": "9.0.2",
+        "@mozilla/readability": "^0.6.0",
         "@nodable/entities": "3.0.0",
         "@simplewebauthn/browser": "13.3.0",
         "@simplewebauthn/server": "13.3.2",
@@ -107,6 +108,7 @@
         "effect": "4.0.0-beta.102",
         "fast-xml-parser": "5.10.1",
         "hono": "4.12.33",
+        "linkedom": "^0.18.13",
         "react-router": "8.3.0",
         "recharts": "3.8.1"
     }

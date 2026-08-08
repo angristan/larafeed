@@ -18,6 +18,7 @@
         "AI_SUMMARY_ENABLED": "false",
         "AI_GATEWAY_NAME": "larafeed",
         "AI_MODEL": "@cf/mistralai/mistral-small-3.1-24b-instruct",
+        "FULL_CONTENT_ENABLED": "true",
         "REFRESH_SCHEDULER_ENABLED": "true",
         "REFRESH_DISPATCH_ENABLED": "true",
         "REFRESH_DUE_LIMIT": "5",
@@ -34,6 +35,12 @@
     },
     "images": { "binding": "IMAGES" },
     "ai": { "binding": "AI" },
+    "kv_namespaces": [
+        {
+            "binding": "FULL_CONTENT_KV",
+            "id": "00000000000000000000000000000010"
+        }
+    ],
     "d1_databases": [
         {
             "binding": "DB",
@@ -120,6 +127,7 @@
                 "AI_SUMMARY_ENABLED": "true",
                 "AI_GATEWAY_NAME": "larafeed",
                 "AI_MODEL": "@cf/mistralai/mistral-small-3.1-24b-instruct",
+                "FULL_CONTENT_ENABLED": "true",
                 "REFRESH_SCHEDULER_ENABLED": "true",
                 "REFRESH_DISPATCH_ENABLED": "true",
                 "REFRESH_DUE_LIMIT": "10",
@@ -138,6 +146,12 @@
             ],
             "images": { "binding": "IMAGES" },
             "ai": { "binding": "AI" },
+            "kv_namespaces": [
+                {
+                    "binding": "FULL_CONTENT_KV",
+                    "id": "8cc40ea7073d41e18eedc731826a0afe"
+                }
+            ],
             "d1_databases": [
                 {
                     "binding": "DB",
@@ -220,6 +234,7 @@
                 "AI_SUMMARY_ENABLED": "false",
                 "AI_GATEWAY_NAME": "larafeed-test",
                 "AI_MODEL": "@cf/mistralai/mistral-small-3.1-24b-instruct",
+                "FULL_CONTENT_ENABLED": "true",
                 "REFRESH_SCHEDULER_ENABLED": "true",
                 "REFRESH_DISPATCH_ENABLED": "true",
                 "REFRESH_DUE_LIMIT": "5",
@@ -232,6 +247,12 @@
             },
             "images": { "binding": "IMAGES" },
             "ai": { "binding": "AI" },
+            "kv_namespaces": [
+                {
+                    "binding": "FULL_CONTENT_KV",
+                    "id": "00000000000000000000000000000011"
+                }
+            ],
             "d1_databases": [
                 {
                     "binding": "DB",

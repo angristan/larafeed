@@ -5,6 +5,12 @@ import { getCookie } from 'hono/cookie';
 import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
 import {
+    type FullContentRepository,
+    type FullContentStore,
+    makeFullContentRepository,
+    makeKvFullContentStore,
+} from '../fullcontent';
+import {
     isCancellationError,
     reportUnexpectedHttpError,
 } from '../http/failures';
@@ -46,6 +52,10 @@ export interface ImageRuntime {
     readonly repository: ImageRepository;
     readonly service: ImageService;
     readonly rateLimit: (key: string) => Promise<{ readonly success: boolean }>;
+    readonly fullContent?: {
+        readonly repository: FullContentRepository;
+        readonly store: FullContentStore;
+    };
 }
 
 export type ImageRuntimeFactory = (
@@ -77,6 +87,16 @@ export const defaultImageRuntimeFactory: ImageRuntimeFactory = (env) => {
                     return {
                         auth,
                         repository: makeImageRepository(d1),
+                        ...(env.FULL_CONTENT_KV === undefined
+                            ? {}
+                            : {
+                                  fullContent: {
+                                      repository: makeFullContentRepository(d1),
+                                      store: makeKvFullContentStore(
+                                          env.FULL_CONTENT_KV,
+                                      ),
+                                  },
+                              }),
                         service: makeImageService({
                             images,
                             cache: (
@@ -252,6 +272,109 @@ export const registerImageRoutes = (
             return unavailableFeedImageResponse();
         }
     });
+
+    app.get(
+        '/api/images/entries/:entryId/full/:imageIndex',
+        async (context) => {
+            const entryId = parsePositiveId(context.req.param('entryId'));
+            const imageIndex = parsePositiveId(
+                context.req.param('imageIndex'),
+                MAX_ARTICLE_IMAGES,
+            );
+            if (
+                entryId === null ||
+                imageIndex === null ||
+                new URL(context.req.url).search !== ''
+            ) {
+                return jsonError(404, 'not_found', 'Not found');
+            }
+
+            let runtime: ImageRuntime;
+            try {
+                runtime = await Effect.runPromise(runtimeFactory(context.env), {
+                    signal: context.req.raw.signal,
+                });
+            } catch (error) {
+                return runtimeErrorResponse(error);
+            }
+            const fullContent = runtime.fullContent;
+            if (fullContent === undefined) {
+                return jsonError(404, 'not_found', 'Not found');
+            }
+
+            let session: AuthenticatedSession;
+            try {
+                session = await Effect.runPromise(
+                    runtime.auth.service.authenticateSession(
+                        getCookie(
+                            context,
+                            runtime.auth.config.sessionCookie.name,
+                        ),
+                    ),
+                    { signal: context.req.raw.signal },
+                );
+            } catch (error) {
+                return runtimeErrorResponse(error);
+            }
+
+            let rateLimit: { readonly success: boolean };
+            try {
+                rateLimit = await runtime.rateLimit(
+                    imageRateLimitKey(session.user.id),
+                );
+            } catch (error) {
+                reportUnexpectedHttpError(error);
+                return jsonError(
+                    503,
+                    'service_unavailable',
+                    'Service unavailable',
+                );
+            }
+            if (!rateLimit.success) {
+                return jsonError(429, 'rate_limited', 'Too many requests');
+            }
+
+            try {
+                await Effect.runPromise(
+                    fullContent.repository.findOwnedEntry(
+                        session.user.id,
+                        entryId,
+                    ),
+                    { signal: context.req.raw.signal },
+                );
+            } catch (error) {
+                if (taggedError(error) === 'FullContentNotFound') {
+                    return jsonError(404, 'not_found', 'Not found');
+                }
+                return runtimeErrorResponse(error);
+            }
+
+            try {
+                const record = await Effect.runPromise(
+                    fullContent.store.load(entryId),
+                    { signal: context.req.raw.signal },
+                );
+                if (record === null) return placeholderResponse();
+
+                const sourceUrl = await findArticleImageSource(
+                    record.html,
+                    record.sourceUrl,
+                    imageIndex,
+                );
+                if (sourceUrl === null) return placeholderResponse();
+
+                return transformedResponse(
+                    await runtime.service.transformArticleImage({
+                        sourceUrl,
+                        accept: context.req.header('Accept') ?? null,
+                    }),
+                    { cacheControl: ARTICLE_IMAGE_CACHE_CONTROL },
+                );
+            } catch {
+                return placeholderResponse();
+            }
+        },
+    );
 
     app.get('/api/images/entries/:entryId/:imageIndex', async (context) => {
         const entryId = parsePositiveId(context.req.param('entryId'));

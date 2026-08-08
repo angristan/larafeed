@@ -29,15 +29,28 @@ import {
     IconCircle,
     IconCircleFilled,
     IconExternalLink,
+    IconFileText,
+    IconFileTextFilled,
     IconRefresh,
     IconRobot,
     IconStar,
     IconStarFilled,
 } from '@tabler/icons-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import {
+    useMutation,
+    useMutationState,
+    useQuery,
+    useQueryClient,
+} from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ReaderEntry } from '../../api/reader';
+import {
+    entryFullContentQueryOptions,
+    fetchEntryFullContentMutationOptions,
+    fullContentKeys,
+    summarizeEntryFullContentMutationOptions,
+} from '../../queries/fullContent';
 import { subscriptionManagementQueryOptions } from '../../queries/subscriptions';
 import {
     entrySummaryQueryOptions,
@@ -101,10 +114,10 @@ function formatRelativeTime(timestamp: number): string {
     return relativeTimeFormatter.format(seconds, 'second');
 }
 
-function SummarySkeleton() {
+function PaneSkeleton({ label }: { readonly label: string }) {
     return (
         <div
-            aria-label="Loading summary"
+            aria-label={label}
             className={classes.articleContent}
             role="status"
         >
@@ -117,6 +130,187 @@ function SummarySkeleton() {
             <Skeleton height={8} mt={6} radius="xl" width="85%" />
             <Skeleton height={8} mb={20} mt={6} radius="xl" width="91%" />
         </div>
+    );
+}
+
+function SummarySkeleton() {
+    return <PaneSkeleton label="Loading summary" />;
+}
+
+function ReaderEntryFullContent({ entryId }: { readonly entryId: number }) {
+    const queryClient = useQueryClient();
+    const contentQuery = useQuery(entryFullContentQueryOptions(entryId));
+    const fetchMutation = useMutation(
+        fetchEntryFullContentMutationOptions(queryClient, entryId),
+    );
+    const fullContent = contentQuery.data?.fullContent ?? null;
+    const fetchContent = fetchMutation.mutate;
+    const fullHtml = useMemo(
+        () =>
+            fullContent === null
+                ? null
+                : externalizeArticleLinks(fullContent.html),
+        [fullContent],
+    );
+
+    useEffect(() => {
+        if (
+            contentQuery.isSuccess &&
+            fullContent === null &&
+            fetchMutation.isIdle
+        ) {
+            fetchContent();
+        }
+    }, [
+        fetchContent,
+        fetchMutation.isIdle,
+        fullContent,
+        contentQuery.isSuccess,
+    ]);
+
+    if (contentQuery.error !== null) {
+        return (
+            <Alert color="red" title="Full article unavailable">
+                <Stack gap="sm">
+                    <Text size="sm">{contentQuery.error.message}</Text>
+                    <Button
+                        onClick={() => void contentQuery.refetch()}
+                        size="xs"
+                        variant="light"
+                    >
+                        Retry
+                    </Button>
+                </Stack>
+            </Alert>
+        );
+    }
+
+    if (fetchMutation.error !== null) {
+        return (
+            <Alert color="red" role="alert" title="Full article unavailable">
+                <Stack gap="sm">
+                    <Text size="sm">{fetchMutation.error.message}</Text>
+                    <Text c="dimmed" size="sm">
+                        You can still open the original article on the
+                        publisher’s website.
+                    </Text>
+                    <Button
+                        onClick={() => fetchMutation.mutate()}
+                        size="xs"
+                        variant="light"
+                    >
+                        Retry
+                    </Button>
+                </Stack>
+            </Alert>
+        );
+    }
+
+    if (fullContent === null || fetchMutation.isPending) {
+        return <PaneSkeleton label="Loading full article" />;
+    }
+
+    return (
+        <div
+            className={classes.articleContent}
+            // Full article HTML is sanitized by the Worker before storage.
+            dangerouslySetInnerHTML={{ __html: fullHtml ?? '' }}
+        />
+    );
+}
+
+function ReaderEntryFullSummary({ entryId }: { readonly entryId: number }) {
+    const queryClient = useQueryClient();
+    const contentQuery = useQuery(entryFullContentQueryOptions(entryId));
+    const summarizeMutation = useMutation(
+        summarizeEntryFullContentMutationOptions(queryClient, entryId),
+    );
+    // The article pane owns fetching; observe its mutation to surface errors.
+    const fetchStates = useMutationState({
+        filters: { mutationKey: fullContentKeys.fetch(entryId) },
+        select: (mutation) => ({
+            status: mutation.state.status,
+            error: mutation.state.error,
+        }),
+    });
+    const latestFetch = fetchStates[fetchStates.length - 1];
+    const fullContent = contentQuery.data?.fullContent ?? null;
+    const summary = fullContent?.summary ?? null;
+    const generate = summarizeMutation.mutate;
+    const summaryHtml = useMemo(
+        () => (summary === null ? null : externalizeArticleLinks(summary.html)),
+        [summary],
+    );
+
+    useEffect(() => {
+        if (
+            fullContent !== null &&
+            summary === null &&
+            summarizeMutation.isIdle
+        ) {
+            generate();
+        }
+    }, [fullContent, generate, summary, summarizeMutation.isIdle]);
+
+    if (contentQuery.error !== null) {
+        return (
+            <Alert color="red" title="Summary unavailable">
+                <Stack gap="sm">
+                    <Text size="sm">{contentQuery.error.message}</Text>
+                    <Button
+                        onClick={() => void contentQuery.refetch()}
+                        size="xs"
+                        variant="light"
+                    >
+                        Retry
+                    </Button>
+                </Stack>
+            </Alert>
+        );
+    }
+
+    if (fullContent === null && latestFetch?.status === 'error') {
+        return (
+            <Alert color="red" role="alert" title="Full article unavailable">
+                <Text size="sm">
+                    {latestFetch.error?.message ??
+                        'Could not fetch the full article.'}{' '}
+                    Switch to the article view to retry.
+                </Text>
+            </Alert>
+        );
+    }
+
+    if (summarizeMutation.error !== null) {
+        return (
+            <Alert color="red" role="alert" title="Summary unavailable">
+                <Stack gap="sm">
+                    <Text size="sm">{summarizeMutation.error.message}</Text>
+                    <Button
+                        onClick={() => summarizeMutation.mutate()}
+                        size="xs"
+                        variant="light"
+                    >
+                        Retry
+                    </Button>
+                </Stack>
+            </Alert>
+        );
+    }
+
+    if (summary === null || summarizeMutation.isPending) {
+        return <SummarySkeleton />;
+    }
+
+    return (
+        <>
+            <div
+                className={classes.articleContent}
+                // Summary HTML is sanitized by the Worker before storage.
+                dangerouslySetInnerHTML={{ __html: summaryHtml ?? '' }}
+            />
+            <Space mt={20} />
+        </>
     );
 }
 
@@ -238,9 +432,12 @@ export function ReaderEntryDetail({
         [entry?.contentHtml],
     );
 
+    const [fullArticle, setFullArticle] = useState(false);
+
     const entryId = entry?.id;
     useEffect(() => {
         if (entryId === undefined) return;
+        setFullArticle(false);
         scrollToTop();
     }, [entryId, scrollToTop]);
 
@@ -501,6 +698,37 @@ export function ReaderEntryDetail({
                             </Button>
                         )}
 
+                        {entry.url !== null && (
+                            <Tooltip
+                                label={
+                                    fullArticle
+                                        ? 'Show the feed version'
+                                        : 'Fetch the full article'
+                                }
+                            >
+                                <ActionIcon
+                                    aria-label={
+                                        fullArticle
+                                            ? 'Show the feed version'
+                                            : 'Fetch the full article'
+                                    }
+                                    aria-pressed={fullArticle}
+                                    className={classes.fullToggle}
+                                    color="gray"
+                                    onClick={() =>
+                                        setFullArticle((value) => !value)
+                                    }
+                                    variant="subtle"
+                                >
+                                    {fullArticle ? (
+                                        <IconFileTextFilled size={15} />
+                                    ) : (
+                                        <IconFileText size={15} stroke={2} />
+                                    )}
+                                </ActionIcon>
+                            </Tooltip>
+                        )}
+
                         <Tooltip
                             label={
                                 entry.starred
@@ -589,11 +817,34 @@ export function ReaderEntryDetail({
                         </Text>
 
                         <div hidden={summarize}>
-                            {entry.contentHtml === null ||
-                            entry.contentHtml.trim().length === 0 ? (
+                            {fullArticle && entry.url !== null ? (
+                                <ReaderEntryFullContent entryId={entry.id} />
+                            ) : entry.contentHtml === null ||
+                              entry.contentHtml.trim().length === 0 ? (
                                 <Alert color="gray" title="No article content">
-                                    Open the original article to read it on the
-                                    publisher’s website.
+                                    <Stack align="flex-start" gap="sm">
+                                        <Text size="sm">
+                                            Open the original article to read it
+                                            on the publisher’s website.
+                                        </Text>
+                                        {entry.url !== null && (
+                                            <Button
+                                                leftSection={
+                                                    <IconFileText
+                                                        size={15}
+                                                        stroke={2}
+                                                    />
+                                                }
+                                                onClick={() =>
+                                                    setFullArticle(true)
+                                                }
+                                                size="xs"
+                                                variant="light"
+                                            >
+                                                Fetch full article
+                                            </Button>
+                                        )}
+                                    </Stack>
                                 </Alert>
                             ) : (
                                 <div
@@ -634,9 +885,14 @@ export function ReaderEntryDetail({
                                     </Badge>
                                 </Tooltip>
                             </Flex>
-                            {summarize && (
-                                <ReaderEntrySummary entryId={entry.id} />
-                            )}
+                            {summarize &&
+                                (fullArticle && entry.url !== null ? (
+                                    <ReaderEntryFullSummary
+                                        entryId={entry.id}
+                                    />
+                                ) : (
+                                    <ReaderEntrySummary entryId={entry.id} />
+                                ))}
                         </Paper>
                     </Typography>
                 </Box>

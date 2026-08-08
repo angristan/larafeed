@@ -16,10 +16,19 @@ const sourceUrl = (value: string, baseUrl: string | null): string | null => {
 export const articleImagePath = (entryId: number, imageIndex: number): string =>
     `/api/images/entries/${entryId}/${imageIndex}`;
 
+export const fullArticleImagePath = (
+    entryId: number,
+    imageIndex: number,
+): string => `/api/images/entries/${entryId}/full/${imageIndex}`;
+
 export const rewriteArticleImageUrls = async (
     entryId: number,
     html: string,
     baseUrl: string | null,
+    imagePath: (
+        entryId: number,
+        imageIndex: number,
+    ) => string = articleImagePath,
 ): Promise<string> => {
     let imageIndex = 0;
     const response = new HTMLRewriter()
@@ -36,10 +45,7 @@ export const rewriteArticleImageUrls = async (
                     element.removeAttribute('src');
                     return;
                 }
-                element.setAttribute(
-                    'src',
-                    articleImagePath(entryId, imageIndex),
-                );
+                element.setAttribute('src', imagePath(entryId, imageIndex));
             },
         })
         .transform(

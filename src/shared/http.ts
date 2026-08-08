@@ -3,6 +3,7 @@ import { Schema } from 'effect';
 export * from './schemas/account';
 export * from './schemas/auth';
 export * from './schemas/charts';
+export * from './schemas/fullContent';
 export { HealthResponse } from './schemas/health';
 export * from './schemas/images';
 export * from './schemas/jobs';
@@ -22,6 +23,7 @@ export const ApiErrorCode = Schema.Literals([
     'access_link_invalid',
     'not_found',
     'conflict',
+    'bad_gateway',
     'rate_limited',
     'service_unavailable',
     'internal_server_error',

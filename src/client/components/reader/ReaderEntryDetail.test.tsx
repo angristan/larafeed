@@ -154,4 +154,11 @@ describe('ReaderEntryDetail summaries', () => {
         expect(markup).toContain('aria-label="Back to entry list"');
         expect(markup).toMatch(/<h1[^>]*tabindex="-1"[^>]*>Article<\/h1>/u);
     });
+
+    it('offers the full article toggle in the toolbar', () => {
+        const markup = renderDetail();
+
+        expect(markup).toContain('aria-label="Fetch the full article"');
+        expect(markup).not.toContain('Read the full article');
+    });
 });
