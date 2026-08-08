@@ -128,12 +128,8 @@ const makeReaderService = (
         listEntries: () =>
             Effect.succeed({
                 entries: [entry],
-                pagination: {
-                    page: 1,
-                    pageSize: 20,
-                    total: 1,
-                    totalPages: 1,
-                },
+                total: 1,
+                nextCursor: null,
             }),
         findEntry: () => Effect.succeed(detail),
         setRead: () => Effect.succeed(interaction),
@@ -219,20 +215,16 @@ describe('reader routes', () => {
     });
 
     it('parses complete entry queries and rejects ambiguous or unbounded input', async () => {
-        const listEntries = vi.fn((_userId: number, query: ReaderEntryQuery) =>
+        const listEntries = vi.fn((_userId: number, _query: ReaderEntryQuery) =>
             Effect.succeed({
                 entries: [entry],
-                pagination: {
-                    page: query.page,
-                    pageSize: query.pageSize,
-                    total: 1,
-                    totalPages: 1,
-                },
+                total: 1,
+                nextCursor: null,
             }),
         );
         const app = makeApp(makeReaderService({ listEntries }));
         const response = await app.request(
-            '/api/entries?category_id=11&filter=favorites&order_by=created_at&page=2&page_size=50',
+            '/api/entries?category_id=11&filter=favorites&order_by=created_at&cursor=1900000000000%3A44&page_size=50',
             get,
         );
         expect(response.status).toBe(200);
@@ -240,7 +232,7 @@ describe('reader routes', () => {
             scope: { type: 'category', id: 11 },
             filter: 'favorites',
             orderBy: 'created_at',
-            page: 2,
+            cursor: { orderValue: 1_900_000_000_000, id: 44 },
             pageSize: 50,
         });
 
@@ -248,8 +240,10 @@ describe('reader routes', () => {
             'feed_id=21&category_id=11',
             'filter=unknown',
             'order_by=title',
-            'page=0',
-            'page=10001',
+            'cursor=abc',
+            'cursor=1%3A',
+            'cursor=-1%3A2',
+            'page=1',
             'page_size=101',
             'feed_id=1&feed_id=2',
             'unexpected=true',

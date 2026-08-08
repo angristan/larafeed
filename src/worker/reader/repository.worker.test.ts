@@ -109,7 +109,7 @@ const list = (
             scope: { type: 'all' },
             filter: 'all',
             orderBy: 'published_at',
-            page: 1,
+            cursor: null,
             pageSize: 20,
             ...overrides,
         }),
@@ -161,7 +161,7 @@ describe('reader D1 repository', () => {
         await expect(list(userId, { filter: 'unread' })).resolves.toMatchObject(
             {
                 entries: [{ id: 14_003, read: false }],
-                pagination: { total: 1 },
+                total: 1,
             },
         );
 
@@ -211,7 +211,8 @@ describe('reader D1 repository', () => {
 
         await expect(list(ownerId)).resolves.toMatchObject({
             entries: [],
-            pagination: { total: 0 },
+            total: 0,
+            nextCursor: null,
         });
         await expect(
             Effect.runPromise(repository.getCounts(ownerId)),
@@ -248,7 +249,7 @@ describe('reader D1 repository', () => {
         expect(await interactionCount(otherId)).toBe(0);
     });
 
-    it('keeps equal-time numbered pages deterministic for both orders', async () => {
+    it('keeps equal-time cursor pages deterministic for both orders', async () => {
         const userId = 31_001;
         const feedId = 32_001;
         await Effect.runPromise(
@@ -263,21 +264,55 @@ describe('reader D1 repository', () => {
         );
 
         for (const orderBy of ['published_at', 'created_at'] as const) {
+            const orderValue = orderBy === 'published_at' ? 777 : 888;
             const first = await list(userId, { orderBy, pageSize: 2 });
+            expect(first.entries.map(({ id }) => id)).toEqual([34_003, 34_002]);
+            expect(first.total).toBe(3);
+            expect(first.nextCursor).toBe(`${orderValue}:34002`);
+
             const second = await list(userId, {
                 orderBy,
-                page: 2,
+                cursor: { orderValue, id: 34_002 },
                 pageSize: 2,
             });
-            expect(first.entries.map(({ id }) => id)).toEqual([34_003, 34_002]);
             expect(second.entries.map(({ id }) => id)).toEqual([34_001]);
-            expect(first.pagination).toEqual({
-                page: 1,
-                pageSize: 2,
-                total: 3,
-                totalPages: 2,
-            });
+            expect(second.nextCursor).toBeNull();
         }
+    });
+
+    it('does not skip entries when earlier ones leave the filtered set', async () => {
+        const userId = 35_001;
+        const feedId = 36_001;
+        await Effect.runPromise(
+            Effect.gen(function* () {
+                yield* insertUser(userId);
+                yield* insertFeed(feedId);
+                yield* subscribe(userId, feedId, 37_001);
+                yield* insertEntry(38_004, feedId, 400);
+                yield* insertEntry(38_003, feedId, 300);
+                yield* insertEntry(38_002, feedId, 200);
+                yield* insertEntry(38_001, feedId, 100);
+            }),
+        );
+
+        const first = await list(userId, { filter: 'unread', pageSize: 2 });
+        expect(first.entries.map(({ id }) => id)).toEqual([38_004, 38_003]);
+
+        // Reading the first page must not shift the next one.
+        await Effect.runPromise(
+            repository.setRead(userId, 38_004, true, now + 1),
+        );
+        await Effect.runPromise(
+            repository.setRead(userId, 38_003, true, now + 2),
+        );
+
+        const second = await list(userId, {
+            filter: 'unread',
+            cursor: { orderValue: 300, id: 38_003 },
+            pageSize: 2,
+        });
+        expect(second.entries.map(({ id }) => id)).toEqual([38_002, 38_001]);
+        expect(second.nextCursor).toBeNull();
     });
 
     it('reads detail content without creating interaction state', async () => {
@@ -354,7 +389,7 @@ describe('reader D1 repository', () => {
                     scope: { type: 'all' },
                     filter: 'all',
                     orderBy: 'published_at',
-                    page: 1,
+                    cursor: null,
                     pageSize: 20,
                 }),
             ),

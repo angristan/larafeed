@@ -165,12 +165,8 @@ async function mockReaderApi(
             await route.fulfill(
                 json({
                     entries: [entry],
-                    pagination: {
-                        page: 1,
-                        pageSize: 30,
-                        total: 1,
-                        totalPages: 1,
-                    },
+                    total: 1,
+                    nextCursor: null,
                 }),
             );
             return;
@@ -249,7 +245,7 @@ test('keeps the unread page stable and generates a summary with one click', asyn
     page,
 }) => {
     const state = await mockReaderApi(page);
-    await page.goto('/feeds?filter=unread&order_by=published_at&page=1');
+    await page.goto('/feeds?filter=unread&order_by=published_at');
 
     const entryLink = page.getByText('First unread entry', { exact: true }).first();
     await expect(entryLink).toBeVisible();
@@ -269,7 +265,7 @@ test('keeps the unread page stable and generates a summary with one click', asyn
 
 test('keeps queue filters in a dense vertical list', async ({ page }) => {
     await mockReaderApi(page);
-    await page.goto('/feeds?filter=all&order_by=published_at&page=1');
+    await page.goto('/feeds?filter=all&order_by=published_at');
 
     const [unreadBox, readBox, favoritesBox] = await Promise.all([
         page.getByRole('link', { name: /Unread/u, exact: true }).boundingBox(),
@@ -310,7 +306,7 @@ test('keeps queue filters in a dense vertical list', async ({ page }) => {
 
 test('unsubscribes from a feed after confirmation', async ({ page }) => {
     const state = await mockReaderApi(page);
-    await page.goto('/feeds?filter=all&order_by=published_at&page=1');
+    await page.goto('/feeds?filter=all&order_by=published_at');
 
     await page.getByRole('button', { name: 'Manage Example feed' }).click();
     await page.getByRole('menuitem', { name: 'Unsubscribe' }).click();
@@ -322,7 +318,7 @@ test('unsubscribes from a feed after confirmation', async ({ page }) => {
 
 test('truncates long feed names within the sidebar', async ({ page }) => {
     await mockReaderApi(page, longFeedName);
-    await page.goto('/feeds?filter=all&order_by=published_at&page=1');
+    await page.goto('/feeds?filter=all&order_by=published_at');
 
     const feedName = page.getByText(longFeedName, { exact: true }).first();
     await expect(feedName).toBeVisible();
@@ -347,7 +343,7 @@ test('truncates long feed names within the sidebar', async ({ page }) => {
 test('moves focus between single panes at tablet width', async ({ page }) => {
     await page.setViewportSize({ width: 800, height: 900 });
     await mockReaderApi(page);
-    await page.goto('/feeds?filter=all&order_by=published_at&page=1');
+    await page.goto('/feeds?filter=all&order_by=published_at');
 
     const entryLink = page
         .getByText('First unread entry', { exact: true })
@@ -376,7 +372,7 @@ test('uses a single list or detail pane on mobile with working back navigation',
 }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await mockReaderApi(page);
-    await page.goto('/feeds?filter=all&order_by=published_at&page=1');
+    await page.goto('/feeds?filter=all&order_by=published_at');
 
     const entryLink = page
         .getByText('First unread entry', { exact: true })

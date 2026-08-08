@@ -69,21 +69,21 @@ export const readerCountsQueryOptions = queryOptions({
     retry: false,
 });
 
-export type ReaderEntryListScope = Omit<ReaderEntryListInput, 'page'>;
+export type ReaderEntryListScope = Omit<ReaderEntryListInput, 'cursor'>;
 
 export function entryListInfiniteQueryOptions(scope: ReaderEntryListScope) {
     return infiniteQueryOptions({
         queryKey: entryKeys.list(scope),
         queryFn: ({ pageParam, signal }) =>
-            Effect.runPromise(listEntries({ ...scope, page: pageParam }), {
+            Effect.runPromise(listEntries({ ...scope, cursor: pageParam }), {
                 signal,
             }),
-        initialPageParam: 1,
-        getNextPageParam: (lastPage) =>
-            lastPage.pagination.page < lastPage.pagination.totalPages
-                ? lastPage.pagination.page + 1
-                : undefined,
+        initialPageParam: null as string | null,
+        getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
         staleTime: 20_000,
+        // A focus refetch replays every loaded page sequentially; entry
+        // interactions already patch this cache surgically.
+        refetchOnWindowFocus: false,
         retry: false,
     });
 }

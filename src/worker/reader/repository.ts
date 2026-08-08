@@ -94,17 +94,23 @@ export type ReaderEntryScope =
     | { readonly type: 'feed'; readonly id: number }
     | { readonly type: 'category'; readonly id: number };
 
+export interface ReaderEntryCursor {
+    readonly orderValue: number;
+    readonly id: number;
+}
+
 export interface ReaderEntryQuery {
     readonly scope: ReaderEntryScope;
     readonly filter: ReaderFilter;
     readonly orderBy: ReaderOrder;
-    readonly page: number;
+    readonly cursor: ReaderEntryCursor | null;
     readonly pageSize: number;
 }
 
 export interface ReaderEntryPage {
     readonly entries: readonly ReaderEntry[];
     readonly total: number;
+    readonly nextCursor: ReaderEntryCursor | null;
 }
 
 export interface ReaderRepository {
@@ -459,11 +465,29 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
         Effect.gen(function* () {
             const operation = 'reader.entries.list';
             const scope = scopeSql(query.scope, userId);
+            const orderColumn =
+                query.orderBy === 'created_at'
+                    ? 'e.created_at'
+                    : 'e.published_at';
             const fromWhere = `FROM entries e
             JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id
             JOIN feeds f ON f.id = e.feed_id
             LEFT JOIN entry_interactions ei ON ei.user_id = fs.user_id AND ei.entry_id = e.id
             WHERE ${scope.clause} AND ei.filtered_at IS NULL AND ${filterSql(query.filter)}`;
+            // Keyset pagination: an OFFSET shifts when reads or new arrivals
+            // change the filtered set, skipping or repeating entries.
+            const cursorClause =
+                query.cursor === null
+                    ? ''
+                    : ` AND (${orderColumn} < ? OR (${orderColumn} = ? AND e.id < ?))`;
+            const cursorBindings =
+                query.cursor === null
+                    ? []
+                    : [
+                          query.cursor.orderValue,
+                          query.cursor.orderValue,
+                          query.cursor.id,
+                      ];
             const results = yield* withStorageError(
                 operation,
                 d1.batch([
@@ -472,12 +496,12 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
                         bindings: scope.bindings,
                     },
                     {
-                        sql: `SELECT ${entryColumns} ${fromWhere}
-                    ORDER BY ${orderSql(query.orderBy)} LIMIT ? OFFSET ?`,
+                        sql: `SELECT ${entryColumns} ${fromWhere}${cursorClause}
+                    ORDER BY ${orderSql(query.orderBy)} LIMIT ?`,
                         bindings: [
                             ...scope.bindings,
-                            query.pageSize,
-                            (query.page - 1) * query.pageSize,
+                            ...cursorBindings,
+                            query.pageSize + 1,
                         ],
                     },
                 ]),
@@ -493,9 +517,23 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
                 EntryRow,
                 results[1]?.results ?? [],
             );
+            const hasMore = rows.length > query.pageSize;
+            const pageRows = hasMore ? rows.slice(0, query.pageSize) : rows;
+            const entries = pageRows.map(entryFromRow);
+            const lastEntry = entries.at(-1);
             return {
                 total: total.total,
-                entries: rows.map(entryFromRow),
+                entries,
+                nextCursor:
+                    hasMore && lastEntry !== undefined
+                        ? {
+                              orderValue:
+                                  query.orderBy === 'created_at'
+                                      ? lastEntry.createdAt
+                                      : lastEntry.publishedAt,
+                              id: lastEntry.id,
+                          }
+                        : null,
             };
         }),
 

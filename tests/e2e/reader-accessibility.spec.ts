@@ -127,12 +127,8 @@ async function mockReaderApi(
             await route.fulfill(
                 json({
                     entries: [],
-                    pagination: {
-                        page: 1,
-                        pageSize: 30,
-                        total: 0,
-                        totalPages: 0,
-                    },
+                    total: 0,
+                    nextCursor: null,
                 }),
             );
             return;
@@ -152,7 +148,7 @@ test('navigates categories and exposes separate keyboard menus', async ({
     page,
 }) => {
     await mockReaderApi(page);
-    await page.goto('/feeds?filter=all&order_by=published_at&page=1');
+    await page.goto('/feeds?filter=all&order_by=published_at');
 
     const categoryLink = page.getByRole('link', { name: 'Technology' });
     const disclosure = page.getByRole('button', {
@@ -208,7 +204,7 @@ test('shows the RSS fallback when a favicon request fails', async ({ page }) => 
     await mockReaderApi(page, {
         faviconUrl: '/api/images/feeds/21/small',
     });
-    await page.goto('/feeds?filter=all&order_by=published_at&page=1');
+    await page.goto('/feeds?filter=all&order_by=published_at');
 
     const feedLink = page.getByRole('link', { name: 'Example feed' });
     await expect(feedLink).toBeVisible();

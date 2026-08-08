@@ -73,17 +73,13 @@ const page: ReaderEntryPage = {
             archived: detail.archived,
         },
     ],
-    pagination: {
-        page: 1,
-        pageSize: 30,
-        total: 31,
-        totalPages: 2,
-    },
+    total: 31,
+    nextCursor: '1900000000000:7',
 };
 
 const infinitePage: InfiniteData<ReaderEntryPage> = {
     pages: [page],
-    pageParams: [1],
+    pageParams: [null],
 };
 
 const interaction: ReaderInteraction = {
@@ -118,17 +114,21 @@ describe('reader query contracts', () => {
         );
     });
 
-    it('requests the next page until the last page is loaded', () => {
+    it('follows the server cursor until the last page is loaded', () => {
         const options = entryListInfiniteQueryOptions(listScope);
-        expect(options.initialPageParam).toBe(1);
-        expect(options.getNextPageParam(page, [page], 1, [1])).toBe(2);
+        expect(options.initialPageParam).toBeNull();
+        expect(options.getNextPageParam(page, [page], null, [null])).toBe(
+            '1900000000000:7',
+        );
 
-        const lastPage: ReaderEntryPage = {
-            ...page,
-            pagination: { ...page.pagination, page: 2 },
-        };
+        const lastPage: ReaderEntryPage = { ...page, nextCursor: null };
         expect(
-            options.getNextPageParam(lastPage, [page, lastPage], 2, [1, 2]),
+            options.getNextPageParam(
+                lastPage,
+                [page, lastPage],
+                '1900000000000:7',
+                [null, '1900000000000:7'],
+            ),
         ).toBeUndefined();
     });
 

@@ -38,14 +38,14 @@ const NO_STORE_HEADERS = {
 } as const;
 const EmptyJsonObject = Schema.Struct({});
 const MAX_JSON_BODY_BYTES = 16 * 1_024;
-const MAX_PAGE = 10_000;
 const DEFAULT_PAGE_SIZE = 20;
+const CURSOR_PATTERN = /^(\d{1,15}):(\d{1,15})$/u;
 const allowedQueryKeys = new Set([
     'feed_id',
     'category_id',
     'filter',
     'order_by',
-    'page',
+    'cursor',
     'page_size',
 ]);
 
@@ -276,18 +276,30 @@ export const parseReaderEntryQuery = (
             return yield* Effect.fail(new ReaderValidationError());
         }
 
-        const pageValue = search.get('page');
-        const page =
-            pageValue === null
-                ? 1
-                : yield* parsePositiveInt(pageValue, MAX_PAGE);
+        const cursorValue = search.get('cursor');
+        let cursor: ReaderEntryQuery['cursor'] = null;
+        if (cursorValue !== null) {
+            const match = CURSOR_PATTERN.exec(cursorValue);
+            if (match === null) {
+                return yield* Effect.fail(new ReaderValidationError());
+            }
+            const orderValue = Number(match[1]);
+            const id = Number(match[2]);
+            if (
+                !Number.isSafeInteger(orderValue) ||
+                !Number.isSafeInteger(id)
+            ) {
+                return yield* Effect.fail(new ReaderValidationError());
+            }
+            cursor = { orderValue, id };
+        }
         const pageSizeValue = search.get('page_size');
         const pageSize =
             pageSizeValue === null
                 ? DEFAULT_PAGE_SIZE
                 : yield* parsePositiveInt(pageSizeValue, 100);
 
-        return { scope, filter, orderBy, page, pageSize };
+        return { scope, filter, orderBy, cursor, pageSize };
     });
 
 const sessionToken = (

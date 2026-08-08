@@ -119,7 +119,6 @@ function FilterLink({
             onClick={onNavigate}
             to={readerHref(state, {
                 filter: active ? 'all' : filter,
-                page: 1,
             })}
         >
             <div className={classes.mainLinkInner}>
@@ -301,7 +300,7 @@ export function AddFeedModal({
                     });
                     closeAndReset();
                     void navigate(
-                        `/feeds?feed=${result.subscription.feedId}&filter=all&order_by=published_at&page=1`,
+                        `/feeds?feed=${result.subscription.feedId}&filter=all&order_by=published_at`,
                     );
                 },
             },
@@ -1435,7 +1434,6 @@ function CategoryGroup({
                     to={readerHref(state, {
                         categoryId: active ? null : categoryId,
                         feedId: null,
-                        page: 1,
                     })}
                 />
                 <CategoryHeader
@@ -1514,7 +1512,6 @@ function CategoryGroup({
                                                 feedId: subscription.feedId,
                                                 categoryId: null,
                                                 filter: 'all',
-                                                page: 1,
                                             })}
                                         >
                                             <Indicator
@@ -1562,7 +1559,6 @@ function CategoryGroup({
                                                             categoryId: null,
                                                             entryId: null,
                                                             feedId: null,
-                                                            page: 1,
                                                         }),
                                                     );
                                                 }

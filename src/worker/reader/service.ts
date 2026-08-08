@@ -38,18 +38,14 @@ export const makeReaderService = (dependencies: ReaderServiceDependencies) => {
         getCounts: (userId: number) => repository.getCounts(userId),
         listEntries: (userId: number, query: ReaderEntryQuery) =>
             repository.listEntries(userId, query).pipe(
-                Effect.map(({ entries, total }) =>
+                Effect.map(({ entries, total, nextCursor }) =>
                     ReaderEntryListResponse.make({
                         entries,
-                        pagination: {
-                            page: query.page,
-                            pageSize: query.pageSize,
-                            total,
-                            totalPages:
-                                total === 0
-                                    ? 0
-                                    : Math.ceil(total / query.pageSize),
-                        },
+                        total,
+                        nextCursor:
+                            nextCursor === null
+                                ? null
+                                : `${nextCursor.orderValue}:${nextCursor.id}`,
                     }),
                 ),
             ),

@@ -8,17 +8,13 @@ afterEach(() => {
 });
 
 describe('ReaderClient', () => {
-    it('sends every finite-list input and decodes the page', async () => {
+    it('sends every list input and decodes the page', async () => {
         const fetchMock = vi.fn((_path: string, _init: RequestInit) =>
             Promise.resolve(
                 Response.json({
                     entries: [],
-                    pagination: {
-                        page: 3,
-                        pageSize: 30,
-                        total: 0,
-                        totalPages: 0,
-                    },
+                    total: 0,
+                    nextCursor: '1900000000000:12',
                 }),
             ),
         );
@@ -31,15 +27,18 @@ describe('ReaderClient', () => {
                     categoryId: 9,
                     filter: 'favorites',
                     orderBy: 'created_at',
-                    page: 3,
+                    cursor: '1900000000500:40',
                     pageSize: 30,
                 }),
             ),
-        ).resolves.toMatchObject({ pagination: { page: 3, pageSize: 30 } });
+        ).resolves.toMatchObject({
+            total: 0,
+            nextCursor: '1900000000000:12',
+        });
 
         const requestUrl = fetchMock.mock.calls[0]?.[0];
         expect(requestUrl).toBe(
-            '/api/entries?filter=favorites&order_by=created_at&page=3&page_size=30&category_id=9',
+            '/api/entries?filter=favorites&order_by=created_at&page_size=30&cursor=1900000000500%3A40&category_id=9',
         );
         expect(fetchMock).toHaveBeenCalledWith(
             requestUrl,
@@ -94,7 +93,7 @@ describe('ReaderClient', () => {
             'fetch',
             vi.fn(() =>
                 Promise.resolve(
-                    Response.json({ entries: 'invalid', pagination: {} }),
+                    Response.json({ entries: 'invalid', total: 0 }),
                 ),
             ),
         );
@@ -105,7 +104,7 @@ describe('ReaderClient', () => {
                 categoryId: null,
                 filter: 'unread',
                 orderBy: 'published_at',
-                page: 1,
+                cursor: null,
                 pageSize: 30,
             }),
         ).catch((cause: unknown) => cause);
@@ -135,7 +134,7 @@ describe('ReaderClient', () => {
                 categoryId: null,
                 filter: 'all',
                 orderBy: 'published_at',
-                page: 1,
+                cursor: null,
                 pageSize: 30,
             }),
             { signal: controller.signal },

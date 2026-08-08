@@ -447,7 +447,7 @@ describe('durable feed refresh jobs', () => {
                     scope: { type: 'feed', id: feedId },
                     filter: 'unread',
                     orderBy: 'published_at',
-                    page: 1,
+                    cursor: null,
                     pageSize: 20,
                 }),
             ).then((page) => page.entries.map((entry) => entry.id)),

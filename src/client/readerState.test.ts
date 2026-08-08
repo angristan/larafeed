@@ -11,7 +11,7 @@ import {
 describe('reader URL state', () => {
     it('canonicalizes invalid values and drops unknown parameters', () => {
         const search = new URLSearchParams(
-            'feed=-1&category=nope&filter=invalid&order_by=title&page=10001&entry=2.5&extra=drop',
+            'feed=-1&category=nope&filter=invalid&order_by=title&page=3&entry=2.5&extra=drop',
         );
 
         expect(parseReaderState(search)).toEqual({
@@ -19,12 +19,11 @@ describe('reader URL state', () => {
             categoryId: null,
             filter: 'all',
             orderBy: 'published_at',
-            page: 1,
             entryId: null,
             summarize: false,
         });
         expect(canonicalReaderSearch(search)).toBe(
-            'filter=all&order_by=published_at&page=1',
+            'filter=all&order_by=published_at',
         );
     });
 
@@ -36,32 +35,32 @@ describe('reader URL state', () => {
                 ),
             ),
         ).toBe(
-            'filter=all&order_by=published_at&page=1&addFeedUrl=https%3A%2F%2Fexample.test%2Fnews',
+            'filter=all&order_by=published_at&addFeedUrl=https%3A%2F%2Fexample.test%2Fnews',
         );
         expect(
             canonicalReaderRouteSearch(
                 new URLSearchParams(`addFeedUrl=${'x'.repeat(2_049)}`),
             ),
-        ).toBe('filter=all&order_by=published_at&page=1');
+        ).toBe('filter=all&order_by=published_at');
     });
 
     it('gives feed selection precedence over category selection', () => {
         const state = parseReaderState(
             new URLSearchParams(
-                'feed=7&category=4&filter=all&order_by=created_at&page=2&entry=11',
+                'feed=7&category=4&filter=all&order_by=created_at&entry=11',
             ),
         );
 
         expect(state).toMatchObject({ feedId: 7, categoryId: null });
         expect(
             canonicalReaderSearch(new URLSearchParams('feed=7&category=4')),
-        ).toBe('feed=7&filter=all&order_by=published_at&page=1');
+        ).toBe('feed=7&filter=all&order_by=published_at');
     });
 
-    it('resets the page and selected detail when list scope changes', () => {
+    it('clears the selected detail when the list scope changes', () => {
         const current = parseReaderState(
             new URLSearchParams(
-                'category=4&filter=unread&order_by=published_at&page=5&entry=11&summarize=true',
+                'category=4&filter=unread&order_by=published_at&entry=11&summarize=true',
             ),
         );
 
@@ -70,37 +69,21 @@ describe('reader URL state', () => {
             categoryId: null,
             filter: 'unread',
             orderBy: 'published_at',
-            page: 1,
             entryId: null,
             summarize: false,
         });
         expect(readerHref(current, { filter: 'favorites' })).toBe(
-            '/feeds?category=4&filter=favorites&order_by=published_at&page=1',
+            '/feeds?category=4&filter=favorites&order_by=published_at',
         );
         expect(readerHref(current, { orderBy: 'created_at' })).toBe(
-            '/feeds?category=4&filter=unread&order_by=created_at&page=1',
+            '/feeds?category=4&filter=unread&order_by=created_at',
         );
-    });
-
-    it('clears the selected detail when only the list page changes', () => {
-        const current = parseReaderState(
-            new URLSearchParams(
-                'feed=7&filter=all&order_by=published_at&page=2&entry=11&summarize=true',
-            ),
-        );
-
-        expect(patchReaderState(current, { page: 3 })).toEqual({
-            ...current,
-            page: 3,
-            entryId: null,
-            summarize: false,
-        });
     });
 
     it('keeps list inputs and resets summary mode when the entry changes', () => {
         const current = parseReaderState(
             new URLSearchParams(
-                'feed=7&filter=read&order_by=created_at&page=3&entry=11&summarize=true',
+                'feed=7&filter=read&order_by=created_at&entry=11&summarize=true',
             ),
         );
 
@@ -135,9 +118,7 @@ describe('reader URL state', () => {
             canonicalReaderSearch(
                 new URLSearchParams('entry=11&summarize=true'),
             ),
-        ).toBe(
-            'filter=all&order_by=published_at&page=1&entry=11&summarize=true',
-        );
+        ).toBe('filter=all&order_by=published_at&entry=11&summarize=true');
         expect(
             parseReaderState(new URLSearchParams('entry=11&summarize=false'))
                 .summarize,

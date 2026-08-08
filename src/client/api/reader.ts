@@ -25,7 +25,7 @@ export interface ReaderEntryListInput {
     readonly categoryId: number | null;
     readonly filter: ReaderFilter;
     readonly orderBy: ReaderOrder;
-    readonly page: number;
+    readonly cursor: string | null;
     readonly pageSize: number;
 }
 
@@ -182,9 +182,11 @@ export const listEntries = Effect.fn('ReaderClient.listEntries')(
         const search = new URLSearchParams({
             filter: input.filter,
             order_by: input.orderBy,
-            page: input.page.toString(),
             page_size: input.pageSize.toString(),
         });
+        if (input.cursor !== null) {
+            search.set('cursor', input.cursor);
+        }
 
         if (input.feedId !== null) {
             search.set('feed_id', input.feedId.toString());

@@ -14,6 +14,7 @@ import {
 import { useEffect, useMemo, useRef } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
 
+import type { ReaderEntryPage } from '../api/reader';
 import { ApplicationHeader } from '../components/ApplicationHeader';
 import classes from '../components/reader/Reader.module.css';
 import { ReaderEntryDetail } from '../components/reader/ReaderEntryDetail';
@@ -33,6 +34,22 @@ import { parseReaderState, READER_PAGE_SIZE, readerHref } from '../readerState';
 
 function firstError(...errors: Array<Error | null>): Error | null {
     return errors.find((error) => error !== null) ?? null;
+}
+
+function flattenEntries(
+    pages: readonly { readonly entries: ReaderEntryPage['entries'] }[],
+): ReaderEntryPage['entries'] {
+    const seen = new Set<number>();
+    const flat: ReaderEntryPage['entries'][number][] = [];
+    for (const page of pages) {
+        for (const entry of page.entries) {
+            if (!seen.has(entry.id)) {
+                seen.add(entry.id);
+                flat.push(entry);
+            }
+        }
+    }
+    return flat;
 }
 
 const filterTitles = {
@@ -75,7 +92,7 @@ export function ReaderPage() {
         }),
     );
     const listEntries = useMemo(
-        () => entryListQuery.data?.pages.flatMap((page) => page.entries) ?? [],
+        () => flattenEntries(entryListQuery.data?.pages ?? []),
         [entryListQuery.data],
     );
 
@@ -156,14 +173,24 @@ export function ReaderPage() {
                 return;
             }
             if (nextIndex >= listEntries.length) {
-                // The selection stays on the last loaded entry; the next
-                // page continues the walk once it arrives.
                 if (
                     entryListQuery.hasNextPage &&
                     !entryListQuery.isFetchingNextPage
                 ) {
                     event.preventDefault();
-                    void entryListQuery.fetchNextPage();
+                    void entryListQuery.fetchNextPage().then((result) => {
+                        const next = flattenEntries(
+                            result.data?.pages ?? [],
+                        ).at(nextIndex);
+                        if (next !== undefined) {
+                            void navigate(
+                                readerHref(state, {
+                                    entryId: next.id,
+                                    summarize: state.summarize,
+                                }),
+                            );
+                        }
+                    });
                 }
                 return;
             }
@@ -303,9 +330,7 @@ export function ReaderPage() {
                             }}
                             onRetry={() => void entryListQuery.refetch()}
                             state={state}
-                            total={
-                                entryListQuery.data?.pages[0]?.pagination.total
-                            }
+                            total={entryListQuery.data?.pages[0]?.total}
                         />
                     </Split.Pane>
                     <Split.Pane className={classes.detailPaneContainer} grow>

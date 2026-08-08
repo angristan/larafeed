@@ -7,7 +7,6 @@ export interface ReaderState {
     readonly categoryId: number | null;
     readonly filter: ReaderFilter;
     readonly orderBy: ReaderOrder;
-    readonly page: number;
     readonly entryId: number | null;
     readonly summarize: boolean;
 }
@@ -47,7 +46,6 @@ export function parseReaderState(search: URLSearchParams): ReaderState {
             requestedOrder !== null && orders.has(requestedOrder as ReaderOrder)
                 ? (requestedOrder as ReaderOrder)
                 : 'published_at',
-        page: positiveSafeInteger(search.get('page'), 10_000) ?? 1,
         entryId: positiveSafeInteger(search.get('entry')),
         summarize: search.get('summarize') === 'true',
     };
@@ -64,7 +62,6 @@ export function readerStateSearch(state: ReaderState): URLSearchParams {
 
     search.set('filter', state.filter);
     search.set('order_by', state.orderBy);
-    search.set('page', state.page.toString());
 
     if (state.entryId !== null) {
         search.set('entry', state.entryId.toString());
@@ -105,13 +102,11 @@ export function patchReaderState(
 
     const filter = patch.filter ?? current.filter;
     const orderBy = patch.orderBy ?? current.orderBy;
-    const changesScope =
+    const changesList =
         feedId !== current.feedId ||
         categoryId !== current.categoryId ||
         filter !== current.filter ||
         orderBy !== current.orderBy;
-    const page = patch.page ?? (changesScope ? 1 : current.page);
-    const changesList = changesScope || page !== current.page;
     const entryId = changesList
         ? null
         : 'entryId' in patch
@@ -124,7 +119,6 @@ export function patchReaderState(
         categoryId,
         filter,
         orderBy,
-        page,
         entryId,
         summarize: changesList
             ? false

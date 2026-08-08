@@ -44,7 +44,6 @@ describe('ReaderSidebar', () => {
                                         categoryId: null,
                                         filter: 'unread',
                                         orderBy: 'published_at',
-                                        page: 1,
                                         entryId: null,
                                         summarize: false,
                                     }}

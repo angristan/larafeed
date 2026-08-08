@@ -79,20 +79,12 @@ export class ReaderEntry extends Schema.Class<ReaderEntry>('ReaderEntry')({
     archived: Schema.Boolean,
 }) {}
 
-export class ReaderPagination extends Schema.Class<ReaderPagination>(
-    'ReaderPagination',
-)({
-    page: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)),
-    pageSize: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 })),
-    total: Count,
-    totalPages: Count,
-}) {}
-
 export class ReaderEntryListResponse extends Schema.Class<ReaderEntryListResponse>(
     'ReaderEntryListResponse',
 )({
     entries: Schema.Array(ReaderEntry),
-    pagination: ReaderPagination,
+    total: Count,
+    nextCursor: Schema.NullOr(NonEmptyString),
 }) {}
 
 export class ReaderEntryDetail extends Schema.Class<ReaderEntryDetail>(
