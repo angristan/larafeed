@@ -185,6 +185,17 @@ async function chartsLoader(args: LoaderFunctionArgs) {
     return null;
 }
 
+// Search-only navigation (opening an entry, switching filters or chart
+// ranges) is handled by queries the page already has mounted. Re-running
+// the loader would block the transition on every stale prefetch.
+const revalidateOnPathChange = ({
+    currentUrl,
+    nextUrl,
+}: {
+    readonly currentUrl: URL;
+    readonly nextUrl: URL;
+}) => currentUrl.pathname !== nextUrl.pathname;
+
 async function readerLoader(args: LoaderFunctionArgs) {
     await protectedLoader(args);
 
@@ -259,6 +270,7 @@ export const router = createBrowserRouter([
             {
                 path: '/feeds',
                 loader: readerLoader,
+                shouldRevalidate: revalidateOnPathChange,
                 lazy: async () => {
                     const { ReaderPage } = await import('./pages/ReaderPage');
                     return { Component: ReaderPage };
@@ -267,6 +279,7 @@ export const router = createBrowserRouter([
             {
                 path: '/charts',
                 loader: chartsLoader,
+                shouldRevalidate: revalidateOnPathChange,
                 lazy: async () => {
                     const { ChartsPage } = await import('./pages/ChartsPage');
                     return { Component: ChartsPage };
@@ -275,6 +288,7 @@ export const router = createBrowserRouter([
             {
                 path: '/charts/reading',
                 loader: chartsLoader,
+                shouldRevalidate: revalidateOnPathChange,
                 lazy: async () => {
                     const { ReadingChartsPage } = await import(
                         './pages/ChartsPage'
@@ -285,6 +299,7 @@ export const router = createBrowserRouter([
             {
                 path: '/charts/refresh',
                 loader: chartsLoader,
+                shouldRevalidate: revalidateOnPathChange,
                 lazy: async () => {
                     const { RefreshChartsPage } = await import(
                         './pages/ChartsPage'
@@ -295,6 +310,7 @@ export const router = createBrowserRouter([
             {
                 path: '/charts/backlog',
                 loader: chartsLoader,
+                shouldRevalidate: revalidateOnPathChange,
                 lazy: async () => {
                     const { BacklogChartsPage } = await import(
                         './pages/ChartsPage'
