@@ -43,6 +43,7 @@ import {
     entrySummaryQueryOptions,
     generateEntrySummaryMutationOptions,
 } from '../../queries/summaries';
+import { externalizeArticleLinks } from './articleHtml';
 import { FeedFavicon } from './FeedFavicon';
 import classes from './Reader.module.css';
 import { FeedActions } from './ReaderSidebar';
@@ -127,6 +128,10 @@ function ReaderEntrySummary({ entryId }: { readonly entryId: number }) {
     );
     const summary = summaryQuery.data?.summary ?? null;
     const generate = generateMutation.mutate;
+    const summaryHtml = useMemo(
+        () => (summary === null ? null : externalizeArticleLinks(summary.html)),
+        [summary],
+    );
 
     useEffect(() => {
         if (
@@ -181,7 +186,7 @@ function ReaderEntrySummary({ entryId }: { readonly entryId: number }) {
             <div
                 className={classes.articleContent}
                 // Summary HTML is sanitized by the Worker before persistence.
-                dangerouslySetInnerHTML={{ __html: summary.html }}
+                dangerouslySetInnerHTML={{ __html: summaryHtml ?? '' }}
             />
             <Space mt={20} />
         </>
@@ -211,7 +216,6 @@ export function ReaderEntryDetail({
     const managedSubscription = management.data?.subscriptions.find(
         (subscription) => subscription.feedId === entry?.feedId,
     );
-    const articleContent = useRef<HTMLDivElement>(null);
     const detailHeading = useRef<HTMLHeadingElement>(null);
     const focusedEntry = useRef<number | null>(null);
     const viewport = useRef<HTMLDivElement>(null);
@@ -226,24 +230,19 @@ export function ReaderEntryDetail({
         () => viewport.current?.scrollTo({ top: 0, behavior: 'instant' }),
         [],
     );
+    const articleHtml = useMemo(
+        () =>
+            entry?.contentHtml == null
+                ? null
+                : externalizeArticleLinks(entry.contentHtml),
+        [entry?.contentHtml],
+    );
 
+    const entryId = entry?.id;
     useEffect(() => {
-        if (entry === undefined) return;
+        if (entryId === undefined) return;
         scrollToTop();
-        const content = articleContent.current;
-        if (content === null) return;
-        for (const anchor of content.querySelectorAll<HTMLAnchorElement>(
-            'a[href]',
-        )) {
-            anchor.target = '_blank';
-            const rel = new Set(
-                (anchor.rel ?? '').split(/\s+/).filter(Boolean),
-            );
-            rel.add('noopener');
-            rel.add('noreferrer');
-            anchor.rel = [...rel].join(' ');
-        }
-    }, [entry, scrollToTop]);
+    }, [entryId, scrollToTop]);
 
     useEffect(() => {
         if (!selected) {
@@ -598,11 +597,10 @@ export function ReaderEntryDetail({
                                 </Alert>
                             ) : (
                                 <div
-                                    ref={articleContent}
                                     className={classes.articleContent}
                                     // Content is sanitized before persistence by the Worker.
                                     dangerouslySetInnerHTML={{
-                                        __html: entry.contentHtml,
+                                        __html: articleHtml ?? '',
                                     }}
                                 />
                             )}

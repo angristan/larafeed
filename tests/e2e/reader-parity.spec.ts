@@ -176,7 +176,7 @@ async function mockReaderApi(
                 json({
                     ...entry,
                     contentHtml:
-                        '<p>Article text with enough words for the reader.</p><img src="/api/images/entries/41/1">',
+                        '<p>Article text with a <a href="https://publisher.example.test/linked">linked page</a>.</p><img src="/api/images/entries/41/1">',
                     readChangedAt: null,
                     starredAt: null,
                     archivedAt: null,
@@ -253,6 +253,12 @@ test('keeps the unread page stable and generates a summary with one click', asyn
     await expect(page.locator('h1')).toHaveText('First unread entry');
     await expect(page.locator('h1')).not.toBeFocused();
     await expect.poll(() => state.readPuts).toBe(1);
+
+    // The read confirmation re-renders the article; links must still
+    // open in a new tab afterwards.
+    const articleLink = page.getByRole('link', { name: 'linked page' });
+    await expect(articleLink).toHaveAttribute('target', '_blank');
+    await expect(articleLink).toHaveAttribute('rel', /noopener/u);
     await expect(entryLink).toBeVisible();
     expect(state.entryListRequests).toBe(1);
 
