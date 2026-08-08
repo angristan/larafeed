@@ -10,7 +10,7 @@ import {
     Text,
 } from '@mantine/core';
 import { IconArrowUp, IconRefresh, IconStarFilled } from '@tabler/icons-react';
-import { useEffect, useRef } from 'react';
+import { type CSSProperties, useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 
 import type { ReaderEntryPage } from '../../api/reader';
@@ -270,7 +270,7 @@ export function ReaderEntryList({
 
                     {entries.length > 0 && (
                         <ul className={classes.entriesList}>
-                            {entries.map((entry) => {
+                            {entries.map((entry, index) => {
                                 const active = state.entryId === entry.id;
                                 const feedName =
                                     entry.customFeedName ?? entry.feedName;
@@ -278,6 +278,11 @@ export function ReaderEntryList({
                                     <li
                                         className={classes.entryItem}
                                         key={entry.id}
+                                        style={
+                                            {
+                                                '--entry-enter-delay': `${Math.min(index, 12) * 16}ms`,
+                                            } as CSSProperties
+                                        }
                                     >
                                         <Link
                                             id={`reader-entry-${entry.id}`}

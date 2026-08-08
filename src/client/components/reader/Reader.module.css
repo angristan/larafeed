@@ -262,6 +262,21 @@
     border-top: 1px solid var(--ds-line);
 }
 
+/* Rows rise in when list content arrives; in-place patches such as
+   read or star keep their DOM nodes and never replay this. */
+.entryItem {
+    animation: entry-in var(--ds-motion-standard) var(--ds-motion-easing)
+        both;
+    animation-delay: var(--entry-enter-delay, 0ms);
+}
+
+@keyframes entry-in {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+}
+
 .entry {
     position: relative;
     display: grid;
@@ -686,7 +701,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .newEntriesChip {
+    .newEntriesChip,
+    .entryItem {
         animation: none;
     }
 
