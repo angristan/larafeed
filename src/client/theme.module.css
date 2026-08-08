@@ -401,7 +401,11 @@
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
     .buttonRoot:hover:not(:active, :disabled, [data-disabled]),
     .actionIconRoot:hover:not(:active, :disabled, [data-disabled]),
-    .navLinkRoot:hover:not(:active) {
+    .navLinkRoot:hover:not(:active),
+    /* A control keeps its lift while the menu it opened stays open, so it
+       does not shift down when the pointer moves into the dropdown. */
+    .buttonRoot[aria-expanded='true']:not(:active, :disabled, [data-disabled]),
+    .actionIconRoot[aria-expanded='true']:not(:active, :disabled, [data-disabled]) {
         transform: translateY(-1px);
     }
 }

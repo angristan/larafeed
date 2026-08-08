@@ -563,6 +563,7 @@ export function FeedActions({
     onUnsubscribed,
     showCount = false,
     entrySection,
+    trigger = 'inline',
 }: {
     readonly subscription: ReaderSubscriptionList['subscriptions'][number];
     readonly managed: ManagedSubscription | undefined;
@@ -570,6 +571,9 @@ export function FeedActions({
     readonly onUnsubscribed?: () => void;
     readonly showCount?: boolean;
     readonly entrySection?: ReactNode;
+    // 'inline' fits the compact sidebar rows; 'toolbar' matches the
+    // full-size icon buttons in the entry detail toolbar.
+    readonly trigger?: 'inline' | 'toolbar';
 }) {
     const queryClient = useQueryClient();
     const refresh = useMutation(
@@ -774,22 +778,31 @@ export function FeedActions({
                         label: classes.managementMenuLabel,
                     }}
                     offset={8}
-                    position="right-start"
+                    position={
+                        trigger === 'toolbar' ? 'bottom-start' : 'right-start'
+                    }
                     shadow="md"
                     width={192}
                 >
                     <Menu.Target>
                         <ActionIcon
                             aria-label={`Manage ${subscription.customFeedName ?? subscription.feedName}`}
-                            className={`${classes.feedMenuIcon} ${showCount ? classes.managementMenuTarget : ''}`}
+                            className={
+                                trigger === 'toolbar'
+                                    ? undefined
+                                    : `${classes.feedMenuIcon} ${showCount ? classes.managementMenuTarget : ''}`
+                            }
                             color="gray"
-                            size="xs"
+                            size={trigger === 'toolbar' ? undefined : 'xs'}
                             type="button"
+                            variant={
+                                trigger === 'toolbar' ? 'subtle' : undefined
+                            }
                         >
                             <IconDots
                                 aria-hidden="true"
-                                size={13}
-                                stroke={1.7}
+                                size={trigger === 'toolbar' ? 15 : 13}
+                                stroke={trigger === 'toolbar' ? 2 : 1.7}
                             />
                         </ActionIcon>
                     </Menu.Target>

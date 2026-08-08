@@ -587,6 +587,7 @@ export function ReaderEntryDetail({
                                     categories={
                                         management.data?.categories ?? []
                                     }
+                                    trigger="toolbar"
                                     entrySection={
                                         <>
                                             <Menu.Label>Entry</Menu.Label>
