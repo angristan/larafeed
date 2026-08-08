@@ -7,7 +7,6 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
-    type InfiniteData,
     useInfiniteQuery,
     useQuery,
     useQueryClient,
@@ -26,11 +25,11 @@ import { ReaderEntryDetail } from '../components/reader/ReaderEntryDetail';
 import { ReaderEntryList } from '../components/reader/ReaderEntryList';
 import { ReaderSidebar } from '../components/reader/ReaderSidebar';
 import { useDocumentTitle } from '../documentTitle';
+import { isNewerIngestion, latestIngestion } from '../entryIngestion';
 import { authSessionQueryOptions } from '../queries/auth';
 import {
     categoryListQueryOptions,
     entryDetailQueryOptions,
-    entryKeys,
     entryListInfiniteQueryOptions,
     readerCountsQueryOptions,
     subscriptionListQueryOptions,
@@ -103,10 +102,14 @@ export function ReaderPage() {
     );
 
     // The list skips the focus refetch (it would replay every loaded page),
-    // so a refocus sends a one-entry probe instead: when something newer than
-    // the cached top exists, the list offers an explicit refresh.
+    // so a refocus sends a one-entry probe instead: when something was
+    // ingested after everything cached, the list offers an explicit refresh.
     const [hasNewEntries, setHasNewEntries] = useState(false);
     const lastProbeAt = useRef(0);
+    const latestIngested = useMemo(
+        () => latestIngestion(listEntries),
+        [listEntries],
+    );
     const listScope = useMemo(
         () => ({
             feedId: state.feedId,
@@ -126,27 +129,27 @@ export function ReaderPage() {
 
     useEffect(() => {
         const probe = () => {
-            const newest = listEntries[0];
             if (
                 document.visibilityState !== 'visible' ||
-                newest === undefined ||
+                latestIngested === undefined ||
                 Date.now() - lastProbeAt.current < 15_000
             ) {
                 return;
             }
             lastProbeAt.current = Date.now();
-            const orderKey =
-                state.orderBy === 'created_at' ? 'createdAt' : 'publishedAt';
             void Effect.runPromise(
-                fetchEntryPage({ ...listScope, cursor: null, pageSize: 1 }),
+                fetchEntryPage({
+                    ...listScope,
+                    orderBy: 'created_at',
+                    cursor: null,
+                    pageSize: 1,
+                }),
             )
                 .then((page) => {
                     const fresh = page.entries[0];
                     if (
                         fresh !== undefined &&
-                        (fresh[orderKey] > newest[orderKey] ||
-                            (fresh[orderKey] === newest[orderKey] &&
-                                fresh.id > newest.id))
+                        isNewerIngestion(fresh, latestIngested)
                     ) {
                         setHasNewEntries(true);
                     }
@@ -160,53 +163,22 @@ export function ReaderPage() {
             window.removeEventListener('focus', probe);
             document.removeEventListener('visibilitychange', probe);
         };
-    }, [listEntries, listScope, state.orderBy]);
+    }, [latestIngested, listScope]);
 
-    // Merging into the cache keeps existing rows mounted, so accepting new
-    // entries never flashes skeletons or replays the whole list animation.
+    // Refetching replays every loaded page sequentially with recomputed
+    // cursors, so new entries land at their sorted position — including
+    // mid-list backfills a top-of-list stitch could never place. Rows are
+    // keyed by id and previous data is kept while fetching, so accepting
+    // new entries never flashes skeletons or replays kept rows' animation.
+    const refetchEntryList = entryListQuery.refetch;
     const showNewEntries = useCallback(() => {
         setHasNewEntries(false);
-        void Effect.runPromise(
-            fetchEntryPage({ ...listScope, cursor: null }),
-        ).then(
-            (fresh) => {
-                const queryKey = entryKeys.list(listScope);
-                const current =
-                    queryClient.getQueryData<
-                        InfiniteData<ReaderEntryPage, string | null>
-                    >(queryKey);
-                const cachedTopId = current?.pages[0]?.entries[0]?.id;
-                const overlap =
-                    cachedTopId === undefined
-                        ? -1
-                        : fresh.entries.findIndex(
-                              (entry) => entry.id === cachedTopId,
-                          );
-                if (current === undefined || overlap === -1) {
-                    // More new entries than one page can stitch: start over.
-                    queryClient.setQueryData(queryKey, {
-                        pages: [fresh],
-                        pageParams: [null],
-                    });
-                    return;
-                }
-                const newEntries = fresh.entries.slice(0, overlap);
-                queryClient.setQueryData(queryKey, {
-                    ...current,
-                    pages: current.pages.map((page, index) =>
-                        index === 0
-                            ? {
-                                  ...page,
-                                  entries: [...newEntries, ...page.entries],
-                                  total: fresh.total,
-                              }
-                            : page,
-                    ),
-                });
-            },
-            () => setHasNewEntries(true),
-        );
-    }, [listScope, queryClient]);
+        void refetchEntryList().then((result) => {
+            if (result.status === 'error') {
+                setHasNewEntries(true);
+            }
+        });
+    }, [refetchEntryList]);
 
     const selectedEntryId = state.entryId ?? 1;
     const entryDetailQuery = useQuery({
