@@ -373,6 +373,8 @@ export function ReaderPage() {
 
             <AppShell.Main className={classes.main}>
                 <Split
+                    /* Since v4, resizers between panes are opt-in. */
+                    autoResizers
                     className={classes.readerGrid}
                     color={
                         colorScheme === 'dark'

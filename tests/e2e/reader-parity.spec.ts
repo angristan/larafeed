@@ -310,6 +310,32 @@ test('keeps queue filters in a dense vertical list', async ({ page }) => {
     }
 });
 
+test('separates the list and detail panes with a draggable divider', async ({
+    page,
+}) => {
+    await mockReaderApi(page);
+    await page.goto('/feeds?filter=unread&order_by=published_at');
+    await expect(
+        page.getByText('First unread entry', { exact: true }).first(),
+    ).toBeVisible();
+
+    const resizer = page.getByRole('button', { name: 'Resize' });
+    await expect(resizer).toBeVisible();
+
+    const before = await resizer.boundingBox();
+    expect(before).not.toBeNull();
+
+    await resizer.hover();
+    await page.mouse.down();
+    await page.mouse.move((before?.x ?? 0) + 120, (before?.y ?? 0) + 40, {
+        steps: 5,
+    });
+    await page.mouse.up();
+
+    const after = await resizer.boundingBox();
+    expect((after?.x ?? 0) - (before?.x ?? 0)).toBeGreaterThan(80);
+});
+
 test('unsubscribes from a feed after confirmation', async ({ page }) => {
     const state = await mockReaderApi(page);
     await page.goto('/feeds?filter=all&order_by=published_at');
