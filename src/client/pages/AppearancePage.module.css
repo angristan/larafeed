@@ -12,5 +12,6 @@
 }
 
 .previewRow + .previewRow {
-    border-top: 1px solid var(--ds-line);
+    border-top: 1px solid
+        color-mix(in srgb, var(--ds-line) 68%, transparent);
 }

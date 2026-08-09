@@ -280,7 +280,8 @@
 }
 
 .entryItem + .entryItem {
-    border-top: 1px solid var(--ds-line);
+    border-top: 1px solid
+        color-mix(in srgb, var(--ds-line) 68%, transparent);
 }
 
 /* Rows rise in when list content arrives; in-place patches such as
@@ -301,11 +302,11 @@
 .entry {
     position: relative;
     display: grid;
-    min-height: 56px;
+    min-height: 64px;
     grid-template-columns: 5px minmax(0, 1fr);
     gap: var(--ds-space-3);
     align-items: stretch;
-    padding: 8px var(--ds-space-4) 8px var(--ds-space-3);
+    padding: 10px var(--ds-space-4) 10px var(--ds-space-3);
     scroll-margin-block-start: 57px;
     color: var(--ds-ink);
     text-decoration: none;
@@ -345,6 +346,10 @@
     color: var(--ds-muted);
 }
 
+.activeEntry.readEntry {
+    color: var(--ds-ink);
+}
+
 .unreadMarker {
     width: 6px;
     height: 6px;
@@ -367,7 +372,7 @@
     min-width: 0;
     flex-direction: column;
     justify-content: center;
-    gap: 5px;
+    gap: 6px;
 }
 
 .entryList[data-density='compact'] .entryCopy {
@@ -385,7 +390,7 @@
 .entryCopy > .entryTitle {
     display: -webkit-box;
     overflow: hidden;
-    font-size: 0.8125rem;
+    font-size: var(--mantine-font-size-sm);
     font-weight: 650;
     line-height: 1.35;
     -webkit-box-orient: vertical;
@@ -413,8 +418,8 @@
 .entryMeta {
     justify-content: space-between;
     gap: var(--ds-space-2);
-    color: var(--ds-subtle);
-    font-size: 0.6875rem;
+    color: var(--ds-muted);
+    font-size: var(--mantine-font-size-xs);
 }
 
 .feedMeta {
