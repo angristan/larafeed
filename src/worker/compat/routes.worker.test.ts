@@ -162,8 +162,14 @@ describe('compatibility routes with Workerd D1', () => {
         });
 
         const fever = await app.request(
-            `/api/fever/?api_key=${apiKey}&groups&feeds&items&unread_item_ids`,
-            undefined,
+            '/api/fever/?groups&feeds&items&unread_item_ids',
+            {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({ api_key: apiKey }),
+            },
             env,
         );
         expect(await fever.json()).toMatchObject({

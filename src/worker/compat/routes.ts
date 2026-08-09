@@ -241,6 +241,22 @@ const requiredValue = (
         : Effect.fail(new CompatibilityValidationError());
 };
 
+const feverRequestParameters = (
+    request: Request,
+): Effect.Effect<
+    URLSearchParams,
+    CompatibilityValidationError | RequestBodyError
+> =>
+    Effect.gen(function* () {
+        const search = new URL(request.url).searchParams;
+        // GET is an unauthenticated Fever discovery probe. Credentials in a
+        // URL can persist in platform logs, browser history, and proxies.
+        if (request.method !== 'POST' || search.has('api_key')) {
+            return yield* Effect.fail(new CompatibilityValidationError());
+        }
+        return yield* requestParameters(request);
+    });
+
 const parseBoundedInt = (
     value: string | null,
     maximum: number,
@@ -511,7 +527,9 @@ export const registerCompatibilityRoutes = (
                     context.env,
                     preAuthenticationRateLimitKey(context, 'fever'),
                 );
-                const parameters = yield* requestParameters(context.req.raw);
+                const parameters = yield* feverRequestParameters(
+                    context.req.raw,
+                );
                 const apiKey = yield* requiredValue(parameters, 'api_key', 32);
                 const compat = yield* runtime(context.env);
                 const authentication =

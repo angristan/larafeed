@@ -232,8 +232,18 @@ describe('compatibility protocol routes', () => {
             rateLimit: () => Effect.fail(new CompatibilityRateLimited()),
         });
         const response = await harness.app.request(
-            '/api/fever/?api_key=ffffffffffffffffffffffffffffffff',
-            { headers: { 'CF-Connecting-IP': '203.0.113.21' } },
+            '/api/fever/',
+            {
+                ...formRequest(
+                    new URLSearchParams({
+                        api_key: 'ffffffffffffffffffffffffffffffff',
+                    }),
+                ),
+                headers: {
+                    'CF-Connecting-IP': '203.0.113.21',
+                    'content-type': 'application/x-www-form-urlencoded',
+                },
+            },
             {} as Env,
         );
 
@@ -366,6 +376,30 @@ describe('compatibility protocol routes', () => {
         expect(await denied.text()).toBe('Error=InvalidAuthToken\n');
     });
 
+    it('keeps Fever GET probes unauthenticated and rejects URL credentials', async () => {
+        const harness = makeHarness({});
+        const key = '00000000000000000000000000000000';
+
+        for (const [path, request] of [
+            ['/api/fever/?api', undefined],
+            [`/api/fever/?api_key=${key}`, undefined],
+            [
+                `/api/fever/?api_key=${key}`,
+                formRequest(new URLSearchParams({ api_key: key })),
+            ],
+        ] as const) {
+            const response = await harness.app.request(
+                path,
+                request,
+                {} as Env,
+            );
+            expect(response.status).toBe(200);
+            expect(await response.json()).toEqual({ api_version: 3, auth: 0 });
+        }
+
+        expect(harness.authenticateFeverApiKey).not.toHaveBeenCalled();
+    });
+
     it('supports Fever v3 shapes, cursor conventions, and sparse marks', async () => {
         const setStarred = vi.fn(() =>
             Effect.succeed({
@@ -387,8 +421,15 @@ describe('compatibility protocol routes', () => {
         });
         const key = '00000000000000000000000000000000';
         const response = await harness.app.request(
-            `/api/fever/?api_key=${key}&groups&feeds&items&since_id=10&unread_item_ids&saved_item_ids&mark=item&id=4660&as=saved`,
-            undefined,
+            '/api/fever/?groups&feeds&items&since_id=10&unread_item_ids&saved_item_ids',
+            formRequest(
+                new URLSearchParams({
+                    api_key: key,
+                    mark: 'item',
+                    id: '4660',
+                    as: 'saved',
+                }),
+            ),
             {} as Env,
         );
         const body = await response.json<Record<string, unknown>>();
@@ -418,8 +459,12 @@ describe('compatibility protocol routes', () => {
         ]);
 
         const denied = await harness.app.request(
-            '/api/fever/?api_key=ffffffffffffffffffffffffffffffff',
-            undefined,
+            '/api/fever/',
+            formRequest(
+                new URLSearchParams({
+                    api_key: 'ffffffffffffffffffffffffffffffff',
+                }),
+            ),
             {} as Env,
         );
         expect(await denied.json()).toEqual({ api_version: 3, auth: 0 });

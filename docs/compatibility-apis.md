@@ -35,6 +35,8 @@ For the same deployment:
 
 Fever clients send `api_key = MD5(username:app-token)`. Larafeed stores only `SHA-256(api_key)` and the normal SHA-256 app-token hash. MD5 is used only for the legacy Fever wire protocol.
 
+Larafeed accepts the unauthenticated `GET /api/fever/?api` discovery probe used by Reeder Classic. Authenticated Fever requests must use `POST` with `api_key` in an `application/x-www-form-urlencoded` body. Larafeed rejects `api_key` in the URL so it cannot enter request logs, browser history, or proxies.
+
 Supported Fever v3 data includes groups, feeds, feed-group mappings, recent or cursor-bounded items, unread IDs, saved IDs, and read or saved marks. `since_id` and `max_id` cannot be used together.
 
 ## Reader state
