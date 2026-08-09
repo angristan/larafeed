@@ -14,11 +14,13 @@ import { type CSSProperties, useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 
 import type { ReaderEntryPage } from '../../api/reader';
+import type { FeedListDensity } from '../../readerPreferences';
 import { type ReaderState, readerHref } from '../../readerState';
 import { FeedFavicon } from './FeedFavicon';
 import classes from './Reader.module.css';
 
 interface ReaderEntryListProps {
+    readonly density: FeedListDensity;
     readonly state: ReaderState;
     readonly scopeTitle: string;
     readonly entries: ReaderEntryPage['entries'];
@@ -91,6 +93,7 @@ const orderLabels = {
 } as const;
 
 export function ReaderEntryList({
+    density,
     state,
     scopeTitle,
     entries,
@@ -145,6 +148,7 @@ export function ReaderEntryList({
             aria-busy={isPending || isFetching}
             aria-label={scopeTitle}
             className={classes.entryList}
+            data-density={density}
         >
             <header className={classes.listHeader}>
                 <div className={classes.listHeaderCopy}>

@@ -11,6 +11,7 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
+    IconAdjustmentsHorizontal,
     IconFileImport,
     IconKey,
     IconShieldLock,
@@ -158,6 +159,13 @@ function SettingsNavigation({
             label: 'Security',
             description: 'Passkeys and account recovery',
             icon: IconShieldLock,
+        },
+        {
+            to: '/settings/appearance',
+            active: location.pathname === '/settings/appearance',
+            label: 'Appearance',
+            description: 'Feed list and display',
+            icon: IconAdjustmentsHorizontal,
         },
         {
             to: '/settings/app-tokens',

@@ -269,6 +269,77 @@ test('keeps the unread page stable and generates a summary with one click', asyn
     expect(state.entryListRequests).toBe(1);
 });
 
+test('persists the feed list density selected in settings', async ({
+    page,
+}) => {
+    await mockReaderApi(page);
+    await page.goto('/settings/appearance');
+
+    const densityGroup = page.getByRole('radiogroup', {
+        name: 'Feed list density',
+    });
+    await expect(
+        densityGroup.getByRole('radio', { name: 'Comfortable' }),
+    ).toBeChecked();
+    const densityPreview = page.locator('[data-density-preview]');
+    await expect(densityPreview).toHaveAttribute(
+        'data-density-preview',
+        'comfortable',
+    );
+
+    await densityGroup.getByText('Compact', { exact: true }).click();
+    await expect(
+        densityGroup.getByRole('radio', { name: 'Compact' }),
+    ).toBeChecked();
+    await expect(densityPreview).toHaveAttribute(
+        'data-density-preview',
+        'compact',
+    );
+
+    await page.goto('/feeds?filter=all&order_by=published_at');
+    const entryList = page.locator('section[data-density]');
+    const entryRow = page.locator('#reader-entry-41');
+    await expect(entryList).toHaveAttribute('data-density', 'compact');
+    const compactHeight = await entryRow.evaluate(
+        (element) => element.getBoundingClientRect().height,
+    );
+    const compactFontSizes = await Promise.all([
+        entryRow
+            .getByText('First unread entry', { exact: true })
+            .evaluate((element) => getComputedStyle(element).fontSize),
+        entryRow
+            .getByText('Example feed', { exact: true })
+            .evaluate((element) => getComputedStyle(element).fontSize),
+    ]);
+
+    await page.goto('/settings/appearance');
+    await expect(
+        page.getByRole('radio', { name: 'Compact' }),
+    ).toBeChecked();
+    await page.getByText('Spacious', { exact: true }).click();
+    await expect(densityPreview).toHaveAttribute(
+        'data-density-preview',
+        'spacious',
+    );
+
+    await page.goto('/feeds?filter=all&order_by=published_at');
+    await expect(entryList).toHaveAttribute('data-density', 'spacious');
+    const spaciousHeight = await entryRow.evaluate(
+        (element) => element.getBoundingClientRect().height,
+    );
+    const spaciousFontSizes = await Promise.all([
+        entryRow
+            .getByText('First unread entry', { exact: true })
+            .evaluate((element) => getComputedStyle(element).fontSize),
+        entryRow
+            .getByText('Example feed', { exact: true })
+            .evaluate((element) => getComputedStyle(element).fontSize),
+    ]);
+
+    expect(spaciousHeight - compactHeight).toBeGreaterThanOrEqual(20);
+    expect(spaciousFontSizes).toEqual(compactFontSizes);
+});
+
 test('keeps queue filters in a dense vertical list', async ({ page }) => {
     await mockReaderApi(page);
     await page.goto('/feeds?filter=all&order_by=published_at');

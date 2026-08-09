@@ -40,6 +40,7 @@ function render(overrides: Partial<Parameters<typeof ReaderEntryList>[0]>) {
         <MemoryRouter>
             <MantineProvider>
                 <ReaderEntryList
+                    density="comfortable"
                     entries={entries}
                     error={null}
                     scopeTitle="All entries"
@@ -67,7 +68,17 @@ describe('ReaderEntryList infinite list', () => {
 
         expect(markup).toContain('A stable entry');
         expect(markup).toContain('1 total');
+        expect(markup).toContain('data-density="comfortable"');
         expect(markup).not.toContain('mantine-Pagination-root');
+    });
+
+    it('renders the selected density', () => {
+        expect(render({ density: 'compact' })).toContain(
+            'data-density="compact"',
+        );
+        expect(render({ density: 'spacious' })).toContain(
+            'data-density="spacious"',
+        );
     });
 
     it('renders a load-more sentinel only while more pages exist', () => {

@@ -35,6 +35,7 @@ import {
     subscriptionListQueryOptions,
 } from '../queries/reader';
 import { useEntryInteractionMutations } from '../queries/readerMutations';
+import { useFeedListDensity } from '../readerPreferences';
 import { parseReaderState, READER_PAGE_SIZE, readerHref } from '../readerState';
 
 function firstError(...errors: Array<Error | null>): Error | null {
@@ -80,6 +81,7 @@ export function ReaderPage() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [navbarOpened, navbar] = useDisclosure(false);
+    const [feedListDensity] = useFeedListDensity();
     const colorScheme = useComputedColorScheme('light');
     const theme = useMantineTheme();
 
@@ -392,6 +394,7 @@ export function ReaderPage() {
                         minWidth={300}
                     >
                         <ReaderEntryList
+                            density={feedListDensity}
                             entries={listEntries}
                             hasNewEntries={hasNewEntries}
                             scopeTitle={entryListTitle}

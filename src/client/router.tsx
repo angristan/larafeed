@@ -367,6 +367,16 @@ export const router = createBrowserRouter([
                 },
             },
             {
+                path: '/settings/appearance',
+                loader: protectedLoader,
+                lazy: async () => {
+                    const { AppearancePage } = await import(
+                        './pages/AppearancePage'
+                    );
+                    return { Component: AppearancePage };
+                },
+            },
+            {
                 path: '/settings/app-tokens',
                 loader: protectedLoader,
                 lazy: async () => {

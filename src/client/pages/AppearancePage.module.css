@@ -1,0 +1,16 @@
+.preview {
+    overflow: hidden;
+    border: 1px solid var(--ds-line);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-paper);
+    box-shadow: var(--ds-shadow-inset);
+}
+
+.previewRow {
+    width: 100%;
+    pointer-events: none;
+}
+
+.previewRow + .previewRow {
+    border-top: 1px solid var(--ds-line);
+}
