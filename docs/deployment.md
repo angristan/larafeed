@@ -1,6 +1,6 @@
 # Deployment
 
-Larafeed runs as one Cloudflare Worker with Static Assets, D1, three Queues, Cron, a rate-limit binding, and an optional Images binding.
+Larafeed runs as one Cloudflare Worker with Static Assets, D1, Workers KV, three Queues, Cron, a rate-limit binding, and an optional Images binding.
 
 ## Deploy button
 
@@ -23,11 +23,12 @@ Requirements: Node.js 24, npm, Bun, and an authenticated Wrangler session. The p
 
 ### Provision a fresh portable environment
 
-Install dependencies, then create the D1 database and all three Queues. These commands create remote resources:
+Install dependencies, then create the D1 database, full-content KV namespace, and all three Queues. These commands create remote resources:
 
 ```bash
 npm ci
 npm exec -- wrangler d1 create larafeed-template
+npm exec -- wrangler kv namespace create larafeed-template-full-content
 npm exec -- wrangler queues create larafeed-template-feed-refresh
 npm exec -- wrangler queues create larafeed-template-opml-import
 npm exec -- wrangler queues create larafeed-template-favicon-refresh
@@ -36,10 +37,11 @@ npm exec -- wrangler queues create larafeed-template-favicon-refresh
 Before deployment, edit the default environment in `wrangler.jsonc`:
 
 1. Replace D1 `database_id` value `00000000-0000-0000-0000-000000000010` with the ID returned by `wrangler d1 create`.
-2. Set `AUTH_ORIGIN` to the exact public HTTPS origin, without a path or trailing slash.
-3. Change the Worker `name` if `larafeed-template` is already in use in the account.
-4. If you change a Queue resource name, replace it in its producer, consumer, and matching `*_QUEUE_NAME` variable. These three values must be identical.
-5. If you change the D1 name, update `database_name` as well as the ID.
+2. Replace the `FULL_CONTENT_KV` `id` value `00000000000000000000000000000010` with the ID returned by `wrangler kv namespace create`.
+3. Set `AUTH_ORIGIN` to the exact public HTTPS origin, without a path or trailing slash.
+4. Change the Worker `name` if `larafeed-template` is already in use in the account.
+5. If you change a Queue resource name, replace it in its producer, consumer, and matching `*_QUEUE_NAME` variable. These three values must be identical.
+6. If you change the D1 name, update `database_name` as well as the ID.
 
 Set the required operator secret through Wrangler's hidden prompt. Generate and store a private value in a password manager first. Do not put the value on the command line.
 
