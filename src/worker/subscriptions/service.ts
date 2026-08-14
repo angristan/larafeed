@@ -310,6 +310,13 @@ export const makeSubscriptionService = (
                                       now(),
                                   ),
                           };
+                if (!outcome.createdSubscription) {
+                    return yield* Effect.fail(
+                        new SubscriptionConflict({
+                            reason: 'already_subscribed',
+                        }),
+                    );
+                }
                 const subscription = yield* repository.findSubscription(
                     userId,
                     outcome.feedId,

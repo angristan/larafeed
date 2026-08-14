@@ -302,6 +302,33 @@ describe('subscription management routes', () => {
         expect(createSubscription).not.toHaveBeenCalled();
     });
 
+    it('returns a clear error for an existing subscription', async () => {
+        const response = await app(
+            subscriptionService({
+                createSubscription: () =>
+                    Effect.fail(
+                        new SubscriptionConflict({
+                            reason: 'already_subscribed',
+                        }),
+                    ),
+            }),
+        ).request(
+            '/api/subscriptions',
+            request('POST', {
+                feedUrl: 'https://example.test/feed.xml',
+                categoryId: 11,
+            }),
+        );
+
+        expect(response.status).toBe(409);
+        await expect(decode(response, ApiErrorResponse)).resolves.toEqual({
+            error: {
+                code: 'conflict',
+                message: 'You are already subscribed to this feed',
+            },
+        });
+    });
+
     it('maps category conflicts without exposing storage details', async () => {
         const response = await app(
             subscriptionService({

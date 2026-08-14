@@ -352,7 +352,7 @@ describe('subscription management service', () => {
         expect(findFeedByUrl).not.toHaveBeenCalled();
     });
 
-    it('subscribes to a cached feed while its origin is unavailable', async () => {
+    it('rejects an already subscribed cached feed without fetching it', async () => {
         const discoverFeed = vi.fn(() => Effect.die('must not fetch'));
         const subscribeExisting = vi.fn(() => Effect.succeed(false));
         const service = makeSubscriptionService({
@@ -371,12 +371,60 @@ describe('subscription management service', () => {
                     categoryId: 11,
                 }),
             ),
-        ).resolves.toMatchObject({
-            createdFeed: false,
-            createdSubscription: false,
-        });
+        ).rejects.toEqual(
+            new SubscriptionConflict({ reason: 'already_subscribed' }),
+        );
         expect(discoverFeed).not.toHaveBeenCalled();
         expect(subscribeExisting).toHaveBeenCalledWith(7, 21, 11, 1_000);
+    });
+
+    it('rejects an existing subscription found after discovery', async () => {
+        const subscribeDiscovered = vi.fn(() =>
+            Effect.succeed({
+                feedId: 21,
+                createdFeed: false,
+                createdSubscription: false,
+            }),
+        );
+        const service = makeSubscriptionService({
+            repository: repository({ subscribeDiscovered }),
+            discoverFeed: () =>
+                Effect.succeed({
+                    kind: 'updated' as const,
+                    finalUrl: 'https://example.test/feed.xml',
+                    etag: null,
+                    lastModified: null,
+                    httpStatus: 200,
+                    feed: {
+                        title: 'Feed',
+                        description: null,
+                        siteUrl: 'https://example.test/',
+                        faviconUrl: null,
+                        sourceUpdatedAt: null,
+                    },
+                    entries: [],
+                }),
+            generateId: () => Effect.succeed(101),
+            now: () => 1_000,
+        });
+
+        await expect(
+            Effect.runPromise(
+                service.createSubscription(7, {
+                    feedUrl: 'https://example.test/',
+                    categoryId: 11,
+                }),
+            ),
+        ).rejects.toEqual(
+            new SubscriptionConflict({ reason: 'already_subscribed' }),
+        );
+        expect(subscribeDiscovered).toHaveBeenCalledWith(
+            expect.objectContaining({
+                feedUrl: 'https://example.test/feed.xml',
+                categoryId: 11,
+                userId: 7,
+            }),
+        );
     });
 
     it('stores an empty custom feed name as null', async () => {

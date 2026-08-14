@@ -241,9 +241,11 @@ const safeError = (error: unknown): SafeError => {
                 message:
                     reason === 'category_in_use'
                         ? 'Move or remove feeds before deleting this category'
-                        : reason === 'filter_rebuild_too_large'
-                          ? `Filters can be changed for feeds with up to ${MAX_FILTER_REAPPLY_ENTRIES.toLocaleString('en-US')} existing entries`
-                          : 'This change conflicts with existing data',
+                        : reason === 'already_subscribed'
+                          ? 'You are already subscribed to this feed'
+                          : reason === 'filter_rebuild_too_large'
+                            ? `Filters can be changed for feeds with up to ${MAX_FILTER_REAPPLY_ENTRIES.toLocaleString('en-US')} existing entries`
+                            : 'This change conflicts with existing data',
                 status: 409,
             };
         }
