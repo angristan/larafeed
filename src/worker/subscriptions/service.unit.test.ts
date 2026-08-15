@@ -10,6 +10,7 @@ import {
     FeedSizeError,
     FeedTimeoutError,
 } from '../feeds/errors';
+import type { FeedUpdatedResult } from '../feeds/service';
 import {
     SubscriptionConflict,
     SubscriptionFeedError,
@@ -17,7 +18,11 @@ import {
     SubscriptionValidationError,
 } from './errors';
 import type { SubscriptionRepository } from './repository';
-import { MAX_FILTER_REAPPLY_ENTRIES, makeSubscriptionService } from './service';
+import {
+    MAX_FILTER_REAPPLY_ENTRIES,
+    makeSubscriptionService,
+    type SubscriptionServiceDependencies,
+} from './service';
 
 const baseSubscription = {
     feedId: 21,
@@ -92,6 +97,22 @@ const repository = (
         ...overrides,
     }) as SubscriptionRepository;
 
+const discoverSingle =
+    (
+        kind: 'direct' | 'website',
+        operation: () => Effect.Effect<FeedUpdatedResult, FeedRefreshError>,
+    ): SubscriptionServiceDependencies['discoverFeeds'] =>
+    () =>
+        operation().pipe(
+            Effect.map((result) => ({
+                kind,
+                candidates: [{ result, identicalFeedUrls: [] }],
+            })),
+        );
+const discoverDirect = (
+    operation: () => Effect.Effect<FeedUpdatedResult, FeedRefreshError>,
+) => discoverSingle('direct', operation);
+
 describe('subscription management service', () => {
     it('discovers and persists a new feed before returning', async () => {
         const subscribeDiscovered = vi.fn(() =>
@@ -103,7 +124,7 @@ describe('subscription management service', () => {
         );
         const service = makeSubscriptionService({
             repository: repository({ subscribeDiscovered }),
-            discoverFeed: () =>
+            discoverFeeds: discoverSingle('website', () =>
                 Effect.succeed({
                     kind: 'updated' as const,
                     finalUrl: 'https://example.test/discovered.xml',
@@ -141,6 +162,7 @@ describe('subscription management service', () => {
                         },
                     ],
                 }),
+            ),
             generateId: () => Effect.succeed(101),
             now: () => 1_000,
         });
@@ -208,7 +230,7 @@ describe('subscription management service', () => {
                 findOrCreateCategory,
                 subscribeDiscovered,
             }),
-            discoverFeed: () =>
+            discoverFeeds: discoverDirect(() =>
                 Effect.succeed({
                     kind: 'updated' as const,
                     finalUrl: 'https://example.test/feed.xml',
@@ -224,6 +246,7 @@ describe('subscription management service', () => {
                     },
                     entries: [],
                 }),
+            ),
             generateId: () =>
                 Effect.succeed(generatedIds.shift() ?? Number.NaN),
             now: () => 1_000,
@@ -241,6 +264,75 @@ describe('subscription management service', () => {
         expect(subscribeDiscovered).toHaveBeenCalledWith(
             expect.objectContaining({ categoryId: 11 }),
         );
+    });
+
+    it('returns ambiguous candidates before creating a category or subscription', async () => {
+        const findOrCreateCategory = vi.fn(() => Effect.die('must not write'));
+        const subscribeDiscovered = vi.fn(() => Effect.die('must not write'));
+        const rootUrl = 'https://example.test/feed.xml';
+        const sectionUrl = 'https://example.test/news/feed.xml';
+        const feedResult = (finalUrl: string, title: string) => ({
+            kind: 'updated' as const,
+            finalUrl,
+            etag: null,
+            lastModified: null,
+            httpStatus: 200,
+            feed: {
+                title,
+                description: null,
+                siteUrl: finalUrl.replace(/feed\.xml$/u, ''),
+                faviconUrl: null,
+                sourceUpdatedAt: null,
+            },
+            entries: [],
+        });
+        const service = makeSubscriptionService({
+            repository: repository({
+                findOrCreateCategory,
+                subscribeDiscovered,
+            }),
+            discoverFeeds: () =>
+                Effect.succeed({
+                    kind: 'website' as const,
+                    candidates: [
+                        {
+                            result: feedResult(rootUrl, 'Example'),
+                            identicalFeedUrls: [sectionUrl],
+                        },
+                        {
+                            result: feedResult(sectionUrl, 'Example News'),
+                            identicalFeedUrls: [rootUrl],
+                        },
+                    ],
+                }),
+        });
+
+        await expect(
+            Effect.runPromise(
+                service.createSubscription(7, {
+                    feedUrl: 'https://example.test/news/',
+                    categoryName: 'Tech',
+                }),
+            ),
+        ).resolves.toEqual({
+            kind: 'selection_required',
+            candidates: [
+                {
+                    title: 'Example',
+                    feedUrl: rootUrl,
+                    siteUrl: 'https://example.test/',
+                    identicalTo: [sectionUrl],
+                },
+                {
+                    title: 'Example News',
+                    feedUrl: sectionUrl,
+                    siteUrl: 'https://example.test/news/',
+                    identicalTo: [rootUrl],
+                },
+            ],
+        });
+        expect(findOrCreateCategory).not.toHaveBeenCalled();
+        expect(subscribeDiscovered).not.toHaveBeenCalled();
     });
 
     it.each([
@@ -294,7 +386,7 @@ describe('subscription management service', () => {
         async (_label, cause, reason) => {
             const service = makeSubscriptionService({
                 repository: repository(),
-                discoverFeed: () => Effect.fail(cause),
+                discoverFeeds: discoverDirect(() => Effect.fail(cause)),
             });
 
             await expect(
@@ -312,7 +404,7 @@ describe('subscription management service', () => {
         const discoverFeed = vi.fn(() => Effect.die('unused'));
         const service = makeSubscriptionService({
             repository: repository(),
-            discoverFeed,
+            discoverFeeds: discoverDirect(discoverFeed),
         });
 
         await expect(
@@ -330,7 +422,7 @@ describe('subscription management service', () => {
         const findFeedByUrl = vi.fn(() => Effect.succeed(null));
         const service = makeSubscriptionService({
             repository: repository({ findFeedByUrl }),
-            discoverFeed: () => Effect.die('unused'),
+            discoverFeeds: discoverDirect(() => Effect.die('unused')),
         });
 
         await expect(
@@ -360,7 +452,7 @@ describe('subscription management service', () => {
                 findFeedByUrl: () => Effect.succeed(21),
                 subscribeExisting,
             }),
-            discoverFeed,
+            discoverFeeds: discoverDirect(discoverFeed),
             now: () => 1_000,
         });
 
@@ -388,7 +480,7 @@ describe('subscription management service', () => {
         );
         const service = makeSubscriptionService({
             repository: repository({ subscribeDiscovered }),
-            discoverFeed: () =>
+            discoverFeeds: discoverDirect(() =>
                 Effect.succeed({
                     kind: 'updated' as const,
                     finalUrl: 'https://example.test/feed.xml',
@@ -404,6 +496,7 @@ describe('subscription management service', () => {
                     },
                     entries: [],
                 }),
+            ),
             generateId: () => Effect.succeed(101),
             now: () => 1_000,
         });
@@ -431,7 +524,7 @@ describe('subscription management service', () => {
         const updateSubscription = vi.fn(() => Effect.void);
         const service = makeSubscriptionService({
             repository: repository({ updateSubscription }),
-            discoverFeed: () => Effect.die('unused'),
+            discoverFeeds: discoverDirect(() => Effect.die('unused')),
             now: () => 2_000,
         });
 
@@ -463,7 +556,7 @@ describe('subscription management service', () => {
                         },
                     }),
             }),
-            discoverFeed: () => Effect.die('unused'),
+            discoverFeeds: discoverDirect(() => Effect.die('unused')),
             now: () => 2_000,
         });
         const rules = {
@@ -522,7 +615,7 @@ describe('subscription management service', () => {
                 updateSubscriptionWithFilterRebuild,
                 listFilterCandidates,
             }),
-            discoverFeed: () => Effect.die('unused'),
+            discoverFeeds: discoverDirect(() => Effect.die('unused')),
             now: () => 2_000,
         });
         const input = {
@@ -581,7 +674,7 @@ describe('subscription management service', () => {
                 listFilterCandidates,
                 updateSubscriptionWithFilterRebuild,
             }),
-            discoverFeed: () => Effect.die('unused'),
+            discoverFeeds: discoverDirect(() => Effect.die('unused')),
         });
 
         await Effect.runPromise(
@@ -622,7 +715,7 @@ describe('subscription management service', () => {
                 listFilterCandidates,
                 updateSubscriptionWithFilterRebuild,
             }),
-            discoverFeed: () => Effect.die('unused'),
+            discoverFeeds: discoverDirect(() => Effect.die('unused')),
         });
 
         await expect(
@@ -648,7 +741,7 @@ describe('subscription management service', () => {
         const updateSubscription = vi.fn(() => Effect.void);
         const service = makeSubscriptionService({
             repository: repository({ updateSubscription }),
-            discoverFeed: () => Effect.die('unused'),
+            discoverFeeds: discoverDirect(() => Effect.die('unused')),
         });
 
         await expect(

@@ -473,6 +473,51 @@ describe('feed refresh service', () => {
         );
     });
 
+    it('deduplicates advertised candidates that redirect to one feed', async () => {
+        const html = `<!doctype html><html><head>
+            <link rel="alternate" type="application/rss+xml" href="/first.xml">
+            <link rel="alternate" type="application/rss+xml" href="/second.xml">
+        </head></html>`;
+        const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+            const url = String(input);
+            if (url === 'https://example.com/news/') {
+                return new Response(html, {
+                    headers: { 'content-type': 'text/html' },
+                });
+            }
+            if (
+                url === 'https://example.com/first.xml' ||
+                url === 'https://example.com/second.xml'
+            ) {
+                return new Response(null, {
+                    status: 302,
+                    headers: { location: '/canonical.xml' },
+                });
+            }
+            if (url === 'https://example.com/canonical.xml') {
+                return new Response(rss, {
+                    headers: { 'content-type': 'application/rss+xml' },
+                });
+            }
+            return new Response('missing', { status: 404 });
+        });
+        const service = makeFeedRefreshService({ fetch: fetchMock });
+
+        const result = await Effect.runPromise(
+            service.discoverCandidates('https://example.com/news/'),
+        );
+
+        expect(result).toMatchObject({
+            kind: 'website',
+            candidates: [
+                {
+                    result: { finalUrl: 'https://example.com/canonical.xml' },
+                    identicalFeedUrls: [],
+                },
+            ],
+        });
+    });
+
     it('probes a bounded common path when a website has no alternate link', async () => {
         const html = '<html><head><title>No links</title></head></html>';
         const fetchMock = vi
@@ -502,6 +547,152 @@ describe('feed refresh service', () => {
         expect(String(fetchMock.mock.calls[2]?.[0])).toBe(
             'https://example.com/feed',
         );
+    });
+
+    it('returns root and page-local candidates with identical-content flags', async () => {
+        const html = '<html><head><title>No links</title></head></html>';
+        const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+            const url = String(input);
+            if (url === 'https://example.com/news/') {
+                return new Response(html, {
+                    headers: { 'content-type': 'text/html' },
+                });
+            }
+            if (
+                url === 'https://example.com/feed' ||
+                url === 'https://example.com/news/feed'
+            ) {
+                return new Response(rss, {
+                    headers: { 'content-type': 'application/rss+xml' },
+                });
+            }
+            return new Response('missing', { status: 404 });
+        });
+        const service = makeFeedRefreshService({ fetch: fetchMock });
+
+        const result = await Effect.runPromise(
+            service.discoverCandidates('https://example.com/news/'),
+        );
+
+        expect(result).toMatchObject({
+            kind: 'website',
+            candidates: [
+                {
+                    result: { finalUrl: 'https://example.com/feed' },
+                    identicalFeedUrls: ['https://example.com/news/feed'],
+                },
+                {
+                    result: { finalUrl: 'https://example.com/news/feed' },
+                    identicalFeedUrls: ['https://example.com/feed'],
+                },
+            ],
+        });
+        expect(
+            fetchMock.mock.calls
+                .slice(2)
+                .map(([input]) => new URL(String(input)).pathname),
+        ).toEqual([
+            ...COMMON_FEED_DISCOVERY_PATHS,
+            ...COMMON_FEED_DISCOVERY_PATHS.map((path) => `/news${path}`),
+        ]);
+    });
+
+    it('does not flag empty or truncated feed windows as identical', async () => {
+        const html = '<html><head><title>No links</title></head></html>';
+        const truncatedItems = Array.from(
+            { length: MAX_FEED_ENTRIES + 1 },
+            (_, index) =>
+                `<item><guid>${index}</guid><title>${index}</title></item>`,
+        ).join('');
+        const documents = [
+            '<rss><channel><title>Empty</title></channel></rss>',
+            `<rss><channel><title>Truncated</title>${truncatedItems}</channel></rss>`,
+        ];
+
+        for (const document of documents) {
+            const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+                const url = String(input);
+                if (url === 'https://example.com/news/') {
+                    return new Response(html, {
+                        headers: { 'content-type': 'text/html' },
+                    });
+                }
+                if (
+                    url === 'https://example.com/feed' ||
+                    url === 'https://example.com/news/feed'
+                ) {
+                    return new Response(document, {
+                        headers: { 'content-type': 'application/rss+xml' },
+                    });
+                }
+                return new Response('missing', { status: 404 });
+            });
+            const result = await Effect.runPromise(
+                makeFeedRefreshService({ fetch: fetchMock }).discoverCandidates(
+                    'https://example.com/news/',
+                ),
+            );
+
+            expect(
+                result.candidates.map(
+                    (candidate) => candidate.identicalFeedUrls,
+                ),
+            ).toEqual([[], []]);
+        }
+    });
+
+    it('caps validated common-path candidates at four', async () => {
+        const html = '<html><head><title>No links</title></head></html>';
+        const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+            const url = String(input);
+            return url === 'https://example.com/'
+                ? new Response(html, {
+                      headers: { 'content-type': 'text/html' },
+                  })
+                : new Response(rss, {
+                      headers: { 'content-type': 'application/rss+xml' },
+                  });
+        });
+        const service = makeFeedRefreshService({ fetch: fetchMock });
+
+        const result = await Effect.runPromise(
+            service.discoverCandidates('https://example.com/'),
+        );
+
+        expect(
+            result.candidates.map((candidate) => candidate.result.finalUrl),
+        ).toEqual(
+            COMMON_FEED_DISCOVERY_PATHS.slice(0, 4).map(
+                (path) => `https://example.com${path}`,
+            ),
+        );
+        expect(fetchMock).toHaveBeenCalledTimes(6);
+    });
+
+    it('returns direct feeds without probing discovery candidates', async () => {
+        const fetchMock = vi.fn(async () =>
+            Promise.resolve(
+                new Response(rss, {
+                    headers: { 'content-type': 'application/rss+xml' },
+                }),
+            ),
+        );
+        const service = makeFeedRefreshService({ fetch: fetchMock });
+
+        const result = await Effect.runPromise(
+            service.discoverCandidates(source.url),
+        );
+
+        expect(result).toMatchObject({
+            kind: 'direct',
+            candidates: [
+                {
+                    result: { finalUrl: source.url },
+                    identicalFeedUrls: [],
+                },
+            ],
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it('probes every bounded common path through feed.json', async () => {

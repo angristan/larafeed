@@ -68,6 +68,7 @@ describe('SubscriptionClient', () => {
         const fetchMock = vi.fn(() =>
             Promise.resolve(
                 Response.json({
+                    kind: 'created',
                     subscription,
                     createdFeed: true,
                     createdSubscription: true,
@@ -106,6 +107,7 @@ describe('SubscriptionClient', () => {
         const fetchMock = vi.fn(() =>
             Promise.resolve(
                 Response.json({
+                    kind: 'created',
                     subscription,
                     createdFeed: true,
                     createdSubscription: true,
@@ -131,6 +133,57 @@ describe('SubscriptionClient', () => {
                 }),
             }),
         );
+    });
+
+    it('decodes feed candidates that require a user choice', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(() =>
+                Promise.resolve(
+                    Response.json({
+                        kind: 'selection_required',
+                        candidates: [
+                            {
+                                title: 'Example',
+                                feedUrl: 'https://example.com/feed.xml',
+                                siteUrl: 'https://example.com/',
+                                identicalTo: [
+                                    'https://example.com/news/feed.xml',
+                                ],
+                            },
+                            {
+                                title: 'Example News',
+                                feedUrl: 'https://example.com/news/feed.xml',
+                                siteUrl: 'https://example.com/news/',
+                                identicalTo: ['https://example.com/feed.xml'],
+                            },
+                        ],
+                    }),
+                ),
+            ),
+        );
+
+        await expect(
+            Effect.runPromise(
+                createSubscription({
+                    feedUrl: 'https://example.com/news/',
+                    categoryId: category.id,
+                    csrfToken: 'csrf-token',
+                }),
+            ),
+        ).resolves.toMatchObject({
+            kind: 'selection_required',
+            candidates: [
+                {
+                    title: 'Example',
+                    identicalTo: ['https://example.com/news/feed.xml'],
+                },
+                {
+                    title: 'Example News',
+                    identicalTo: ['https://example.com/feed.xml'],
+                },
+            ],
+        });
     });
 
     it('sends camel-case filter rules when updating a subscription', async () => {

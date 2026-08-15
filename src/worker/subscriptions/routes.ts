@@ -96,9 +96,9 @@ export const defaultSubscriptionRuntimeFactory: SubscriptionRuntimeFactory = (
                 auth,
                 service: makeSubscriptionService({
                     repository: makeSubscriptionRepository(d1),
-                    discoverFeed: (url) =>
+                    discoverFeeds: (url) =>
                         feedService
-                            .discover(url)
+                            .discoverCandidates(url)
                             .pipe(
                                 Effect.tapError((error) =>
                                     logFeedDiscoveryFailure(url, error),

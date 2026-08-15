@@ -697,7 +697,7 @@ describe('subscription management D1 repository', () => {
 
         const service = makeSubscriptionService({
             repository,
-            discoverFeed: () => Effect.die('unused'),
+            discoverFeeds: () => Effect.die('unused'),
             now: () => now + 1,
         });
         await expect(

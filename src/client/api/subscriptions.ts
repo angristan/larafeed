@@ -25,6 +25,11 @@ export type SubscriptionRefreshRecord =
 export type SubscriptionFilterRules = ManagedSubscription['filterRules'];
 export type RefreshCommand = typeof RefreshCommandResponse.Type;
 export type FaviconRefresh = typeof FaviconRefreshResponse.Type;
+export type CreateSubscriptionResult = typeof CreateSubscriptionResponse.Type;
+export type FeedDiscoveryCandidate = Extract<
+    CreateSubscriptionResult,
+    { readonly kind: 'selection_required' }
+>['candidates'][number];
 
 export interface CreateCategoryInput {
     readonly name: typeof CreateCategoryRequest.Type.name;

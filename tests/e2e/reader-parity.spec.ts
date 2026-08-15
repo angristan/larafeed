@@ -25,6 +25,7 @@ interface ApiState {
     summaryPosts: number;
     readPuts: number;
     unsubscribeDeletes: number;
+    subscriptionCreateBodies: unknown[];
 }
 
 const json = (body: unknown) => ({
@@ -42,6 +43,7 @@ async function mockReaderApi(
         summaryPosts: 0,
         readPuts: 0,
         unsubscribeDeletes: 0,
+        subscriptionCreateBodies: [],
     };
     await page.addInitScript(() => {
         document.cookie = 'larafeed-test-csrf=browser-csrf; path=/; SameSite=Lax';
@@ -82,6 +84,81 @@ async function mockReaderApi(
         if (pathname === '/api/categories') {
             await route.fulfill(
                 json({ categories: [{ id: 11, name: 'Technology' }] }),
+            );
+            return;
+        }
+        if (
+            pathname === '/api/subscriptions' &&
+            request.method() === 'POST'
+        ) {
+            const body: unknown = request.postDataJSON();
+            state.subscriptionCreateBodies.push(body);
+            const feedUrl =
+                typeof body === 'object' && body !== null
+                    ? Reflect.get(body, 'feedUrl')
+                    : undefined;
+            if (feedUrl === 'https://www.raspberrypi.com/news/') {
+                await route.fulfill(
+                    json({
+                        kind: 'selection_required',
+                        candidates: [
+                            {
+                                title: 'Raspberry Pi',
+                                feedUrl:
+                                    'https://www.raspberrypi.com/feed/',
+                                siteUrl: 'https://www.raspberrypi.com/',
+                                identicalTo: [
+                                    'https://www.raspberrypi.com/news/feed/',
+                                ],
+                            },
+                            {
+                                title: 'News - Raspberry Pi',
+                                feedUrl:
+                                    'https://www.raspberrypi.com/news/feed/',
+                                siteUrl:
+                                    'https://www.raspberrypi.com/news/',
+                                identicalTo: [
+                                    'https://www.raspberrypi.com/feed/',
+                                ],
+                            },
+                        ],
+                    }),
+                );
+                return;
+            }
+            await route.fulfill(
+                json({
+                    kind: 'created',
+                    subscription: {
+                        feedId: 22,
+                        categoryId: 11,
+                        categoryName: 'Technology',
+                        feedName: 'News - Raspberry Pi',
+                        customFeedName: null,
+                        feedUrl:
+                            'https://www.raspberrypi.com/news/feed/',
+                        siteUrl: 'https://www.raspberrypi.com/news/',
+                        faviconUrl: null,
+                        faviconIsDark: null,
+                        entryCount: 10,
+                        unreadCount: 10,
+                        isGone: false,
+                        consecutiveFailures: 0,
+                        lastAttemptAt: now,
+                        lastSuccessfulRefreshAt: now,
+                        lastFailedRefreshAt: null,
+                        lastErrorClass: null,
+                        lastErrorMessage: null,
+                        filterRules: {
+                            excludeTitle: [],
+                            excludeContent: [],
+                            excludeAuthor: [],
+                        },
+                        refreshes: [],
+                    },
+                    createdFeed: true,
+                    createdSubscription: true,
+                }),
             );
             return;
         }
@@ -267,6 +344,50 @@ test('keeps the unread page stable and generates a summary with one click', asyn
     await expect(page.getByText('Generated summary.')).toBeVisible();
     expect(state.summaryPosts).toBe(1);
     expect(state.entryListRequests).toBe(1);
+});
+
+test('asks the user to choose between matching feed candidates', async ({
+    page,
+}) => {
+    await page.addInitScript(() => {
+        localStorage.setItem('larafeed-color-scheme', 'dark');
+    });
+    const state = await mockReaderApi(page);
+    await page.goto('/feeds?filter=all&order_by=published_at');
+
+    await page.getByRole('button', { name: 'Create feed or category' }).click();
+    await page.setViewportSize({ width: 320, height: 700 });
+    await page
+        .getByRole('textbox', { name: 'Feed URL' })
+        .fill('https://www.raspberrypi.com/news/');
+    await page.getByRole('button', { name: 'Add feed' }).click();
+
+    await expect(page.getByText('Choose a feed')).toBeVisible();
+    await expect(
+        page.getByText('Select the feed you want to follow.'),
+    ).toBeVisible();
+    await expect(
+        page.getByText('Both feeds have the same recent posts.'),
+    ).toBeVisible();
+    const newsFeed = page.getByRole('radio', {
+        name: /^News - Raspberry Pi/u,
+    });
+    await newsFeed.check();
+    await page.getByRole('button', { name: 'Add feed' }).click();
+
+    await expect
+        .poll(() => state.subscriptionCreateBodies)
+        .toEqual([
+            {
+                feedUrl: 'https://www.raspberrypi.com/news/',
+                categoryId: 11,
+            },
+            {
+                feedUrl: 'https://www.raspberrypi.com/news/feed/',
+                categoryId: 11,
+            },
+        ]);
+    await expect(page).toHaveURL(/feed=22/u);
 });
 
 test('persists the feed list density selected in settings', async ({

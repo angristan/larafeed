@@ -13,6 +13,7 @@ Larafeed is a simple feed reader.
   - Entry links open in a new tab
   - Keyboard shortcuts and quick feed navigation
 - RSS, Atom, RDF, and JSON Feed support
+- Website feed discovery with a choice when several feeds are available
 - Background feed updates
   - Failures are stored and displayed in the UI
 - Custom feed names and categories

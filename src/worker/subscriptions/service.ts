@@ -1,6 +1,8 @@
 import {
     CategoryMutationResponse,
-    CreateSubscriptionResponse,
+    SubscriptionCandidateSelectionResponse,
+    SubscriptionCreatedResponse,
+    SubscriptionFeedCandidate,
     type SubscriptionFilterRules,
     SubscriptionManagementResponse,
     SubscriptionMutationResponse,
@@ -10,7 +12,7 @@ import { Effect } from 'effect';
 import { generateSafeId } from '../auth/crypto';
 import type { FeedRefreshError } from '../feeds/errors';
 import { validateFeedUrl } from '../feeds/policy';
-import type { FeedUpdatedResult } from '../feeds/service';
+import type { FeedDiscoveryResult, FeedUpdatedResult } from '../feeds/service';
 import {
     DEFAULT_REFRESH_INTERVAL_MS,
     UNCHANGED_REFRESH_INTERVALS_MS,
@@ -38,12 +40,40 @@ const FILTER_PAGE_SIZE_WITHOUT_CONTENT = 100;
 
 export interface SubscriptionServiceDependencies {
     readonly repository: SubscriptionRepository;
-    readonly discoverFeed: (
+    readonly discoverFeeds: (
         url: string,
-    ) => Effect.Effect<FeedUpdatedResult, FeedRefreshError>;
+    ) => Effect.Effect<FeedDiscoveryResult, FeedRefreshError>;
     readonly generateId?: () => Effect.Effect<number, unknown>;
     readonly now?: () => number;
 }
+
+interface CreateSubscriptionInput {
+    readonly feedUrl: string;
+    readonly categoryId?: number;
+    readonly categoryName?: string;
+}
+
+type CategoryChoice =
+    | { readonly kind: 'existing'; readonly categoryId: number }
+    | { readonly kind: 'new'; readonly categoryName: string };
+
+const categoryChoice = (
+    input: CreateSubscriptionInput,
+): Effect.Effect<CategoryChoice, SubscriptionValidationError> => {
+    if (input.categoryId !== undefined && input.categoryName === undefined) {
+        return Effect.succeed({
+            kind: 'existing',
+            categoryId: input.categoryId,
+        });
+    }
+    if (input.categoryId === undefined && input.categoryName !== undefined) {
+        return Effect.succeed({
+            kind: 'new',
+            categoryName: input.categoryName,
+        });
+    }
+    return Effect.fail(new SubscriptionValidationError());
+};
 
 const sameRules = (
     left: SubscriptionFilterRules,
@@ -158,6 +188,96 @@ export const makeSubscriptionService = (
             );
         });
 
+    const resolveCategoryId = (userId: number, choice: CategoryChoice) =>
+        choice.kind === 'existing'
+            ? Effect.succeed(choice.categoryId)
+            : Effect.gen(function* () {
+                  const category = yield* repository.findOrCreateCategory(
+                      yield* nextId(),
+                      userId,
+                      choice.categoryName,
+                      now(),
+                  );
+                  return category.id;
+              });
+
+    const persistDiscovered = (
+        userId: number,
+        categoryId: number,
+        discovered: FeedUpdatedResult,
+        startedAt: number,
+    ) =>
+        Effect.gen(function* () {
+            const entries = yield* Effect.forEach(discovered.entries, (entry) =>
+                prepareRefreshEntry(entry, []),
+            ).pipe(
+                Effect.mapError(
+                    () =>
+                        new SubscriptionInvariantError({
+                            operation: 'subscriptions.prepareEntries',
+                        }),
+                ),
+            );
+            const completedAt = now();
+            const feedUrl = discovered.finalUrl;
+            const baseInterval =
+                entries.length === 0
+                    ? UNCHANGED_REFRESH_INTERVALS_MS[0]
+                    : DEFAULT_REFRESH_INTERVAL_MS;
+            const refreshInterval =
+                discovered.entryWindowTruncated === true
+                    ? DEFAULT_REFRESH_INTERVAL_MS
+                    : Math.max(
+                          baseInterval,
+                          discovered.publisherRefreshIntervalMs ?? 0,
+                      );
+            return yield* repository.subscribeDiscovered({
+                feedUrl,
+                name: discovered.feed.title || feedUrl,
+                siteUrl: discovered.feed.siteUrl,
+                faviconUrl: discovered.feed.faviconUrl,
+                etag: discovered.etag,
+                lastModified: discovered.lastModified,
+                publisherRefreshIntervalMs:
+                    discovered.publisherRefreshIntervalMs ?? null,
+                entryWindowTruncated: discovered.entryWindowTruncated ?? false,
+                httpStatus: discovered.httpStatus,
+                durationMs: Math.max(0, completedAt - startedAt),
+                entries,
+                historyId: yield* nextId(),
+                categoryId,
+                userId,
+                now: completedAt,
+                nextRefreshAt: completedAt + refreshInterval,
+            });
+        });
+
+    const createdResponse = (
+        userId: number,
+        outcome: {
+            readonly feedId: number;
+            readonly createdFeed: boolean;
+            readonly createdSubscription: boolean;
+        },
+    ) =>
+        Effect.gen(function* () {
+            if (!outcome.createdSubscription) {
+                return yield* Effect.fail(
+                    new SubscriptionConflict({ reason: 'already_subscribed' }),
+                );
+            }
+            const subscription = yield* repository.findSubscription(
+                userId,
+                outcome.feedId,
+            );
+            return SubscriptionCreatedResponse.make({
+                kind: 'created',
+                subscription,
+                createdFeed: outcome.createdFeed,
+                createdSubscription: outcome.createdSubscription,
+            });
+        });
+
     return {
         list: (userId: number) =>
             repository.listManagement(userId).pipe(
@@ -192,14 +312,7 @@ export const makeSubscriptionService = (
         deleteCategory: (userId: number, categoryId: number) =>
             repository.deleteCategory(userId, categoryId),
 
-        createSubscription: (
-            userId: number,
-            input: {
-                readonly feedUrl: string;
-                readonly categoryId?: number;
-                readonly categoryName?: string;
-            },
-        ) =>
+        createSubscription: (userId: number, input: CreateSubscriptionInput) =>
             Effect.gen(function* () {
                 const requestedUrl = /^[a-z][a-z\d+.-]*:\/\//iu.test(
                     input.feedUrl,
@@ -215,117 +328,63 @@ export const makeSubscriptionService = (
                     );
                 }
 
-                let categoryId: number;
-                if (
-                    input.categoryId !== undefined &&
-                    input.categoryName === undefined
-                ) {
-                    categoryId = input.categoryId;
-                } else if (
-                    input.categoryId === undefined &&
-                    input.categoryName !== undefined
-                ) {
-                    const category = yield* repository.findOrCreateCategory(
-                        yield* nextId(),
-                        userId,
-                        input.categoryName,
-                        now(),
-                    );
-                    categoryId = category.id;
-                } else {
-                    return yield* Effect.fail(
-                        new SubscriptionValidationError(),
-                    );
-                }
-
+                const choice = yield* categoryChoice(input);
                 const existingFeedId = yield* repository.findFeedByUrl(
                     canonicalRequestedUrl,
                 );
-                const outcome =
-                    existingFeedId === null
-                        ? yield* Effect.gen(function* () {
-                              const startedAt = now();
-                              const discovered = yield* dependencies
-                                  .discoverFeed(canonicalRequestedUrl)
-                                  .pipe(Effect.mapError(feedDiscoveryError));
-                              const entries = yield* Effect.forEach(
-                                  discovered.entries,
-                                  (entry) => prepareRefreshEntry(entry, []),
-                              ).pipe(
-                                  Effect.mapError(
-                                      () =>
-                                          new SubscriptionInvariantError({
-                                              operation:
-                                                  'subscriptions.prepareEntries',
-                                          }),
-                                  ),
-                              );
-                              const completedAt = now();
-                              const feedUrl = discovered.finalUrl;
-                              const baseInterval =
-                                  entries.length === 0
-                                      ? UNCHANGED_REFRESH_INTERVALS_MS[0]
-                                      : DEFAULT_REFRESH_INTERVAL_MS;
-                              const refreshInterval =
-                                  discovered.entryWindowTruncated === true
-                                      ? DEFAULT_REFRESH_INTERVAL_MS
-                                      : Math.max(
-                                            baseInterval,
-                                            discovered.publisherRefreshIntervalMs ??
-                                                0,
-                                        );
-                              return yield* repository.subscribeDiscovered({
-                                  feedUrl,
-                                  name: discovered.feed.title || feedUrl,
-                                  siteUrl: discovered.feed.siteUrl,
-                                  faviconUrl: discovered.feed.faviconUrl,
-                                  etag: discovered.etag,
-                                  lastModified: discovered.lastModified,
-                                  publisherRefreshIntervalMs:
-                                      discovered.publisherRefreshIntervalMs ??
-                                      null,
-                                  entryWindowTruncated:
-                                      discovered.entryWindowTruncated ?? false,
-                                  httpStatus: discovered.httpStatus,
-                                  durationMs: Math.max(
-                                      0,
-                                      completedAt - startedAt,
-                                  ),
-                                  entries,
-                                  historyId: yield* nextId(),
-                                  categoryId,
-                                  userId,
-                                  now: completedAt,
-                                  nextRefreshAt: completedAt + refreshInterval,
-                              });
-                          })
-                        : {
-                              feedId: existingFeedId,
-                              createdFeed: false,
-                              createdSubscription:
-                                  yield* repository.subscribeExisting(
-                                      userId,
-                                      existingFeedId,
-                                      categoryId,
-                                      now(),
-                                  ),
-                          };
-                if (!outcome.createdSubscription) {
+                if (existingFeedId !== null) {
+                    const categoryId = yield* resolveCategoryId(userId, choice);
+                    return yield* createdResponse(userId, {
+                        feedId: existingFeedId,
+                        createdFeed: false,
+                        createdSubscription:
+                            yield* repository.subscribeExisting(
+                                userId,
+                                existingFeedId,
+                                categoryId,
+                                now(),
+                            ),
+                    });
+                }
+
+                const startedAt = now();
+                const discovery = yield* dependencies
+                    .discoverFeeds(canonicalRequestedUrl)
+                    .pipe(Effect.mapError(feedDiscoveryError));
+                if (
+                    discovery.kind === 'website' &&
+                    discovery.candidates.length > 1
+                ) {
+                    return SubscriptionCandidateSelectionResponse.make({
+                        kind: 'selection_required',
+                        candidates: discovery.candidates.map((candidate) => {
+                            const feedUrl = candidate.result.finalUrl;
+                            return SubscriptionFeedCandidate.make({
+                                title: candidate.result.feed.title || feedUrl,
+                                feedUrl,
+                                siteUrl: candidate.result.feed.siteUrl,
+                                identicalTo: candidate.identicalFeedUrls,
+                            });
+                        }),
+                    });
+                }
+
+                const discovered = discovery.candidates[0]?.result;
+                if (discovered === undefined) {
                     return yield* Effect.fail(
-                        new SubscriptionConflict({
-                            reason: 'already_subscribed',
+                        new SubscriptionFeedError({
+                            reason: 'unsupported_feed',
                         }),
                     );
                 }
-                const subscription = yield* repository.findSubscription(
+                const categoryId = yield* resolveCategoryId(userId, choice);
+                const outcome = yield* persistDiscovered(
                     userId,
-                    outcome.feedId,
+                    categoryId,
+                    discovered,
+                    startedAt,
                 );
-                return CreateSubscriptionResponse.make({
-                    subscription,
-                    createdFeed: outcome.createdFeed,
-                    createdSubscription: outcome.createdSubscription,
-                });
+                return yield* createdResponse(userId, outcome);
             }),
 
         updateSubscription: (

@@ -167,7 +167,10 @@ export function createSubscriptionMutationOptions(queryClient: QueryClient) {
                     csrfToken: requireCsrfToken(),
                 }),
             ),
-        onSuccess: async () => invalidateSubscriptionReadModels(queryClient),
+        onSuccess: async (result) =>
+            result.kind === 'created'
+                ? invalidateSubscriptionReadModels(queryClient)
+                : undefined,
     });
 }
 

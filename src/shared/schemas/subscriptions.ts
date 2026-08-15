@@ -106,13 +106,39 @@ export class CreateSubscriptionRequest extends Schema.Class<CreateSubscriptionRe
     categoryName: Schema.optionalKey(CategoryName),
 }) {}
 
-export class CreateSubscriptionResponse extends Schema.Class<CreateSubscriptionResponse>(
-    'CreateSubscriptionResponse',
+export class SubscriptionFeedCandidate extends Schema.Class<SubscriptionFeedCandidate>(
+    'SubscriptionFeedCandidate',
 )({
+    title: NonEmptyString,
+    feedUrl: NonEmptyString,
+    siteUrl: Schema.NullOr(Schema.String),
+    identicalTo: Schema.Array(NonEmptyString).check(Schema.isMaxLength(3)),
+}) {}
+
+export class SubscriptionCreatedResponse extends Schema.Class<SubscriptionCreatedResponse>(
+    'SubscriptionCreatedResponse',
+)({
+    kind: Schema.Literal('created'),
     subscription: ManagedSubscription,
     createdFeed: Schema.Boolean,
     createdSubscription: Schema.Boolean,
 }) {}
+
+export class SubscriptionCandidateSelectionResponse extends Schema.Class<SubscriptionCandidateSelectionResponse>(
+    'SubscriptionCandidateSelectionResponse',
+)({
+    kind: Schema.Literal('selection_required'),
+    candidates: Schema.Array(SubscriptionFeedCandidate).check(
+        Schema.isMinLength(2),
+        Schema.isMaxLength(4),
+    ),
+}) {}
+
+export const CreateSubscriptionResponse = Schema.Union([
+    SubscriptionCreatedResponse,
+    SubscriptionCandidateSelectionResponse,
+]);
+export type CreateSubscriptionResponse = typeof CreateSubscriptionResponse.Type;
 
 export class UpdateSubscriptionRequest extends Schema.Class<UpdateSubscriptionRequest>(
     'UpdateSubscriptionRequest',

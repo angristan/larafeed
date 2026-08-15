@@ -58,6 +58,8 @@ import type {
     ReaderSubscriptionList,
 } from '../../api/reader';
 import type {
+    CreateSubscriptionResult,
+    FeedDiscoveryCandidate,
     ManagedCategory,
     ManagedSubscription,
     SubscriptionFilterRules,
@@ -81,6 +83,7 @@ import {
 } from '../../queries/subscriptions';
 import { type ReaderState, readerHref } from '../../readerState';
 import { ApplicationSidebarHeader } from '../ApplicationPage';
+import { FeedCandidateSelector } from './FeedCandidateSelector';
 import { FeedFavicon } from './FeedFavicon';
 import classes from './ReaderSidebar.module.css';
 
@@ -240,6 +243,9 @@ export function AddFeedModal({
               : String(categories[0].id),
     );
     const [categoryName, setCategoryName] = useState('');
+    const [feedCandidates, setFeedCandidates] = useState<
+        readonly FeedDiscoveryCandidate[] | null
+    >(null);
 
     useEffect(() => {
         if (categorySelection === '' && !categoriesPending) {
@@ -268,15 +274,28 @@ export function AddFeedModal({
     const closeAndReset = () => {
         addFeed.reset();
         addCategory.reset();
+        setFeedCandidates(null);
         close();
     };
 
-    const submitFeed = (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        if (feedUrl.trim() === '') return;
-        const normalizedUrl = /^(http|https):\/\//.test(feedUrl.trim())
-            ? feedUrl.trim()
-            : `https://${feedUrl.trim()}`;
+    const handleFeedResult = (result: CreateSubscriptionResult) => {
+        if (result.kind === 'selection_required') {
+            setFeedCandidates(result.candidates);
+            return;
+        }
+        notifications.show({
+            title: 'Feed added',
+            message: 'The feed has been added',
+            color: 'green',
+            withBorder: true,
+        });
+        closeAndReset();
+        void navigate(
+            `/feeds?feed=${result.subscription.feedId}&filter=all&order_by=published_at`,
+        );
+    };
+
+    const submitFeedUrl = (url: string) => {
         const category =
             categorySelection === 'new'
                 ? { categoryName: categoryName.trim() }
@@ -289,22 +308,18 @@ export function AddFeedModal({
             return;
         }
         addFeed.mutate(
-            { feedUrl: normalizedUrl, ...category },
-            {
-                onSuccess: (result) => {
-                    notifications.show({
-                        title: 'Feed added',
-                        message: 'The feed has been added',
-                        color: 'green',
-                        withBorder: true,
-                    });
-                    closeAndReset();
-                    void navigate(
-                        `/feeds?feed=${result.subscription.feedId}&filter=all&order_by=published_at`,
-                    );
-                },
-            },
+            { feedUrl: url, ...category },
+            { onSuccess: handleFeedResult },
         );
+    };
+
+    const submitFeed = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (feedUrl.trim() === '') return;
+        const normalizedUrl = /^(http|https):\/\//.test(feedUrl.trim())
+            ? feedUrl.trim()
+            : `https://${feedUrl.trim()}`;
+        submitFeedUrl(normalizedUrl);
     };
 
     const submitCategory = (event: FormEvent<HTMLFormElement>) => {
@@ -334,25 +349,47 @@ export function AddFeedModal({
             <Modal.Content>
                 <Modal.Header>
                     <Modal.Title>
-                        <SegmentedControl
-                            data={[
-                                { value: 'new_feed', label: 'New feed' },
-                                {
-                                    value: 'new_category',
-                                    label: 'New category',
-                                },
-                            ]}
-                            onChange={setView}
-                            radius="sm"
-                            size="sm"
-                            value={view}
-                        />
+                        {view === 'new_feed' && feedCandidates !== null ? (
+                            'Choose a feed'
+                        ) : (
+                            <SegmentedControl
+                                data={[
+                                    { value: 'new_feed', label: 'New feed' },
+                                    {
+                                        value: 'new_category',
+                                        label: 'New category',
+                                    },
+                                ]}
+                                onChange={setView}
+                                radius="sm"
+                                size="sm"
+                                value={view}
+                            />
+                        )}
                     </Modal.Title>
                     <Modal.CloseButton />
                 </Modal.Header>
                 <Modal.Body>
-                    <Fieldset variant="filled">
-                        {view === 'new_feed' ? (
+                    <Fieldset
+                        className={
+                            feedCandidates === null
+                                ? undefined
+                                : classes.candidateFieldset
+                        }
+                        variant="filled"
+                    >
+                        {view === 'new_feed' && feedCandidates !== null ? (
+                            <FeedCandidateSelector
+                                candidates={feedCandidates}
+                                error={addFeed.error}
+                                isPending={addFeed.isPending}
+                                onBack={() => {
+                                    setFeedCandidates(null);
+                                    addFeed.reset();
+                                }}
+                                onSubmit={submitFeedUrl}
+                            />
+                        ) : view === 'new_feed' ? (
                             <form onSubmit={submitFeed}>
                                 <TextInput
                                     data-autofocus

@@ -96,6 +96,7 @@ const subscriptionService = (
             }),
         createSubscription: () =>
             Effect.succeed({
+                kind: 'created' as const,
                 subscription,
                 createdFeed: true,
                 createdSubscription: true,
@@ -160,6 +161,7 @@ describe('subscription management routes', () => {
     it('validates, rate-limits, and CSRF-protects feed creation', async () => {
         const createSubscription = vi.fn(() =>
             Effect.succeed({
+                kind: 'created' as const,
                 subscription,
                 createdFeed: true,
                 createdSubscription: true,
@@ -218,6 +220,58 @@ describe('subscription management routes', () => {
             }),
         );
         expect(csrfFailure.status).toBe(403);
+    });
+
+    it('schema-encodes candidate selection without changing route security', async () => {
+        const createSubscription = vi.fn(() =>
+            Effect.succeed({
+                kind: 'selection_required' as const,
+                candidates: [
+                    {
+                        title: 'Example',
+                        feedUrl: 'https://example.test/feed.xml',
+                        siteUrl: 'https://example.test/',
+                        identicalTo: ['https://example.test/news/feed.xml'],
+                    },
+                    {
+                        title: 'Example News',
+                        feedUrl: 'https://example.test/news/feed.xml',
+                        siteUrl: 'https://example.test/news/',
+                        identicalTo: ['https://example.test/feed.xml'],
+                    },
+                ],
+            }),
+        );
+        const response = await app(
+            subscriptionService({ createSubscription }),
+        ).request(
+            '/api/subscriptions',
+            request('POST', {
+                feedUrl: 'https://example.test/news/',
+                categoryId: 11,
+            }),
+        );
+
+        expect(response.status).toBe(200);
+        await expect(
+            decode(response, CreateSubscriptionResponse),
+        ).resolves.toMatchObject({
+            kind: 'selection_required',
+            candidates: [
+                {
+                    feedUrl: 'https://example.test/feed.xml',
+                    identicalTo: ['https://example.test/news/feed.xml'],
+                },
+                {
+                    feedUrl: 'https://example.test/news/feed.xml',
+                    identicalTo: ['https://example.test/feed.xml'],
+                },
+            ],
+        });
+        expect(createSubscription).toHaveBeenCalledWith(7, {
+            feedUrl: 'https://example.test/news/',
+            categoryId: 11,
+        });
     });
 
     it.each([

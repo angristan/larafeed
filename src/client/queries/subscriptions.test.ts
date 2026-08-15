@@ -75,6 +75,7 @@ describe('subscription management query contracts', () => {
             vi.fn(() =>
                 Promise.resolve(
                     Response.json({
+                        kind: 'created',
                         subscription,
                         createdFeed: true,
                         createdSubscription: true,
@@ -117,6 +118,49 @@ describe('subscription management query contracts', () => {
         for (const key of keys) {
             expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
         }
+    });
+
+    it('does not invalidate reader data when candidate selection is required', async () => {
+        vi.stubGlobal('document', { cookie: 'larafeed-csrf=csrf-token' });
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(() =>
+                Promise.resolve(
+                    Response.json({
+                        kind: 'selection_required',
+                        candidates: [
+                            {
+                                title: 'Example',
+                                feedUrl: 'https://example.com/feed.xml',
+                                siteUrl: 'https://example.com/',
+                                identicalTo: [],
+                            },
+                            {
+                                title: 'Example News',
+                                feedUrl: 'https://example.com/news/feed.xml',
+                                siteUrl: 'https://example.com/news/',
+                                identicalTo: [],
+                            },
+                        ],
+                    }),
+                ),
+            ),
+        );
+
+        const queryClient = makeQueryClient();
+        const key = subscriptionManagementKeys.list();
+        queryClient.setQueryData(key, { seeded: true });
+        const mutation = queryClient
+            .getMutationCache()
+            .build(queryClient, createSubscriptionMutationOptions(queryClient));
+
+        await expect(
+            mutation.execute({
+                feedUrl: 'https://example.com/news/',
+                categoryId: subscription.categoryId,
+            }),
+        ).resolves.toMatchObject({ kind: 'selection_required' });
+        expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
     });
 
     it('removes cached entry details after unsubscribe', async () => {

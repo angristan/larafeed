@@ -2,6 +2,13 @@
     font-size: var(--mantine-font-size-xs);
 }
 
+.candidateFieldset {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
 .addFeedAction {
     width: 34px;
     height: 34px;

@@ -1,6 +1,10 @@
 import { Effect } from 'effect';
 
 import {
+    annotateDiscoveryCandidates,
+    type FeedDiscoveryResult,
+} from './candidates';
+import {
     FeedHttpError,
     FeedNetworkError,
     FeedParseError,
@@ -21,11 +25,17 @@ import {
 } from './parser';
 import { validateFeedUrl } from './policy';
 
+export {
+    type FeedDiscoveryCandidate,
+    type FeedDiscoveryResult,
+    feedsHaveIdenticalRecentContent,
+} from './candidates';
 export { MAX_FEED_RESPONSE_BYTES } from './limits';
 
 export const FEED_FETCH_TIMEOUT_MS = 15_000;
 export const MAX_FEED_REDIRECTS = 5;
 export const MAX_FEED_DISCOVERY_CANDIDATES = 4;
+export const FEED_DISCOVERY_CONCURRENCY = 4;
 export const COMMON_FEED_DISCOVERY_PATHS = [
     '/feed',
     '/feed.xml',
@@ -276,6 +286,31 @@ export const discoverFeedLinks = (
             // Publisher-controlled invalid candidates are ignored.
         }
         if (candidates.length === MAX_FEED_DISCOVERY_CANDIDATES) break;
+    }
+    return candidates;
+};
+
+const commonFeedDiscoveryCandidates = (pageUrl: URL): readonly URL[] => {
+    const pageDirectory = new URL(pageUrl);
+    pageDirectory.pathname = `${pageDirectory.pathname.replace(/\/+$/u, '')}/`;
+    pageDirectory.search = '';
+    pageDirectory.hash = '';
+
+    const origin = new URL('/', pageUrl);
+    // Root feeds are safer defaults for article URLs. Page-local feeds remain
+    // available as explicit candidates for sections such as /news/.
+    const bases =
+        pageDirectory.href === origin.href ? [origin] : [origin, pageDirectory];
+    const candidates: URL[] = [];
+    const seen = new Set<string>();
+    for (const base of bases) {
+        for (const path of COMMON_FEED_DISCOVERY_PATHS) {
+            const candidate = validateFeedUrl(new URL(path.slice(1), base));
+            if (!seen.has(candidate.href)) {
+                seen.add(candidate.href);
+                candidates.push(candidate);
+            }
+        }
     }
     return candidates;
 };
@@ -556,67 +591,148 @@ export const makeFeedRefreshService = (
                 isFeedRefreshError(cause) ? cause : new FeedNetworkError(),
         });
 
-    const discover = (
+    const requireUpdated = (
+        result: FeedRefreshResult,
+    ): Effect.Effect<FeedUpdatedResult, FeedParseError> =>
+        result.kind === 'updated'
+            ? Effect.succeed(result)
+            : Effect.fail(new FeedParseError({ reason: 'unsupported_feed' }));
+
+    const probeCandidate = (candidate: URL) =>
+        refresh({
+            url: candidate.href,
+            etag: null,
+            lastModified: null,
+        }).pipe(
+            Effect.flatMap(requireUpdated),
+            Effect.match({
+                onFailure: (error) => ({ kind: 'failure', error }) as const,
+                onSuccess: (result) => ({ kind: 'success', result }) as const,
+            }),
+        );
+
+    const probeCandidates = (
+        candidates: readonly URL[],
+        maximumResults: number,
+        concurrency: number,
+    ): Effect.Effect<readonly FeedUpdatedResult[], FeedRefreshError> =>
+        Effect.gen(function* () {
+            const unique = new Map<string, FeedUpdatedResult>();
+            let lastError: FeedRefreshError = new FeedParseError({
+                reason: 'unsupported_feed',
+            });
+            for (
+                let offset = 0;
+                offset < candidates.length;
+                offset += concurrency
+            ) {
+                const outcomes = yield* Effect.forEach(
+                    candidates.slice(offset, offset + concurrency),
+                    probeCandidate,
+                    { concurrency },
+                );
+                for (const outcome of outcomes) {
+                    if (outcome.kind === 'failure') {
+                        lastError = outcome.error;
+                    } else if (!unique.has(outcome.result.finalUrl)) {
+                        unique.set(outcome.result.finalUrl, outcome.result);
+                    }
+                    if (unique.size === maximumResults) {
+                        return Array.from(unique.values());
+                    }
+                }
+            }
+            return unique.size > 0
+                ? Array.from(unique.values())
+                : yield* Effect.fail(lastError);
+        });
+
+    const discoverWebsiteResults = (
         url: string,
-    ): Effect.Effect<FeedUpdatedResult, FeedRefreshError> =>
+        maximumResults: number,
+        concurrency: number,
+    ): Effect.Effect<readonly FeedUpdatedResult[], FeedRefreshError> =>
+        Effect.tryPromise({
+            try: (signal) => fetchDiscoveryPage(url, dependencies, signal),
+            catch: (cause) =>
+                isFeedRefreshError(cause) ? cause : new FeedNetworkError(),
+        }).pipe(
+            Effect.flatMap((page) => {
+                const commonCandidates = commonFeedDiscoveryCandidates(
+                    page.finalUrl,
+                );
+                const probe = (candidates: readonly URL[]) =>
+                    probeCandidates(candidates, maximumResults, concurrency);
+                return page.links.length === 0
+                    ? probe(commonCandidates)
+                    : probe(page.links).pipe(
+                          Effect.catchIf(
+                              () => true,
+                              () => probe(commonCandidates),
+                          ),
+                      );
+            }),
+        );
+
+    const discoverResults = (
+        url: string,
+        maximumResults: number,
+        concurrency: number,
+    ) =>
         refresh({ url, etag: null, lastModified: null }).pipe(
-            Effect.flatMap((result) =>
-                result.kind === 'updated'
-                    ? Effect.succeed(result)
-                    : Effect.fail(
-                          new FeedParseError({ reason: 'unsupported_feed' }),
-                      ),
-            ),
+            Effect.flatMap(requireUpdated),
+            Effect.map((result) => ({
+                kind: 'direct' as const,
+                results: [result] as readonly FeedUpdatedResult[],
+            })),
             Effect.catchTag('FeedParseError', (error) => {
                 if (error.reason !== 'unsupported_feed') {
                     return Effect.fail(error);
                 }
-                return Effect.tryPromise({
-                    try: async (signal) => {
-                        const page = await fetchDiscoveryPage(
-                            url,
-                            dependencies,
-                            signal,
-                        );
-                        let lastError: FeedRefreshError = new FeedParseError({
-                            reason: 'unsupported_feed',
-                        });
-                        const candidates =
-                            page.links.length > 0
-                                ? page.links
-                                : COMMON_FEED_DISCOVERY_PATHS.map((path) =>
-                                      validateFeedUrl(
-                                          new URL(path, page.finalUrl.origin),
-                                      ),
-                                  );
-                        for (const candidate of candidates) {
-                            try {
-                                const result = await Effect.runPromise(
-                                    refresh({
-                                        url: candidate.href,
-                                        etag: null,
-                                        lastModified: null,
-                                    }),
-                                    { signal },
-                                );
-                                if (result.kind === 'updated') return result;
-                            } catch (cause) {
-                                if (isFeedRefreshError(cause)) {
-                                    lastError = cause;
-                                }
-                            }
-                        }
-                        throw lastError;
-                    },
-                    catch: (cause) =>
-                        isFeedRefreshError(cause)
-                            ? cause
-                            : new FeedNetworkError(),
-                });
+                return discoverWebsiteResults(
+                    url,
+                    maximumResults,
+                    concurrency,
+                ).pipe(
+                    Effect.map((results) => ({
+                        kind: 'website' as const,
+                        results,
+                    })),
+                );
             }),
         );
 
-    return { refresh, discover };
+    const discoverCandidates = (
+        url: string,
+    ): Effect.Effect<FeedDiscoveryResult, FeedRefreshError> =>
+        discoverResults(
+            url,
+            MAX_FEED_DISCOVERY_CANDIDATES,
+            FEED_DISCOVERY_CONCURRENCY,
+        ).pipe(
+            Effect.map(
+                (result): FeedDiscoveryResult => ({
+                    kind: result.kind,
+                    candidates: annotateDiscoveryCandidates(result.results),
+                }),
+            ),
+        );
+
+    const discover = (
+        url: string,
+    ): Effect.Effect<FeedUpdatedResult, FeedRefreshError> =>
+        discoverResults(url, 1, 1).pipe(
+            Effect.flatMap((result) => {
+                const candidate = result.results[0];
+                return candidate === undefined
+                    ? Effect.fail(
+                          new FeedParseError({ reason: 'unsupported_feed' }),
+                      )
+                    : Effect.succeed(candidate);
+            }),
+        );
+
+    return { refresh, discover, discoverCandidates };
 };
 
 export type FeedRefreshService = ReturnType<typeof makeFeedRefreshService>;
