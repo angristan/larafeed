@@ -817,21 +817,25 @@ export function FeedActions({
                     }}
                     offset={8}
                     position={
-                        trigger === 'toolbar' ? 'bottom-start' : 'right-start'
+                        trigger === 'toolbar' ? 'bottom-end' : 'right-start'
                     }
                     shadow="md"
                     width={192}
                 >
                     <Menu.Target>
                         <ActionIcon
-                            aria-label={`Manage ${subscription.customFeedName ?? subscription.feedName}`}
+                            aria-label={
+                                trigger === 'toolbar'
+                                    ? 'More entry and feed actions'
+                                    : `Manage ${subscription.customFeedName ?? subscription.feedName}`
+                            }
                             className={
                                 trigger === 'toolbar'
                                     ? undefined
                                     : `${classes.feedMenuIcon} ${showCount ? classes.managementMenuTarget : ''}`
                             }
                             color="gray"
-                            size={trigger === 'toolbar' ? undefined : 'xs'}
+                            size={trigger === 'toolbar' ? 36 : 'xs'}
                             type="button"
                             variant={
                                 trigger === 'toolbar' ? 'subtle' : undefined

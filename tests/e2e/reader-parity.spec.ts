@@ -318,7 +318,7 @@ async function mockReaderApi(
     return state;
 }
 
-test('keeps the unread page stable and generates a summary with one click', async ({
+test('keeps the unread page stable and generates a summary from entry actions', async ({
     page,
 }) => {
     const state = await mockReaderApi(page);
@@ -331,6 +331,28 @@ test('keeps the unread page stable and generates a summary with one click', asyn
     await expect(page.locator('h1')).not.toBeFocused();
     await expect.poll(() => state.readPuts).toBe(1);
 
+    const toolbar = page.locator('[data-entry-toolbar]');
+    const [toolbarBox, sourceBox, contentBox, actionsBox, originalBox] =
+        await Promise.all([
+            toolbar.boundingBox(),
+            toolbar.locator('[data-toolbar-source]').boundingBox(),
+            toolbar.locator('[data-toolbar-content]').boundingBox(),
+            toolbar.locator('[data-toolbar-actions]').boundingBox(),
+            page
+                .getByRole('link', {
+                    name: 'Open original article in a new tab',
+                })
+                .boundingBox(),
+        ]);
+    expect(toolbarBox?.height).toBeLessThanOrEqual(60);
+    const groupCenters = [sourceBox, contentBox, actionsBox].map(
+        (box) => (box?.y ?? 0) + (box?.height ?? 0) / 2,
+    );
+    expect(Math.max(...groupCenters) - Math.min(...groupCenters)).toBeLessThan(
+        2,
+    );
+    expect(originalBox?.width).toBeGreaterThanOrEqual(35);
+
     // The read confirmation re-renders the article; links must still
     // open in a new tab afterwards.
     const articleLink = page.getByRole('link', { name: 'linked page' });
@@ -339,9 +361,20 @@ test('keeps the unread page stable and generates a summary with one click', asyn
     await expect(entryLink).toBeVisible();
     expect(state.entryListRequests).toBe(1);
 
-    await page.getByLabel('AI summary').click();
+    const moreActions = page.getByRole('button', {
+        name: 'More entry and feed actions',
+    });
+    await moreActions.click();
+    await page.getByRole('menuitem', { name: 'Show AI summary' }).click();
     await expect(page).toHaveURL(/summarize=true/u);
     await expect(page.getByText('Generated summary.')).toBeVisible();
+    const backToArticle = page.getByRole('button', {
+        name: 'Back to article',
+    });
+    await expect(backToArticle).toBeVisible();
+    await backToArticle.click();
+    await expect(page).not.toHaveURL(/summarize=true/u);
+    await expect(articleLink).toBeVisible();
     expect(state.summaryPosts).toBe(1);
     expect(state.entryListRequests).toBe(1);
 });
@@ -614,6 +647,34 @@ test('uses a single list or detail pane on mobile with working back navigation',
     await expect(detailHeading).toBeFocused();
     await expect(entryLink).toBeHidden();
 
+    const mobileToolbar = page.locator('[data-entry-toolbar]');
+    const [
+        mobileToolbarBox,
+        mobileSourceBox,
+        mobileContentBox,
+        mobileActionsBox,
+    ] = await Promise.all([
+        mobileToolbar.boundingBox(),
+        mobileToolbar.locator('[data-toolbar-source]').boundingBox(),
+        mobileToolbar.locator('[data-toolbar-content]').boundingBox(),
+        mobileToolbar.locator('[data-toolbar-actions]').boundingBox(),
+    ]);
+    expect(mobileToolbarBox?.height).toBeLessThanOrEqual(60);
+    const mobileGroupCenters = [
+        mobileSourceBox,
+        mobileContentBox,
+        mobileActionsBox,
+    ].map((box) => (box?.y ?? 0) + (box?.height ?? 0) / 2);
+    expect(
+        Math.max(...mobileGroupCenters) - Math.min(...mobileGroupCenters),
+    ).toBeLessThan(2);
+    await expect(page.locator('[data-direct-read-action]')).toBeHidden();
+    const moreActions = page.getByRole('button', {
+        name: 'More entry and feed actions',
+    });
+    await expect(moreActions).toBeVisible();
+    expect((await moreActions.boundingBox())?.width).toBeGreaterThanOrEqual(39);
+
     await back.click();
     await expect(entryLink).toBeVisible();
     await expect(entryRow).toBeFocused();
@@ -621,7 +682,8 @@ test('uses a single list or detail pane on mobile with working back navigation',
 
     await entryRow.click();
     await expect(detailHeading).toBeFocused();
-    await page.getByLabel('AI summary').click();
+    await moreActions.click();
+    await page.getByRole('menuitem', { name: 'Show AI summary' }).click();
     await expect(page).toHaveURL(/summarize=true/u);
     await page.getByRole('button', { name: 'Toggle navigation' }).click();
     await page.getByRole('link', { name: /Unread/u }).click();

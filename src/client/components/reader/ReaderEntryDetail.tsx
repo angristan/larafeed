@@ -10,7 +10,6 @@ import {
     Menu,
     Paper,
     ScrollArea,
-    SegmentedControl,
     Skeleton,
     Space,
     Stack,
@@ -24,17 +23,17 @@ import {
     IconArchive,
     IconArchiveOff,
     IconArrowLeft,
+    IconArticleFilled,
     IconBook,
-    IconBrain,
     IconCircle,
     IconCircleFilled,
     IconExternalLink,
     IconFileText,
-    IconFileTextFilled,
     IconRefresh,
     IconRobot,
     IconStar,
     IconStarFilled,
+    IconWorldDownload,
 } from '@tabler/icons-react';
 import {
     useMutation,
@@ -549,15 +548,11 @@ export function ReaderEntryDetail({
             direction="column"
             w="100%"
         >
-            <div className={classes.detailToolbar}>
-                <Flex
-                    align="center"
-                    className={classes.detailHeader}
-                    direction="row"
-                    justify="space-between"
-                >
+            <div className={classes.detailToolbar} data-entry-toolbar>
+                <div className={classes.detailHeader}>
                     <Group
                         className={classes.sourceIdentity}
+                        data-toolbar-source
                         gap="xs"
                         wrap="nowrap"
                     >
@@ -573,24 +568,208 @@ export function ReaderEntryDetail({
                         >
                             Back
                         </Button>
-                        <FeedFavicon
-                            isDark={entry.faviconIsDark}
-                            size={18}
-                            src={entry.faviconUrl}
-                        />
-                        <Text c="dimmed" lineClamp={1} size="xs">
+                        <span className={classes.sourceFavicon}>
+                            <FeedFavicon
+                                isDark={entry.faviconIsDark}
+                                size={18}
+                                src={entry.faviconUrl}
+                            />
+                        </span>
+                        <Text
+                            c="dimmed"
+                            className={classes.sourceName}
+                            lineClamp={1}
+                            size="xs"
+                        >
                             {feedName}
                         </Text>
-                        {entry !== undefined &&
-                            managedSubscription !== undefined && (
+                    </Group>
+
+                    <Group
+                        className={classes.toolbarControls}
+                        gap={0}
+                        wrap="nowrap"
+                    >
+                        {entry.url !== null && (
+                            <>
+                                <Group
+                                    className={classes.accessActions}
+                                    data-toolbar-content
+                                    gap={2}
+                                    wrap="nowrap"
+                                >
+                                    <Tooltip
+                                        label={
+                                            fullArticle
+                                                ? 'Show the feed version'
+                                                : 'Fetch the full article'
+                                        }
+                                    >
+                                        <ActionIcon
+                                            aria-label={
+                                                fullArticle
+                                                    ? 'Show the feed version'
+                                                    : 'Fetch the full article'
+                                            }
+                                            aria-pressed={fullArticle}
+                                            className={classes.fullToggle}
+                                            color="gray"
+                                            onClick={() =>
+                                                setFullArticle(
+                                                    (value) => !value,
+                                                )
+                                            }
+                                            size={36}
+                                            variant="subtle"
+                                        >
+                                            {fullArticle ? (
+                                                <IconArticleFilled size={16} />
+                                            ) : (
+                                                <IconWorldDownload
+                                                    size={16}
+                                                    stroke={2}
+                                                />
+                                            )}
+                                        </ActionIcon>
+                                    </Tooltip>
+                                    <Tooltip label="Open original article in a new tab">
+                                        <ActionIcon
+                                            aria-label="Open original article in a new tab"
+                                            color="gray"
+                                            component="a"
+                                            href={entry.url}
+                                            rel="noopener noreferrer"
+                                            size={36}
+                                            target="_blank"
+                                            variant="subtle"
+                                        >
+                                            <IconExternalLink
+                                                size={16}
+                                                stroke={2}
+                                            />
+                                        </ActionIcon>
+                                    </Tooltip>
+                                </Group>
+                                <span
+                                    aria-hidden="true"
+                                    className={classes.toolbarDivider}
+                                />
+                            </>
+                        )}
+
+                        <Group
+                            className={classes.entryActions}
+                            data-toolbar-actions
+                            gap={2}
+                            wrap="nowrap"
+                        >
+                            <Tooltip
+                                label={
+                                    entry.starred
+                                        ? 'Remove from favorites'
+                                        : 'Add to favorites'
+                                }
+                            >
+                                <ActionIcon
+                                    aria-label={
+                                        entry.starred
+                                            ? 'Remove entry from favorites'
+                                            : 'Add entry to favorites'
+                                    }
+                                    aria-pressed={entry.starred}
+                                    color="gray"
+                                    loading={starPending}
+                                    onClick={() => onSetStarred(!entry.starred)}
+                                    size={36}
+                                    variant="subtle"
+                                >
+                                    {entry.starred ? (
+                                        <IconStarFilled
+                                            size={16}
+                                            stroke={2.5}
+                                        />
+                                    ) : (
+                                        <IconStar size={16} stroke={2.5} />
+                                    )}
+                                </ActionIcon>
+                            </Tooltip>
+
+                            <Tooltip
+                                label={
+                                    entry.read
+                                        ? 'Mark as unread'
+                                        : 'Mark as read'
+                                }
+                            >
+                                <ActionIcon
+                                    aria-label={
+                                        entry.read
+                                            ? 'Mark entry as unread'
+                                            : 'Mark entry as read'
+                                    }
+                                    aria-pressed={entry.read}
+                                    className={classes.readAction}
+                                    color="gray"
+                                    data-direct-read-action
+                                    loading={readPending}
+                                    onClick={() => onSetRead(!entry.read)}
+                                    size={36}
+                                    variant="subtle"
+                                >
+                                    {entry.read ? (
+                                        <IconCircle size={16} stroke={2.5} />
+                                    ) : (
+                                        <IconCircleFilled
+                                            size={16}
+                                            stroke={2.5}
+                                        />
+                                    )}
+                                </ActionIcon>
+                            </Tooltip>
+
+                            {managedSubscription !== undefined && (
                                 <FeedActions
                                     categories={
                                         management.data?.categories ?? []
                                     }
-                                    trigger="toolbar"
                                     entrySection={
                                         <>
                                             <Menu.Label>Entry</Menu.Label>
+                                            <Menu.Item
+                                                leftSection={
+                                                    summarize ? (
+                                                        <IconBook size={14} />
+                                                    ) : (
+                                                        <IconRobot size={14} />
+                                                    )
+                                                }
+                                                onClick={() =>
+                                                    onSetSummarize(!summarize)
+                                                }
+                                            >
+                                                {summarize
+                                                    ? 'Show article'
+                                                    : 'Show AI summary'}
+                                            </Menu.Item>
+                                            <Menu.Item
+                                                disabled={readPending}
+                                                leftSection={
+                                                    entry.read ? (
+                                                        <IconCircle size={14} />
+                                                    ) : (
+                                                        <IconCircleFilled
+                                                            size={14}
+                                                        />
+                                                    )
+                                                }
+                                                onClick={() =>
+                                                    onSetRead(!entry.read)
+                                                }
+                                            >
+                                                {entry.read
+                                                    ? 'Mark as unread'
+                                                    : 'Mark as read'}
+                                            </Menu.Item>
                                             <Menu.Item
                                                 disabled={archivePending}
                                                 leftSection={
@@ -632,157 +811,12 @@ export function ReaderEntryDetail({
                                         unreadCount:
                                             managedSubscription.unreadCount,
                                     }}
+                                    trigger="toolbar"
                                 />
                             )}
+                        </Group>
                     </Group>
-                    <Group
-                        className={classes.entryActions}
-                        gap={6}
-                        wrap="nowrap"
-                    >
-                        <SegmentedControl
-                            aria-label="Entry view"
-                            data={[
-                                {
-                                    label: (
-                                        <Group gap={4} wrap="nowrap">
-                                            <IconBook
-                                                aria-label="Article content"
-                                                size={14}
-                                            />
-                                            <span className={classes.viewLabel}>
-                                                Article
-                                            </span>
-                                        </Group>
-                                    ),
-                                    value: 'content',
-                                },
-                                {
-                                    label: (
-                                        <Group gap={4} wrap="nowrap">
-                                            <IconBrain
-                                                aria-label="AI summary"
-                                                size={14}
-                                            />
-                                            <span className={classes.viewLabel}>
-                                                Summary
-                                            </span>
-                                        </Group>
-                                    ),
-                                    value: 'summary',
-                                },
-                            ]}
-                            onChange={(value) =>
-                                onSetSummarize(value === 'summary')
-                            }
-                            size="xs"
-                            value={summarize ? 'summary' : 'content'}
-                        />
-
-                        {entry.url !== null && (
-                            <Button
-                                aria-label="Open original article in a new tab"
-                                className={classes.originalAction}
-                                component="a"
-                                href={entry.url}
-                                leftSection={
-                                    <IconExternalLink size={14} stroke={1.8} />
-                                }
-                                rel="noopener noreferrer"
-                                size="xs"
-                                target="_blank"
-                                variant="default"
-                            >
-                                <span className={classes.originalLabel}>
-                                    Original
-                                </span>
-                            </Button>
-                        )}
-
-                        {entry.url !== null && (
-                            <Tooltip
-                                label={
-                                    fullArticle
-                                        ? 'Show the feed version'
-                                        : 'Fetch the full article'
-                                }
-                            >
-                                <ActionIcon
-                                    aria-label={
-                                        fullArticle
-                                            ? 'Show the feed version'
-                                            : 'Fetch the full article'
-                                    }
-                                    aria-pressed={fullArticle}
-                                    className={classes.fullToggle}
-                                    color="gray"
-                                    onClick={() =>
-                                        setFullArticle((value) => !value)
-                                    }
-                                    variant="subtle"
-                                >
-                                    {fullArticle ? (
-                                        <IconFileTextFilled size={15} />
-                                    ) : (
-                                        <IconFileText size={15} stroke={2} />
-                                    )}
-                                </ActionIcon>
-                            </Tooltip>
-                        )}
-
-                        <Tooltip
-                            label={
-                                entry.starred
-                                    ? 'Remove from favorites'
-                                    : 'Add to favorites'
-                            }
-                        >
-                            <ActionIcon
-                                aria-label={
-                                    entry.starred
-                                        ? 'Remove entry from favorites'
-                                        : 'Add entry to favorites'
-                                }
-                                aria-pressed={entry.starred}
-                                color="gray"
-                                loading={starPending}
-                                onClick={() => onSetStarred(!entry.starred)}
-                                variant="subtle"
-                            >
-                                {entry.starred ? (
-                                    <IconStarFilled size={15} stroke={3} />
-                                ) : (
-                                    <IconStar size={15} stroke={3} />
-                                )}
-                            </ActionIcon>
-                        </Tooltip>
-
-                        <Tooltip
-                            label={
-                                entry.read ? 'Mark as unread' : 'Mark as read'
-                            }
-                        >
-                            <ActionIcon
-                                aria-label={
-                                    entry.read
-                                        ? 'Mark entry as unread'
-                                        : 'Mark entry as read'
-                                }
-                                aria-pressed={entry.read}
-                                color="gray"
-                                loading={readPending}
-                                onClick={() => onSetRead(!entry.read)}
-                                variant="subtle"
-                            >
-                                {entry.read ? (
-                                    <IconCircle size={15} stroke={3} />
-                                ) : (
-                                    <IconCircleFilled size={15} stroke={3} />
-                                )}
-                            </ActionIcon>
-                        </Tooltip>
-                    </Group>
-                </Flex>
+                </div>
             </div>
 
             <ScrollArea
@@ -885,6 +919,22 @@ export function ReaderEntryDetail({
                                         AI Summary
                                     </Badge>
                                 </Tooltip>
+                                {summarize && (
+                                    <Button
+                                        className={classes.summaryReturn}
+                                        leftSection={
+                                            <IconArrowLeft
+                                                aria-hidden="true"
+                                                size={14}
+                                            />
+                                        }
+                                        onClick={() => onSetSummarize(false)}
+                                        size="xs"
+                                        variant="subtle"
+                                    >
+                                        Back to article
+                                    </Button>
+                                )}
                             </Flex>
                             {summarize &&
                                 (fullArticle && entry.url !== null ? (

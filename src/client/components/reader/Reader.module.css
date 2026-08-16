@@ -81,6 +81,8 @@
     overflow: hidden;
     color: var(--ds-ink);
     background: var(--ds-paper);
+    container-name: detail-pane;
+    container-type: inline-size;
 }
 
 .detailToolbar {
@@ -100,31 +102,65 @@
         contrast(var(--ds-glass-contrast));
 }
 
-.detailToolbar :global(.mantine-ActionIcon-root),
-.detailToolbar :global(.mantine-Button-root),
-.detailToolbar :global(.mantine-SegmentedControl-root) {
-    border-color: color-mix(in srgb, var(--ds-line-strong) 70%, transparent);
+/* 55px content + the 1px border on .detailToolbar totals 56px, matching
+   .listHeader, whose border-box min-height already includes its border. */
+.detailHeader {
+    display: grid;
+    min-height: 55px;
+    grid-template-columns: minmax(6rem, 1fr) auto;
+    gap: var(--ds-space-3);
+    align-items: center;
+    padding: 7px var(--ds-space-3);
+}
+
+.sourceIdentity {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.sourceFavicon {
+    display: inline-flex;
+    flex: 0 0 auto;
+}
+
+.sourceName,
+.toolbarControls,
+.accessActions,
+.entryActions {
+    min-width: 0;
+}
+
+.accessActions :global(.mantine-ActionIcon-root),
+.entryActions :global(.mantine-ActionIcon-root) {
+    flex: 0 0 auto;
+    border-color: transparent;
     background: transparent;
     box-shadow: none;
     backdrop-filter: none;
 }
 
-.detailToolbar :global(.mantine-ActionIcon-root):hover,
-.detailToolbar :global(.mantine-Button-root):hover {
-    background: color-mix(in srgb, var(--ds-paper) 42%, transparent);
+.accessActions :global(.mantine-ActionIcon-root):hover,
+.entryActions :global(.mantine-ActionIcon-root):hover {
+    border-color: color-mix(in srgb, var(--ds-line-strong) 48%, transparent);
+    background: color-mix(in srgb, var(--ds-paper) 48%, transparent);
 }
 
-/* Pressed state for the full-article toggle; wins over the flattened
-   toolbar background above through source order. Mirrors the theme's
-   filled ActionIcon treatment with the primary color. */
+.toolbarDivider {
+    width: 1px;
+    height: 18px;
+    flex: 0 0 auto;
+    margin-inline: var(--ds-space-2);
+    background: color-mix(in srgb, var(--ds-line-strong) 44%, transparent);
+}
+
 .detailToolbar .fullToggle[aria-pressed='true'] {
     border-color: color-mix(
         in srgb,
         var(--mantine-primary-color-filled) 72%,
         var(--ds-ink)
     );
-    background: var(--mantine-primary-color-filled);
     color: var(--mantine-primary-color-contrast, var(--ds-paper));
+    background: var(--mantine-primary-color-filled);
 }
 
 .detailToolbar .fullToggle[aria-pressed='true']:hover {
@@ -133,28 +169,6 @@
         var(--mantine-primary-color-filled) 88%,
         var(--ds-ink)
     );
-}
-
-/* 55px content + the 1px border on .detailToolbar totals 56px, matching
-   .listHeader, whose border-box min-height already includes its border. */
-.detailHeader {
-    min-height: 55px;
-    padding: 7px var(--ds-space-3);
-}
-
-.sourceIdentity {
-    min-width: 0;
-    flex: 1;
-}
-
-.entryActions {
-    flex: 0 0 auto;
-}
-
-.entryActions :global(.mantine-SegmentedControl-root),
-.entryActions :global(.mantine-Button-root),
-.entryActions :global(.mantine-ActionIcon-root) {
-    flex: 0 0 auto;
 }
 
 .sidebarScroll,
@@ -591,6 +605,10 @@
     box-shadow: var(--ds-shadow-inset);
 }
 
+.summaryReturn {
+    margin-left: auto;
+}
+
 [data-mantine-color-scheme='dark'] .articleContent :global(img) {
     filter: brightness(0.92) contrast(1.02);
 }
@@ -661,22 +679,6 @@
     .mobileOnly {
         display: inline-flex;
     }
-
-    .detailPane {
-        --detail-overlay-space: 100px;
-    }
-
-    .detailHeader {
-        flex-wrap: wrap;
-        gap: var(--ds-space-2);
-    }
-
-    .entryActions {
-        width: 100%;
-        justify-content: flex-start;
-        padding-bottom: 2px;
-        overflow-x: auto;
-    }
 }
 
 @media (max-width: 43.74em) {
@@ -712,22 +714,6 @@
         display: inline-flex;
     }
 
-    .detailPane {
-        --detail-overlay-space: 100px;
-    }
-
-    .detailHeader {
-        flex-wrap: wrap;
-        gap: var(--ds-space-2);
-    }
-
-    .entryActions {
-        width: 100%;
-        justify-content: flex-start;
-        padding-bottom: 2px;
-        overflow-x: auto;
-    }
-
     .articleTypography {
         padding: var(--ds-space-4) 0 var(--ds-space-7);
     }
@@ -735,6 +721,28 @@
     .articleContent {
         font-size: 0.9375rem;
         line-height: 1.65;
+    }
+}
+
+@container detail-pane (max-width: 34rem) {
+    .sourceIdentity :global(.mantine-Button-root) {
+        min-height: 36px;
+    }
+
+    .accessActions :global(.mantine-ActionIcon-root),
+    .entryActions :global(.mantine-ActionIcon-root) {
+        --ai-size: 40px !important;
+    }
+
+    .readAction {
+        display: none;
+    }
+}
+
+@container detail-pane (max-width: 22rem) {
+    .sourceFavicon,
+    .sourceName {
+        display: none;
     }
 }
 

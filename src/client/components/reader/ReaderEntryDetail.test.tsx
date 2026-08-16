@@ -109,14 +109,14 @@ describe('ReaderEntryDetail summaries', () => {
             },
             true,
         );
-        expect(markup).toContain('aria-label="Entry view"');
-        expect(markup).toContain('aria-label="Article content"');
-        expect(markup).toContain('aria-label="AI summary"');
+        expect(markup).not.toContain('aria-label="Entry view"');
         expect(markup).toContain(
             'aria-label="Open original article in a new tab"',
         );
-        expect(markup).toContain('aria-label="Manage Feed"');
-        expect(markup).toContain('AI summary');
+        expect(markup).not.toContain('Original');
+        expect(markup).toContain('aria-label="More entry and feed actions"');
+        expect(markup).toContain('Back to article');
+        expect(markup).toContain('AI Summary');
         expect(markup).toContain('less than a minute read');
         expect(markup).toContain(
             'Estimated reading time at 300 words per minute',
@@ -137,6 +137,7 @@ describe('ReaderEntryDetail summaries', () => {
             },
         });
         expect(markup).toContain('Article content.');
+        expect(markup).not.toContain('Back to article');
         expect(markup).not.toContain('Must stay inactive.');
         expect(markup).not.toContain('Loading summary');
     });
