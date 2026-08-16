@@ -559,12 +559,16 @@ export const makeFaviconService = (
                 }
                 for (const candidate of conventionalCandidates(root))
                     addCandidate(candidates, candidate);
-                if (target.faviconUrl !== null) {
+                for (const [candidateUrl, score] of [
+                    [target.feedFaviconUrl, 70],
+                    [target.faviconUrl, 69],
+                ] as const) {
+                    if (candidateUrl === null) continue;
                     try {
-                        const url = validateFeedUrl(target.faviconUrl);
+                        const url = validateFeedUrl(candidateUrl);
                         addCandidate(candidates, {
                             key: url.href,
-                            score: 70,
+                            score,
                             url,
                             bytes: null,
                         });
@@ -684,6 +688,8 @@ export const makeFaviconService = (
                         faviconAssetHash,
                         faviconIsDark,
                         now(),
+                        target.siteUrl,
+                        target.feedFaviconUrl,
                         target.faviconUrl,
                         target.faviconUpdatedAt,
                     ),

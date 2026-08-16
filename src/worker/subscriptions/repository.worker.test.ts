@@ -370,10 +370,12 @@ describe('subscription management D1 repository', () => {
                 last_successful_refresh_at: number | null;
                 latest_entry_at: number | null;
                 next_refresh_at: number;
+                favicon_url: string | null;
+                feed_favicon_url: string | null;
             }>({
                 sql: `SELECT id, etag, last_modified, last_attempt_at,
                         last_successful_refresh_at, latest_entry_at,
-                        next_refresh_at
+                        next_refresh_at, favicon_url, feed_favicon_url
                     FROM feeds WHERE feed_url = ?`,
                 bindings: [input.feedUrl],
             }),
@@ -385,6 +387,8 @@ describe('subscription management D1 repository', () => {
             last_successful_refresh_at: completedAt,
             latest_entry_at: completedAt,
             next_refresh_at: input.nextRefreshAt,
+            favicon_url: input.faviconUrl,
+            feed_favicon_url: input.faviconUrl,
         });
         if (feed === null) throw new Error('Expected feed');
 

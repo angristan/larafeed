@@ -435,13 +435,10 @@ export const makeOpmlOrchestrator = (
                     entries.length === 0
                         ? UNCHANGED_REFRESH_INTERVALS_MS[0]
                         : DEFAULT_REFRESH_INTERVAL_MS;
-                const refreshInterval =
-                    discovered.entryWindowTruncated === true
-                        ? DEFAULT_REFRESH_INTERVAL_MS
-                        : Math.max(
-                              baseInterval,
-                              discovered.publisherRefreshIntervalMs ?? 0,
-                          );
+                const refreshInterval = Math.max(
+                    baseInterval,
+                    discovered.publisherRefreshIntervalMs ?? 0,
+                );
                 const [categoryId, historyId] = await Promise.all([
                     generateId(),
                     generateId(),
@@ -464,8 +461,6 @@ export const makeOpmlOrchestrator = (
                     lastModified: discovered.lastModified,
                     publisherRefreshIntervalMs:
                         discovered.publisherRefreshIntervalMs ?? null,
-                    entryWindowTruncated:
-                        discovered.entryWindowTruncated ?? false,
                     httpStatus: discovered.httpStatus,
                     durationMs: Math.max(0, completedAt - startedAt),
                     entries,

@@ -230,7 +230,7 @@ describe('durable feed refresh jobs', () => {
         });
     });
 
-    it('adapts successful schedules from created entries, hints, and truncation', async () => {
+    it('adapts successful schedules from created entries and hints', async () => {
         const now = 2_100_000_450_000;
         const feedId = 314_001;
         let sequence = 314_100;
@@ -243,7 +243,6 @@ describe('durable feed refresh jobs', () => {
                 readonly sourceId: string;
             }[];
             readonly publisherRefreshIntervalMs?: number | null;
-            readonly entryWindowTruncated?: boolean;
             readonly notModified?: boolean;
         }) => {
             sequence += 10;
@@ -261,7 +260,6 @@ describe('durable feed refresh jobs', () => {
                 lastModified: null,
                 nextRefreshAt: null,
                 publisherRefreshIntervalMs: input.publisherRefreshIntervalMs,
-                entryWindowTruncated: input.entryWindowTruncated,
                 httpStatus: input.notModified === true ? 304 : 200,
                 durationMs: 1,
                 notModified: input.notModified === true,
@@ -281,12 +279,11 @@ describe('durable feed refresh jobs', () => {
             return first<{
                 readonly consecutive_unchanged_refreshes: number;
                 readonly publisher_refresh_interval_ms: number | null;
-                readonly entry_window_truncated: number;
                 readonly next_refresh_at: number;
             }>(
                 `SELECT consecutive_unchanged_refreshes,
-                    publisher_refresh_interval_ms, entry_window_truncated,
-                    next_refresh_at FROM feeds WHERE id = ?`,
+                    publisher_refresh_interval_ms, next_refresh_at
+                 FROM feeds WHERE id = ?`,
                 [feedId],
             );
         };
@@ -332,18 +329,16 @@ describe('durable feed refresh jobs', () => {
             next_refresh_at: duplicateAt + 2 * 60 * 60_000,
         });
 
-        const truncatedAt = duplicateAt + 10;
+        const clearedHintAt = duplicateAt + 10;
         await expect(
             commit({
-                completedAt: truncatedAt,
-                publisherRefreshIntervalMs: 24 * 60 * 60_000,
-                entryWindowTruncated: true,
+                completedAt: clearedHintAt,
+                publisherRefreshIntervalMs: null,
             }),
         ).resolves.toMatchObject({
-            consecutive_unchanged_refreshes: 0,
-            publisher_refresh_interval_ms: 24 * 60 * 60_000,
-            entry_window_truncated: 1,
-            next_refresh_at: truncatedAt + DEFAULT_REFRESH_INTERVAL_MS,
+            consecutive_unchanged_refreshes: 2,
+            publisher_refresh_interval_ms: null,
+            next_refresh_at: clearedHintAt + 60 * 60_000,
         });
     });
 
@@ -1476,19 +1471,21 @@ describe('durable feed refresh jobs', () => {
                 name: string;
                 site_url: string | null;
                 favicon_url: string | null;
+                feed_favicon_url: string | null;
                 favicon_asset_hash: string | null;
                 favicon_is_dark: number | null;
                 favicon_updated_at: number | null;
             }>(
-                `SELECT name, site_url, favicon_url, favicon_asset_hash,
-                    favicon_is_dark, favicon_updated_at
+                `SELECT name, site_url, favicon_url, feed_favicon_url,
+                    favicon_asset_hash, favicon_is_dark, favicon_updated_at
                  FROM feeds WHERE id = ?`,
                 [feedId],
             ),
         ).resolves.toEqual({
             name: 'Updated feed name',
             site_url: 'https://jobs.example.test/',
-            favicon_url: 'https://jobs.example.test/favicon.ico',
+            favicon_url: 'https://jobs.example.test/old-icon.png',
+            feed_favicon_url: 'https://jobs.example.test/favicon.ico',
             favicon_asset_hash: 'e'.repeat(64),
             favicon_is_dark: 1,
             favicon_updated_at: null,
@@ -1527,6 +1524,91 @@ describe('durable feed refresh jobs', () => {
             { source_id: 'stored', content_status: 'stored' },
             { source_id: 'oversized', content_status: 'oversized' },
         ]);
+    });
+
+    it('preserves a selected favicon when advertised metadata is unchanged', async () => {
+        const now = 2_100_005_200_000;
+        const feedId = 363_501;
+        const advertisedUrl = 'https://jobs.example.test/feed-icon.png';
+        const selectedUrl = 'https://jobs.example.test/selected-icon.png';
+        const assetHash = 'f'.repeat(64);
+        await insertFeed(feedId, now);
+        await run(
+            d1.run({
+                sql: `UPDATE feeds
+                    SET feed_favicon_url = ?, favicon_url = ?,
+                        favicon_asset_hash = ?, favicon_is_dark = 1,
+                        favicon_updated_at = ?
+                    WHERE id = ?`,
+                bindings: [advertisedUrl, selectedUrl, assetHash, now, feedId],
+            }),
+        );
+        await createJob(feedId, 363_510, now);
+        const refreshClaim = await claim('operation-363510', now);
+
+        await repository.commitRefresh({
+            claim: refreshClaim,
+            subscriptionFilterRevisions: [],
+            historyId: 363_512,
+            completedAt: now + 1,
+            etag: null,
+            lastModified: null,
+            nextRefreshAt: now + 60_000,
+            httpStatus: 200,
+            durationMs: 1,
+            notModified: false,
+            faviconUrl: advertisedUrl,
+            entries: [],
+        });
+
+        await expect(
+            first(
+                `SELECT feed_favicon_url, favicon_url, favicon_asset_hash,
+                    favicon_is_dark, favicon_updated_at
+                 FROM feeds WHERE id = ?`,
+                [feedId],
+            ),
+        ).resolves.toEqual({
+            feed_favicon_url: advertisedUrl,
+            favicon_url: selectedUrl,
+            favicon_asset_hash: assetHash,
+            favicon_is_dark: 1,
+            favicon_updated_at: now,
+        });
+
+        const clearedAt = now + 60_000;
+        await createJob(feedId, 363_520, clearedAt, {
+            trigger: 'scheduled',
+        });
+        const clearClaim = await claim('operation-363520', clearedAt);
+        await repository.commitRefresh({
+            claim: clearClaim,
+            subscriptionFilterRevisions: [],
+            historyId: 363_522,
+            completedAt: clearedAt + 1,
+            etag: null,
+            lastModified: null,
+            nextRefreshAt: clearedAt + 60_000,
+            httpStatus: 200,
+            durationMs: 1,
+            notModified: false,
+            faviconUrl: null,
+            entries: [],
+        });
+        await expect(
+            first(
+                `SELECT feed_favicon_url, favicon_url, favicon_asset_hash,
+                    favicon_is_dark, favicon_updated_at
+                 FROM feeds WHERE id = ?`,
+                [feedId],
+            ),
+        ).resolves.toEqual({
+            feed_favicon_url: null,
+            favicon_url: selectedUrl,
+            favicon_asset_hash: assetHash,
+            favicon_is_dark: 1,
+            favicon_updated_at: null,
+        });
     });
 
     it('preserves metadata and content omitted by sparse updates', async () => {
@@ -1576,10 +1658,13 @@ describe('durable feed refresh jobs', () => {
             content_status: string;
             content_html: string | null;
             content_hash: string | null;
+            updated_at: number;
+            content_updated_at: number | null;
         }>(
             `SELECT e.id, e.title, e.url, e.author, e.published_at,
                 e.source_updated_at, e.content_status, ec.content_html,
-                hex(ec.content_hash) AS content_hash
+                hex(ec.content_hash) AS content_hash, e.updated_at,
+                ec.updated_at AS content_updated_at
              FROM entries e
              LEFT JOIN entry_contents ec ON ec.entry_id = e.id
              WHERE e.feed_id = ?`,
@@ -1625,13 +1710,137 @@ describe('durable feed refresh jobs', () => {
             first(
                 `SELECT e.id, e.title, e.url, e.author, e.published_at,
                     e.source_updated_at, e.content_status, ec.content_html,
-                    hex(ec.content_hash) AS content_hash
+                    hex(ec.content_hash) AS content_hash, e.updated_at,
+                    ec.updated_at AS content_updated_at
                  FROM entries e
                  LEFT JOIN entry_contents ec ON ec.entry_id = e.id
                  WHERE e.feed_id = ?`,
                 [feedId],
             ),
         ).resolves.toEqual(before);
+    });
+
+    it('does not rewrite identical entry metadata or content', async () => {
+        const now = 2_100_005_400_000;
+        const feedId = 364_401;
+        const deduplicationKey = bytes(74);
+        const stableContent = {
+            type: 'stored' as const,
+            html: '<p>Stable article</p>',
+            hash: bytes(75),
+        };
+        await insertFeed(feedId, now);
+
+        const commit = async (input: {
+            readonly jobId: number;
+            readonly historyId: number;
+            readonly completedAt: number;
+            readonly content: {
+                readonly type: 'stored';
+                readonly html: string;
+                readonly hash: Uint8Array;
+            };
+        }) => {
+            await createJob(feedId, input.jobId, input.completedAt - 1);
+            const refreshClaim = await claim(
+                `operation-${input.jobId}`,
+                input.completedAt - 1,
+            );
+            await repository.commitRefresh({
+                claim: refreshClaim,
+                subscriptionFilterRevisions: [],
+                historyId: input.historyId,
+                completedAt: input.completedAt,
+                etag: null,
+                lastModified: null,
+                nextRefreshAt: now + 60_000,
+                httpStatus: 200,
+                durationMs: 1,
+                notModified: false,
+                entries: [
+                    {
+                        deduplicationKey,
+                        sourceId: 'stable-entry',
+                        title: 'Stable title',
+                        url: 'https://jobs.example.test/stable',
+                        author: 'Stable author',
+                        publishedAt: now - 10_000,
+                        sourceUpdatedAt: now - 5_000,
+                        updateMask: allEntryFields,
+                        filteredUserIds: [],
+                        content: input.content,
+                    },
+                ],
+            });
+        };
+        const timestamps = () =>
+            first<{
+                readonly updated_at: number;
+                readonly content_updated_at: number;
+            }>(
+                `SELECT e.updated_at, ec.updated_at AS content_updated_at
+                 FROM entries e
+                 JOIN entry_contents ec ON ec.entry_id = e.id
+                 WHERE e.feed_id = ?`,
+                [feedId],
+            );
+
+        await commit({
+            jobId: 364_410,
+            historyId: 364_412,
+            completedAt: now + 1,
+            content: stableContent,
+        });
+        await expect(timestamps()).resolves.toEqual({
+            updated_at: now + 1,
+            content_updated_at: now + 1,
+        });
+
+        await commit({
+            jobId: 364_420,
+            historyId: 364_422,
+            completedAt: now + 3,
+            content: stableContent,
+        });
+        await expect(timestamps()).resolves.toEqual({
+            updated_at: now + 1,
+            content_updated_at: now + 1,
+        });
+        await expect(
+            first<{
+                readonly entries_created: number;
+                readonly entries_updated: number;
+            }>(
+                `SELECT entries_created, entries_updated
+                 FROM feed_refreshes WHERE id = ?`,
+                [364_422],
+            ),
+        ).resolves.toEqual({ entries_created: 0, entries_updated: 0 });
+
+        await commit({
+            jobId: 364_430,
+            historyId: 364_432,
+            completedAt: now + 5,
+            content: {
+                ...stableContent,
+                html: '<p>Changed article</p>',
+                hash: bytes(76),
+            },
+        });
+        await expect(timestamps()).resolves.toEqual({
+            updated_at: now + 5,
+            content_updated_at: now + 5,
+        });
+        await expect(
+            first<{
+                readonly entries_created: number;
+                readonly entries_updated: number;
+            }>(
+                `SELECT entries_created, entries_updated
+                 FROM feed_refreshes WHERE id = ?`,
+                [364_432],
+            ),
+        ).resolves.toEqual({ entries_created: 0, entries_updated: 1 });
     });
 
     it('updates sparse filter matches without clearing starred state', async () => {

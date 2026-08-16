@@ -163,7 +163,6 @@ export const makeRefreshProcessor = (
                 etag: result.etag,
                 lastModified: result.lastModified,
                 publisherRefreshIntervalMs: result.publisherRefreshIntervalMs,
-                entryWindowTruncated: result.entryWindowTruncated,
                 httpStatus: result.httpStatus,
                 durationMs,
                 feedName: result.feed.title,

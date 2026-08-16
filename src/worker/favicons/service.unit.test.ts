@@ -10,6 +10,7 @@ const target = {
     feedId: 7,
     feedUrl: 'https://example.test/feed.xml',
     siteUrl: 'https://example.test/',
+    feedFaviconUrl: null,
     faviconUrl: null,
     faviconAssetHash: null,
     faviconIsDark: null,
@@ -79,6 +80,8 @@ describe('favicon service', () => {
             null,
             true,
             1_900_000_000_000,
+            target.siteUrl,
+            target.feedFaviconUrl,
             target.faviconUrl,
             target.faviconUpdatedAt,
         );
@@ -87,6 +90,60 @@ describe('favicon service', () => {
             1,
             new URL('https://example.test/'),
             expect.objectContaining({ redirect: 'manual' }),
+        );
+    });
+
+    it('tries the advertised favicon before the previous selected source', async () => {
+        const current = {
+            ...target,
+            feedFaviconUrl: 'https://feed-icons.example.test/advertised.png',
+            faviconUrl: 'https://selected-icons.example.test/previous.png',
+            faviconAssetHash: 'a'.repeat(64),
+        };
+        const accountRepository: FaviconRepository = {
+            findOwnedTarget: () => Effect.succeed(current),
+            findStaleTarget: () => Effect.succeed(current),
+            listStaleTargets: () => Effect.succeed([current]),
+            update: () => Effect.void,
+        };
+        const update = vi.spyOn(accountRepository, 'update');
+        const fetchMock = vi.fn(async (input: URL | RequestInfo) => {
+            const url = input instanceof URL ? input.href : String(input);
+            if (url === current.siteUrl) {
+                return new Response('<html></html>', {
+                    headers: { 'content-type': 'text/html' },
+                });
+            }
+            if (url === current.feedFaviconUrl) {
+                return new Response(new Uint8Array([1, 2, 3]), {
+                    headers: { 'content-type': 'image/png' },
+                });
+            }
+            if (url === current.faviconUrl) {
+                throw new Error('selected fallback should not be fetched');
+            }
+            return new Response('missing', { status: 404 });
+        });
+        const service = makeFaviconService({
+            repository: accountRepository,
+            fetch: fetchMock,
+            analyzeDarkness: vi.fn().mockResolvedValue(false),
+            now: () => 1_900_000_000_001,
+        });
+
+        await expect(
+            Effect.runPromise(service.refreshOwned(1, target.feedId)),
+        ).resolves.toMatchObject({ faviconUrl: current.feedFaviconUrl });
+        expect(update).toHaveBeenCalledWith(
+            target.feedId,
+            current.feedFaviconUrl,
+            null,
+            false,
+            1_900_000_000_001,
+            current.siteUrl,
+            current.feedFaviconUrl,
+            current.faviconUrl,
+            current.faviconUpdatedAt,
         );
     });
 
@@ -130,6 +187,8 @@ describe('favicon service', () => {
             null,
             false,
             1_900_000_000_001,
+            target.siteUrl,
+            target.feedFaviconUrl,
             target.faviconUrl,
             target.faviconUpdatedAt,
         );
@@ -175,6 +234,8 @@ describe('favicon service', () => {
             'a'.repeat(64),
             false,
             77,
+            target.siteUrl,
+            target.feedFaviconUrl,
             target.faviconUrl,
             target.faviconUpdatedAt,
         );
@@ -284,6 +345,8 @@ describe('favicon service', () => {
             null,
             true,
             99,
+            current.siteUrl,
+            current.feedFaviconUrl,
             current.faviconUrl,
             current.faviconUpdatedAt,
         );
@@ -333,6 +396,8 @@ describe('favicon service', () => {
                 null,
                 expected,
                 101,
+                current.siteUrl,
+                current.feedFaviconUrl,
                 current.faviconUrl,
                 current.faviconUpdatedAt,
             );
@@ -379,6 +444,8 @@ describe('favicon service', () => {
             null,
             true,
             102,
+            current.siteUrl,
+            current.feedFaviconUrl,
             current.faviconUrl,
             current.faviconUpdatedAt,
         );
@@ -416,6 +483,8 @@ describe('favicon service', () => {
             null,
             null,
             100,
+            target.siteUrl,
+            target.feedFaviconUrl,
             target.faviconUrl,
             target.faviconUpdatedAt,
         );
@@ -500,8 +569,10 @@ describe('favicon service', () => {
             'c'.repeat(64),
             false,
             103,
-            null,
-            null,
+            target.siteUrl,
+            target.feedFaviconUrl,
+            target.faviconUrl,
+            target.faviconUpdatedAt,
         );
     });
 
@@ -547,8 +618,10 @@ describe('favicon service', () => {
             null,
             false,
             104,
-            null,
-            null,
+            'https://example.test/feed.xml',
+            target.feedFaviconUrl,
+            target.faviconUrl,
+            target.faviconUpdatedAt,
         );
     });
 
@@ -584,8 +657,10 @@ describe('favicon service', () => {
             'd'.repeat(64),
             true,
             105,
-            null,
-            null,
+            target.siteUrl,
+            target.feedFaviconUrl,
+            target.faviconUrl,
+            target.faviconUpdatedAt,
         );
     });
 
@@ -624,8 +699,10 @@ describe('favicon service', () => {
             null,
             false,
             106,
-            null,
-            null,
+            target.siteUrl,
+            target.feedFaviconUrl,
+            target.faviconUrl,
+            target.faviconUpdatedAt,
         );
     });
 

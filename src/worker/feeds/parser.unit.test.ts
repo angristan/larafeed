@@ -89,7 +89,6 @@ describe('feed parser', () => {
             new TextEncoder().encode(second?.contentHtml ?? '').byteLength,
         );
         expect(second?.deduplicationKey).toHaveLength(32);
-        expect(feed.entryWindowTruncated).toBe(false);
     });
 
     it('parses and bounds RSS refresh TTL hints', async () => {
@@ -611,7 +610,6 @@ describe('feed parser', () => {
         expect(feed.entries.some((entry) => entry.sourceId === '20')).toBe(
             false,
         );
-        expect(feed.entryWindowTruncated).toBe(true);
     });
 
     it.each(['RSS', 'Atom', 'JSON'] as const)(
@@ -648,7 +646,6 @@ describe('feed parser', () => {
             expect(feed.entries).toHaveLength(MAX_FEED_ENTRIES);
             expect(feed.entries[0]?.sourceId).toBe('19');
             expect(feed.entries.at(-1)?.sourceId).toBe('0');
-            expect(feed.entryWindowTruncated).toBe(true);
         },
     );
 

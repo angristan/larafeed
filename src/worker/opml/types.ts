@@ -152,7 +152,6 @@ export interface CompleteOpmlItemInput {
     readonly etag: string | null;
     readonly lastModified: string | null;
     readonly publisherRefreshIntervalMs?: number | null;
-    readonly entryWindowTruncated?: boolean;
     readonly httpStatus: number;
     readonly durationMs: number;
     readonly entries: readonly ProcessedRefreshEntry[];

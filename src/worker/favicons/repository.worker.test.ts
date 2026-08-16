@@ -36,13 +36,14 @@ describe('favicon D1 repository', () => {
                 },
                 {
                     sql: `INSERT INTO feeds (
-                            id, name, feed_url, site_url, next_refresh_at,
-                            created_at, updated_at
-                        ) VALUES (?, 'Favicon feed', ?, ?, ?, ?, ?)`,
+                            id, name, feed_url, site_url, feed_favicon_url,
+                            next_refresh_at, created_at, updated_at
+                        ) VALUES (?, 'Favicon feed', ?, ?, ?, ?, ?, ?)`,
                     bindings: [
                         feedId,
                         'https://favicon.example.test/feed.xml',
                         'https://favicon.example.test/articles',
+                        'https://favicon.example.test/feed-icon.png',
                         now,
                         now,
                         now,
@@ -68,6 +69,7 @@ describe('favicon D1 repository', () => {
         ).resolves.toMatchObject({
             feedId,
             siteUrl: 'https://favicon.example.test/articles',
+            feedFaviconUrl: 'https://favicon.example.test/feed-icon.png',
             faviconUrl: null,
             faviconAssetHash: null,
             faviconIsDark: null,
@@ -86,6 +88,7 @@ describe('favicon D1 repository', () => {
                 feedId,
                 feedUrl: 'https://favicon.example.test/feed.xml',
                 siteUrl: 'https://favicon.example.test/articles',
+                feedFaviconUrl: 'https://favicon.example.test/feed-icon.png',
                 faviconUrl: null,
                 faviconAssetHash: null,
                 faviconIsDark: null,
@@ -100,6 +103,8 @@ describe('favicon D1 repository', () => {
                 'a'.repeat(64),
                 true,
                 now + 1,
+                'https://favicon.example.test/articles',
+                'https://favicon.example.test/feed-icon.png',
                 null,
                 null,
             ),
@@ -115,16 +120,55 @@ describe('favicon D1 repository', () => {
         await expect(
             Effect.runPromise(repository.findStaleTarget(feedId, now)),
         ).resolves.toBeNull();
+
+        await Effect.runPromise(
+            d1.run({
+                sql: `UPDATE feeds SET feed_favicon_url = ? WHERE id = ?`,
+                bindings: [
+                    'https://favicon.example.test/replacement-feed-icon.png',
+                    feedId,
+                ],
+            }),
+        );
         await expect(
             Effect.runPromise(
                 repository.update(
                     feedId,
-                    'https://favicon.example.test/stale.png',
+                    'https://favicon.example.test/stale-source.png',
                     'b'.repeat(64),
                     false,
                     now + 2,
-                    null,
-                    null,
+                    'https://favicon.example.test/articles',
+                    'https://favicon.example.test/feed-icon.png',
+                    'https://favicon.example.test/icon.png',
+                    now + 1,
+                ),
+            ),
+        ).rejects.toBeInstanceOf(FaviconConflict);
+
+        await Effect.runPromise(
+            d1.run({
+                sql: `UPDATE feeds SET site_url = ?, feed_favicon_url = ?
+                    WHERE id = ?`,
+                bindings: [
+                    'https://favicon.example.test/replacement-site',
+                    'https://favicon.example.test/feed-icon.png',
+                    feedId,
+                ],
+            }),
+        );
+        await expect(
+            Effect.runPromise(
+                repository.update(
+                    feedId,
+                    'https://favicon.example.test/stale-site.png',
+                    'b'.repeat(64),
+                    false,
+                    now + 2,
+                    'https://favicon.example.test/articles',
+                    'https://favicon.example.test/feed-icon.png',
+                    'https://favicon.example.test/icon.png',
+                    now + 1,
                 ),
             ),
         ).rejects.toBeInstanceOf(FaviconConflict);

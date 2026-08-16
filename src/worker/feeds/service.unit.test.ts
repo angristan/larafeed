@@ -132,7 +132,6 @@ describe('feed refresh service', () => {
         ).resolves.toMatchObject({
             kind: 'updated',
             publisherRefreshIntervalMs: 3 * 60 * 60_000,
-            entryWindowTruncated: false,
         });
     });
 

@@ -7,6 +7,7 @@ const TargetRow = Schema.Struct({
     feed_id: Schema.Int,
     feed_url: Schema.String,
     site_url: Schema.NullOr(Schema.String),
+    feed_favicon_url: Schema.NullOr(Schema.String),
     favicon_url: Schema.NullOr(Schema.String),
     favicon_asset_hash: Schema.NullOr(AssetHash),
     favicon_is_dark: Schema.NullOr(Schema.Literals([0, 1])),
@@ -17,6 +18,7 @@ export interface FaviconTarget {
     readonly feedId: number;
     readonly feedUrl: string;
     readonly siteUrl: string | null;
+    readonly feedFaviconUrl: string | null;
     readonly faviconUrl: string | null;
     readonly faviconAssetHash: string | null;
     readonly faviconIsDark: boolean | null;
@@ -68,6 +70,8 @@ export interface FaviconRepository {
         faviconAssetHash: string | null,
         faviconIsDark: boolean | null,
         now: number,
+        expectedSiteUrl: string | null,
+        expectedFeedFaviconUrl: string | null,
         expectedFaviconUrl: string | null,
         expectedFaviconUpdatedAt: number | null,
     ) => Effect.Effect<
@@ -90,6 +94,7 @@ const decodeRows = (
                     feedId: row.feed_id,
                     feedUrl: row.feed_url,
                     siteUrl: row.site_url,
+                    feedFaviconUrl: row.feed_favicon_url,
                     faviconUrl: row.favicon_url,
                     faviconAssetHash: row.favicon_asset_hash,
                     faviconIsDark:
@@ -109,8 +114,9 @@ export const makeFaviconRepository = (d1: D1): FaviconRepository => ({
             const result = yield* d1
                 .all({
                     sql: `SELECT f.id AS feed_id, f.feed_url, f.site_url,
-                            f.favicon_url, f.favicon_asset_hash,
-                            f.favicon_is_dark, f.favicon_updated_at
+                            f.feed_favicon_url, f.favicon_url,
+                            f.favicon_asset_hash, f.favicon_is_dark,
+                            f.favicon_updated_at
                         FROM feeds f
                         JOIN feed_subscriptions fs ON fs.feed_id = f.id
                         WHERE fs.user_id = ? AND fs.feed_id = ?`,
@@ -131,9 +137,9 @@ export const makeFaviconRepository = (d1: D1): FaviconRepository => ({
             const operation = 'favicon.findStale';
             const result = yield* d1
                 .all({
-                    sql: `SELECT id AS feed_id, feed_url, site_url, favicon_url,
-                            favicon_asset_hash, favicon_is_dark,
-                            favicon_updated_at
+                    sql: `SELECT id AS feed_id, feed_url, site_url,
+                            feed_favicon_url, favicon_url, favicon_asset_hash,
+                            favicon_is_dark, favicon_updated_at
                         FROM feeds
                         WHERE id = ?
                           AND (favicon_updated_at IS NULL OR favicon_updated_at < ?)
@@ -154,9 +160,9 @@ export const makeFaviconRepository = (d1: D1): FaviconRepository => ({
     listStaleTargets: (cutoff, limit) =>
         d1
             .all({
-                sql: `SELECT id AS feed_id, feed_url, site_url, favicon_url,
-                        favicon_asset_hash, favicon_is_dark,
-                        favicon_updated_at
+                sql: `SELECT id AS feed_id, feed_url, site_url,
+                        feed_favicon_url, favicon_url, favicon_asset_hash,
+                        favicon_is_dark, favicon_updated_at
                     FROM feeds
                     WHERE (favicon_updated_at IS NULL OR favicon_updated_at < ?)
                       AND EXISTS (
@@ -179,6 +185,8 @@ export const makeFaviconRepository = (d1: D1): FaviconRepository => ({
         faviconAssetHash,
         faviconIsDark,
         now,
+        expectedSiteUrl,
+        expectedFeedFaviconUrl,
         expectedFaviconUrl,
         expectedFaviconUpdatedAt,
     ) =>
@@ -191,6 +199,8 @@ export const makeFaviconRepository = (d1: D1): FaviconRepository => ({
                             favicon_is_dark = ?, favicon_updated_at = ?,
                             updated_at = ?
                         WHERE id = ?
+                          AND site_url IS ?
+                          AND feed_favicon_url IS ?
                           AND favicon_url IS ?
                           AND favicon_updated_at IS ?`,
                     bindings: [
@@ -200,6 +210,8 @@ export const makeFaviconRepository = (d1: D1): FaviconRepository => ({
                         now,
                         now,
                         feedId,
+                        expectedSiteUrl,
+                        expectedFeedFaviconUrl,
                         expectedFaviconUrl,
                         expectedFaviconUpdatedAt,
                     ],

@@ -458,7 +458,6 @@ export const makeJobOrchestrator = (
                 lastModified: result.lastModified,
                 nextRefreshAt: result.nextRefreshAt ?? null,
                 publisherRefreshIntervalMs: result.publisherRefreshIntervalMs,
-                entryWindowTruncated: result.entryWindowTruncated,
                 httpStatus: result.httpStatus,
                 durationMs: result.durationMs ?? null,
                 notModified: result.type === 'not_modified',

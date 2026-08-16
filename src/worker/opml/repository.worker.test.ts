@@ -173,6 +173,19 @@ describe('OPML D1 repository', () => {
                 'SELECT next_id AS value FROM feed_id_sequence WHERE singleton = 1',
             ),
         ).resolves.toBe(2);
+        await expect(
+            first<{
+                readonly favicon_url: string | null;
+                readonly feed_favicon_url: string | null;
+            }>(
+                `SELECT favicon_url, feed_favicon_url
+                 FROM feeds WHERE id = ?`,
+                [feedId],
+            ),
+        ).resolves.toEqual({
+            favicon_url: 'https://opml-workerd.example.test/favicon.ico',
+            feed_favicon_url: 'https://opml-workerd.example.test/favicon.ico',
+        });
 
         await expect(
             repository.getImport(userId, importId),
@@ -504,14 +517,33 @@ describe('OPML D1 repository', () => {
         const emptyFeedId = 727_010;
         const firstUserId = 727_001;
         const secondUserId = 727_002;
+        const selectedUrl =
+            'https://opml-existing-empty.example.test/selected.png';
+        const advertisedUrl =
+            'https://opml-existing-empty.example.test/advertised.png';
+        const assetHash = '7'.repeat(64);
         await insertUser(firstUserId, now);
         await insertUser(secondUserId, now);
         await run(
             d1.run({
                 sql: `INSERT INTO feeds (
-                        id, name, feed_url, next_refresh_at, created_at, updated_at
-                    ) VALUES (?, 'Existing canonical feed', ?, ?, ?, ?)`,
-                bindings: [emptyFeedId, feedUrl, now, now, now],
+                        id, name, feed_url, site_url, feed_favicon_url,
+                        favicon_url, favicon_asset_hash, favicon_is_dark,
+                        favicon_updated_at, next_refresh_at, created_at, updated_at
+                    ) VALUES (?, 'Existing canonical feed', ?, ?, ?, ?, ?, 1,
+                        ?, ?, ?, ?)`,
+                bindings: [
+                    emptyFeedId,
+                    feedUrl,
+                    'https://opml-existing-empty.example.test/old-site',
+                    'https://opml-existing-empty.example.test/old-icon.png',
+                    selectedUrl,
+                    assetHash,
+                    now,
+                    now,
+                    now,
+                    now,
+                ],
             }),
         );
 
@@ -558,8 +590,8 @@ describe('OPML D1 repository', () => {
                 feedUrl,
                 feedName: 'Replacement title',
                 categoryName: 'Uncategorized',
-                siteUrl: null,
-                faviconUrl: null,
+                siteUrl: 'https://opml-existing-empty.example.test/',
+                faviconUrl: advertisedUrl,
                 completedAt,
             });
         };
@@ -580,6 +612,28 @@ describe('OPML D1 repository', () => {
                 [emptyFeedId],
             ),
         ).resolves.toBe(1);
+        await expect(
+            first<{
+                readonly site_url: string | null;
+                readonly feed_favicon_url: string | null;
+                readonly favicon_url: string | null;
+                readonly favicon_asset_hash: string | null;
+                readonly favicon_is_dark: number | null;
+                readonly favicon_updated_at: number | null;
+            }>(
+                `SELECT site_url, feed_favicon_url, favicon_url,
+                    favicon_asset_hash, favicon_is_dark, favicon_updated_at
+                 FROM feeds WHERE id = ?`,
+                [emptyFeedId],
+            ),
+        ).resolves.toEqual({
+            site_url: 'https://opml-existing-empty.example.test/',
+            feed_favicon_url: advertisedUrl,
+            favicon_url: selectedUrl,
+            favicon_asset_hash: assetHash,
+            favicon_is_dark: 1,
+            favicon_updated_at: null,
+        });
 
         await expect(
             importExistingFeed(
