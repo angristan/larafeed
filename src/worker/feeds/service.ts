@@ -38,6 +38,7 @@ export const MAX_FEED_DISCOVERY_CANDIDATES = 4;
 export const FEED_DISCOVERY_CONCURRENCY = 4;
 export const COMMON_FEED_DISCOVERY_PATHS = [
     '/feed',
+    '/feed/',
     '/feed.xml',
     '/rss',
     '/rss.xml',

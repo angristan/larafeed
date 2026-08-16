@@ -558,6 +558,12 @@ describe('feed refresh service', () => {
                 url === 'https://example.com/feed' ||
                 url === 'https://example.com/news/feed'
             ) {
+                return new Response('challenge', { status: 403 });
+            }
+            if (
+                url === 'https://example.com/feed/' ||
+                url === 'https://example.com/news/feed/'
+            ) {
                 return new Response(rss, {
                     headers: { 'content-type': 'application/rss+xml' },
                 });
@@ -574,12 +580,12 @@ describe('feed refresh service', () => {
             kind: 'website',
             candidates: [
                 {
-                    result: { finalUrl: 'https://example.com/feed' },
-                    identicalFeedUrls: ['https://example.com/news/feed'],
+                    result: { finalUrl: 'https://example.com/feed/' },
+                    identicalFeedUrls: ['https://example.com/news/feed/'],
                 },
                 {
-                    result: { finalUrl: 'https://example.com/news/feed' },
-                    identicalFeedUrls: ['https://example.com/feed'],
+                    result: { finalUrl: 'https://example.com/news/feed/' },
+                    identicalFeedUrls: ['https://example.com/feed/'],
                 },
             ],
         });
