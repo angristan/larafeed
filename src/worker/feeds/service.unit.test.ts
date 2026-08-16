@@ -132,7 +132,6 @@ describe('feed refresh service', () => {
         ).resolves.toMatchObject({
             kind: 'updated',
             publisherRefreshIntervalMs: 3 * 60 * 60_000,
-            entryWindowTruncated: false,
         });
     });
 
@@ -597,48 +596,74 @@ describe('feed refresh service', () => {
         ]);
     });
 
-    it('does not flag empty or truncated feed windows as identical', async () => {
+    it('does not flag empty feed windows as identical', async () => {
         const html = '<html><head><title>No links</title></head></html>';
-        const truncatedItems = Array.from(
+        const document = '<rss><channel><title>Empty</title></channel></rss>';
+        const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+            const url = String(input);
+            if (url === 'https://example.com/news/') {
+                return new Response(html, {
+                    headers: { 'content-type': 'text/html' },
+                });
+            }
+            if (
+                url === 'https://example.com/feed' ||
+                url === 'https://example.com/news/feed'
+            ) {
+                return new Response(document, {
+                    headers: { 'content-type': 'application/rss+xml' },
+                });
+            }
+            return new Response('missing', { status: 404 });
+        });
+        const result = await Effect.runPromise(
+            makeFeedRefreshService({ fetch: fetchMock }).discoverCandidates(
+                'https://example.com/news/',
+            ),
+        );
+
+        expect(
+            result.candidates.map((candidate) => candidate.identicalFeedUrls),
+        ).toEqual([[], []]);
+    });
+
+    it('compares retained entries when identifying equal feeds', async () => {
+        const html = '<html><head><title>No links</title></head></html>';
+        const items = Array.from(
             { length: MAX_FEED_ENTRIES + 1 },
             (_, index) =>
                 `<item><guid>${index}</guid><title>${index}</title></item>`,
         ).join('');
-        const documents = [
-            '<rss><channel><title>Empty</title></channel></rss>',
-            `<rss><channel><title>Truncated</title>${truncatedItems}</channel></rss>`,
-        ];
+        const document = `<rss><channel><title>Large</title>${items}</channel></rss>`;
+        const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+            const url = String(input);
+            if (url === 'https://example.com/news/') {
+                return new Response(html, {
+                    headers: { 'content-type': 'text/html' },
+                });
+            }
+            if (
+                url === 'https://example.com/feed' ||
+                url === 'https://example.com/news/feed'
+            ) {
+                return new Response(document, {
+                    headers: { 'content-type': 'application/rss+xml' },
+                });
+            }
+            return new Response('missing', { status: 404 });
+        });
+        const result = await Effect.runPromise(
+            makeFeedRefreshService({ fetch: fetchMock }).discoverCandidates(
+                'https://example.com/news/',
+            ),
+        );
 
-        for (const document of documents) {
-            const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-                const url = String(input);
-                if (url === 'https://example.com/news/') {
-                    return new Response(html, {
-                        headers: { 'content-type': 'text/html' },
-                    });
-                }
-                if (
-                    url === 'https://example.com/feed' ||
-                    url === 'https://example.com/news/feed'
-                ) {
-                    return new Response(document, {
-                        headers: { 'content-type': 'application/rss+xml' },
-                    });
-                }
-                return new Response('missing', { status: 404 });
-            });
-            const result = await Effect.runPromise(
-                makeFeedRefreshService({ fetch: fetchMock }).discoverCandidates(
-                    'https://example.com/news/',
-                ),
-            );
-
-            expect(
-                result.candidates.map(
-                    (candidate) => candidate.identicalFeedUrls,
-                ),
-            ).toEqual([[], []]);
-        }
+        expect(
+            result.candidates.map((candidate) => candidate.identicalFeedUrls),
+        ).toEqual([
+            ['https://example.com/news/feed'],
+            ['https://example.com/feed'],
+        ]);
     });
 
     it('caps validated common-path candidates at four', async () => {

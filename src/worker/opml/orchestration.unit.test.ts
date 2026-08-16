@@ -193,7 +193,6 @@ describe('OPML orchestration', () => {
                 faviconUrl: 'https://site.example.test/favicon.ico',
                 entries: [],
                 publisherRefreshIntervalMs: null,
-                entryWindowTruncated: false,
                 nextRefreshAt: 1_801_000,
             }),
         );

@@ -1054,8 +1054,8 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
             {
                 sql: `INSERT INTO feeds (
                         id, name, feed_url, site_url, favicon_url,
-                        etag, last_modified, publisher_refresh_interval_ms,
-                        entry_window_truncated,
+                        feed_favicon_url, etag, last_modified,
+                        publisher_refresh_interval_ms,
                         consecutive_unchanged_refreshes,
                         is_gone, consecutive_failures,
                         next_refresh_at, created_at, updated_at
@@ -1071,14 +1071,11 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                     input.feedUrl,
                     input.siteUrl,
                     input.faviconUrl,
+                    input.faviconUrl,
                     input.etag,
                     input.lastModified,
                     input.publisherRefreshIntervalMs ?? null,
-                    input.entryWindowTruncated === true ? 1 : 0,
-                    input.entryWindowTruncated === true ||
-                    input.entries.length > 0
-                        ? 0
-                        : 1,
+                    input.entries.length > 0 ? 0 : 1,
                     input.nextRefreshAt,
                     input.completedAt,
                     input.completedAt,
@@ -1206,13 +1203,16 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
         statements.push({
             sql: `UPDATE feeds
                 SET name = ?, site_url = COALESCE(?, site_url),
-                    favicon_url = COALESCE(?, favicon_url),
+                    favicon_updated_at = CASE
+                        WHEN (? IS NOT NULL AND site_url IS NOT ?)
+                          OR (? IS NOT NULL AND feed_favicon_url IS NOT ?)
+                        THEN NULL ELSE favicon_updated_at END,
+                    feed_favicon_url = COALESCE(?, feed_favicon_url),
                     etag = ?, last_modified = ?, is_gone = 0,
                     consecutive_failures = 0,
                     last_attempt_at = ?, last_successful_refresh_at = ?,
                     latest_entry_at = ?, next_refresh_at = ?,
                     publisher_refresh_interval_ms = ?,
-                    entry_window_truncated = ?,
                     consecutive_unchanged_refreshes = ?,
                     last_error_class = NULL, last_error_message = NULL,
                     updated_at = ?
@@ -1224,6 +1224,10 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
             bindings: [
                 input.feedName,
                 input.siteUrl,
+                input.siteUrl,
+                input.siteUrl,
+                input.faviconUrl,
+                input.faviconUrl,
                 input.faviconUrl,
                 input.etag,
                 input.lastModified,
@@ -1232,10 +1236,7 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                 latestEntryAt,
                 input.nextRefreshAt,
                 input.publisherRefreshIntervalMs ?? null,
-                input.entryWindowTruncated === true ? 1 : 0,
-                input.entryWindowTruncated === true || input.entries.length > 0
-                    ? 0
-                    : 1,
+                input.entries.length > 0 ? 0 : 1,
                 input.completedAt,
                 input.feedUrl,
                 input.historyId,

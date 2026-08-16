@@ -41,8 +41,6 @@ export const feedsHaveIdenticalRecentContent = (
     left: FeedUpdatedResult,
     right: FeedUpdatedResult,
 ): boolean =>
-    left.entryWindowTruncated !== true &&
-    right.entryWindowTruncated !== true &&
     left.entries.length > 0 &&
     left.entries.length === right.entries.length &&
     left.entries.every((entry, index) =>

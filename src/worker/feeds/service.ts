@@ -74,7 +74,6 @@ interface FeedResponseMetadata {
     readonly etag: string | null;
     readonly lastModified: string | null;
     readonly publisherRefreshIntervalMs?: number | null;
-    readonly entryWindowTruncated?: boolean;
     readonly httpStatus: number;
 }
 
@@ -562,7 +561,6 @@ const fetchFeed = async (
                     publisherIntervals.length === 0
                         ? null
                         : Math.max(...publisherIntervals),
-                entryWindowTruncated: parsed.entryWindowTruncated,
                 feed: parsed.metadata,
                 entries: parsed.entries,
             };

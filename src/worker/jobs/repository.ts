@@ -1383,6 +1383,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             | 'exactlyOne'
             | 'oneOrTwo'
             | 'atMostOne'
+            | 'atMostTwo'
             | 'any'
         )[] = [];
         const latestEntryAt = input.entries.reduce<number | null>(
@@ -1406,26 +1407,30 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             );
         }
         const publisherHintProvided = publisherHint !== undefined;
-        const entryWindowStateProvided =
-            input.entryWindowTruncated !== undefined;
+        const filterMappings = JSON.stringify(
+            input.entries.map((entry) => ({
+                deduplicationKey: Array.from(entry.deduplicationKey, (byte) =>
+                    byte.toString(16).padStart(2, '0'),
+                )
+                    .join('')
+                    .toUpperCase(),
+                filteredUserIds: entry.filteredUserIds,
+            })),
+        );
 
         statements.push({
             sql: `UPDATE feeds
                 SET name = COALESCE(?, name),
                     site_url = CASE WHEN ? = 1 THEN ? ELSE site_url END,
                     favicon_updated_at = CASE
-                        WHEN ? = 1 AND favicon_url IS NOT ? THEN NULL
-                        ELSE favicon_updated_at END,
-                    favicon_is_dark = CASE
-                        WHEN ? = 1 AND favicon_url IS NOT ?
-                            AND favicon_asset_hash IS NULL THEN NULL
-                        ELSE favicon_is_dark END,
-                    favicon_url = CASE WHEN ? = 1 THEN ? ELSE favicon_url END,
+                        WHEN (? = 1 AND site_url IS NOT ?)
+                          OR (? = 1 AND feed_favicon_url IS NOT ?)
+                        THEN NULL ELSE favicon_updated_at END,
+                    feed_favicon_url = CASE
+                        WHEN ? = 1 THEN ? ELSE feed_favicon_url END,
                     etag = ?, last_modified = ?,
                     publisher_refresh_interval_ms = CASE
                         WHEN ? = 1 THEN ? ELSE publisher_refresh_interval_ms END,
-                    entry_window_truncated = CASE
-                        WHEN ? = 1 THEN ? ELSE entry_window_truncated END,
                     consecutive_failures = 0,
                     consecutive_not_found_failures = 0, is_gone = 0,
                     last_attempt_at = ?, last_successful_refresh_at = ?,
@@ -1442,8 +1447,8 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 input.feedName ?? null,
                 input.siteUrl === undefined ? 0 : 1,
                 input.siteUrl ?? null,
-                input.faviconUrl === undefined ? 0 : 1,
-                input.faviconUrl ?? null,
+                input.siteUrl === undefined ? 0 : 1,
+                input.siteUrl ?? null,
                 input.faviconUrl === undefined ? 0 : 1,
                 input.faviconUrl ?? null,
                 input.faviconUrl === undefined ? 0 : 1,
@@ -1452,8 +1457,6 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 input.lastModified,
                 publisherHintProvided ? 1 : 0,
                 publisherHint ?? null,
-                entryWindowStateProvided ? 1 : 0,
-                input.entryWindowTruncated === true ? 1 : 0,
                 input.completedAt,
                 input.completedAt,
                 latestEntryAt,
@@ -1468,6 +1471,29 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
 
         for (const entry of input.entries) {
             const contentStatus = entry.content.type;
+            const updateMaskBindings = [
+                entry.updateMask.title ? 1 : 0,
+                entry.updateMask.url ? 1 : 0,
+                entry.updateMask.author ? 1 : 0,
+                entry.updateMask.publishedAt ? 1 : 0,
+                entry.updateMask.sourceUpdatedAt ? 1 : 0,
+                entry.updateMask.content ? 1 : 0,
+            ] as const;
+            const contentDifferenceSql =
+                entry.content.type === 'stored'
+                    ? `NOT EXISTS (
+                        SELECT 1 FROM entry_contents current_content
+                        WHERE current_content.entry_id = entries.id
+                          AND current_content.content_hash IS ?
+                    )`
+                    : `EXISTS (
+                        SELECT 1 FROM entry_contents current_content
+                        WHERE current_content.entry_id = entries.id
+                    )`;
+            const contentDifferenceBindings =
+                entry.content.type === 'stored'
+                    ? ([entry.content.hash] as const)
+                    : ([] as const);
             statements.push({
                 sql: `INSERT INTO entries (
                         id, feed_id, deduplication_key, source_id, title, url,
@@ -1493,7 +1519,20 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                             THEN excluded.source_updated_at ELSE entries.source_updated_at END,
                         content_status = CASE WHEN ? = 1
                             THEN excluded.content_status ELSE entries.content_status END,
-                        updated_at = excluded.updated_at`,
+                        updated_at = excluded.updated_at
+                    WHERE (excluded.source_id IS NOT NULL
+                            AND excluded.source_id IS NOT entries.source_id)
+                       OR (? = 1 AND excluded.title IS NOT entries.title)
+                       OR (? = 1 AND excluded.url IS NOT entries.url)
+                       OR (? = 1 AND excluded.author IS NOT entries.author)
+                       OR (? = 1
+                            AND excluded.published_at IS NOT entries.published_at)
+                       OR (? = 1 AND excluded.source_updated_at
+                            IS NOT entries.source_updated_at)
+                       OR (? = 1 AND (
+                            excluded.content_status IS NOT entries.content_status
+                            OR ${contentDifferenceSql}
+                       ))`,
                 bindings: [
                     input.claim.feedId,
                     entry.deduplicationKey,
@@ -1507,15 +1546,12 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     input.completedAt,
                     input.completedAt,
                     ...conditionBindings,
-                    entry.updateMask.title ? 1 : 0,
-                    entry.updateMask.url ? 1 : 0,
-                    entry.updateMask.author ? 1 : 0,
-                    entry.updateMask.publishedAt ? 1 : 0,
-                    entry.updateMask.sourceUpdatedAt ? 1 : 0,
-                    entry.updateMask.content ? 1 : 0,
+                    ...updateMaskBindings,
+                    ...updateMaskBindings,
+                    ...contentDifferenceBindings,
                 ],
             });
-            mutationKinds.push('oneOrTwo');
+            mutationKinds.push('atMostTwo');
 
             if (entry.updateMask.content && entry.content.type === 'stored') {
                 const encodedSize = new TextEncoder().encode(
@@ -1541,7 +1577,11 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                             content_html = excluded.content_html,
                             content_hash = excluded.content_hash,
                             encoded_size_bytes = excluded.encoded_size_bytes,
-                            updated_at = excluded.updated_at`,
+                            updated_at = excluded.updated_at
+                        WHERE excluded.content_html IS NOT entry_contents.content_html
+                           OR excluded.content_hash IS NOT entry_contents.content_hash
+                           OR excluded.encoded_size_bytes
+                                IS NOT entry_contents.encoded_size_bytes`,
                     bindings: [
                         entry.content.html,
                         entry.content.hash,
@@ -1553,7 +1593,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         ...conditionBindings,
                     ],
                 });
-                mutationKinds.push('exactlyOne');
+                mutationKinds.push('atMostOne');
             } else if (entry.updateMask.content) {
                 statements.push({
                     sql: `DELETE FROM entry_contents
@@ -1574,17 +1614,6 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
         }
 
         if (input.entries.length > 0) {
-            const filterMappings = JSON.stringify(
-                input.entries.map((entry) => ({
-                    deduplicationKey: Array.from(
-                        entry.deduplicationKey,
-                        (byte) => byte.toString(16).padStart(2, '0'),
-                    )
-                        .join('')
-                        .toUpperCase(),
-                    filteredUserIds: entry.filteredUserIds,
-                })),
-            );
             const refreshedEntryIds = `SELECT e.id
                 FROM entries e
                 JOIN json_each(?) mapping
@@ -1688,10 +1717,19 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     entries_created, entries_updated, duration_ms, created_at
                 )
                 SELECT ?, ?, j.id, ?, 1, ?, ?, ?,
-                    (SELECT COUNT(*) FROM entries
-                     WHERE feed_id = ? AND created_at = ? AND updated_at = ?),
-                    ? - (SELECT COUNT(*) FROM entries
-                         WHERE feed_id = ? AND created_at = ? AND updated_at = ?),
+                    (SELECT COUNT(*) FROM entries refreshed
+                     JOIN json_each(?) mapping
+                       ON hex(refreshed.deduplication_key) =
+                          json_extract(mapping.value, '$.deduplicationKey')
+                     WHERE refreshed.feed_id = ? AND refreshed.created_at = ?
+                       AND refreshed.updated_at = ?),
+                    (SELECT COUNT(*) FROM entries refreshed
+                     JOIN json_each(?) mapping
+                       ON hex(refreshed.deduplication_key) =
+                          json_extract(mapping.value, '$.deduplicationKey')
+                     WHERE refreshed.feed_id = ?
+                       AND refreshed.created_at IS NOT ?
+                       AND refreshed.updated_at = ?),
                     ?, ?
                 FROM jobs j WHERE ${commitPredicate}`,
             bindings: [
@@ -1701,10 +1739,11 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 input.notModified ? 1 : 0,
                 input.httpStatus,
                 input.entries.length,
+                filterMappings,
                 input.claim.feedId,
                 input.completedAt,
                 input.completedAt,
-                input.entries.length,
+                filterMappings,
                 input.claim.feedId,
                 input.completedAt,
                 input.completedAt,
@@ -1724,27 +1763,22 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
         statements.push({
             sql: `UPDATE feeds
                 SET consecutive_unchanged_refreshes = CASE
-                        WHEN entry_window_truncated = 1
-                          OR ${createdDuringRefresh}
-                        THEN 0
+                        WHEN ${createdDuringRefresh} THEN 0
                         ELSE MIN(consecutive_unchanged_refreshes + 1, 5)
                     END,
                     next_refresh_at = CASE
                         WHEN ? IS NOT NULL THEN MAX(?, ?)
-                        ELSE ? + CASE
-                            WHEN entry_window_truncated = 1 THEN ?
-                            ELSE MAX(
-                                CASE
-                                    WHEN ${createdDuringRefresh} THEN ?
-                                    WHEN consecutive_unchanged_refreshes <= 0 THEN ?
-                                    WHEN consecutive_unchanged_refreshes = 1 THEN ?
-                                    WHEN consecutive_unchanged_refreshes = 2 THEN ?
-                                    WHEN consecutive_unchanged_refreshes = 3 THEN ?
-                                    ELSE ?
-                                END,
-                                COALESCE(publisher_refresh_interval_ms, 0)
-                            )
-                        END
+                        ELSE ? + MAX(
+                            CASE
+                                WHEN ${createdDuringRefresh} THEN ?
+                                WHEN consecutive_unchanged_refreshes <= 0 THEN ?
+                                WHEN consecutive_unchanged_refreshes = 1 THEN ?
+                                WHEN consecutive_unchanged_refreshes = 2 THEN ?
+                                WHEN consecutive_unchanged_refreshes = 3 THEN ?
+                                ELSE ?
+                            END,
+                            COALESCE(publisher_refresh_interval_ms, 0)
+                        )
                     END,
                     updated_at = MAX(updated_at, ?)
                 WHERE id = ? AND EXISTS (
@@ -1757,7 +1791,6 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 input.completedAt,
                 input.nextRefreshAt,
                 input.completedAt,
-                DEFAULT_REFRESH_INTERVAL_MS,
                 input.historyId,
                 input.claim.feedId,
                 DEFAULT_REFRESH_INTERVAL_MS,
@@ -1791,7 +1824,8 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             if (
                 (kind === 'exactlyOne' && changes !== 1) ||
                 (kind === 'oneOrTwo' && (changes < 1 || changes > 2)) ||
-                (kind === 'atMostOne' && changes > 1)
+                (kind === 'atMostOne' && changes > 1) ||
+                (kind === 'atMostTwo' && changes > 2)
             ) {
                 throw new RefreshLeaseLostError(input.claim.operationId);
             }

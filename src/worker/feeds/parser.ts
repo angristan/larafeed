@@ -51,7 +51,6 @@ export interface NormalizedFeedEntry {
 export interface ParsedFeed {
     readonly metadata: NormalizedFeedMetadata;
     readonly entries: readonly NormalizedFeedEntry[];
-    readonly entryWindowTruncated: boolean;
 }
 
 interface ParseFeedOptions {
@@ -731,10 +730,7 @@ const digestIdentity = async (
 const entriesFromCandidates = async (
     candidates: readonly EntryCandidate[],
     webCrypto: Crypto,
-): Promise<{
-    readonly entries: readonly NormalizedFeedEntry[];
-    readonly truncated: boolean;
-}> => {
+): Promise<readonly NormalizedFeedEntry[]> => {
     const sorted = [...candidates].sort((left, right) => {
         if (left.sortTimestamp === null && right.sortTimestamp === null) {
             return left.sourceIndex - right.sourceIndex;
@@ -752,8 +748,8 @@ const entriesFromCandidates = async (
     });
     const entries: NormalizedFeedEntry[] = [];
     const seen = new Set<string>();
-    let truncated = false;
     for (const candidate of sorted) {
+        if (entries.length === MAX_FEED_ENTRIES) break;
         const deduplicationKey = await digestIdentity(
             candidate.sourceIdentity,
             webCrypto,
@@ -765,10 +761,6 @@ const entriesFromCandidates = async (
             continue;
         }
         seen.add(key);
-        if (entries.length === MAX_FEED_ENTRIES) {
-            truncated = true;
-            break;
-        }
 
         const { sortTimestamp: _, sourceIndex: __, ...entry } = candidate;
         entries.push({
@@ -779,7 +771,7 @@ const entriesFromCandidates = async (
     // D1 assigns sequence IDs in iteration order. Reverse only after selecting
     // and deduplicating newest-first so duplicate precedence stays unchanged,
     // while newer entries receive higher IDs within each refresh batch.
-    return { entries: entries.reverse(), truncated };
+    return entries.reverse();
 };
 
 export const parseFeedDocument = async (
@@ -867,13 +859,9 @@ export const parseFeedDocument = async (
             );
     }
 
-    const selection = await entriesFromCandidates(
+    const entries = await entriesFromCandidates(
         candidates,
         options.webCrypto ?? globalThis.crypto,
     );
-    return {
-        metadata,
-        entries: selection.entries,
-        entryWindowTruncated: selection.truncated,
-    };
+    return { metadata, entries };
 };

@@ -171,8 +171,6 @@ interface RefreshCompletionBase {
     readonly nextRefreshAt?: number;
     /** Undefined preserves the previous hint, while null clears it. */
     readonly publisherRefreshIntervalMs?: number | null;
-    /** Undefined preserves the previous entry-window state. */
-    readonly entryWindowTruncated?: boolean;
     readonly httpStatus: number;
     readonly durationMs?: number;
 }
@@ -181,6 +179,7 @@ export interface RefreshSuccess extends RefreshCompletionBase {
     readonly type: 'success';
     readonly feedName?: string;
     readonly siteUrl?: string | null;
+    /** Feed-advertised or site-derived candidate, not the selected source. */
     readonly faviconUrl?: string | null;
     readonly entries: readonly ProcessedRefreshEntry[];
 }
@@ -220,13 +219,12 @@ export interface CommitRefreshInput {
     readonly nextRefreshAt: number | null;
     /** Undefined preserves the previous hint, while null clears it. */
     readonly publisherRefreshIntervalMs?: number | null;
-    /** Undefined preserves the previous entry-window state. */
-    readonly entryWindowTruncated?: boolean;
     readonly httpStatus: number;
     readonly durationMs: number | null;
     readonly notModified: boolean;
     readonly feedName?: string;
     readonly siteUrl?: string | null;
+    /** Feed-advertised or site-derived candidate, not the selected source. */
     readonly faviconUrl?: string | null;
     readonly entries: readonly ProcessedRefreshEntry[];
 }

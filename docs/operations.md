@@ -56,7 +56,9 @@ request or Cron
 
 Duplicate delivery is safe. Cron reclaims stale leases and redrives lost delivery with the same operation ID. D1 records bounded attempts, failure classes, and terminal state. Larafeed does not use Queue DLQs.
 
-Successful feed refreshes use an adaptive interval. A refresh that creates entries resets the interval to 15 minutes. Consecutive unchanged responses use 30 minutes, 1 hour, 2 hours, 6 hours, and then 24 hours. RSS `ttl`, HTTP `Cache-Control: max-age`, and HTTP `Expires` can increase that interval up to 24 hours. A 200 response replaces or clears the stored publisher hint; a 304 without a hint preserves it. Feed documents with more than the retained entry window stay at 15 minutes so adaptive scheduling cannot increase their ingestion-loss risk.
+Successful feed refreshes use an adaptive interval. A refresh that creates entries resets the interval to 15 minutes. Consecutive unchanged responses use 30 minutes, 1 hour, 2 hours, 6 hours, and then 24 hours. RSS `ttl`, HTTP `Cache-Control: max-age`, and HTTP `Expires` can increase that interval up to 24 hours. A 200 response replaces or clears the stored publisher hint; a 304 without a hint preserves it. Feed archive length does not affect scheduling because it does not measure publishing activity.
+
+The legacy `entry_window_truncated` D1 column is no longer read or written. Keep it through the first deployment of this runtime because migrations run before Worker deployment. Remove the column in a later migration after all active Worker versions use the activity-based policy.
 
 ## Application limits
 

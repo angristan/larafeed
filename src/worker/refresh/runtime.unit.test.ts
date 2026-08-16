@@ -51,7 +51,6 @@ describe('refresh runtime adapter', () => {
             siteUrl: 'https://example.test/',
             faviconUrl: 'https://example.test/favicon.ico',
             publisherRefreshIntervalMs: 2 * 60 * 60_000,
-            entryWindowTruncated: false,
             entries: [
                 {
                     sourceId: 'entry-1',
