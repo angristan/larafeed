@@ -548,6 +548,93 @@ describe('feed refresh service', () => {
         );
     });
 
+    it('probes common paths when a website rejects the page request', async () => {
+        const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+            const url = String(input);
+            if (url === 'https://example.com/news/') {
+                return new Response('challenge', { status: 403 });
+            }
+            if (
+                url === 'https://example.com/feed' ||
+                url === 'https://example.com/news/feed'
+            ) {
+                return new Response(rss, {
+                    headers: { 'content-type': 'application/rss+xml' },
+                });
+            }
+            return new Response('missing', { status: 404 });
+        });
+        const service = makeFeedRefreshService({ fetch: fetchMock });
+
+        const result = await Effect.runPromise(
+            service.discoverCandidates('https://example.com/news/'),
+        );
+
+        expect(result).toMatchObject({
+            kind: 'website',
+            candidates: [
+                {
+                    result: { finalUrl: 'https://example.com/feed' },
+                    identicalFeedUrls: ['https://example.com/news/feed'],
+                },
+                {
+                    result: { finalUrl: 'https://example.com/news/feed' },
+                    identicalFeedUrls: ['https://example.com/feed'],
+                },
+            ],
+        });
+        expect(
+            fetchMock.mock.calls.filter(
+                ([input]) => String(input) === 'https://example.com/news/',
+            ),
+        ).toHaveLength(1);
+    });
+
+    it('preserves a page HTTP error when common paths also fail', async () => {
+        const fetchMock = vi.fn(async (input: RequestInfo | URL) =>
+            Promise.resolve(
+                new Response('missing', {
+                    status:
+                        String(input) === 'https://example.com/news/'
+                            ? 403
+                            : 404,
+                }),
+            ),
+        );
+        const service = makeFeedRefreshService({ fetch: fetchMock });
+
+        const result = await failure(
+            service.discoverCandidates('https://example.com/news/'),
+        );
+
+        expect(result).toMatchObject({
+            _tag: 'FeedHttpError',
+            status: 403,
+            retryable: false,
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(
+            1 + COMMON_FEED_DISCOVERY_PATHS.length * 2,
+        );
+    });
+
+    it('does not fan out discovery after a retryable page response', async () => {
+        const fetchMock = vi.fn(async () =>
+            Promise.resolve(new Response('slow down', { status: 429 })),
+        );
+        const service = makeFeedRefreshService({ fetch: fetchMock });
+
+        const result = await failure(
+            service.discoverCandidates('https://example.com/news/'),
+        );
+
+        expect(result).toMatchObject({
+            _tag: 'FeedHttpError',
+            status: 429,
+            retryable: true,
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
     it('returns root and page-local candidates with identical-content flags', async () => {
         const html = '<html><head><title>No links</title></head></html>';
         const fetchMock = vi.fn(async (input: RequestInfo | URL) => {

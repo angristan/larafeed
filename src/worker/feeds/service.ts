@@ -672,33 +672,64 @@ export const makeFeedRefreshService = (
             }),
         );
 
+    const websiteResult = (results: readonly FeedUpdatedResult[]) => ({
+        kind: 'website' as const,
+        results,
+    });
+
+    const discoverCommonResults = (
+        url: string,
+        maximumResults: number,
+        concurrency: number,
+    ): Effect.Effect<readonly FeedUpdatedResult[], FeedRefreshError> =>
+        probeCandidates(
+            commonFeedDiscoveryCandidates(new URL(url)),
+            maximumResults,
+            concurrency,
+        );
+
     const discoverResults = (
         url: string,
         maximumResults: number,
         concurrency: number,
-    ) =>
-        refresh({ url, etag: null, lastModified: null }).pipe(
-            Effect.flatMap(requireUpdated),
-            Effect.map((result) => ({
-                kind: 'direct' as const,
-                results: [result] as readonly FeedUpdatedResult[],
-            })),
-            Effect.catchTag('FeedParseError', (error) => {
-                if (error.reason !== 'unsupported_feed') {
-                    return Effect.fail(error);
+    ) => {
+        const directResult = refresh({
+            url,
+            etag: null,
+            lastModified: null,
+        }).pipe(Effect.flatMap(requireUpdated));
+
+        return Effect.matchEffect(directResult, {
+            onFailure: (error) => {
+                if (
+                    error._tag === 'FeedParseError' &&
+                    error.reason === 'unsupported_feed'
+                ) {
+                    return discoverWebsiteResults(
+                        url,
+                        maximumResults,
+                        concurrency,
+                    ).pipe(Effect.map(websiteResult));
                 }
-                return discoverWebsiteResults(
-                    url,
-                    maximumResults,
-                    concurrency,
-                ).pipe(
-                    Effect.map((results) => ({
-                        kind: 'website' as const,
-                        results,
-                    })),
-                );
-            }),
-        );
+                if (error._tag === 'FeedHttpError' && !error.retryable) {
+                    return discoverCommonResults(
+                        url,
+                        maximumResults,
+                        concurrency,
+                    ).pipe(
+                        Effect.map(websiteResult),
+                        Effect.catch(() => Effect.fail(error)),
+                    );
+                }
+                return Effect.fail(error);
+            },
+            onSuccess: (result) =>
+                Effect.succeed({
+                    kind: 'direct' as const,
+                    results: [result] as readonly FeedUpdatedResult[],
+                }),
+        });
+    };
 
     const discoverCandidates = (
         url: string,
