@@ -25,6 +25,7 @@ const source = {
     lastModified: 'Sat, 18 Jul 2026 10:00:00 GMT',
 } as const;
 const rss = `<rss><channel><title>Example</title><item><guid>1</guid><title>One</title><pubDate>2026-07-18T10:00:00Z</pubDate></item></channel></rss>`;
+const atom = `<feed xmlns="http://www.w3.org/2005/Atom"><title>Releases</title><entry><id>1</id><title>One</title><updated>2026-07-18T10:00:00Z</updated></entry></feed>`;
 const jsonFeed = JSON.stringify({
     version: 'https://jsonfeed.org/version/1.1',
     title: 'JSON Feed',
@@ -470,6 +471,39 @@ describe('feed refresh service', () => {
         expect(String(fetchMock.mock.calls[2]?.[0])).toBe(
             'https://example.com/feed.json',
         );
+    });
+
+    it('discovers feeds advertised after many unrelated link tags', async () => {
+        const assetLinks = Array.from(
+            { length: 75 },
+            (_, index) => `<link rel="stylesheet" href="/assets/${index}.css">`,
+        ).join('\n');
+        const html = `<!doctype html><html><head>
+            ${assetLinks}
+            <link rel="alternate" type="application/atom+xml" href="/releases.atom">
+        </head></html>`;
+        const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+            const url = String(input);
+            if (url === 'https://example.com/releases') {
+                return new Response(html, {
+                    headers: { 'content-type': 'text/html' },
+                });
+            }
+            if (url === 'https://example.com/releases.atom') {
+                return new Response(atom, {
+                    headers: { 'content-type': 'application/atom+xml' },
+                });
+            }
+            return new Response('missing', { status: 404 });
+        });
+        const service = makeFeedRefreshService({ fetch: fetchMock });
+
+        const result = await Effect.runPromise(
+            service.discover('https://example.com/releases'),
+        );
+
+        expect(result.finalUrl).toBe('https://example.com/releases.atom');
+        expect(fetchMock).toHaveBeenCalledTimes(3);
     });
 
     it('deduplicates advertised candidates that redirect to one feed', async () => {

@@ -254,7 +254,9 @@ export const discoverFeedLinks = (
     const tags = html.match(/<link\b[^>]{0,4096}>/giu) ?? [];
     const candidates: URL[] = [];
     const seen = new Set<string>();
-    for (const tag of tags.slice(0, 50)) {
+    // The response body is already size-bounded. Scan every link tag because
+    // asset-heavy pages can advertise feeds late in the document head.
+    for (const tag of tags) {
         const attributes = htmlLinkAttributes(tag);
         const rel = (attributes.get('rel') ?? '')
             .toLocaleLowerCase()
