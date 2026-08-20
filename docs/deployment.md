@@ -19,19 +19,19 @@ After the first deployment, open the D1 database settings and enable Read Replic
 
 ## Manual deployment
 
-Requirements: Node.js 24, npm, Bun, and an authenticated Wrangler session. The portable environment is the default, unnamed environment in `wrangler.jsonc`. The `production` named environment belongs to this repository's maintainer. A fork must not use it without replacing every route and resource binding.
+Requirements: Node.js 24, Bun 1.3.14, and an authenticated Wrangler session. The portable environment is the default, unnamed environment in `wrangler.jsonc`. The `production` named environment belongs to this repository's maintainer. A fork must not use it without replacing every route and resource binding.
 
 ### Provision a fresh portable environment
 
 Install dependencies, then create the D1 database, full-content KV namespace, and all three Queues. These commands create remote resources:
 
 ```bash
-npm ci
-npm exec -- wrangler d1 create larafeed-template
-npm exec -- wrangler kv namespace create larafeed-template-full-content
-npm exec -- wrangler queues create larafeed-template-feed-refresh
-npm exec -- wrangler queues create larafeed-template-opml-import
-npm exec -- wrangler queues create larafeed-template-favicon-refresh
+bun install --frozen-lockfile
+bunx --no-install wrangler d1 create larafeed-template
+bunx --no-install wrangler kv namespace create larafeed-template-full-content
+bunx --no-install wrangler queues create larafeed-template-feed-refresh
+bunx --no-install wrangler queues create larafeed-template-opml-import
+bunx --no-install wrangler queues create larafeed-template-favicon-refresh
 ```
 
 Before deployment, edit the default environment in `wrangler.jsonc`:
@@ -46,24 +46,24 @@ Before deployment, edit the default environment in `wrangler.jsonc`:
 Set the required operator secret through Wrangler's hidden prompt. Generate and store a private value in a password manager first. Do not put the value on the command line.
 
 ```bash
-npm exec -- wrangler secret put AUTH_OPERATOR_SECRET --config wrangler.jsonc
+bunx --no-install wrangler secret put AUTH_OPERATOR_SECRET --config wrangler.jsonc
 ```
 
 Then run the repository release validation and deploy:
 
 ```bash
-npm run validate:release
-npm run deploy
+bun run validate:release
+bun run deploy
 ```
 
-`npm run deploy` builds the portable environment, dry-runs that generated artifact, applies remote D1 migrations, and deploys the same artifact without rebuilding it. Existing manual environments can start at the secret or validation step after confirming that all configured resources already exist.
+`bun run deploy` builds the portable environment, dry-runs that generated artifact, applies remote D1 migrations, and deploys the same artifact without rebuilding it. Existing manual environments can start at the secret or validation step after confirming that all configured resources already exist.
 
 ## Create the first administrator
 
 Run this from an interactive terminal after deployment. The script asks for the operator secret with terminal echo disabled, so the value does not enter shell history.
 
 ```bash
-npm run auth:access-link -- \
+bun run auth:access-link -- \
   --url https://reader.example.com/api/auth/operator/access-link \
   --mode initial-admin \
   --username admin \
@@ -76,7 +76,7 @@ Replace `reader.example.com` with the deployment hostname. Open the returned URL
 If every administrator loses access, recover an existing enabled administrator:
 
 ```bash
-npm run auth:access-link -- \
+bun run auth:access-link -- \
   --url https://reader.example.com/api/auth/operator/access-link \
   --mode recover-admin \
   --user-id USER_ID

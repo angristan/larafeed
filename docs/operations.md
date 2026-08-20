@@ -5,10 +5,10 @@ D1 is authoritative for users, reader data, sessions, imports, summaries, durabl
 ## Routine commands
 
 ```bash
-npm run validate          # full local validation and deployment dry runs
-npm run validate:release  # canonical gate, including production-shaped D1 validation
-npm run deploy:check      # portable deployment dry run
-npm run deploy            # checked migration and deployment of the portable environment
+bun run validate          # full local validation and deployment dry runs
+bun run validate:release  # canonical gate, including production-shaped D1 validation
+bun run deploy:check      # portable deployment dry run
+bun run deploy            # checked migration and deployment of the portable environment
 ```
 
 The named maintainer environment uses the matching `:production` scripts. Each deployment script runs this fixed sequence:
@@ -19,7 +19,7 @@ build -> deployment dry run -> remote D1 migration -> deploy the same build outp
 
 The Vite build selects the environment and writes the flattened deployment configuration. The dry run and final config-less Wrangler command use that generated artifact. Nothing rebuilds between the dry run and deployment.
 
-Cloudflare Workers Builds watches `main` and deploys production automatically. Its deploy command must be `npm run release:production`, not a dashboard-defined sequence of validation, migration, and deployment commands. This versioned script runs `npm run validate:release`, then the checked production deployment sequence above. The build image must have the Chromium runtime required by `npm run test:browser`. Use the same `npm run release:production` command for an approved manual production release. Use `npm run deploy:production` only when validation already passed for the exact checkout.
+Cloudflare Workers Builds watches `main` and deploys production automatically. Its deploy command must be `bun run release:production`, not a dashboard-defined sequence of validation, migration, and deployment commands. Set `BUN_VERSION=1.3.14` in the build configuration so Workers Builds uses the repository's pinned version. This versioned script runs `bun run validate:release`, then the checked production deployment sequence above. The build image must have the Chromium runtime required by `bun run test:browser`. Use the same `bun run release:production` command for an approved manual production release. Use `bun run deploy:production` only when validation already passed for the exact checkout.
 
 D1 migrations are forward-only. Apply a corrective migration instead of editing an applied migration. Use expand/contract changes: deploy a backward-compatible schema expansion before code depends on it, and remove old columns or behavior only after all live Worker versions no longer use them.
 
@@ -116,9 +116,9 @@ For an authentication incident, revoke affected sessions and app tokens. Use ope
 Build the correct environment, inspect recent deployments, then select a known-good version:
 
 ```bash
-npm run build
-npm exec -- wrangler deployments list
-npm exec -- wrangler rollback VERSION_ID --message "rollback"
+bun run build
+bunx --no-install wrangler deployments list
+bunx --no-install wrangler rollback VERSION_ID --message "rollback"
 ```
 
 Use `build:production` for the named production environment. A Worker rollback does not reverse D1 migrations, data changes, Queue deliveries, Images transformations, or AI calls.
@@ -130,7 +130,7 @@ An in-place Time Travel restore is destructive. Disable background producers, pa
 Inspect a recovery point without changing data:
 
 ```bash
-npm exec -- wrangler d1 time-travel info DB \
+bunx --no-install wrangler d1 time-travel info DB \
   --timestamp RFC3339_TIMESTAMP \
   --config wrangler.jsonc
 ```
@@ -138,7 +138,7 @@ npm exec -- wrangler d1 time-travel info DB \
 After explicit approval, restore the reviewed bookmark:
 
 ```bash
-npm exec -- wrangler d1 time-travel restore DB \
+bunx --no-install wrangler d1 time-travel restore DB \
   --bookmark BOOKMARK \
   --config wrangler.jsonc
 ```

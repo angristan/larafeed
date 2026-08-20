@@ -89,17 +89,17 @@ See the [deployment guide](docs/deployment.md) for administrator enrollment and 
 
 ## Development
 
-Requirements: Node.js 24, npm, and Bun.
+Requirements: Node.js 24 and Bun 1.3.14.
 
 ```bash
-npm ci
-npx playwright install chromium
+bun install --frozen-lockfile
+bunx --no-install playwright install chromium
 cp .dev.vars.local.example .dev.vars
-npm run d1:migrate:local
-npm run dev
+bun run d1:migrate:local
+bun run dev
 ```
 
-Run the complete validation suite with `npm run validate`.
+Run the complete validation suite with `bun run validate`.
 
 ## License
 

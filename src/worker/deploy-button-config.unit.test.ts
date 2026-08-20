@@ -95,7 +95,7 @@ describe('Deploy-to-Cloudflare configuration', () => {
 
     it('applies D1 migrations before the button deployment', () => {
         expect(packageConfig.scripts?.deploy).toBe(
-            'npm run build && npm run deploy:artifact:check && npm run d1:migrate && npm run deploy:artifact',
+            'bun run build && bun run deploy:artifact:check && bun run d1:migrate && bun run deploy:artifact',
         );
         expect(packageConfig.scripts?.['d1:migrate']).toContain(
             'd1 migrations apply DB --remote',

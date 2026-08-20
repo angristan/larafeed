@@ -15,20 +15,20 @@ describe('deployment scripts', () => {
         '%s checks one build before migration and deploys it without rebuilding',
         (scriptName, buildScript, migrationScript) => {
             expect(scripts[scriptName]?.split(' && ')).toEqual([
-                `npm run ${buildScript}`,
-                'npm run deploy:artifact:check',
-                `npm run ${migrationScript}`,
-                'npm run deploy:artifact',
+                `bun run ${buildScript}`,
+                'bun run deploy:artifact:check',
+                `bun run ${migrationScript}`,
+                'bun run deploy:artifact',
             ]);
         },
     );
 
     it('runs the canonical release gate before production deployment', () => {
         expect(scripts['release:production']).toBe(
-            'npm run validate:release && npm run deploy:production',
+            'bun run validate:release && bun run deploy:production',
         );
         expect(scripts['validate:release']).toBe(
-            'npm run validate && npm run d1:validate:large',
+            'bun run validate && bun run d1:validate:large',
         );
     });
 });

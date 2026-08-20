@@ -3,10 +3,10 @@ pre-commit:
   commands:
     biome:
       glob: "*.{js,ts,tsx}"
-      run: npm run lint-check
+      run: bun run lint-check
     typecheck:
       glob: "*.{ts,tsx}"
-      run: npm run typecheck
+      run: bun run typecheck
     cloudflare-test:
       glob: "{src,validation}/**/*.{ts,tsx}"
-      run: npm test
+      run: bun run test

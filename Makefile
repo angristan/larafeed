@@ -1,41 +1,41 @@
 .PHONY: install dev build preview test lint typecheck types d1-migrate d1-migrate-test d1-validate deploy-check deploy-test validate clean
 
 install:
-	npm ci
+	bun install --frozen-lockfile
 
 dev:
-	npm run dev
+	bun run dev
 
 build:
-	npm run build
+	bun run build
 
 preview:
-	npm run preview
+	bun run preview
 
 test:
-	npm test
+	bun run test
 
 lint:
-	npm run lint-check
-	npm run typecheck
+	bun run lint-check
+	bun run typecheck
 
 typecheck:
-	npm run typecheck
+	bun run typecheck
 
 types:
-	npm run types:check:cloudflare
+	bun run types:check:cloudflare
 
 d1-migrate:
-	npm run d1:migrate:local
+	bun run d1:migrate:local
 
 d1-validate:
-	npm run d1:validate
+	bun run d1:validate
 
 deploy-check:
-	npm run deploy:check
+	bun run deploy:check
 
 validate:
-	npm run validate
+	bun run validate
 
 clean:
 	rm -rf dist .wrangler scripts/cloudflare-validation/output/report.json scripts/cloudflare-validation/output/report.md
