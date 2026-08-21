@@ -20,6 +20,18 @@ export function isNewerIngestion(
     );
 }
 
+export function countNewIngestions(
+    cachedTotal: number | undefined,
+    freshTotal: number,
+): number {
+    if (cachedTotal === undefined) return 1;
+
+    // Reader interactions can shrink a filtered server total while retained
+    // pages intentionally stay stable. A newer ingestion still means at least
+    // one entry is waiting even when the raw total delta is zero or negative.
+    return Math.max(1, freshTotal - cachedTotal);
+}
+
 export function latestIngestion<T extends IngestionMark>(
     entries: readonly T[],
 ): T | undefined {

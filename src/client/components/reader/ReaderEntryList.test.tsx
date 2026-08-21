@@ -44,7 +44,7 @@ function render(overrides: Partial<Parameters<typeof ReaderEntryList>[0]>) {
                     entries={entries}
                     error={null}
                     scopeTitle="All entries"
-                    hasNewEntries={false}
+                    newEntryCount={0}
                     hasNextPage={false}
                     isFetching={false}
                     isFetchingNextPage={false}
@@ -86,9 +86,10 @@ describe('ReaderEntryList infinite list', () => {
         expect(render({ hasNextPage: false })).not.toContain('listSentinel');
     });
 
-    it('offers a refresh only when newer entries exist', () => {
-        expect(render({ hasNewEntries: true })).toContain('New entries');
-        expect(render({ hasNewEntries: false })).not.toContain('New entries');
+    it('offers a counted refresh only when newer entries exist', () => {
+        expect(render({ newEntryCount: 1 })).toContain('1 new entry');
+        expect(render({ newEntryCount: 12 })).toContain('12 new entries');
+        expect(render({ newEntryCount: 0 })).not.toContain('new entries');
     });
 
     it('announces loading of the next page', () => {

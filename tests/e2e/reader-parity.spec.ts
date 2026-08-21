@@ -37,6 +37,7 @@ const json = (body: unknown) => ({
 async function mockReaderApi(
     page: Page,
     feedName = 'Example feed',
+    newEntryCount = 0,
 ): Promise<ApiState> {
     const state: ApiState = {
         entryListRequests: 0,
@@ -239,10 +240,23 @@ async function mockReaderApi(
         }
         if (pathname === '/api/entries' && request.method() === 'GET') {
             state.entryListRequests += 1;
+            const isNewEntryProbe =
+                url.searchParams.get('order_by') === 'created_at' &&
+                url.searchParams.get('page_size') === '1';
             await route.fulfill(
                 json({
-                    entries: [entry],
-                    total: 1,
+                    entries:
+                        isNewEntryProbe && newEntryCount > 0
+                            ? [
+                                  {
+                                      ...entry,
+                                      id: 42,
+                                      createdAt: now,
+                                      title: 'Newly ingested entry',
+                                  },
+                              ]
+                            : [entry],
+                    total: 1 + (isNewEntryProbe ? newEntryCount : 0),
                     nextCursor: null,
                 }),
             );
@@ -377,6 +391,21 @@ test('keeps the unread page stable and generates a summary from entry actions', 
     await expect(articleLink).toBeVisible();
     expect(state.summaryPosts).toBe(1);
     expect(state.entryListRequests).toBe(1);
+});
+
+test('shows how many new entries are waiting', async ({ page }) => {
+    await mockReaderApi(page, 'Example feed', 12);
+    await page.goto('/feeds?filter=all&order_by=published_at');
+    await expect(
+        page.getByText('First unread entry', { exact: true }).first(),
+    ).toBeVisible();
+
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+
+    const refresh = page.getByRole('button', { name: '12 new entries' });
+    await expect(refresh).toBeVisible();
+    await refresh.click();
+    await expect(refresh).toBeHidden();
 });
 
 test('asks the user to choose between matching feed candidates', async ({

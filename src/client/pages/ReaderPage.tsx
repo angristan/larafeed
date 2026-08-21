@@ -27,7 +27,11 @@ import { ReaderEntryDetail } from '../components/reader/ReaderEntryDetail';
 import { ReaderEntryList } from '../components/reader/ReaderEntryList';
 import { ReaderSidebar } from '../components/reader/ReaderSidebar';
 import { useDocumentTitle } from '../documentTitle';
-import { isNewerIngestion, latestIngestion } from '../entryIngestion';
+import {
+    countNewIngestions,
+    isNewerIngestion,
+    latestIngestion,
+} from '../entryIngestion';
 import { authSessionQueryOptions } from '../queries/auth';
 import {
     categoryListQueryOptions,
@@ -106,14 +110,15 @@ export function ReaderPage() {
     );
 
     // The list skips the focus refetch (it would replay every loaded page),
-    // so a refocus sends a one-entry probe instead: when something was
-    // ingested after everything cached, the list offers an explicit refresh.
-    const [hasNewEntries, setHasNewEntries] = useState(false);
+    // so a refocus sends a one-entry probe instead. The fresh scope total
+    // supplies the count without downloading every newly ingested entry.
+    const [newEntryCount, setNewEntryCount] = useState(0);
     const lastProbeAt = useRef(0);
     const latestIngested = useMemo(
         () => latestIngestion(listEntries),
         [listEntries],
     );
+    const cachedEntryTotal = entryListQuery.data?.pages[0]?.total;
     const listScope = useMemo(
         () => ({
             feedId: state.feedId,
@@ -127,7 +132,7 @@ export function ReaderPage() {
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: the pending-refresh hint resets whenever the list scope changes
     useEffect(() => {
-        setHasNewEntries(false);
+        setNewEntryCount(0);
         lastProbeAt.current = 0;
     }, [listScope]);
 
@@ -155,7 +160,13 @@ export function ReaderPage() {
                         fresh !== undefined &&
                         isNewerIngestion(fresh, latestIngested)
                     ) {
-                        setHasNewEntries(true);
+                        const discovered = countNewIngestions(
+                            cachedEntryTotal,
+                            page.total,
+                        );
+                        setNewEntryCount((current) =>
+                            Math.max(current, discovered),
+                        );
                     }
                 })
                 .catch(() => undefined);
@@ -167,7 +178,7 @@ export function ReaderPage() {
             window.removeEventListener('focus', probe);
             document.removeEventListener('visibilitychange', probe);
         };
-    }, [latestIngested, listScope]);
+    }, [cachedEntryTotal, latestIngested, listScope]);
 
     // Refetching replays every loaded page sequentially with recomputed
     // cursors, so new entries land at their sorted position — including
@@ -176,13 +187,14 @@ export function ReaderPage() {
     // new entries never flashes skeletons or replays kept rows' animation.
     const refetchEntryList = entryListQuery.refetch;
     const showNewEntries = useCallback(() => {
-        setHasNewEntries(false);
+        const pendingCount = newEntryCount;
+        setNewEntryCount(0);
         void refetchEntryList().then((result) => {
             if (result.status === 'error') {
-                setHasNewEntries(true);
+                setNewEntryCount((current) => Math.max(current, pendingCount));
             }
         });
-    }, [refetchEntryList]);
+    }, [newEntryCount, refetchEntryList]);
 
     const selectedEntryId = state.entryId ?? 1;
     const entryDetailQuery = useQuery({
@@ -398,7 +410,7 @@ export function ReaderPage() {
                         <ReaderEntryList
                             density={feedListDensity}
                             entries={listEntries}
-                            hasNewEntries={hasNewEntries}
+                            newEntryCount={newEntryCount}
                             scopeTitle={entryListTitle}
                             error={entryListQuery.error}
                             hasNextPage={entryListQuery.hasNextPage}

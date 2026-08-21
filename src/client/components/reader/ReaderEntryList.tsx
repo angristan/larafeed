@@ -29,7 +29,7 @@ interface ReaderEntryListProps {
     readonly isFetching: boolean;
     readonly isFetchingNextPage: boolean;
     readonly hasNextPage: boolean;
-    readonly hasNewEntries: boolean;
+    readonly newEntryCount: number;
     readonly error: Error | null;
     readonly onRetry: () => void;
     readonly onPrefetchEntry: (entryId: number) => void;
@@ -102,7 +102,7 @@ export function ReaderEntryList({
     isFetching,
     isFetchingNextPage,
     hasNextPage,
-    hasNewEntries,
+    newEntryCount,
     error,
     onRetry,
     onPrefetchEntry,
@@ -162,7 +162,7 @@ export function ReaderEntryList({
                     </Text>
                 </div>
                 <Group gap="xs" wrap="nowrap">
-                    {hasNewEntries && (
+                    {newEntryCount > 0 && (
                         <Button
                             className={classes.newEntriesChip}
                             leftSection={
@@ -185,7 +185,8 @@ export function ReaderEntryList({
                             size="compact-xs"
                             variant="light"
                         >
-                            New entries
+                            {newEntryCount.toLocaleString()} new{' '}
+                            {newEntryCount === 1 ? 'entry' : 'entries'}
                         </Button>
                     )}
                     <Text c="dimmed" size="xs">
