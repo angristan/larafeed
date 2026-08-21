@@ -4,19 +4,17 @@ import {
     type QueryClient,
     queryOptions,
 } from '@tanstack/react-query';
-import { Effect } from 'effect';
-
-import {
-    getEntry,
-    getReaderCounts,
-    listCategories,
-    listEntries,
-    listSubscriptions,
-    type ReaderEntry,
-    type ReaderEntryListInput,
-    type ReaderEntryPage,
-    type ReaderInteraction,
+import type {
+    ReaderEntry,
+    ReaderEntryListInput,
+    ReaderEntryPage,
+    ReaderInteraction,
 } from '../api/reader';
+import {
+    fetchReaderJson,
+    type ReaderJsonResponse,
+    readerEntryListPath,
+} from '../api/readerRequest';
 import { protectedQueryKeys } from './auth';
 
 export const readerKeys = {
@@ -48,23 +46,56 @@ export const entryKeys = {
         [...entryKeys.interactions(), entryId, kind] as const,
 };
 
+type ReaderDecoders = typeof import('../api/readerDecoders');
+type ReaderDecoder<A> = (response: ReaderJsonResponse) => Promise<A>;
+
+function fetchAndDecode<A>(
+    path: string,
+    signal: AbortSignal,
+    selectDecoder: (decoders: ReaderDecoders) => ReaderDecoder<A>,
+): Promise<A> {
+    // Start the request before importing Effect Schema. Network and decoder
+    // loading now overlap instead of forming a route-load waterfall.
+    const response = fetchReaderJson(path, signal);
+    const decoders = import('../api/readerDecoders');
+
+    return Promise.all([response, decoders]).then(([result, loaded]) =>
+        selectDecoder(loaded)(result),
+    );
+}
+
 export const categoryListQueryOptions = queryOptions({
     queryKey: categoryKeys.list(),
-    queryFn: ({ signal }) => Effect.runPromise(listCategories(), { signal }),
+    queryFn: ({ signal }) =>
+        fetchAndDecode(
+            '/api/categories',
+            signal,
+            (decoders) => decoders.decodeReaderCategoryList,
+        ),
     staleTime: 30_000,
     retry: false,
 });
 
 export const subscriptionListQueryOptions = queryOptions({
     queryKey: subscriptionKeys.list(),
-    queryFn: ({ signal }) => Effect.runPromise(listSubscriptions(), { signal }),
+    queryFn: ({ signal }) =>
+        fetchAndDecode(
+            '/api/subscriptions',
+            signal,
+            (decoders) => decoders.decodeReaderSubscriptionList,
+        ),
     staleTime: 20_000,
     retry: false,
 });
 
 export const readerCountsQueryOptions = queryOptions({
     queryKey: readerKeys.counts(),
-    queryFn: ({ signal }) => Effect.runPromise(getReaderCounts(), { signal }),
+    queryFn: ({ signal }) =>
+        fetchAndDecode(
+            '/api/entries/counts',
+            signal,
+            (decoders) => decoders.decodeReaderCounts,
+        ),
     staleTime: 15_000,
     retry: false,
 });
@@ -75,9 +106,11 @@ export function entryListInfiniteQueryOptions(scope: ReaderEntryListScope) {
     return infiniteQueryOptions({
         queryKey: entryKeys.list(scope),
         queryFn: ({ pageParam, signal }) =>
-            Effect.runPromise(listEntries({ ...scope, cursor: pageParam }), {
+            fetchAndDecode(
+                readerEntryListPath({ ...scope, cursor: pageParam }),
                 signal,
-            }),
+                (decoders) => decoders.decodeReaderEntryPage,
+            ),
         initialPageParam: null as string | null,
         getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
         staleTime: 20_000,
@@ -92,7 +125,11 @@ export function entryDetailQueryOptions(entryId: number) {
     return queryOptions({
         queryKey: entryKeys.detail(entryId),
         queryFn: ({ signal }) =>
-            Effect.runPromise(getEntry(entryId), { signal }),
+            fetchAndDecode(
+                `/api/entries/${entryId}`,
+                signal,
+                (decoders) => decoders.decodeReaderEntry,
+            ),
         staleTime: 30_000,
         retry: false,
     });

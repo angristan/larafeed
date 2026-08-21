@@ -8,19 +8,12 @@ import {
     captureAccessTokenFromFragment,
     clearCapturedAccessToken,
 } from './auth/accessToken';
-import { canonicalChartSearch, parseChartState } from './chartState';
 import { NotFoundPage, RouteErrorPage } from './pages/RouteStatePage';
-import {
-    accountQueryOptions,
-    adminOverviewQueryOptions,
-    passkeysQueryOptions,
-} from './queries/account';
 import {
     authConfigQueryOptions,
     authSessionQueryOptions,
     clearAuthenticatedCache,
 } from './queries/auth';
-import { chartQueryOptions } from './queries/charts';
 import {
     categoryListQueryOptions,
     entryDetailQueryOptions,
@@ -28,7 +21,6 @@ import {
     readerCountsQueryOptions,
     subscriptionListQueryOptions,
 } from './queries/reader';
-import { subscriptionManagementQueryOptions } from './queries/subscriptions';
 import { queryClient, setAppSessionExpiredHandler } from './queryClient';
 import {
     canonicalReaderRouteSearch,
@@ -87,8 +79,13 @@ async function rootLoader(args: LoaderFunctionArgs) {
 }
 
 async function securityLoader(args: LoaderFunctionArgs) {
+    const accountQueries = import('./queries/account');
     await protectedLoader(args);
-    await Promise.all([
+    const { accountQueryOptions, passkeysQueryOptions } = await accountQueries;
+
+    // Warm non-critical page data without making React Router wait for every
+    // request. The mounted queries own loading and error presentation.
+    void Promise.all([
         queryClient.prefetchQuery(accountQueryOptions),
         queryClient.prefetchQuery(passkeysQueryOptions),
         queryClient.prefetchQuery(authConfigQueryOptions),
@@ -97,18 +94,23 @@ async function securityLoader(args: LoaderFunctionArgs) {
 }
 
 async function adminLoader(args: LoaderFunctionArgs) {
+    const accountQueries = import('./queries/account');
     await protectedLoader(args);
     const session = queryClient.getQueryData(authSessionQueryOptions.queryKey);
     if (session?.authenticated !== true || !session.user.isAdmin) {
         throw redirect('/feeds');
     }
-    await queryClient.prefetchQuery(adminOverviewQueryOptions);
+
+    const { adminOverviewQueryOptions } = await accountQueries;
+    void queryClient.prefetchQuery(adminOverviewQueryOptions);
     return null;
 }
 
 async function subscriptionsLoader(args: LoaderFunctionArgs) {
+    const subscriptionQueries = import('./queries/subscriptions');
     await protectedLoader(args);
-    await queryClient.prefetchQuery(subscriptionManagementQueryOptions);
+    const { subscriptionManagementQueryOptions } = await subscriptionQueries;
+    void queryClient.prefetchQuery(subscriptionManagementQueryOptions);
     return null;
 }
 
@@ -168,9 +170,15 @@ async function legacySettingsLoader(args: LoaderFunctionArgs) {
 }
 
 async function chartsLoader(args: LoaderFunctionArgs) {
+    const routeModules = Promise.all([
+        import('./chartState'),
+        import('./queries/charts'),
+        import('./queries/subscriptions'),
+    ]);
     await protectedLoader(args);
-    const state = parseChartState(args.url.searchParams);
-    const canonicalSearch = canonicalChartSearch(state);
+    const [chartState, charts, subscriptions] = await routeModules;
+    const state = chartState.parseChartState(args.url.searchParams);
+    const canonicalSearch = chartState.canonicalChartSearch(state);
     if (args.url.search.slice(1) !== canonicalSearch) {
         throw redirect(
             `${args.url.pathname}${
@@ -178,9 +186,11 @@ async function chartsLoader(args: LoaderFunctionArgs) {
             }`,
         );
     }
-    await Promise.all([
-        queryClient.prefetchQuery(subscriptionManagementQueryOptions),
-        queryClient.prefetchQuery(chartQueryOptions(state)),
+    void Promise.all([
+        queryClient.prefetchQuery(
+            subscriptions.subscriptionManagementQueryOptions,
+        ),
+        queryClient.prefetchQuery(charts.chartQueryOptions(state)),
     ]);
     return null;
 }
@@ -226,7 +236,7 @@ async function readerLoader(args: LoaderFunctionArgs) {
         );
     }
 
-    await Promise.all(prefetches);
+    void Promise.all(prefetches);
     return null;
 }
 

@@ -16,6 +16,10 @@ import {
 } from '@shared/http';
 import { Effect, Schema } from 'effect';
 
+import { AuthClientError } from './authError';
+
+export { AuthClientError, type AuthClientErrorKind } from './authError';
+
 export type AuthConfig = typeof AuthConfigResponse.Type;
 export type AuthSession = typeof AuthSessionResponse.Type;
 export type AuthenticatedSession = typeof AuthenticatedSessionResponse.Type;
@@ -23,23 +27,6 @@ export type AuthenticationOptions = typeof AuthenticationOptionsResponse.Type;
 export type RegistrationOptions = typeof RegistrationOptionsResponse.Type;
 export type PasskeyList = typeof PasskeyListResponse.Type;
 export type PasskeyRecord = PasskeyList['passkeys'][number];
-
-export type AuthClientErrorKind = 'transport' | 'status' | 'decode';
-
-export class AuthClientError extends Error {
-    readonly _tag = 'AuthClientError';
-
-    constructor(
-        readonly kind: AuthClientErrorKind,
-        message: string,
-        readonly status?: number,
-        readonly code?: typeof ApiErrorResponse.Type.error.code,
-        cause?: unknown,
-    ) {
-        super(message, { cause });
-        this.name = 'AuthClientError';
-    }
-}
 
 type RequestBody =
     | typeof AuthenticationOptionsRequest.Type
@@ -152,6 +139,9 @@ const postJson = <A>(
 export const getAuthConfig = Effect.fn('AuthClient.getConfig')(() =>
     requestJson('/api/auth/config', AuthConfigResponse),
 );
+
+export const getAuthConfigPromise = (signal: AbortSignal) =>
+    Effect.runPromise(getAuthConfig(), { signal });
 
 export const getAuthSession = Effect.fn('AuthClient.getSession')(() =>
     requestJson('/api/auth/session', AuthSessionResponse),

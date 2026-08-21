@@ -1,3 +1,5 @@
+import '@gfazioli/mantine-split-pane/styles.css';
+
 import { Split } from '@gfazioli/mantine-split-pane';
 import {
     AppShell,

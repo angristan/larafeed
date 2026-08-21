@@ -12,6 +12,11 @@ import {
 } from '@shared/http';
 import { Effect, Schema } from 'effect';
 
+import { ReaderClientError } from './readerError';
+import { readerEntryListPath } from './readerRequest';
+
+export { ReaderClientError, type ReaderClientErrorKind } from './readerError';
+
 export type ReaderCategoryList = typeof ReaderCategoryListResponse.Type;
 export type ReaderSubscriptionList = typeof ReaderSubscriptionListResponse.Type;
 export type ReaderCounts = typeof ReaderCountsResponse.Type;
@@ -50,23 +55,6 @@ export interface DesiredArchiveInput {
 export interface ReadThroughInput {
     readonly feedId: number;
     readonly csrfToken: string;
-}
-
-export type ReaderClientErrorKind = 'transport' | 'status' | 'decode';
-
-export class ReaderClientError extends Error {
-    readonly _tag = 'ReaderClientError';
-
-    constructor(
-        readonly kind: ReaderClientErrorKind,
-        message: string,
-        readonly status?: number,
-        readonly code?: typeof ApiErrorResponse.Type.error.code,
-        cause?: unknown,
-    ) {
-        super(message, { cause });
-        this.name = 'ReaderClientError';
-    }
 }
 
 interface JsonRequestOptions {
@@ -178,27 +166,8 @@ export const getReaderCounts = Effect.fn('ReaderClient.getCounts')(() =>
 );
 
 export const listEntries = Effect.fn('ReaderClient.listEntries')(
-    (input: ReaderEntryListInput) => {
-        const search = new URLSearchParams({
-            filter: input.filter,
-            order_by: input.orderBy,
-            page_size: input.pageSize.toString(),
-        });
-        if (input.cursor !== null) {
-            search.set('cursor', input.cursor);
-        }
-
-        if (input.feedId !== null) {
-            search.set('feed_id', input.feedId.toString());
-        } else if (input.categoryId !== null) {
-            search.set('category_id', input.categoryId.toString());
-        }
-
-        return requestJson(
-            `/api/entries?${search.toString()}`,
-            ReaderEntryListResponse,
-        );
-    },
+    (input: ReaderEntryListInput) =>
+        requestJson(readerEntryListPath(input), ReaderEntryListResponse),
 );
 
 export const getEntry = Effect.fn('ReaderClient.getEntry')((entryId: number) =>

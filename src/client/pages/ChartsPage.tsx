@@ -1,3 +1,5 @@
+import '@mantine/charts/styles.css';
+
 import { BarChart, Heatmap, LineChart } from '@mantine/charts';
 import {
     Alert,

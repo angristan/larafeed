@@ -1,3 +1,6 @@
+/assets/*
+    Cache-Control: public, max-age=31556952, immutable
+
 /*
     Content-Security-Policy: default-src 'self'; base-uri 'none'; connect-src 'self' https://challenges.cloudflare.com; font-src 'self'; form-action 'self'; frame-ancestors 'none'; frame-src https://challenges.cloudflare.com; img-src 'self' data:; object-src 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'
     X-Content-Type-Options: nosniff

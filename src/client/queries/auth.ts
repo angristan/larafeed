@@ -1,12 +1,7 @@
 import { type QueryClient, queryOptions } from '@tanstack/react-query';
-import { Effect } from 'effect';
 
-import {
-    AuthClientError,
-    type AuthSession,
-    getAuthConfig,
-    getAuthSession,
-} from '../api/auth';
+import { AuthClientError } from '../api/authError';
+import { type AuthSession, fetchAuthSession } from '../api/authSession';
 
 export const authKeys = {
     all: ['auth'] as const,
@@ -20,14 +15,17 @@ export const protectedQueryKeys = {
 
 export const authConfigQueryOptions = queryOptions({
     queryKey: authKeys.config(),
-    queryFn: ({ signal }) => Effect.runPromise(getAuthConfig(), { signal }),
+    queryFn: async ({ signal }) => {
+        const { getAuthConfigPromise } = await import('../api/auth');
+        return getAuthConfigPromise(signal);
+    },
     retry: false,
     staleTime: 5 * 60_000,
 });
 
 export const authSessionQueryOptions = queryOptions({
     queryKey: authKeys.session(),
-    queryFn: ({ signal }) => Effect.runPromise(getAuthSession(), { signal }),
+    queryFn: ({ signal }) => fetchAuthSession(signal),
     retry: false,
     staleTime: 30_000,
 });

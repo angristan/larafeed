@@ -1,3 +1,5 @@
+import '@mantine/spotlight/styles.css';
+
 import {
     ActionIcon,
     AppShell,

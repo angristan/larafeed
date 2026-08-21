@@ -3,7 +3,7 @@ import {
     QueryClient,
     QueryObserver,
 } from '@tanstack/react-query';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
     ReaderEntry,
@@ -12,6 +12,7 @@ import type {
 } from '../api/reader';
 import {
     categoryKeys,
+    categoryListQueryOptions,
     entryKeys,
     entryListInfiniteQueryOptions,
     invalidateReaderAfterInteraction,
@@ -82,6 +83,10 @@ const infinitePage: InfiniteData<ReaderEntryPage> = {
     pageParams: [null],
 };
 
+afterEach(() => {
+    vi.unstubAllGlobals();
+});
+
 const interaction: ReaderInteraction = {
     entryId: 7,
     feedId: 3,
@@ -94,6 +99,26 @@ const interaction: ReaderInteraction = {
 };
 
 describe('reader query contracts', () => {
+    it('starts the request immediately and decodes when it completes', async () => {
+        let resolveResponse: ((response: Response) => void) | undefined;
+        const fetchMock = vi.fn(
+            () =>
+                new Promise<Response>((resolve) => {
+                    resolveResponse = resolve;
+                }),
+        );
+        vi.stubGlobal('fetch', fetchMock);
+        const queryClient = new QueryClient({
+            defaultOptions: { queries: { retry: false } },
+        });
+
+        const result = queryClient.fetchQuery(categoryListQueryOptions);
+        expect(fetchMock).toHaveBeenCalledOnce();
+
+        resolveResponse?.(Response.json({ categories: [] }));
+        await expect(result).resolves.toEqual({ categories: [] });
+    });
+
     it('includes the whole list scope in a hierarchical key', () => {
         expect(entryKeys.list(listScope)).toEqual([
             'protected',
