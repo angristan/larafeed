@@ -358,7 +358,7 @@ describe('feed parser', () => {
             author: 'Feed Author',
             publishedAt: Date.parse('2026-07-18T09:00:00Z'),
             sourceUpdatedAt: Date.parse('2026-07-18T09:00:00Z'),
-            contentHtml: 'Plain &lt;b&gt;text&lt;/b&gt; &amp; safe',
+            contentHtml: 'Plain &lt;b>text&lt;/b> &amp; safe',
         });
         expect(
             feed.entries.find((entry) => entry.sourceId === 'oversized-entry'),
