@@ -105,6 +105,21 @@ const parser = new XMLParser({
         maxExpandedLength: 100_000,
         maxTotalExpansions: MAX_XML_ENTITY_EXPANSIONS,
     },
+    // The default object representation groups children by tag name, which
+    // destroys mixed XHTML order (for example p, h2, p, ol becomes p, p, h2,
+    // ol). Keep entry bodies raw until the HTML sanitizer processes them.
+    stopNodes: [
+        'rss.channel.item.encoded',
+        'rss.channel.item.content',
+        'rss.channel.item.description',
+        'rss.channel.item.summary',
+        'feed.entry.content',
+        'feed.entry.summary',
+        'rdf.item.encoded',
+        'rdf.item.content',
+        'rdf.item.description',
+        'rdf.item.summary',
+    ],
     removeNSPrefix: true,
     transformAttributeName: (name) =>
         name.split(':').at(-1)?.toLowerCase() ?? name,
@@ -212,9 +227,48 @@ const escaped = (value: string): string =>
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;');
 
+const decodeXmlEntities = (value: string): string =>
+    value.replace(
+        /&(?:#(\d{1,7})|#[xX]([\da-fA-F]{1,6})|(amp|apos|gt|lt|quot));/gu,
+        (
+            match,
+            decimal: string | undefined,
+            hexadecimal: string | undefined,
+            named: string | undefined,
+        ) => {
+            if (decimal !== undefined) return decodedCodePoint(decimal, 10);
+            if (hexadecimal !== undefined) {
+                return decodedCodePoint(hexadecimal, 16);
+            }
+            return named === undefined ? match : namedEntities[named];
+        },
+    );
+
+const namedEntities: Readonly<Record<string, string>> = {
+    amp: '&',
+    apos: "'",
+    gt: '>',
+    lt: '<',
+    quot: '"',
+};
+
+const rawHtml = (value: string): string => {
+    const output: string[] = [];
+    const cdata = /<!\[CDATA\[([\s\S]*?)\]\]>/gu;
+    let cursor = 0;
+
+    for (const match of value.matchAll(cdata)) {
+        const index = match.index;
+        output.push(decodeXmlEntities(value.slice(cursor, index)), match[1]);
+        cursor = index + match[0].length;
+    }
+    output.push(decodeXmlEntities(value.slice(cursor)));
+    return output.join('');
+};
+
 const htmlFromValue = (value: unknown): string | undefined => {
     if (typeof value === 'string' || typeof value === 'number') {
-        return String(value);
+        return rawHtml(String(value));
     }
     if (Array.isArray(value)) {
         const html = value.map(htmlFromValue).filter(Boolean).join('');
@@ -227,7 +281,7 @@ const htmlFromValue = (value: unknown): string | undefined => {
 
     const output: string[] = [];
     if (object['#text'] !== undefined) {
-        output.push(String(object['#text']));
+        output.push(rawHtml(String(object['#text'])));
     }
     for (const [name, child] of Object.entries(object)) {
         if (name === '#text' || name.startsWith('@_')) {

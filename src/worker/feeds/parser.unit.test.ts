@@ -164,6 +164,22 @@ describe('feed parser', () => {
         });
     });
 
+    it('preserves mixed XHTML markup in source order', async () => {
+        const feed = await parse(`<feed xmlns="http://www.w3.org/2005/Atom">
+            <title>Mixed content</title>
+            <entry>
+              <id>mixed-content</id>
+              <title>Mixed content entry</title>
+              <updated>2026-07-18T11:00:00Z</updated>
+              <content type="xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><p>Intro &amp; <em>first</em>.</p><h2>Steps</h2><p>Before the list.</p><ol><li>One</li><li>Two</li></ol><p>After the list.</p></div></content>
+            </entry>
+        </feed>`);
+
+        expect(feed.entries[0]?.contentHtml).toBe(
+            '<div><p>Intro &amp; <em>first</em>.</p><h2>Steps</h2><p>Before the list.</p><ol><li>One</li><li>Two</li></ol><p>After the list.</p></div>',
+        );
+    });
+
     it('decodes Atom title entities once and skips future updated entries', async () => {
         const feed = await parse(`<feed xmlns="http://www.w3.org/2005/Atom">
             <title>Here&#8217;s &amp; Atom &amp;amp; &amp;mdash;</title>
