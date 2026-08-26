@@ -4,10 +4,17 @@ export const MAX_ARTICLE_IMAGES = 100;
 
 const fallbackBase = new URL('https://invalid.larafeed.local/');
 
+// HTMLRewriter exposes serialized attribute values, so sanitized query strings
+// contain `&amp;`. Decode only ampersand references before URL validation; broader
+// entity decoding could turn an otherwise rejected value into an active scheme.
+const decodeAmpersandReferences = (value: string): string =>
+    value.replace(/&(?:amp|#0*38|#x0*26);/giu, '&');
+
 const sourceUrl = (value: string, baseUrl: string | null): string | null => {
     try {
         const base = baseUrl === null ? fallbackBase : validateFeedUrl(baseUrl);
-        return validateFeedUrl(new URL(value, base)).href;
+        return validateFeedUrl(new URL(decodeAmpersandReferences(value), base))
+            .href;
     } catch {
         return null;
     }

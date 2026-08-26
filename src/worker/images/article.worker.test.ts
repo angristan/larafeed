@@ -44,6 +44,18 @@ describe('article image privacy', () => {
         ).resolves.toBeNull();
     });
 
+    it('decodes escaped query separators in sanitized image URLs', async () => {
+        await expect(
+            findArticleImageSource(
+                '<img src="https://www.phoronix.net/image.php?id=2026&amp;image=gfx1250_strict_1">',
+                'https://www.phoronix.com/news/AMD-gfx1250-strict',
+                1,
+            ),
+        ).resolves.toBe(
+            'https://www.phoronix.net/image.php?id=2026&image=gfx1250_strict_1',
+        );
+    });
+
     it('fails closed after the bounded image count', async () => {
         const html = Array.from(
             { length: MAX_ARTICLE_IMAGES + 1 },
