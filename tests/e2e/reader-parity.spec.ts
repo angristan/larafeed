@@ -339,11 +339,15 @@ test('keeps the unread page stable and generates a summary from entry actions', 
     await page.goto('/feeds?filter=unread&order_by=published_at');
 
     const entryLink = page.getByText('First unread entry', { exact: true }).first();
+    const entryRow = page.locator('#reader-entry-41');
     await expect(entryLink).toBeVisible();
+    await expect(entryRow).toHaveAttribute('data-read', 'false');
     await entryLink.click();
     await expect(page.locator('h1')).toHaveText('First unread entry');
     await expect(page.locator('h1')).not.toBeFocused();
     await expect.poll(() => state.readPuts).toBe(1);
+    await expect(entryRow).toHaveAttribute('data-read', 'true');
+    await expect(entryRow.locator('.tabler-icon-check')).toBeVisible();
 
     const toolbar = page.locator('[data-entry-toolbar]');
     const [toolbarBox, sourceBox, contentBox, actionsBox, originalBox] =

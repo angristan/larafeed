@@ -8,8 +8,14 @@ import {
     Skeleton,
     Stack,
     Text,
+    VisuallyHidden,
 } from '@mantine/core';
-import { IconArrowUp, IconRefresh, IconStarFilled } from '@tabler/icons-react';
+import {
+    IconArrowUp,
+    IconCheck,
+    IconRefresh,
+    IconStarFilled,
+} from '@tabler/icons-react';
 import { type CSSProperties, useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 
@@ -299,6 +305,7 @@ export function ReaderEntryList({
                                                     ? classes.activeEntry
                                                     : ''
                                             } ${entry.read ? classes.readEntry : ''}`}
+                                            data-read={entry.read}
                                             onFocus={() =>
                                                 onPrefetchEntry(entry.id)
                                             }
@@ -315,7 +322,19 @@ export function ReaderEntryList({
                                                 data-read={
                                                     entry.read || undefined
                                                 }
-                                            />
+                                            >
+                                                {entry.read && (
+                                                    <IconCheck
+                                                        size={11}
+                                                        stroke={2.5}
+                                                    />
+                                                )}
+                                            </span>
+                                            <VisuallyHidden>
+                                                {entry.read
+                                                    ? 'Read entry. '
+                                                    : 'Unread entry. '}
+                                            </VisuallyHidden>
                                             <span className={classes.entryCopy}>
                                                 <span
                                                     className={

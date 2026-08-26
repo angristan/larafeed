@@ -81,6 +81,22 @@ describe('ReaderEntryList infinite list', () => {
         );
     });
 
+    it('exposes read state in both markup and accessible text', () => {
+        const readEntry = {
+            ...entries[0],
+            id: 8,
+            title: 'An already read entry',
+            read: true,
+        };
+        const markup = render({ entries: [entries[0], readEntry], total: 2 });
+
+        expect(markup).toContain('data-read="false"');
+        expect(markup).toContain('data-read="true"');
+        expect(markup).toContain('Unread entry.');
+        expect(markup).toContain('Read entry.');
+        expect(markup).toContain('tabler-icon-check');
+    });
+
     it('renders a load-more sentinel only while more pages exist', () => {
         expect(render({ hasNextPage: true })).toContain('listSentinel');
         expect(render({ hasNextPage: false })).not.toContain('listSentinel');

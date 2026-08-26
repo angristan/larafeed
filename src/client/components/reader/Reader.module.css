@@ -317,7 +317,7 @@
     position: relative;
     display: grid;
     min-height: 64px;
-    grid-template-columns: 5px minmax(0, 1fr);
+    grid-template-columns: 12px minmax(0, 1fr);
     gap: var(--ds-space-3);
     align-items: stretch;
     padding: 10px var(--ds-space-4) 10px var(--ds-space-3);
@@ -357,28 +357,45 @@
 }
 
 .readEntry {
-    color: var(--ds-muted);
+    color: color-mix(in srgb, var(--ds-muted) 88%, var(--ds-ink));
+    background: color-mix(in srgb, var(--ds-paper-muted) 58%, var(--ds-paper));
+}
+
+.readEntry:hover {
+    background: color-mix(
+        in srgb,
+        var(--ds-paper-strong) 50%,
+        var(--ds-paper-muted)
+    );
 }
 
 .activeEntry.readEntry {
     color: var(--ds-ink);
+    background: color-mix(in srgb, var(--ds-sage-surface) 78%, var(--ds-paper));
 }
 
 .unreadMarker {
-    width: 6px;
-    height: 6px;
+    display: grid;
+    width: 12px;
+    height: 12px;
     align-self: start;
-    margin-top: 7px;
+    place-items: center;
+    margin-top: 4px;
+    color: var(--ds-subtle);
+}
+
+.unreadMarker::before {
+    width: 7px;
+    height: 7px;
     border: 1px solid var(--ds-accent-border);
     border-radius: 50%;
     background: var(--ds-accent);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-accent) 10%, transparent);
+    content: '';
 }
 
-.unreadMarker[data-read] {
-    border-color: transparent;
-    background: transparent;
-    box-shadow: none;
+.unreadMarker[data-read]::before {
+    content: none;
 }
 
 .entryCopy {
@@ -412,7 +429,17 @@
 }
 
 .readEntry .entryCopy > .entryTitle {
-    font-weight: 520;
+    font-weight: 500;
+}
+
+.readEntry .feedMeta :is(img, svg) {
+    filter: grayscale(0.65);
+    opacity: 0.68;
+}
+
+.activeEntry.readEntry .feedMeta :is(img, svg) {
+    filter: none;
+    opacity: 1;
 }
 
 .starredIcon {
