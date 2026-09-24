@@ -27,7 +27,8 @@ const authentication = {
 const makeHarness = (overrides: {
     readonly service?: Partial<AuthService>;
     readonly repository?: Partial<CompatibilityRepository>;
-    readonly rateLimit?: CompatibilityRouteDependencies['rateLimit'];
+    readonly loginRateLimit?: CompatibilityRouteDependencies['loginRateLimit'];
+    readonly syncRateLimit?: CompatibilityRouteDependencies['syncRateLimit'];
 }) => {
     const authenticateAppToken = vi.fn(() => Effect.succeed(authentication));
     const authenticateAppTokenCredential = vi.fn((input) =>
@@ -137,11 +138,19 @@ const makeHarness = (overrides: {
         now: () => 1_800_000_000_000,
     };
     const rateKeys: string[] = [];
+    const loginRateKeys: string[] = [];
+    const syncRateKeys: string[] = [];
     const app = registerCompatibilityRoutes(new Hono<{ Bindings: Env }>(), {
         runtimeFactory: () => Effect.succeed(runtime),
-        rateLimit: (env, key) => {
+        loginRateLimit: (env, key) => {
             rateKeys.push(key);
-            return overrides.rateLimit?.(env, key) ?? Effect.void;
+            loginRateKeys.push(key);
+            return overrides.loginRateLimit?.(env, key) ?? Effect.void;
+        },
+        syncRateLimit: (env, key) => {
+            rateKeys.push(key);
+            syncRateKeys.push(key);
+            return overrides.syncRateLimit?.(env, key) ?? Effect.void;
         },
     });
     return {
@@ -150,6 +159,8 @@ const makeHarness = (overrides: {
         authenticateAppTokenCredential,
         authenticateFeverApiKey,
         rateKeys,
+        loginRateKeys,
+        syncRateKeys,
     };
 };
 
@@ -183,6 +194,8 @@ describe('compatibility protocol routes', () => {
         expect(harness.rateKeys).toEqual([
             'compat:google:pre-auth:local-development',
         ]);
+        expect(harness.loginRateKeys).toEqual(harness.rateKeys);
+        expect(harness.syncRateKeys).toEqual([]);
     });
 
     it('rejects oversized forms with a sanitized protocol response', async () => {
@@ -206,7 +219,7 @@ describe('compatibility protocol routes', () => {
 
     it('rate-limits invalid Google credentials by IP before verification', async () => {
         const harness = makeHarness({
-            rateLimit: () => Effect.fail(new CompatibilityRateLimited()),
+            syncRateLimit: () => Effect.fail(new CompatibilityRateLimited()),
         });
         const response = await harness.app.request(
             '/api/reader/reader/api/0/user-info',
@@ -225,11 +238,13 @@ describe('compatibility protocol routes', () => {
             'compat:google:pre-auth:203.0.113.20',
         ]);
         expect(harness.authenticateAppTokenCredential).not.toHaveBeenCalled();
+        expect(harness.loginRateKeys).toEqual([]);
+        expect(harness.syncRateKeys).toEqual(harness.rateKeys);
     });
 
     it('rate-limits invalid Fever credentials by IP before verification', async () => {
         const harness = makeHarness({
-            rateLimit: () => Effect.fail(new CompatibilityRateLimited()),
+            syncRateLimit: () => Effect.fail(new CompatibilityRateLimited()),
         });
         const response = await harness.app.request(
             '/api/fever/',
@@ -253,6 +268,37 @@ describe('compatibility protocol routes', () => {
             'compat:fever:pre-auth:203.0.113.21',
         ]);
         expect(harness.authenticateFeverApiKey).not.toHaveBeenCalled();
+        expect(harness.loginRateKeys).toEqual([]);
+        expect(harness.syncRateKeys).toEqual(harness.rateKeys);
+    });
+
+    it('routes Reeder bursts around the strict login limiter', async () => {
+        const harness = makeHarness({
+            loginRateLimit: () => Effect.fail(new CompatibilityRateLimited()),
+            syncRateLimit: () => Effect.void,
+        });
+        const request = () =>
+            harness.app.request(
+                '/api/reader/reader/api/0/stream/items/contents',
+                {
+                    ...formRequest(new URLSearchParams({ i: '4660' })),
+                    headers: {
+                        'content-type': 'application/x-www-form-urlencoded',
+                        Authorization: 'GoogleLogin auth=opaque-token',
+                    },
+                },
+                {} as Env,
+            );
+
+        const responses = await Promise.all(
+            Array.from({ length: 25 }, () => request()),
+        );
+
+        expect(responses.map(({ status }) => status)).toEqual(
+            Array.from({ length: 25 }, () => 200),
+        );
+        expect(harness.loginRateKeys).toEqual([]);
+        expect(harness.syncRateKeys).toHaveLength(50);
     });
 
     it.each([
@@ -316,6 +362,8 @@ describe('compatibility protocol routes', () => {
                 'compat:google:pre-auth:203.0.113.22',
                 'compat:google:token:91',
             ]);
+            expect(harness.loginRateKeys).toEqual([]);
+            expect(harness.syncRateKeys).toEqual(harness.rateKeys);
             expect(harness.authenticateAppTokenCredential).toHaveBeenCalledWith(
                 {
                     plaintextToken: 'opaque-token',

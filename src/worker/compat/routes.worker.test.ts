@@ -124,7 +124,8 @@ describe('compatibility routes with Workerd D1', () => {
 
         const app = registerCompatibilityRoutes(new Hono<{ Bindings: Env }>(), {
             runtimeFactory: () => Effect.succeed(makeRuntime()),
-            rateLimit: () => Effect.void,
+            loginRateLimit: () => Effect.void,
+            syncRateLimit: () => Effect.void,
         });
         const google = await app.request(
             '/api/reader/reader/api/0/stream/items/contents',

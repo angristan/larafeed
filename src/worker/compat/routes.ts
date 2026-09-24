@@ -45,15 +45,15 @@ export type CompatibilityRuntimeFactory = (
     env: Env,
 ) => Effect.Effect<CompatibilityRuntime, unknown>;
 
+type CompatibilityRateLimit = (
+    env: Env,
+    key: string,
+) => Effect.Effect<void, CompatibilityRateLimited | CompatibilityStorageError>;
+
 export interface CompatibilityRouteDependencies {
     readonly runtimeFactory?: CompatibilityRuntimeFactory;
-    readonly rateLimit?: (
-        env: Env,
-        key: string,
-    ) => Effect.Effect<
-        void,
-        CompatibilityRateLimited | CompatibilityStorageError
-    >;
+    readonly loginRateLimit?: CompatibilityRateLimit;
+    readonly syncRateLimit?: CompatibilityRateLimit;
 }
 
 export const defaultCompatibilityRuntimeFactory: CompatibilityRuntimeFactory = (
@@ -69,12 +69,12 @@ export const defaultCompatibilityRuntimeFactory: CompatibilityRuntimeFactory = (
     );
 };
 
-const defaultRateLimit = (
-    env: Env,
+const applyRateLimit = (
+    limiter: RateLimit,
     key: string,
-): Effect.Effect<void, CompatibilityRateLimited | CompatibilityStorageError> =>
+): ReturnType<CompatibilityRateLimit> =>
     Effect.tryPromise({
-        try: () => env.AUTH_RATE_LIMITER.limit({ key }),
+        try: () => limiter.limit({ key }),
         catch: (cause) =>
             new CompatibilityStorageError({
                 operation: 'compat.rateLimit',
@@ -87,6 +87,12 @@ const defaultRateLimit = (
                 : Effect.fail(new CompatibilityRateLimited()),
         ),
     );
+
+const defaultLoginRateLimit: CompatibilityRateLimit = (env, key) =>
+    applyRateLimit(env.AUTH_RATE_LIMITER, key);
+
+const defaultSyncRateLimit: CompatibilityRateLimit = (env, key) =>
+    applyRateLimit(env.COMPAT_RATE_LIMITER, key);
 
 const headers = (contentType: string): Headers =>
     new Headers({ 'cache-control': NO_STORE, 'content-type': contentType });
@@ -317,14 +323,15 @@ export const registerCompatibilityRoutes = (
 ): Hono<{ Bindings: Env }> => {
     const runtimeFactory =
         dependencies.runtimeFactory ?? defaultCompatibilityRuntimeFactory;
-    const rateLimit = dependencies.rateLimit ?? defaultRateLimit;
+    const loginRateLimit = dependencies.loginRateLimit ?? defaultLoginRateLimit;
+    const syncRateLimit = dependencies.syncRateLimit ?? defaultSyncRateLimit;
     const runtime = (env: Env) => Effect.suspend(() => runtimeFactory(env));
 
     app.post('/api/reader/accounts/ClientLogin', (context) =>
         runGoogle(
             context.req.raw,
             Effect.gen(function* () {
-                yield* rateLimit(
+                yield* loginRateLimit(
                     context.env,
                     preAuthenticationRateLimitKey(context, 'google'),
                 );
@@ -356,7 +363,7 @@ export const registerCompatibilityRoutes = (
         runGoogle(
             context.req.raw,
             Effect.gen(function* () {
-                yield* rateLimit(
+                yield* syncRateLimit(
                     context.env,
                     preAuthenticationRateLimitKey(context, 'google'),
                 );
@@ -371,7 +378,7 @@ export const registerCompatibilityRoutes = (
                         plaintextToken,
                         requiredScope: 'google-reader',
                     });
-                yield* rateLimit(
+                yield* syncRateLimit(
                     context.env,
                     `compat:google:token:${authentication.tokenId}`,
                 );
@@ -523,7 +530,7 @@ export const registerCompatibilityRoutes = (
         runFever(
             context.req.raw,
             Effect.gen(function* () {
-                yield* rateLimit(
+                yield* syncRateLimit(
                     context.env,
                     preAuthenticationRateLimitKey(context, 'fever'),
                 );
@@ -534,7 +541,7 @@ export const registerCompatibilityRoutes = (
                 const compat = yield* runtime(context.env);
                 const authentication =
                     yield* compat.auth.service.authenticateFeverApiKey(apiKey);
-                yield* rateLimit(
+                yield* syncRateLimit(
                     context.env,
                     `compat:fever:token:${authentication.tokenId}`,
                 );

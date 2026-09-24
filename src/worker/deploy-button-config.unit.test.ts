@@ -19,6 +19,10 @@ interface DeploymentEnvironment {
     readonly secrets?: { readonly required?: readonly string[] };
     readonly vars?: Readonly<Record<string, string>>;
     readonly routes?: readonly { readonly pattern: string }[];
+    readonly ratelimits?: readonly {
+        readonly name: string;
+        readonly simple: { readonly limit: number; readonly period: number };
+    }[];
     readonly observability?: ObservabilityConfig;
 }
 
@@ -74,6 +78,21 @@ describe('Deploy-to-Cloudflare configuration', () => {
             IMAGES_ENABLED: 'true',
             AI_SUMMARY_ENABLED: 'true',
         });
+    });
+
+    it('keeps login limits strict and allows compatibility sync bursts', () => {
+        expect(wrangler.env?.production?.ratelimits).toEqual([
+            {
+                name: 'AUTH_RATE_LIMITER',
+                namespace_id: '1001',
+                simple: { limit: 20, period: 60 },
+            },
+            {
+                name: 'COMPAT_RATE_LIMITER',
+                namespace_id: '2001',
+                simple: { limit: 300, period: 60 },
+            },
+        ]);
     });
 
     it('persists complete production logs and traces', () => {
