@@ -3,7 +3,11 @@ import { Effect } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import { makeD1 } from '../infrastructure/d1';
-import { MAX_FEVER_ITEMS, makeCompatibilityRepository } from './repository';
+import {
+    MAX_FEVER_ITEMS,
+    MAX_GOOGLE_CONTENT_ITEMS,
+    makeCompatibilityRepository,
+} from './repository';
 
 const d1 = makeD1(env.DB);
 const repository = makeCompatibilityRepository(d1);
@@ -160,6 +164,30 @@ describe('compatibility D1 repository', () => {
                 .bind(otherId)
                 .first<number>('count'),
         ).toBe(0);
+    });
+
+    it('loads a full Google Reader content batch', async () => {
+        const userId = 7_310_001;
+        const feedId = 7_320_001;
+        const firstId = 7_340_001;
+        await Effect.runPromise(
+            Effect.gen(function* () {
+                yield* insertUser(userId);
+                yield* insertFeed(feedId);
+                yield* subscribe(userId, feedId, 7_330_001);
+                yield* insertEntries(feedId, firstId, MAX_GOOGLE_CONTENT_ITEMS);
+            }),
+        );
+
+        const requestedIds = Array.from(
+            { length: MAX_GOOGLE_CONTENT_ITEMS },
+            (_, index) => firstId + MAX_GOOGLE_CONTENT_ITEMS - index - 1,
+        );
+        const entries = await Effect.runPromise(
+            repository.findEntries(userId, requestedIds),
+        );
+
+        expect(entries.map(({ id }) => id)).toEqual(requestedIds);
     });
 
     it('bounds Fever content pages and honors since_id and max_id', async () => {

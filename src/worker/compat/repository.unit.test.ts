@@ -2,12 +2,35 @@ import { Effect } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import type { D1, D1Statement } from '../infrastructure/d1';
-import { makeCompatibilityRepository } from './repository';
+import {
+    MAX_GOOGLE_CONTENT_ITEMS,
+    makeCompatibilityRepository,
+} from './repository';
 
 const result = (results: readonly unknown[] = []): D1Result<unknown> =>
     ({ results, success: true, meta: { changes: 0 } }) as D1Result<unknown>;
 
 describe('compatibility query bounds', () => {
+    it('keeps full Google content batches within D1 binding limits', async () => {
+        const statements: D1Statement[] = [];
+        const d1 = {
+            all: (statement: D1Statement) => {
+                statements.push(statement);
+                return Effect.succeed(result());
+            },
+        } as unknown as D1;
+        const repository = makeCompatibilityRepository(d1);
+        const ids = Array.from(
+            { length: MAX_GOOGLE_CONTENT_ITEMS },
+            (_, index) => index + 1,
+        );
+
+        await Effect.runPromise(repository.findEntries(1, ids));
+
+        expect(statements).toHaveLength(1);
+        expect(statements[0]?.bindings).toHaveLength(2);
+    });
+
     it('limits metadata and ID reads without joining article content', async () => {
         const statements: D1Statement[] = [];
         const d1 = {

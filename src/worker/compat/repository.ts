@@ -333,16 +333,16 @@ export const makeCompatibilityRepository = (
                     MAX_GOOGLE_CONTENT_ITEMS,
                 );
                 if (uniqueIds.length === 0) return [];
-                const placeholders = uniqueIds.map(() => '?').join(', ');
                 const result = yield* withStorage(
                     operation,
                     d1.all({
                         sql: `SELECT ${entryColumns}
                             ${ownedVisibleEntries}
                             LEFT JOIN entry_contents ec ON ec.entry_id = e.id
-                            WHERE e.id IN (${placeholders})
-                              AND ei.filtered_at IS NULL`,
-                        bindings: [userId, ...uniqueIds],
+                            WHERE e.id IN (
+                                SELECT CAST(value AS INTEGER) FROM json_each(?)
+                            ) AND ei.filtered_at IS NULL`,
+                        bindings: [userId, JSON.stringify(uniqueIds)],
                     }),
                 );
                 const entries = (yield* decodeRows(
