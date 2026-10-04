@@ -532,7 +532,7 @@ test('keeps queue filters in a dense vertical list', async ({ page }) => {
     await page.goto('/feeds?filter=all&order_by=published_at');
 
     const [unreadBox, readBox, favoritesBox] = await Promise.all([
-        page.getByRole('link', { name: /Unread/u, exact: true }).boundingBox(),
+        page.getByRole('link', { name: /^Unread(?: \d+)?$/u }).boundingBox(),
         page.getByRole('link', { name: 'Read', exact: true }).boundingBox(),
         page.getByRole('link', { name: 'Favorites', exact: true }).boundingBox(),
     ]);
@@ -719,7 +719,7 @@ test('uses a single list or detail pane on mobile with working back navigation',
     await page.getByRole('menuitem', { name: 'Show AI summary' }).click();
     await expect(page).toHaveURL(/summarize=true/u);
     await page.getByRole('button', { name: 'Toggle navigation' }).click();
-    await page.getByRole('link', { name: /Unread/u }).click();
+    await page.getByRole('link', { name: /^Unread(?: \d+)?$/u }).click();
 
     await expect
         .poll(() => {
