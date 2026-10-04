@@ -16,6 +16,8 @@ import { getCookie } from 'hono/cookie';
 
 import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
+import { faviconRefreshEnabled } from '../favicons/cron';
+import { makeFaviconRuntime } from '../favicons/runtime';
 import { makeFeedRefreshService } from '../feeds';
 import { recoverHttpCause } from '../http/failures';
 import {
@@ -92,6 +94,9 @@ export const defaultSubscriptionRuntimeFactory: SubscriptionRuntimeFactory = (
     return makeDefaultAuthRuntime(env, d1).pipe(
         Effect.map((auth) => {
             const feedService = makeFeedRefreshService();
+            const favicon = faviconRefreshEnabled(env)
+                ? makeFaviconRuntime(env).orchestrator
+                : null;
             return {
                 auth,
                 service: makeSubscriptionService({
@@ -104,6 +109,12 @@ export const defaultSubscriptionRuntimeFactory: SubscriptionRuntimeFactory = (
                                     logFeedDiscoveryFailure(url, error),
                                 ),
                             ),
+                    ...(favicon === null
+                        ? {}
+                        : {
+                              scheduleFavicon: (feedId: number) =>
+                                  favicon.scheduleFeed(feedId),
+                          }),
                 }),
                 limitFeedAdd: (userId) =>
                     Effect.tryPromise({

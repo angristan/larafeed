@@ -760,3 +760,81 @@ describe('subscription management service', () => {
         expect(updateSubscription).not.toHaveBeenCalled();
     });
 });
+
+describe('favicon scheduling on subscribe', () => {
+    const discoveredFeed = discoverDirect(() =>
+        Effect.succeed({
+            kind: 'updated' as const,
+            finalUrl: 'https://example.test/feed.xml',
+            etag: null,
+            lastModified: null,
+            httpStatus: 200,
+            feed: {
+                title: 'Feed',
+                description: null,
+                siteUrl: 'https://example.test/',
+                faviconUrl: null,
+                sourceUpdatedAt: null,
+            },
+            entries: [],
+        }),
+    );
+    const subscribe = (
+        dependencies: Partial<SubscriptionServiceDependencies>,
+        feedUrl = 'https://example.test/feed.xml',
+    ) =>
+        Effect.runPromise(
+            makeSubscriptionService({
+                repository: repository(),
+                discoverFeeds: discoveredFeed,
+                generateId: () => Effect.succeed(101),
+                now: () => 1_000,
+                ...dependencies,
+            }).createSubscription(7, { feedUrl, categoryId: 11 }),
+        );
+
+    it('schedules favicon discovery for a newly created feed', async () => {
+        const scheduleFavicon = vi.fn(() => Promise.resolve(true));
+
+        await subscribe({ scheduleFavicon });
+
+        expect(scheduleFavicon).toHaveBeenCalledExactlyOnceWith(21);
+    });
+
+    it('does not schedule favicon discovery for an existing feed', async () => {
+        const scheduleFavicon = vi.fn(() => Promise.resolve(true));
+
+        // Another request inserted the same feed between lookup and commit.
+        await subscribe({
+            scheduleFavicon,
+            repository: repository({
+                subscribeDiscovered: () =>
+                    Effect.succeed({
+                        feedId: 21,
+                        createdFeed: false,
+                        createdSubscription: true,
+                    }),
+            }),
+        });
+        // The feed was already known before discovery.
+        await subscribe({
+            scheduleFavicon,
+            repository: repository({ findFeedByUrl: () => Effect.succeed(21) }),
+        });
+
+        expect(scheduleFavicon).not.toHaveBeenCalled();
+    });
+
+    it('keeps the committed subscription when scheduling fails', async () => {
+        const scheduleFavicon = vi.fn(() =>
+            Promise.reject(new Error('queue unavailable')),
+        );
+
+        await expect(subscribe({ scheduleFavicon })).resolves.toMatchObject({
+            kind: 'created',
+            subscription: { feedId: 21 },
+            createdFeed: true,
+        });
+        expect(scheduleFavicon).toHaveBeenCalledOnce();
+    });
+});

@@ -17,6 +17,11 @@ import {
     DEFAULT_REFRESH_INTERVAL_MS,
     UNCHANGED_REFRESH_INTERVALS_MS,
 } from '../jobs';
+import {
+    recordHandledFailure,
+    safeErrorClass,
+    spanNames,
+} from '../observability';
 import { prepareRefreshEntry } from '../refresh/entries';
 import {
     SubscriptionConflict,
@@ -45,6 +50,12 @@ export interface SubscriptionServiceDependencies {
     ) => Effect.Effect<FeedDiscoveryResult, FeedRefreshError>;
     readonly generateId?: () => Effect.Effect<number, unknown>;
     readonly now?: () => number;
+    /**
+     * Queues favicon discovery for a feed this request just created. Without it,
+     * a new feed shows no icon until the next favicon Cron pass picks it up.
+     * Omitted when favicon refresh is disabled.
+     */
+    readonly scheduleFavicon?: (feedId: number) => Promise<unknown>;
 }
 
 interface CreateSubscriptionInput {
@@ -248,6 +259,34 @@ export const makeSubscriptionService = (
             });
         });
 
+    // The subscription is already committed, so a scheduling failure must not
+    // fail the request. The favicon Cron still finds feeds that were never
+    // refreshed (`favicon_updated_at IS NULL`) and recovers them.
+    const scheduleNewFeedFavicon = (feedId: number) => {
+        const schedule = dependencies.scheduleFavicon;
+        if (schedule === undefined) return Effect.void;
+        return Effect.tryPromise(() => schedule(feedId)).pipe(
+            Effect.asVoid,
+            Effect.catch((error) =>
+                Effect.sync(() =>
+                    recordHandledFailure(
+                        spanNames.jobFailure,
+                        {
+                            'app.subsystem': 'favicon',
+                            'app.feed.id': feedId,
+                        },
+                        {
+                            // Effect wraps the rejection; report the original.
+                            errorClass: safeErrorClass(error.cause),
+                            stage: 'schedule_on_subscribe',
+                            retryable: true,
+                        },
+                    ),
+                ),
+            ),
+        );
+    };
+
     const createdResponse = (
         userId: number,
         outcome: {
@@ -380,6 +419,9 @@ export const makeSubscriptionService = (
                     discovered,
                     startedAt,
                 );
+                if (outcome.createdFeed) {
+                    yield* scheduleNewFeedFavicon(outcome.feedId);
+                }
                 return yield* createdResponse(userId, outcome);
             }),
 
