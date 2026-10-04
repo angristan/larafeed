@@ -38,6 +38,13 @@ export default defineConfig({
             'src/worker/**/*.worker.test.ts',
             'validation/**/*.worker.test.ts',
         ],
+        // Reuse each workerd runtime across test files. Booting a runtime and
+        // loading the Worker module graph per file made this suite ~5x slower.
+        // The setup file rebuilds D1 before every file to keep files isolated.
+        // Reuse only happens when files outnumber workers, so cap the pool:
+        // two runtimes were fastest on a 4-CPU machine like the CI runners.
+        isolate: false,
+        maxWorkers: 2,
         setupFiles: ['./src/worker/test/apply-migrations.ts'],
     },
 });

@@ -15,6 +15,10 @@ export default defineConfig({
         },
     },
     test: {
+        // Reuse workers across test files instead of re-importing the module
+        // graph for every file (about 4x faster). Files must not leak global
+        // state; shuffled file orders (`--sequence.shuffle.files`) pass.
+        isolate: false,
         include: [
             'src/client/**/*.test.ts',
             'src/client/**/*.test.tsx',

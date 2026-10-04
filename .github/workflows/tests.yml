@@ -25,6 +25,6 @@ jobs:
       - name: Install JavaScript dependencies
         run: bun install --frozen-lockfile
       - name: Install browser test runtime
-        run: bunx --no-install playwright install --with-deps chromium
+        run: bunx --no-install playwright install --with-deps --only-shell chromium
       - name: Repository release gate
         run: bun run validate:release
