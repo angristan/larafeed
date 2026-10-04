@@ -27,23 +27,9 @@ Larafeed is a simple feed reader.
 - Passkey-only private access
 - Estimated reading time for each entry
 
-### Screenshots & demo
-
-#### Reader view
+### Screenshot
 
 ![Reader view screenshot](.github/readme/reader.png)
-
-#### Demo of the LLM summary generation
-
-<https://github.com/user-attachments/assets/0553f893-cc5a-4efa-b098-1b1e10545698>
-
-#### Demo of the feed refreshing UX
-
-<https://github.com/user-attachments/assets/a420f8cd-d306-4a0d-afe3-d391852055ad>
-
-#### Demo of the quick add feed from a bookmark
-
-<https://github.com/user-attachments/assets/bb266745-5d16-4d06-9534-653df38212bc>
 
 ## Technical overview
 
