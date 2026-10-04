@@ -392,6 +392,13 @@
     gap: 9px;
 }
 
+/* Keeps the favicon badge box tight around the icon so the dot sits on its
+   corner and the icon never shrinks next to long feed names. */
+.feedFailureIndicator {
+    display: inline-flex;
+    flex-shrink: 0;
+}
+
 .feedName {
     min-width: 0;
     flex: 1;

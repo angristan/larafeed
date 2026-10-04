@@ -1569,19 +1569,26 @@ function CategoryGroup({
                                                 filter: 'all',
                                             })}
                                         >
-                                            <Indicator
-                                                color="orange"
-                                                disabled={
-                                                    managed === undefined ||
-                                                    managed.consecutiveFailures ===
-                                                        0
-                                                }
-                                                withBorder
+                                            <div
+                                                className={classes.feedRowLeft}
                                             >
-                                                <div
+                                                {/* Badge the favicon, not the
+                                                    whole row: on a row-wide
+                                                    wrapper the dot lands in
+                                                    the middle of long names. */}
+                                                <Indicator
                                                     className={
-                                                        classes.feedRowLeft
+                                                        classes.feedFailureIndicator
                                                     }
+                                                    color="orange"
+                                                    disabled={
+                                                        managed === undefined ||
+                                                        managed.consecutiveFailures ===
+                                                            0
+                                                    }
+                                                    inline
+                                                    size={8}
+                                                    withBorder
                                                 >
                                                     <FeedFavicon
                                                         isDark={
@@ -1592,15 +1599,13 @@ function CategoryGroup({
                                                             subscription.faviconUrl
                                                         }
                                                     />
-                                                    <span
-                                                        className={
-                                                            classes.feedName
-                                                        }
-                                                    >
-                                                        {name}
-                                                    </span>
-                                                </div>
-                                            </Indicator>
+                                                </Indicator>
+                                                <span
+                                                    className={classes.feedName}
+                                                >
+                                                    {name}
+                                                </span>
+                                            </div>
                                         </Link>
                                         <FeedActions
                                             categories={
