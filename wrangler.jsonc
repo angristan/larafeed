@@ -3,7 +3,7 @@
     "name": "larafeed-template",
     "main": "./src/worker/index.ts",
     "compatibility_date": "2026-07-18",
-    "compatibility_flags": ["nodejs_compat"],
+    "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
     "workers_dev": true,
     "preview_urls": true,
     "placement": { "mode": "smart" },
@@ -31,13 +31,25 @@
     },
     "assets": {
         "not_found_handling": "single-page-application",
-        "run_worker_first": ["/api/*", "/export", "/up"]
+        "run_worker_first": [
+            "/api/*",
+            "/export",
+            "/up",
+            "/mcp",
+            "/authorize",
+            "/oauth/*",
+            "/.well-known/oauth-*"
+        ]
     },
     "images": { "binding": "IMAGES" },
     "kv_namespaces": [
         {
             "binding": "FULL_CONTENT_KV",
             "id": "00000000000000000000000000000010"
+        },
+        {
+            "binding": "OAUTH_KV",
+            "id": "00000000000000000000000000000020"
         }
     ],
     "d1_databases": [
@@ -154,6 +166,10 @@
                 {
                     "binding": "FULL_CONTENT_KV",
                     "id": "8cc40ea7073d41e18eedc731826a0afe"
+                },
+                {
+                    "binding": "OAUTH_KV",
+                    "id": "6c010dd6262f4152bf3310b128f4b90f"
                 }
             ],
             "d1_databases": [
@@ -259,6 +275,10 @@
                 {
                     "binding": "FULL_CONTENT_KV",
                     "id": "00000000000000000000000000000011"
+                },
+                {
+                    "binding": "OAUTH_KV",
+                    "id": "00000000000000000000000000000021"
                 }
             ],
             "d1_databases": [

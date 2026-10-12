@@ -17,3 +17,7 @@ export const tracing = {
     ): A => callback(span, ...args),
     Span: class {},
 };
+
+// `@cloudflare/workers-oauth-provider` imports this base class to recognize
+// entrypoint handlers. Unit tests never construct one.
+export class WorkerEntrypoint {}

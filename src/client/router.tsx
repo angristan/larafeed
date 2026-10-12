@@ -8,6 +8,7 @@ import {
     captureAccessTokenFromFragment,
     clearCapturedAccessToken,
 } from './auth/accessToken';
+import { authorizationReturnTarget } from './auth/returnTo';
 import { NotFoundPage, RouteErrorPage } from './pages/RouteStatePage';
 import {
     authConfigQueryOptions,
@@ -41,7 +42,7 @@ async function protectedLoader({ url }: LoaderFunctionArgs) {
     return null;
 }
 
-async function loginLoader() {
+async function loginLoader({ url }: LoaderFunctionArgs) {
     clearCapturedAccessToken();
 
     try {
@@ -49,6 +50,13 @@ async function loginLoader() {
             authSessionQueryOptions,
         );
         if (session.authenticated) {
+            // An MCP authorization page sent a signed-in user here; send
+            // them back to it with a full page load.
+            const authorization = authorizationReturnTarget(url.search);
+            if (authorization !== null) {
+                window.location.assign(authorization);
+                return null;
+            }
             throw redirect('/');
         }
         clearAuthenticatedCache(queryClient);
@@ -384,6 +392,14 @@ export const router = createBrowserRouter([
                         './pages/AppearancePage'
                     );
                     return { Component: AppearancePage };
+                },
+            },
+            {
+                path: '/settings/mcp',
+                loader: protectedLoader,
+                lazy: async () => {
+                    const { McpPage } = await import('./pages/McpPage');
+                    return { Component: McpPage };
                 },
             },
             {

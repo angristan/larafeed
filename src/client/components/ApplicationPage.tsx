@@ -14,6 +14,7 @@ import {
     IconAdjustmentsHorizontal,
     IconFileImport,
     IconKey,
+    IconPlugConnected,
     IconShieldLock,
     IconUserCircle,
     IconUsers,
@@ -173,6 +174,13 @@ function SettingsNavigation({
             label: 'App tokens',
             description: 'Reader client credentials',
             icon: IconKey,
+        },
+        {
+            to: '/settings/mcp',
+            active: location.pathname === '/settings/mcp',
+            label: 'MCP',
+            description: 'AI assistant access',
+            icon: IconPlugConnected,
         },
         {
             to: '/settings/opml',

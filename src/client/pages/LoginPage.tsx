@@ -16,6 +16,7 @@ import {
     requestAuthentication,
     supportsPasskeys,
 } from '../auth/ceremony';
+import { authorizationReturnTarget } from '../auth/returnTo';
 import { AuthCard } from '../components/AuthCard';
 import {
     executeTurnstile,
@@ -109,6 +110,11 @@ export function LoginPage(): ReactElement {
         },
         onSuccess: (session) => {
             queryClient.setQueryData(authKeys.session(), session);
+            const authorization = authorizationReturnTarget(location.search);
+            if (authorization !== null) {
+                window.location.assign(authorization);
+                return;
+            }
             void navigate(safeReturnTo(location.search), { replace: true });
         },
     });

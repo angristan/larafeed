@@ -24,6 +24,7 @@ Larafeed is a simple feed reader.
 - OPML import and export
 - Google Reader and Fever API support with revocable app tokens
   - Support is partial, but works with [Reeder Classic](https://reederapp.com/classic/)
+- [MCP server](docs/mcp.md) for AI assistants, with OAuth sign-in and per-app revocation (off by default)
 - Passkey-only private access
 - Estimated reading time for each entry
 
@@ -69,9 +70,9 @@ flowchart LR
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/angristan/larafeed)
 
-The installer provisions the Worker, D1 database, KV namespace, and Queues, then applies all D1 migrations. It asks for the public HTTPS origin and a private operator secret used to create the first administrator enrollment link.
+The installer provisions the Worker, D1 database, KV namespaces, and Queues, then applies all D1 migrations. It asks for the public HTTPS origin and a private operator secret used to create the first administrator enrollment link.
 
-See the [deployment guide](docs/deployment.md) for administrator enrollment and optional integrations. Operational and reader-client details are in the [operations](docs/operations.md) and [compatibility API](docs/compatibility-apis.md) guides.
+See the [deployment guide](docs/deployment.md) for administrator enrollment and optional integrations. Operational and reader-client details are in the [operations](docs/operations.md), [compatibility API](docs/compatibility-apis.md), and [MCP](docs/mcp.md) guides.
 
 ## Development
 

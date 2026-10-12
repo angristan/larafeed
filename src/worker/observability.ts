@@ -19,6 +19,7 @@ export const spanNames = {
     faviconManifestFetch: 'app.favicon.manifest.fetch',
     faviconCandidateFetch: 'app.favicon.candidate.fetch',
     faviconAssetPersist: 'app.favicon.asset.persist',
+    mcpToolCall: 'app.mcp.tool.call',
 } as const;
 
 export type OperationName =

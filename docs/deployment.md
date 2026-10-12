@@ -1,6 +1,6 @@
 # Deployment
 
-Larafeed runs as one Cloudflare Worker with Static Assets, D1, Workers KV, three Queues, Cron, a rate-limit binding, and an optional Images binding.
+Larafeed runs as one Cloudflare Worker with Static Assets, D1, two Workers KV namespaces, three Queues, Cron, a rate-limit binding, and an optional Images binding.
 
 ## Deploy button
 
@@ -23,12 +23,13 @@ Requirements: Node.js 24, Bun 1.3.14, and an authenticated Wrangler session. The
 
 ### Provision a fresh portable environment
 
-Install dependencies, then create the D1 database, full-content KV namespace, and all three Queues. These commands create remote resources:
+Install dependencies, then create the D1 database, both KV namespaces, and all three Queues. These commands create remote resources:
 
 ```bash
 bun install --frozen-lockfile
 bunx --no-install wrangler d1 create larafeed-template
 bunx --no-install wrangler kv namespace create larafeed-template-full-content
+bunx --no-install wrangler kv namespace create larafeed-template-oauth
 bunx --no-install wrangler queues create larafeed-template-feed-refresh
 bunx --no-install wrangler queues create larafeed-template-opml-import
 bunx --no-install wrangler queues create larafeed-template-favicon-refresh
@@ -38,10 +39,11 @@ Before deployment, edit the default environment in `wrangler.jsonc`:
 
 1. Replace D1 `database_id` value `00000000-0000-0000-0000-000000000010` with the ID returned by `wrangler d1 create`.
 2. Replace the `FULL_CONTENT_KV` `id` value `00000000000000000000000000000010` with the ID returned by `wrangler kv namespace create`.
-3. Set `AUTH_ORIGIN` to the exact public HTTPS origin, without a path or trailing slash.
-4. Change the Worker `name` if `larafeed-template` is already in use in the account.
-5. If you change a Queue resource name, replace it in its producer, consumer, and matching `*_QUEUE_NAME` variable. These three values must be identical.
-6. If you change the D1 name, update `database_name` as well as the ID.
+3. Replace the `OAUTH_KV` `id` value `00000000000000000000000000000020` with the ID returned for `larafeed-template-oauth`. It stores MCP OAuth clients, grants, and token hashes.
+4. Set `AUTH_ORIGIN` to the exact public HTTPS origin, without a path or trailing slash.
+5. Change the Worker `name` if `larafeed-template` is already in use in the account.
+6. If you change a Queue resource name, replace it in its producer, consumer, and matching `*_QUEUE_NAME` variable. These three values must be identical.
+7. If you change the D1 name, update `database_name` as well as the ID.
 
 Set the required operator secret through Wrangler's hidden prompt. Generate and store a private value in a password manager first. Do not put the value on the command line.
 
@@ -121,3 +123,4 @@ Set `AI_SUMMARY_ENABLED=true`, `AI_GATEWAY_NAME`, and `AI_MODEL` (a Workers AI m
 - Review Queue failures before increasing refresh capacity.
 - Read the [operations guide](operations.md) before rollback or recovery.
 - Read the [compatibility API guide](compatibility-apis.md) when configuring a reader client.
+- Read the [MCP guide](mcp.md) before connecting an AI assistant.

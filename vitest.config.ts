@@ -19,6 +19,13 @@ export default defineConfig({
         // graph for every file (about 4x faster). Files must not leak global
         // state; shuffled file orders (`--sequence.shuffle.files`) pass.
         isolate: false,
+        server: {
+            deps: {
+                // Imports `cloudflare:workers`. Inlining routes it through
+                // the alias above instead of Node's ESM loader.
+                inline: ['@cloudflare/workers-oauth-provider'],
+            },
+        },
         include: [
             'src/client/**/*.test.ts',
             'src/client/**/*.test.tsx',
