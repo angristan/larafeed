@@ -55,14 +55,18 @@ const PAGE_CSP = [
     "frame-ancestors 'none'",
 ].join('; ');
 
+const REFERRER_POLICY = 'same-origin';
+
 const securityHeaders = (headers = new Headers()): Headers => {
     headers.set('Content-Type', 'text/html; charset=utf-8');
     headers.set('Content-Security-Policy', PAGE_CSP);
     headers.set('Cache-Control', 'no-store');
     headers.set('X-Frame-Options', 'DENY');
     headers.set('X-Content-Type-Options', 'nosniff');
-    // The URL carries OAuth parameters such as `state`.
-    headers.set('Referrer-Policy', 'no-referrer');
+    // The URL carries OAuth parameters such as `state`, so no other site may
+    // see it. Not `no-referrer`: under that policy browsers send `Origin: null`
+    // on the consent form POST, and the origin check refuses it.
+    headers.set('Referrer-Policy', REFERRER_POLICY);
     return headers;
 };
 
@@ -113,7 +117,7 @@ const page = (
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="referrer" content="no-referrer">
+<meta name="referrer" content="${REFERRER_POLICY}">
 <title>${escapeHtml(title)} · Larafeed</title>
 <style>${STYLES}</style>
 </head>
