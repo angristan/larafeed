@@ -65,6 +65,10 @@ const EntryRow = Schema.Struct({
     is_starred: BooleanInt,
     is_archived: BooleanInt,
 });
+const SearchRow = Schema.Struct({
+    ...EntryRow.fields,
+    snippet: Schema.NullOr(Schema.String),
+});
 const EntryDetailRow = Schema.Struct({
     ...EntryRow.fields,
     content_html: Schema.NullOr(Schema.String),
@@ -115,6 +119,26 @@ export interface ReaderEntryQuery {
     };
 }
 
+export interface ReaderSearchQuery {
+    /** An FTS5 query string; build it with `toFtsQuery`. */
+    readonly match: string;
+    readonly scope: ReaderEntryScope;
+    readonly filter: ReaderFilter;
+    readonly range?: ReaderEntryQuery['range'];
+    readonly limit: number;
+    readonly offset: number;
+}
+
+export interface ReaderSearchResult extends ReaderEntry {
+    /** Text around the best match, with matched terms wrapped in `**`. */
+    readonly snippet: string;
+}
+
+export interface ReaderSearchPage {
+    readonly results: readonly ReaderSearchResult[];
+    readonly hasMore: boolean;
+}
+
 export interface ReaderEntryPage {
     readonly entries: readonly ReaderEntry[];
     readonly total: number;
@@ -145,6 +169,13 @@ export interface ReaderRepository {
         query: ReaderEntryQuery,
     ) => Effect.Effect<
         ReaderEntryPage,
+        ReaderStorageError | ReaderInvariantError
+    >;
+    readonly searchEntries: (
+        userId: number,
+        query: ReaderSearchQuery,
+    ) => Effect.Effect<
+        ReaderSearchPage,
         ReaderStorageError | ReaderInvariantError
     >;
     readonly findEntry: (
@@ -348,6 +379,22 @@ const filterSql = (filter: ReaderFilter): string => {
             return '1 = 1';
     }
 };
+const rangeSql = (
+    column: string,
+    range: ReaderEntryQuery['range'],
+): { readonly clause: string; readonly bindings: readonly number[] } => {
+    const clauses: string[] = [];
+    const bindings: number[] = [];
+    if (range?.from !== undefined) {
+        clauses.push(` AND ${column} >= ?`);
+        bindings.push(range.from);
+    }
+    if (range?.to !== undefined) {
+        clauses.push(` AND ${column} < ?`);
+        bindings.push(range.to);
+    }
+    return { clause: clauses.join(''), bindings };
+};
 const orderSql = (orderBy: ReaderOrder): string =>
     orderBy === 'created_at'
         ? 'e.created_at DESC, e.id DESC'
@@ -477,22 +524,13 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
                 query.orderBy === 'created_at'
                     ? 'e.created_at'
                     : 'e.published_at';
-            const rangeClauses: string[] = [];
-            const rangeBindings: number[] = [];
-            if (query.range?.from !== undefined) {
-                rangeClauses.push(` AND ${orderColumn} >= ?`);
-                rangeBindings.push(query.range.from);
-            }
-            if (query.range?.to !== undefined) {
-                rangeClauses.push(` AND ${orderColumn} < ?`);
-                rangeBindings.push(query.range.to);
-            }
+            const range = rangeSql(orderColumn, query.range);
             const fromWhere = `FROM entries e
             JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id
             JOIN feeds f ON f.id = e.feed_id
             LEFT JOIN entry_interactions ei ON ei.user_id = fs.user_id AND ei.entry_id = e.id
-            WHERE ${scope.clause} AND ei.filtered_at IS NULL AND ${filterSql(query.filter)}${rangeClauses.join('')}`;
-            const whereBindings = [...scope.bindings, ...rangeBindings];
+            WHERE ${scope.clause} AND ei.filtered_at IS NULL AND ${filterSql(query.filter)}${range.clause}`;
+            const whereBindings = [...scope.bindings, ...range.bindings];
             // Keyset pagination: an OFFSET shifts when reads or new arrivals
             // change the filtered set, skipping or repeating entries.
             const cursorClause =
@@ -553,6 +591,52 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
                               id: lastEntry.id,
                           }
                         : null,
+            };
+        }),
+
+    searchEntries: (userId, query) =>
+        Effect.gen(function* () {
+            const operation = 'reader.entries.search';
+            const scope = scopeSql(query.scope, userId);
+            const range = rangeSql('e.published_at', query.range);
+            // The full-text table drives the query. Ownership, filters, and
+            // the date range then narrow its matches to this user's entries.
+            const result = yield* withStorageError(
+                operation,
+                d1.all({
+                    sql: `SELECT ${entryColumns},
+                        snippet(entry_search, -1, '**', '**', '…', 32) AS snippet
+                    FROM entry_search
+                    JOIN entries e ON e.id = entry_search.rowid
+                    JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id
+                    JOIN feeds f ON f.id = e.feed_id
+                    LEFT JOIN entry_interactions ei
+                      ON ei.user_id = fs.user_id AND ei.entry_id = e.id
+                    WHERE entry_search MATCH ? AND ${scope.clause}
+                      AND ei.filtered_at IS NULL AND ${filterSql(query.filter)}${range.clause}
+                    -- Weights: a match in the title counts most, then author.
+                    ORDER BY bm25(entry_search, 5.0, 2.0, 1.0), e.id DESC
+                    LIMIT ? OFFSET ?`,
+                    bindings: [
+                        query.match,
+                        ...scope.bindings,
+                        ...range.bindings,
+                        query.limit + 1,
+                        query.offset,
+                    ],
+                }),
+            );
+            const rows = yield* decodeRows(
+                operation,
+                SearchRow,
+                result.results,
+            );
+            return {
+                results: rows.slice(0, query.limit).map((row) => ({
+                    ...entryFromRow(row),
+                    snippet: row.snippet ?? '',
+                })),
+                hasMore: rows.length > query.limit,
             };
         }),
 

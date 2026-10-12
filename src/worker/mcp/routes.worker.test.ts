@@ -9,6 +9,7 @@ import type { AuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession, AuthService } from '../auth/service';
 import type { FullContentService } from '../fullcontent/service';
 import { makeD1 } from '../infrastructure/d1';
+import { runSearchIndexer } from '../search/indexer';
 import { makeMcpOAuth } from './oauth';
 import { makeMcpRepository } from './repository';
 import {
@@ -630,6 +631,25 @@ describe('MCP over OAuth with Workerd KV and D1', () => {
             content: 'Full article from the website.',
             truncated: false,
         });
+
+        // Both users' entries contain "welcome"; search sees only the owner's.
+        await Effect.runPromise(runSearchIndexer(d1));
+        const found = await callTool(token, 'search_entries', {
+            query: 'welcome',
+        });
+        expect(found.data).toEqual({
+            results: [
+                expect.objectContaining({
+                    id: ENTRY,
+                    snippet: expect.stringContaining('**welcome**'),
+                }),
+            ],
+            nextOffset: null,
+        });
+        const badQuery = await callTool(token, 'search_entries', {
+            query: '-welcome',
+        });
+        expect(badQuery.isError).toBe(true);
 
         type Health = {
             totalFeeds: number;

@@ -19,13 +19,38 @@ await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
 async function dropApplicationSchema(): Promise<void> {
     // SQLite internals (`sqlite_*`) and the runtime's own metadata tables
     // (`_cf_*`) are left alone; D1 rejects changes to them.
-    const { results: objects } = await env.DB.prepare(
-        `SELECT type, name FROM sqlite_master
+    const { results: listed } = await env.DB.prepare(
+        `SELECT type, name, sql FROM sqlite_master
          WHERE type IN ('table', 'view', 'trigger')
            AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\'
            AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\'`,
-    ).all<{ type: 'table' | 'view' | 'trigger'; name: string }>();
-    if (objects.length === 0) {
+    ).all<{
+        type: 'table' | 'view' | 'trigger';
+        name: string;
+        sql: string | null;
+    }>();
+    // A virtual table (full-text search) owns shadow tables such as
+    // `entry_search_data`. D1 refuses to drop those directly; dropping the
+    // virtual table removes them.
+    const virtualTables = listed
+        .filter(
+            ({ type, sql }) =>
+                type === 'table' && /^CREATE VIRTUAL TABLE/iu.test(sql ?? ''),
+        )
+        .map(({ name }) => name);
+    const isShadowTable = (name: string) =>
+        virtualTables.some(
+            (virtual) =>
+                /^_(data|idx|content|docsize|config)$/u.test(
+                    name.slice(virtual.length),
+                ) && name.startsWith(virtual),
+        );
+    const objects = listed.filter(
+        ({ type, name }) =>
+            !(type === 'table' && virtualTables.includes(name)) &&
+            !isShadowTable(name),
+    );
+    if (listed.length === 0) {
         return;
     }
 
@@ -50,6 +75,7 @@ async function dropApplicationSchema(): Promise<void> {
     // remaining trigger or view still references a table dropped before it.
     // Indexes go away with their tables, so they are not listed separately.
     const statements = [
+        ...virtualTables.map((name) => `DROP TABLE ${quote(name)}`),
         ...objects
             .filter(({ type }) => type !== 'table')
             .map(

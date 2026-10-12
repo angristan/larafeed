@@ -7,7 +7,11 @@ import { Effect } from 'effect';
 
 import { rewriteArticleImageUrls } from '../images/article';
 import { ReaderInvariantError } from './errors';
-import type { ReaderEntryQuery, ReaderRepository } from './repository';
+import type {
+    ReaderEntryQuery,
+    ReaderRepository,
+    ReaderSearchQuery,
+} from './repository';
 
 export interface ReaderServiceDependencies {
     readonly repository: ReaderRepository;
@@ -52,6 +56,8 @@ export const makeReaderService = (dependencies: ReaderServiceDependencies) => {
                     }),
                 ),
             ),
+        searchEntries: (userId: number, query: ReaderSearchQuery) =>
+            repository.searchEntries(userId, query),
         findEntry: (userId: number, entryId: number) =>
             repository.findEntry(userId, entryId).pipe(
                 Effect.flatMap((entry) =>

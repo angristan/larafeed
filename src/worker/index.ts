@@ -2,6 +2,7 @@ import { app } from './app';
 import { handleFaviconCron } from './favicons/cron';
 import { handleFaviconQueue } from './favicons/handlers';
 import type { FaviconQueueMessage } from './favicons/job-types';
+import { makeD1 } from './infrastructure/d1';
 import type { RefreshQueueMessage } from './jobs';
 import { operationNames, traceOperation } from './observability';
 import {
@@ -13,6 +14,7 @@ import {
 } from './opml';
 import { handleRefreshCron, handleRefreshQueue } from './refresh/handlers';
 import { runScheduledSubsystems } from './scheduled';
+import { handleSearchIndexCron } from './search/indexer';
 
 export { app, createApp } from './app';
 
@@ -84,6 +86,15 @@ export default {
                     {},
                     () => handleFaviconCron(env),
                 ),
+            // Last: indexing is the least urgent work in the tick.
+            async () => {
+                await traceOperation(
+                    operationNames.searchCron,
+                    'scheduled',
+                    {},
+                    () => handleSearchIndexCron(makeD1(env.DB)),
+                );
+            },
         ]);
     },
 } satisfies ExportedHandler<
