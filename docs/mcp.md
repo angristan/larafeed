@@ -11,7 +11,7 @@ Larafeed has a [Model Context Protocol](https://modelcontextprotocol.io/) server
 
 There is no token to copy. The client gets OAuth tokens and refreshes them on its own.
 
-On the consent page you can uncheck write access. The client then gets read-only access. If it later calls a write tool, it gets a `403 insufficient_scope` response and can ask you to approve write access.
+Apps get read-only access unless you tick write access on the consent page. To change an app's access later, connect it again; the new grant replaces the old one. If it later calls a write tool, it gets a `403 insufficient_scope` response and can ask you to approve write access.
 
 ## Tools
 

@@ -487,6 +487,80 @@ describe('MCP over OAuth with Workerd KV and D1', () => {
         ).toBe(false);
     });
 
+    it('offers write access unticked on the consent page', async () => {
+        await setEnabled(OWNER, true);
+        const page = await request(
+            `/authorize?${authorizeQuery(await registerClient(), 'x'.repeat(43))}`,
+            { headers: { cookie: `session=valid-${OWNER}` } },
+        );
+        const html = await page.text();
+        expect(html).toMatch(
+            /<input type="checkbox" name="write" value="on">/u,
+        );
+    });
+
+    it('disconnects one app without touching the others', async () => {
+        await setEnabled(OWNER, true);
+        const kept = await connectClient(OWNER, { allowWrite: false });
+        const removed = await connectClient(OWNER, { allowWrite: false });
+
+        const settings = (await (
+            await request('/api/mcp', {
+                headers: { cookie: `session=valid-${OWNER}` },
+            })
+        ).json()) as { clients: { grantId: string; clientId: string }[] };
+        const grant = settings.clients.find(
+            (client) => client.clientId === removed.clientId,
+        );
+        expect(grant).toBeDefined();
+
+        const disconnected = await request(
+            `/api/mcp/clients/${grant?.grantId}`,
+            {
+                method: 'DELETE',
+                headers: {
+                    cookie: `session=valid-${OWNER}`,
+                    'content-type': 'application/json',
+                },
+            },
+        );
+        expect(disconnected.status).toBe(200);
+
+        // The disconnected app's access and refresh tokens stop working at
+        // once; the other app keeps working.
+        expect((await rpc(removed.access_token, 'tools/list')).status).toBe(
+            401,
+        );
+        const refreshed = await request('/oauth/token', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                grant_type: 'refresh_token',
+                refresh_token: removed.refresh_token ?? '',
+                client_id: removed.clientId,
+            }).toString(),
+        });
+        expect(refreshed.status).toBe(400);
+        expect((await rpc(kept.access_token, 'tools/list')).status).toBe(200);
+
+        // Another user cannot disconnect this user's apps.
+        const keptGrant = settings.clients.find(
+            (client) => client.clientId === kept.clientId,
+        );
+        const foreign = await request(
+            `/api/mcp/clients/${keptGrant?.grantId}`,
+            {
+                method: 'DELETE',
+                headers: {
+                    cookie: `session=valid-${OTHER}`,
+                    'content-type': 'application/json',
+                },
+            },
+        );
+        expect(foreign.status).toBe(404);
+        expect((await rpc(kept.access_token, 'tools/list')).status).toBe(200);
+    });
+
     it('cuts off tokens when MCP is turned off and does not revive them', async () => {
         await setEnabled(OWNER, true);
         const tokens = await connectClient(OWNER, { allowWrite: true });

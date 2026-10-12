@@ -170,9 +170,10 @@ ${loopbackWarning}
 <input type="hidden" name="handle" value="${escapeHtml(handle)}">
 <fieldset>
 <legend>Permissions</legend>
+<!-- Write access is opt-in: an app gets read-only access unless the user ticks it. -->
 <label><input type="checkbox" checked disabled>
 <span>Read your subscriptions, categories, and articles</span></label>
-<label><input type="checkbox" name="write" value="on" checked>
+<label><input type="checkbox" name="write" value="on">
 <span>Mark articles read, starred, or archived, and add or remove subscriptions</span></label>
 </fieldset>
 <p class="muted">Signed in as <strong>${escapeHtml(session.user.username)}</strong>. You can disconnect this app at any time in Settings → MCP.</p>
