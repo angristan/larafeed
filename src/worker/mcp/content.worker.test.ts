@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { htmlToText } from './content';
+import { htmlToText, truncateText } from './content';
 
 describe('htmlToText', () => {
     it('keeps article structure, link targets, and image descriptions', async () => {
@@ -37,5 +37,23 @@ describe('htmlToText', () => {
         );
 
         expect(text).toBe('Code:\n\n```\nif (a) {\n    b();\n}\n```');
+    });
+});
+
+describe('truncateText', () => {
+    it('keeps short text and cuts long text at a word boundary', () => {
+        expect(truncateText('short text', 20)).toEqual({
+            text: 'short text',
+            truncated: false,
+        });
+        expect(truncateText('one two three four five', 15)).toEqual({
+            text: 'one two three…',
+            truncated: true,
+        });
+        // No nearby boundary: cut mid-word rather than drop most of the text.
+        expect(truncateText('abcdefghijklmnop', 10)).toEqual({
+            text: 'abcdefghij…',
+            truncated: true,
+        });
     });
 });

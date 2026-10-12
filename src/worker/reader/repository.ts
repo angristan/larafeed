@@ -105,6 +105,14 @@ export interface ReaderEntryQuery {
     readonly orderBy: ReaderOrder;
     readonly cursor: ReaderEntryCursor | null;
     readonly pageSize: number;
+    /**
+     * Optional bounds in epoch milliseconds on the order column: inclusive
+     * `from`, exclusive `to`. The total counts only entries inside them.
+     */
+    readonly range?: {
+        readonly from?: number;
+        readonly to?: number;
+    };
 }
 
 export interface ReaderEntryPage {
@@ -469,11 +477,22 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
                 query.orderBy === 'created_at'
                     ? 'e.created_at'
                     : 'e.published_at';
+            const rangeClauses: string[] = [];
+            const rangeBindings: number[] = [];
+            if (query.range?.from !== undefined) {
+                rangeClauses.push(` AND ${orderColumn} >= ?`);
+                rangeBindings.push(query.range.from);
+            }
+            if (query.range?.to !== undefined) {
+                rangeClauses.push(` AND ${orderColumn} < ?`);
+                rangeBindings.push(query.range.to);
+            }
             const fromWhere = `FROM entries e
             JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id
             JOIN feeds f ON f.id = e.feed_id
             LEFT JOIN entry_interactions ei ON ei.user_id = fs.user_id AND ei.entry_id = e.id
-            WHERE ${scope.clause} AND ei.filtered_at IS NULL AND ${filterSql(query.filter)}`;
+            WHERE ${scope.clause} AND ei.filtered_at IS NULL AND ${filterSql(query.filter)}${rangeClauses.join('')}`;
+            const whereBindings = [...scope.bindings, ...rangeBindings];
             // Keyset pagination: an OFFSET shifts when reads or new arrivals
             // change the filtered set, skipping or repeating entries.
             const cursorClause =
@@ -493,13 +512,13 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
                 d1.batch([
                     {
                         sql: `SELECT COUNT(*) AS total ${fromWhere}`,
-                        bindings: scope.bindings,
+                        bindings: whereBindings,
                     },
                     {
                         sql: `SELECT ${entryColumns} ${fromWhere}${cursorClause}
                     ORDER BY ${orderSql(query.orderBy)} LIMIT ?`,
                         bindings: [
-                            ...scope.bindings,
+                            ...whereBindings,
                             ...cursorBindings,
                             query.pageSize + 1,
                         ],

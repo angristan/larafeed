@@ -162,3 +162,22 @@ export const htmlToText = async (html: string): Promise<string> => {
         .replace(/\n{3,}/gu, '\n\n')
         .trim();
 };
+
+export interface TruncatedText {
+    readonly text: string;
+    readonly truncated: boolean;
+}
+
+/**
+ * Cuts text to at most `maxChars` characters plus an ellipsis, at a word
+ * boundary when one is close to the limit.
+ */
+export const truncateText = (text: string, maxChars: number): TruncatedText => {
+    if (text.length <= maxChars) return { text, truncated: false };
+    let cut = text.slice(0, maxChars);
+    // Do not leave half of a surrogate pair at the end.
+    if (/[\uD800-\uDBFF]$/u.test(cut)) cut = cut.slice(0, -1);
+    const lastBreak = cut.search(/\s\S*$/u);
+    if (lastBreak > maxChars * 0.6) cut = cut.slice(0, lastBreak);
+    return { text: `${cut.trimEnd()}…`, truncated: true };
+};
