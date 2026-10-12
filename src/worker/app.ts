@@ -28,6 +28,7 @@ import {
 } from './fullcontent';
 import { reportUnexpectedHttpError } from './http/failures';
 import { type ImageRouteDependencies, registerImageRoutes } from './images';
+import { type McpRouteDependencies, registerMcpRoutes } from './mcp/routes';
 import { type OpmlRouteDependencies, registerOpmlRoutes } from './opml/routes';
 import {
     type ReaderRouteDependencies,
@@ -85,6 +86,7 @@ export interface WorkerDependencies {
     readonly faviconRoutes?: FaviconRouteDependencies;
     readonly fullContentRoutes?: FullContentRouteDependencies;
     readonly imageRoutes?: ImageRouteDependencies;
+    readonly mcpRoutes?: McpRouteDependencies;
     readonly opmlRoutes?: OpmlRouteDependencies;
     readonly readerRoutes?: ReaderRouteDependencies;
     readonly refreshRoutes?: RefreshRouteDependencies;
@@ -250,6 +252,7 @@ export const createApp = (
     registerCompatibilityRoutes(app, dependencies.compatibilityRoutes);
     registerFaviconRoutes(app, dependencies.faviconRoutes);
     registerImageRoutes(app, dependencies.imageRoutes);
+    registerMcpRoutes(app, dependencies.mcpRoutes);
     registerReaderRoutes(app, dependencies.readerRoutes);
     registerRefreshRoutes(app, dependencies.refreshRoutes);
     registerOpmlRoutes(app, dependencies.opmlRoutes);
