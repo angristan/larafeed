@@ -246,8 +246,11 @@ export const makeMcpRepository = (d1: D1) => ({
                             JOIN entries e ON e.id = ec.entry_id
                             JOIN feed_subscriptions fs
                               ON fs.feed_id = e.feed_id AND fs.user_id = ?
-                            WHERE ec.entry_id IN (${entryIds.map(() => '?').join(', ')})`,
-                      bindings: [maxChars, userId, ...entryIds],
+                            WHERE ec.entry_id IN (SELECT value FROM json_each(?))`,
+                      // One JSON array instead of one parameter per ID: D1
+                      // allows at most 100 bound parameters per statement,
+                      // and a page can hold 100 entries.
+                      bindings: [maxChars, userId, JSON.stringify(entryIds)],
                   })
                   .pipe(
                       Effect.map(
