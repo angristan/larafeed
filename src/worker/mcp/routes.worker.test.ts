@@ -29,7 +29,9 @@ import {
 
 const ORIGIN = 'https://example.test';
 const REDIRECT_URI = 'http://127.0.0.1:43123/callback';
-const now = 1_970_000_000_000;
+// In the past: the reader service stamps writes with the real clock, and
+// tables check that updated_at is not before created_at.
+const now = 1_760_000_000_000;
 const d1 = makeD1(env.DB);
 const repository = makeMcpRepository(d1);
 
@@ -505,26 +507,39 @@ describe('MCP over OAuth with Workerd KV and D1', () => {
         const tools = await rpcResult(
             await rpc(tokens.access_token, 'tools/list'),
         );
-        expect(tools.tools?.map((tool) => tool.name)).toContain(
+        expect(tools.tools?.map((tool) => tool.name).sort()).toEqual([
+            'feed_health',
+            'get_entries',
+            'list_entries',
+            'list_subscriptions',
+            'search_entries',
+            'subscribe',
+            'unsubscribe',
             'update_entries',
-        );
+        ]);
+        // The tool list is sent in every conversation: Effect's nested
+        // checks and safe-integer bounds are flattened out of it.
+        const toolList = JSON.stringify(tools);
+        expect(toolList).not.toContain('allOf');
+        expect(toolList).not.toContain(String(Number.MAX_SAFE_INTEGER));
+        expect(toolList.length).toBeLessThan(6_000);
 
         const listed = await callTool(tokens.access_token, 'list_entries');
         expect(listed.isError).toBe(false);
         expect(listed.text).toContain(`Private article ${OWNER}`);
         expect(listed.text).not.toContain(`Private article ${OTHER}`);
 
-        const entry = await callTool(tokens.access_token, 'get_entry', {
-            entryId: ENTRY,
+        const entry = await callTool(tokens.access_token, 'get_entries', {
+            entryIds: [ENTRY],
         });
         expect(entry.text).toContain(
             'Hello & welcome (https://example.test/x)',
         );
 
-        const foreign = await callTool(tokens.access_token, 'get_entry', {
-            entryId: OTHER_ENTRY,
+        const foreign = await callTool(tokens.access_token, 'get_entries', {
+            entryIds: [OTHER_ENTRY],
         });
-        expect(foreign).toMatchObject({ isError: true });
+        expect(foreign.data).toEqual({ entries: [], notFound: [OTHER_ENTRY] });
         expect(foreign.text).not.toContain(`Private article ${OTHER}`);
 
         const update = await callTool(tokens.access_token, 'update_entries', {
@@ -544,6 +559,18 @@ describe('MCP over OAuth with Workerd KV and D1', () => {
             .bind(OTHER_ENTRY)
             .first<{ count: number }>();
         expect(otherInteraction?.count).toBe(0);
+
+        // A whole feed can be marked read, but only with read: true.
+        const feedRead = await callTool(tokens.access_token, 'update_entries', {
+            feedId: FEED,
+            read: true,
+        });
+        expect(feedRead.data).toEqual({ feedId: FEED, read: true });
+        const feedStar = await callTool(tokens.access_token, 'update_entries', {
+            feedId: FEED,
+            starred: true,
+        });
+        expect(feedStar.isError).toBe(true);
 
         const readOnly = await connectClient(OWNER, { allowWrite: false });
         expect(readOnly.scope).toBe('mcp:read');
@@ -576,7 +603,15 @@ describe('MCP over OAuth with Workerd KV and D1', () => {
             filter: 'all',
         });
         const page = listed.data as Listed;
-        expect(JSON.parse(listed.text)).toEqual(page);
+        // Text is one line per entry with the excerpt indented below.
+        expect(listed.text).toBe(
+            [
+                '1 entries',
+                // The previous test read and starred this entry.
+                `${ENTRY} · ${new Date(now).toISOString().slice(0, 16).replace('T', ' ')} · Feed ${OWNER} · Private article ${OWNER} [read, starred]`,
+                '  Hello & welcome (https://example.test/x)',
+            ].join('\n'),
+        );
         expect(page.entries).toEqual([
             expect.objectContaining({
                 id: ENTRY,
@@ -622,14 +657,18 @@ describe('MCP over OAuth with Workerd KV and D1', () => {
         expect(batch.text).toContain(`Private article ${OWNER}`);
         expect(batch.text).not.toContain(`Private article ${OTHER}`);
 
-        const full = await callTool(token, 'get_entry', {
-            entryId: ENTRY,
+        const full = await callTool(token, 'get_entries', {
+            entryIds: [ENTRY],
             fullContent: true,
         });
         expect(full.data).toMatchObject({
-            contentSource: 'article',
-            content: 'Full article from the website.',
-            truncated: false,
+            entries: [
+                {
+                    contentSource: 'article',
+                    content: 'Full article from the website.',
+                    truncated: false,
+                },
+            ],
         });
 
         // Both users' entries contain "welcome"; search sees only the owner's.

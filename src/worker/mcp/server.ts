@@ -21,7 +21,9 @@ import {
     loadEntry,
     renderEntry,
 } from './entries';
+import { entryLine, lines, shortDate } from './format';
 import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from './oauth';
+import { toolInput } from './schema';
 
 export interface McpToolServices extends EntryContentServices {
     readonly subscriptions: SubscriptionService;
@@ -41,26 +43,22 @@ export interface McpToolServices extends EntryContentServices {
 
 const SERVER_INFO = { name: 'larafeed', version: '1.0.0' } as const;
 
-const INSTRUCTIONS = `Larafeed is the user's RSS and Atom feed reader.
-Start with list_subscriptions to see categories, feeds, and unread counts.
-Use list_entries to browse articles (unread by default) and search_entries to find articles by words in their title, author, or text. Each entry includes a short excerpt; use since and until for date ranges.
-Read articles with get_entries (several at once) or get_entry (one, with a larger size limit). Many feeds only carry a teaser: pass fullContent: true to fetch the article from the website.
-Reading an article does not mark it read. update_entries marks articles read, starred, or archived.
-feed_health lists feeds that fail to refresh.
-subscribe and unsubscribe change the user's subscriptions. Confirm with the user before unsubscribing.`;
+// Sent once per session. Tool descriptions carry the details.
+const INSTRUCTIONS = `Larafeed is the user's feed reader. Entry lists read "id · date (UTC) · feed · title [flags]", with an excerpt or snippet below.
+Browse with list_entries, find with search_entries, read with get_entries (fullContent: true fetches the web page when a feed only has a teaser). Reading does not mark entries read; update_entries does.
+Confirm with the user before unsubscribe.`;
 
 // Updating one entry's read, starred, and archived state can take 12 D1
 // statements. 50 entries stay under D1's 1,000 queries per invocation, with
 // room for the token and connection checks.
-const MAX_ENTRY_IDS = 50;
+const MAX_UPDATE_IDS = 50;
 const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_EXCERPT_CHARS = 200;
-const MAX_EXCERPT_CHARS = 1_000;
-const DEFAULT_ENTRY_CHARS = 20_000;
-const DEFAULT_BATCH_ENTRY_CHARS = 4_000;
-// get_entries returns up to 20 bodies of up to 20,000 characters each, so
-// one call stays below about 400 KB of text.
-const MAX_BATCH_ENTRIES = 20;
+const MAX_READ_IDS = 20;
+const SINGLE_ENTRY_CHARS = 20_000;
+const BATCH_ENTRY_CHARS = 4_000;
+// Caps one get_entries result at about 200,000 characters of bodies.
+const MAX_TOTAL_CHARS = 200_000;
 const CURSOR_PATTERN = /^(\d{1,15}):(\d{1,15})$/u;
 
 // Every write tool needs both scopes: the client steps up to `mcp:write` when
@@ -70,97 +68,36 @@ const writeScopes = requireScopes(MCP_READ_SCOPE, MCP_WRITE_SCOPE);
 const SafeId = Schema.Int.check(
     Schema.isBetween({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER }),
 );
+const intBetween = (minimum: number, maximum: number) =>
+    Schema.Int.check(Schema.isBetween({ minimum, maximum }));
+const described = <S extends Schema.Top>(schema: S, description: string) =>
+    Schema.optionalKey(schema.annotate({ description }));
 
-/**
- * Exposes an Effect schema to the MCP SDK, which validates tool arguments
- * through Standard Schema and publishes the JSON Schema form to clients.
- */
-const toolInput = <S extends Schema.ConstraintDecoder<unknown>>(schema: S) =>
-    Schema.toStandardJSONSchemaV1(Schema.toStandardSchemaV1(schema));
+// Descriptions state only what the schema cannot: meaning and defaults.
+const scopeFields = {
+    feedId: Schema.optionalKey(SafeId),
+    categoryId: described(SafeId, 'Not with feedId.'),
+};
+const rangeFields = {
+    since: described(
+        Schema.String,
+        'ISO 8601 date or time, inclusive. UTC without a zone.',
+    ),
+    until: described(Schema.String, 'ISO 8601, exclusive.'),
+};
 
 const ListEntriesInput = toolInput(
     Schema.Struct({
-        filter: Schema.optionalKey(ReaderFilter).annotate({
-            description:
-                'Which entries to return. Defaults to "unread". "favorites" means starred.',
-        }),
-        feedId: Schema.optionalKey(SafeId).annotate({
-            description: 'Only entries from this feed.',
-        }),
-        categoryId: Schema.optionalKey(SafeId).annotate({
-            description:
-                'Only entries from feeds in this category. Do not combine with feedId.',
-        }),
-        orderBy: Schema.optionalKey(ReaderOrder).annotate({
-            description:
-                'Newest first by publication date (default) or by the time Larafeed fetched the entry.',
-        }),
-        cursor: Schema.optionalKey(Schema.String).annotate({
-            description: 'nextCursor from a previous list_entries call.',
-        }),
-        limit: Schema.optionalKey(
-            Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 })),
-        ).annotate({ description: 'Page size, 1 to 100. Defaults to 20.' }),
-        since: Schema.optionalKey(Schema.String).annotate({
-            description:
-                'Only entries at or after this time, compared with orderBy. ISO 8601 date or date-time, e.g. 2026-10-12 or 2026-10-12T08:00:00Z. Times without a zone are UTC.',
-        }),
-        until: Schema.optionalKey(Schema.String).annotate({
-            description:
-                'Only entries before this time, compared with orderBy. Same format as since.',
-        }),
-        excerptChars: Schema.optionalKey(
-            Schema.Int.check(
-                Schema.isBetween({ minimum: 0, maximum: MAX_EXCERPT_CHARS }),
-            ),
-        ).annotate({
-            description: `Length of the plain-text excerpt per entry, 0 to ${MAX_EXCERPT_CHARS}. Defaults to ${DEFAULT_EXCERPT_CHARS}; 0 omits excerpts.`,
-        }),
-    }),
-);
-
-const EntryFormat = Schema.optionalKey(
-    Schema.Literals(['text', 'html']),
-).annotate({
-    description:
-        'Article body format. "text" (default) is plain text with link targets; "html" is sanitized HTML.',
-});
-
-const FullContentFlag = Schema.optionalKey(Schema.Boolean).annotate({
-    description:
-        'Fetch the full article from the website instead of the feed content. Use it when the feed only has a teaser. Falls back to the feed content, with the reason, when the fetch fails.',
-});
-
-const maxCharsField = (defaultChars: number) =>
-    Schema.optionalKey(
-        Schema.Int.check(Schema.isBetween({ minimum: 500, maximum: 100_000 })),
-    ).annotate({
-        description: `Maximum characters of article body, 500 to 100000. Defaults to ${defaultChars}. Longer bodies are cut and marked truncated.`,
-    });
-
-const GetEntryInput = toolInput(
-    Schema.Struct({
-        entryId: SafeId,
-        format: EntryFormat,
-        fullContent: FullContentFlag,
-        maxChars: maxCharsField(DEFAULT_ENTRY_CHARS),
-    }),
-);
-
-const GetEntriesInput = toolInput(
-    Schema.Struct({
-        entryIds: Schema.Array(SafeId)
-            .check(Schema.isMinLength(1), Schema.isMaxLength(MAX_BATCH_ENTRIES))
-            .annotate({ description: `1 to ${MAX_BATCH_ENTRIES} entry IDs.` }),
-        format: EntryFormat,
-        fullContent: FullContentFlag,
-        maxChars: Schema.optionalKey(
-            Schema.Int.check(
-                Schema.isBetween({ minimum: 500, maximum: 20_000 }),
-            ),
-        ).annotate({
-            description: `Maximum characters of body per entry, 500 to 20000. Defaults to ${DEFAULT_BATCH_ENTRY_CHARS}.`,
-        }),
+        filter: described(ReaderFilter, 'Default unread. favorites = starred.'),
+        ...scopeFields,
+        orderBy: described(
+            ReaderOrder,
+            'Default published_at; created_at is fetch time. since/until use it too.',
+        ),
+        ...rangeFields,
+        cursor: described(Schema.String, 'nextCursor of the previous page.'),
+        limit: described(intBetween(1, 100), 'Default 20.'),
+        excerptChars: described(intBetween(0, 1_000), 'Default 200; 0 omits.'),
     }),
 );
 
@@ -168,101 +105,105 @@ const SearchEntriesInput = toolInput(
     Schema.Struct({
         query: Schema.String.check(Schema.isLengthBetween(1, 500)).annotate({
             description:
-                'Words to find. All words must match. Use "quotes" for a phrase, word* for a prefix, OR between alternatives, and -word to exclude. Case and accents are ignored.',
+                'All words must match. Also "phrase", prefix*, a OR b, -excluded.',
         }),
-        filter: Schema.optionalKey(ReaderFilter).annotate({
-            description:
-                'Which entries to search. Defaults to "all". "favorites" means starred.',
-        }),
-        feedId: Schema.optionalKey(SafeId),
-        categoryId: Schema.optionalKey(SafeId),
-        since: Schema.optionalKey(Schema.String).annotate({
-            description:
-                'Only entries published at or after this time. ISO 8601 date or date-time.',
-        }),
-        until: Schema.optionalKey(Schema.String).annotate({
-            description: 'Only entries published before this time.',
-        }),
-        limit: Schema.optionalKey(
-            Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 50 })),
-        ).annotate({
-            description: 'Results per page, 1 to 50. Defaults to 10.',
-        }),
-        offset: Schema.optionalKey(
-            Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 500 })),
-        ).annotate({
-            description:
-                'Results to skip; pass nextOffset from the previous page.',
-        }),
+        filter: described(ReaderFilter, 'Default all.'),
+        ...scopeFields,
+        ...rangeFields,
+        limit: described(intBetween(1, 50), 'Default 10.'),
+        offset: described(
+            intBetween(0, 500),
+            'nextOffset of the previous page.',
+        ),
     }),
 );
 
-const FeedHealthInput = toolInput(
+const GetEntriesInput = toolInput(
     Schema.Struct({
-        onlyProblems: Schema.optionalKey(Schema.Boolean).annotate({
-            description:
-                'Only feeds that are failing or gone. Defaults to true; false lists every feed.',
-        }),
+        entryIds: Schema.Array(SafeId).check(
+            Schema.isMinLength(1),
+            Schema.isMaxLength(MAX_READ_IDS),
+        ),
+        format: described(Schema.Literals(['text', 'html']), 'Default text.'),
+        fullContent: described(
+            Schema.Boolean,
+            'Fetch the article from its website, for feeds with only a teaser.',
+        ),
+        maxChars: described(
+            intBetween(500, 100_000),
+            'Per entry. Default 20000 for one entry, 4000 for several.',
+        ),
     }),
 );
 
 const UpdateEntriesInput = toolInput(
     Schema.Struct({
-        entryIds: Schema.Array(SafeId)
-            .check(Schema.isMinLength(1), Schema.isMaxLength(MAX_ENTRY_IDS))
-            .annotate({ description: `1 to ${MAX_ENTRY_IDS} entry IDs.` }),
+        entryIds: Schema.optionalKey(
+            Schema.Array(SafeId).check(
+                Schema.isMinLength(1),
+                Schema.isMaxLength(MAX_UPDATE_IDS),
+            ),
+        ),
+        feedId: described(
+            SafeId,
+            'Instead of entryIds: every entry in the feed. Only with read: true.',
+        ),
         read: Schema.optionalKey(Schema.Boolean),
         starred: Schema.optionalKey(Schema.Boolean),
         archived: Schema.optionalKey(Schema.Boolean),
     }),
 );
 
-const FeedInput = toolInput(Schema.Struct({ feedId: SafeId }));
+const FeedHealthInput = toolInput(
+    Schema.Struct({
+        all: described(Schema.Boolean, 'Include healthy feeds.'),
+    }),
+);
 
 const SubscribeInput = toolInput(
     Schema.Struct({
         url: Schema.String.check(
             Schema.isTrimmed(),
             Schema.isLengthBetween(1, 2_048),
-        ).annotate({
-            description:
-                'A feed URL or a website URL. Larafeed discovers the feed on a website.',
-        }),
-        categoryId: Schema.optionalKey(SafeId).annotate({
-            description: 'Existing category to file the feed under.',
-        }),
-        categoryName: Schema.optionalKey(
+        ).annotate({ description: 'Feed or website URL.' }),
+        categoryId: Schema.optionalKey(SafeId),
+        categoryName: described(
             Schema.String.check(
                 Schema.isTrimmed(),
                 Schema.isLengthBetween(1, 255),
             ),
-        ).annotate({
-            description:
-                'Name of a new category to create for the feed. Pass exactly one of categoryId or categoryName.',
-        }),
+            'New category. Pass exactly one of categoryId or categoryName.',
+        ),
     }),
 );
+
+const FeedInput = toolInput(Schema.Struct({ feedId: SafeId }));
 
 const iso = (timestamp: number | null): string | null =>
     timestamp === null ? null : new Date(timestamp).toISOString();
 
-/**
- * A result for clients that read text and for clients that read typed
- * `structuredContent`. MCP asks servers to send the JSON as text too.
- */
+/** Small results: the JSON is already compact. */
 const jsonResult = (value: Record<string, unknown>): CallToolResult => ({
     content: [{ type: 'text', text: JSON.stringify(value) }],
     structuredContent: value,
 });
 
-/** Readable text for the model, with the same data as structured content. */
-const textAndDataResult = (
+/** Compact text for the model; the full JSON for clients that read it. */
+const textResult = (
     text: string,
     value: Record<string, unknown>,
 ): CallToolResult => ({
     content: [{ type: 'text', text }],
     structuredContent: value,
 });
+
+const readOnly = { readOnlyHint: true, openWorldHint: false } as const;
+const writes = {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+} as const;
 
 const errorResult = (message: string): CallToolResult => ({
     isError: true,
@@ -443,10 +384,8 @@ export const makeMcpServer = (
     server.registerTool(
         'list_subscriptions',
         {
-            title: 'List subscriptions',
-            description:
-                'Lists categories with their subscribed feeds and unread counts, plus account-wide totals.',
-            annotations: { readOnlyHint: true, openWorldHint: false },
+            description: 'Categories, feeds, and unread counts.',
+            annotations: readOnly,
         },
         () =>
             runTool(
@@ -457,27 +396,38 @@ export const makeMcpServer = (
                         reader.listCategories(userId),
                         reader.listSubscriptions(userId),
                     ]);
-                    return jsonResult({
-                        counts: {
-                            unread: counts.unread,
-                            starred: counts.starred,
-                            total: counts.total,
+                    const grouped = categories.categories.map((category) => ({
+                        id: category.id,
+                        name: category.name,
+                        feeds: feeds.subscriptions
+                            .filter((feed) => feed.categoryId === category.id)
+                            .map((feed) => ({
+                                feedId: feed.feedId,
+                                name: feed.customFeedName ?? feed.feedName,
+                                unread: feed.unreadCount,
+                                total: feed.totalCount,
+                            })),
+                    }));
+                    return textResult(
+                        lines(
+                            `unread ${counts.unread} · starred ${counts.starred} · total ${counts.total}`,
+                            ...grouped.flatMap((category) => [
+                                `## ${category.name} (category ${category.id})`,
+                                ...category.feeds.map(
+                                    (feed) =>
+                                        `${feed.feedId} · ${feed.name} · ${feed.unread}/${feed.total} unread`,
+                                ),
+                            ]),
+                        ),
+                        {
+                            counts: {
+                                unread: counts.unread,
+                                starred: counts.starred,
+                                total: counts.total,
+                            },
+                            categories: grouped,
                         },
-                        categories: categories.categories.map((category) => ({
-                            id: category.id,
-                            name: category.name,
-                            feeds: feeds.subscriptions
-                                .filter(
-                                    (feed) => feed.categoryId === category.id,
-                                )
-                                .map((feed) => ({
-                                    feedId: feed.feedId,
-                                    name: feed.customFeedName ?? feed.feedName,
-                                    unread: feed.unreadCount,
-                                    total: feed.totalCount,
-                                })),
-                        })),
-                    });
+                    );
                 }),
             ),
     );
@@ -485,25 +435,21 @@ export const makeMcpServer = (
     server.registerTool(
         'list_entries',
         {
-            title: 'List entries',
-            description:
-                'Lists feed entries, newest first, with a short plain-text excerpt of each. Use get_entries or get_entry to read them.',
+            description: 'Entries, newest first, with excerpts.',
             inputSchema: ListEntriesInput,
-            annotations: { readOnlyHint: true, openWorldHint: false },
+            annotations: readOnly,
         },
         (input) =>
             runTool(
                 'list_entries',
                 Effect.gen(function* () {
-                    const scope = yield* entryScope(input);
-                    const range = yield* dateRange(input);
                     const page = yield* reader.listEntries(userId, {
-                        scope,
+                        scope: yield* entryScope(input),
                         filter: input.filter ?? 'unread',
                         orderBy: input.orderBy ?? 'published_at',
                         cursor: yield* parseCursor(input.cursor),
                         pageSize: input.limit ?? DEFAULT_PAGE_SIZE,
-                        range,
+                        range: yield* dateRange(input),
                     });
                     const excerptChars =
                         input.excerptChars ?? DEFAULT_EXCERPT_CHARS;
@@ -526,25 +472,38 @@ export const makeMcpServer = (
                                           buildExcerpts(prefixes, excerptChars),
                                       ),
                                   );
-                    return jsonResult({
-                        total: page.total,
-                        nextCursor: page.nextCursor,
-                        entries: page.entries.map((entry) => ({
-                            id: entry.id,
-                            title: entry.title,
-                            url: entry.url,
-                            author: entry.author,
-                            feedId: entry.feedId,
-                            feed: entry.customFeedName ?? entry.feedName,
-                            publishedAt: iso(entry.publishedAt),
-                            read: entry.read,
-                            starred: entry.starred,
-                            archived: entry.archived,
-                            ...(excerptChars === 0
-                                ? {}
-                                : { excerpt: excerpts.get(entry.id) ?? '' }),
-                        })),
-                    });
+                    const entries = page.entries.map((entry) => ({
+                        ...entry,
+                        feed: entry.customFeedName ?? entry.feedName,
+                        excerpt: excerpts.get(entry.id),
+                    }));
+                    return textResult(
+                        lines(
+                            `${page.total} entries${page.nextCursor === null ? '' : ` · next cursor ${page.nextCursor}`}`,
+                            ...entries.map((entry) =>
+                                entryLine(entry, entry.excerpt),
+                            ),
+                        ),
+                        {
+                            total: page.total,
+                            nextCursor: page.nextCursor,
+                            entries: entries.map((entry) => ({
+                                id: entry.id,
+                                title: entry.title,
+                                url: entry.url,
+                                author: entry.author,
+                                feedId: entry.feedId,
+                                feed: entry.feed,
+                                publishedAt: iso(entry.publishedAt),
+                                read: entry.read,
+                                starred: entry.starred,
+                                archived: entry.archived,
+                                ...(excerptChars === 0
+                                    ? {}
+                                    : { excerpt: entry.excerpt ?? '' }),
+                            })),
+                        },
+                    );
                 }),
             ),
     );
@@ -552,11 +511,10 @@ export const makeMcpServer = (
     server.registerTool(
         'search_entries',
         {
-            title: 'Search entries',
             description:
-                'Finds entries by words in their title, author, or text, best matches first. Each result has a snippet with matched words in **bold**. New entries are searchable within a few minutes.',
+                'Full-text search of titles, authors, and article text; best matches first, snippets with **matches**. New entries appear within minutes.',
             inputSchema: SearchEntriesInput,
-            annotations: { readOnlyHint: true, openWorldHint: false },
+            annotations: readOnly,
         },
         (input) =>
             runTool(
@@ -582,70 +540,64 @@ export const makeMcpServer = (
                         limit,
                         offset,
                     });
-                    return jsonResult({
-                        results: page.results.map((entry) => ({
-                            id: entry.id,
-                            title: entry.title,
-                            url: entry.url,
-                            feedId: entry.feedId,
-                            feed: entry.customFeedName ?? entry.feedName,
-                            publishedAt: iso(entry.publishedAt),
-                            read: entry.read,
-                            starred: entry.starred,
-                            snippet: entry.snippet,
-                        })),
-                        nextOffset: page.hasMore ? offset + limit : null,
-                    });
+                    const nextOffset = page.hasMore ? offset + limit : null;
+                    const results = page.results.map((entry) => ({
+                        ...entry,
+                        feed: entry.customFeedName ?? entry.feedName,
+                    }));
+                    return textResult(
+                        lines(
+                            `${results.length} results${nextOffset === null ? '' : ` · next offset ${nextOffset}`}`,
+                            ...results.map((entry) =>
+                                entryLine(entry, entry.snippet),
+                            ),
+                        ),
+                        {
+                            results: results.map((entry) => ({
+                                id: entry.id,
+                                title: entry.title,
+                                url: entry.url,
+                                feedId: entry.feedId,
+                                feed: entry.feed,
+                                publishedAt: iso(entry.publishedAt),
+                                read: entry.read,
+                                starred: entry.starred,
+                                snippet: entry.snippet,
+                            })),
+                            nextOffset,
+                        },
+                    );
                 }),
-            ),
-    );
-
-    server.registerTool(
-        'get_entry',
-        {
-            title: 'Read entry',
-            description:
-                'Returns one entry with its content, up to maxChars. It does not mark the entry read.',
-            inputSchema: GetEntryInput,
-            annotations: {
-                readOnlyHint: true,
-                // fullContent fetches the article's web page.
-                openWorldHint: true,
-            },
-        },
-        (input) =>
-            runTool(
-                'get_entry',
-                loadEntry(services, userId, input.entryId, {
-                    format: input.format ?? 'text',
-                    maxChars: input.maxChars ?? DEFAULT_ENTRY_CHARS,
-                    fullContent: input.fullContent ?? false,
-                }).pipe(
-                    Effect.map((entry) =>
-                        textAndDataResult(renderEntry(entry), { ...entry }),
-                    ),
-                ),
             ),
     );
 
     server.registerTool(
         'get_entries',
         {
-            title: 'Read entries',
-            description: `Returns up to ${MAX_BATCH_ENTRIES} entries with their content in one call, each cut to maxChars. Use it to read or summarize several articles. It does not mark them read.`,
+            description:
+                'Reads entries with their content. Does not mark them read.',
             inputSchema: GetEntriesInput,
+            // fullContent fetches the article's web page.
             annotations: { readOnlyHint: true, openWorldHint: true },
         },
         (input) =>
             runTool(
                 'get_entries',
                 Effect.gen(function* () {
+                    const ids = [...new Set(input.entryIds)];
+                    const requested =
+                        input.maxChars ??
+                        (ids.length === 1
+                            ? SINGLE_ENTRY_CHARS
+                            : BATCH_ENTRY_CHARS);
                     const options = {
                         format: input.format ?? 'text',
-                        maxChars: input.maxChars ?? DEFAULT_BATCH_ENTRY_CHARS,
+                        maxChars: Math.min(
+                            requested,
+                            Math.floor(MAX_TOTAL_CHARS / ids.length),
+                        ),
                         fullContent: input.fullContent ?? false,
                     } as const;
-                    const ids = [...new Set(input.entryIds)];
                     const loaded = yield* Effect.forEach(
                         ids,
                         (entryId) =>
@@ -665,15 +617,15 @@ export const makeMcpServer = (
                     const notFound = loaded.flatMap(({ entryId, entry }) =>
                         entry === null ? [entryId] : [],
                     );
-                    const text = [
-                        ...entries.map(renderEntry),
-                        ...(notFound.length === 0
-                            ? []
-                            : [
-                                  `Not found in this account: ${notFound.join(', ')}`,
-                              ]),
-                    ].join('\n\n======\n\n');
-                    return textAndDataResult(text, { entries, notFound });
+                    return textResult(
+                        [
+                            ...entries.map(renderEntry),
+                            ...(notFound.length === 0
+                                ? []
+                                : [`Not found: ${notFound.join(', ')}`]),
+                        ].join('\n\n---\n\n'),
+                        { entries, notFound },
+                    );
                 }),
             ),
     );
@@ -681,22 +633,42 @@ export const makeMcpServer = (
     server.registerTool(
         'update_entries',
         {
-            title: 'Update entries',
             description:
-                'Marks entries read or unread, starred or unstarred, and archived or unarchived. Set at least one of read, starred, or archived.',
+                'Sets read, starred, or archived on entries, or marks a whole feed read.',
             inputSchema: UpdateEntriesInput,
-            annotations: {
-                readOnlyHint: false,
-                destructiveHint: false,
-                idempotentHint: true,
-                openWorldHint: false,
-            },
+            annotations: writes,
             scopeChallenge: writeScopes,
         },
         (input) =>
             runTool(
                 'update_entries',
                 Effect.gen(function* () {
+                    if (input.feedId !== undefined) {
+                        if (
+                            input.entryIds !== undefined ||
+                            input.read !== true ||
+                            input.starred !== undefined ||
+                            input.archived !== undefined
+                        ) {
+                            return yield* new ToolInputError({
+                                message:
+                                    'With feedId, pass only read: true (no entryIds, starred, or archived).',
+                            });
+                        }
+                        const result = yield* reader.advanceReadThrough(
+                            userId,
+                            input.feedId,
+                        );
+                        return jsonResult({
+                            feedId: result.feedId,
+                            read: true,
+                        });
+                    }
+                    if (input.entryIds === undefined) {
+                        return yield* new ToolInputError({
+                            message: 'Pass entryIds or feedId.',
+                        });
+                    }
                     if (
                         input.read === undefined &&
                         input.starred === undefined &&
@@ -761,48 +733,19 @@ export const makeMcpServer = (
     );
 
     server.registerTool(
-        'mark_feed_read',
-        {
-            title: 'Mark feed read',
-            description:
-                'Marks every entry currently in one subscribed feed as read.',
-            inputSchema: FeedInput,
-            annotations: {
-                readOnlyHint: false,
-                destructiveHint: false,
-                idempotentHint: true,
-                openWorldHint: false,
-            },
-            scopeChallenge: writeScopes,
-        },
-        (input) =>
-            runTool(
-                'mark_feed_read',
-                reader
-                    .advanceReadThrough(userId, input.feedId)
-                    .pipe(
-                        Effect.map((result) =>
-                            jsonResult({ feedId: result.feedId, read: true }),
-                        ),
-                    ),
-            ),
-    );
-
-    server.registerTool(
         'feed_health',
         {
-            title: 'Feed health',
             description:
-                'Lists feeds that fail to refresh or are gone, with the last error and the last successful refresh.',
+                'Feeds that fail to refresh or are gone, with the last error and last success.',
             inputSchema: FeedHealthInput,
-            annotations: { readOnlyHint: true, openWorldHint: false },
+            annotations: readOnly,
         },
         (input) =>
             runTool(
                 'feed_health',
                 subscriptions.list(userId).pipe(
-                    Effect.map(({ subscriptions: feeds }) => {
-                        const described = feeds.map((feed) => ({
+                    Effect.map(({ subscriptions: all }) => {
+                        const feeds = all.map((feed) => ({
                             feedId: feed.feedId,
                             name: feed.customFeedName ?? feed.feedName,
                             category: feed.categoryName,
@@ -816,25 +759,38 @@ export const makeMcpServer = (
                             consecutiveFailures: feed.consecutiveFailures,
                             lastError:
                                 feed.lastErrorMessage ?? feed.lastErrorClass,
-                            lastAttemptAt: iso(feed.lastAttemptAt),
-                            lastSuccessAt: iso(feed.lastSuccessfulRefreshAt),
+                            lastAttemptAt: feed.lastAttemptAt,
+                            lastSuccessAt: feed.lastSuccessfulRefreshAt,
                         }));
-                        const problems = described.filter(
-                            (feed) => feed.status !== 'ok',
+                        const shown =
+                            input.all === true
+                                ? feeds
+                                : feeds.filter((feed) => feed.status !== 'ok');
+                        const failing = feeds.filter(
+                            (feed) => feed.status === 'failing',
+                        ).length;
+                        const gone = feeds.filter(
+                            (feed) => feed.status === 'gone',
+                        ).length;
+                        return textResult(
+                            lines(
+                                `${feeds.length} feeds · ${failing} failing · ${gone} gone`,
+                                ...shown.map(
+                                    (feed) =>
+                                        `${feed.feedId} · ${feed.name} · ${feed.status}${feed.consecutiveFailures > 0 ? ` (${feed.consecutiveFailures} failures)` : ''} · last success ${shortDate(feed.lastSuccessAt)}${feed.lastError === null ? '' : ` · ${feed.lastError}`}`,
+                                ),
+                            ),
+                            {
+                                totalFeeds: feeds.length,
+                                failing,
+                                gone,
+                                feeds: shown.map((feed) => ({
+                                    ...feed,
+                                    lastAttemptAt: iso(feed.lastAttemptAt),
+                                    lastSuccessAt: iso(feed.lastSuccessAt),
+                                })),
+                            },
                         );
-                        return jsonResult({
-                            totalFeeds: described.length,
-                            failing: problems.filter(
-                                (feed) => feed.status === 'failing',
-                            ).length,
-                            gone: problems.filter(
-                                (feed) => feed.status === 'gone',
-                            ).length,
-                            feeds:
-                                (input.onlyProblems ?? true)
-                                    ? problems
-                                    : described,
-                        });
                     }),
                 ),
             ),
@@ -843,14 +799,11 @@ export const makeMcpServer = (
     server.registerTool(
         'subscribe',
         {
-            title: 'Subscribe to a feed',
             description:
-                'Subscribes to a feed by feed or website URL. When a website offers several feeds, returns the choices; call subscribe again with one feedUrl.',
+                'Subscribes to a feed or website URL. If a site has several feeds, returns them; call again with one.',
             inputSchema: SubscribeInput,
             annotations: {
-                readOnlyHint: false,
-                destructiveHint: false,
-                idempotentHint: true,
+                ...writes,
                 // Larafeed fetches the URL to discover the feed.
                 openWorldHint: true,
             },
@@ -915,16 +868,10 @@ export const makeMcpServer = (
     server.registerTool(
         'unsubscribe',
         {
-            title: 'Unsubscribe from a feed',
             description:
-                "Removes a feed from the user's subscriptions, with its read and starred state. Confirm with the user first.",
+                'Removes a subscription and its read and starred state.',
             inputSchema: FeedInput,
-            annotations: {
-                readOnlyHint: false,
-                destructiveHint: true,
-                idempotentHint: true,
-                openWorldHint: false,
-            },
+            annotations: { ...writes, destructiveHint: true },
             scopeChallenge: writeScopes,
         },
         (input) =>
