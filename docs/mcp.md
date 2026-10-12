@@ -20,7 +20,7 @@ Apps get read-only access unless you tick write access on the consent page. To c
 | `list_subscriptions` | read | Categories, feeds, and unread counts |
 | `list_entries` | read | Entries without content, filtered by feed, category, and read state, with pagination |
 | `get_entry` | read | One entry with its content as plain text (default) or sanitized HTML. It does not mark the entry read |
-| `update_entries` | write | Marks up to 100 entries read, starred, or archived (or the reverse) |
+| `update_entries` | write | Marks up to 50 entries read, starred, or archived (or the reverse) |
 | `mark_feed_read` | write | Marks every entry in one feed as read |
 | `subscribe` | write | Adds a feed by feed or website URL. Returns the choices when a site offers several feeds |
 | `unsubscribe` | write | Removes a subscription with its read and starred state |
@@ -52,7 +52,8 @@ POST /mcp (Bearer) ───────────────▶ token check,
 
 - [`@cloudflare/workers-oauth-provider`](https://github.com/cloudflare/workers-oauth-provider) implements OAuth 2.1 with PKCE, dynamic client registration, Client ID Metadata Documents, and the discovery documents. It stores clients, grants, and token hashes in the `OAUTH_KV` namespace.
 - Larafeed owns `/authorize`. The page reuses the passkey session and shows the client's name, its verified domain when it has one, and where tokens go.
-- The opt-in lives in D1 (`users.mcp_enabled_at`). Every MCP request checks it after the token, so turning MCP off takes effect without waiting for revocation.
+- D1 decides who has access: the opt-in (`users.mcp_enabled_at`) and one `mcp_connections` row per authorized app. Each token carries its connection ID in its encrypted props, and every MCP request checks the row is active. Disconnect and turning MCP off write D1 first, so they take effect at once, for any number of grants, and even if a token refresh races the revocation. Deleting the KV grant is cleanup.
+- The consent form records which account it was shown for. If the browser signs in to another account before **Allow**, the request is refused.
 - `/mcp` is stateless. Each request builds a fresh MCP server from [`@modelcontextprotocol/server`](https://www.npmjs.com/package/@modelcontextprotocol/server) and answers with JSON. The endpoint serves both the 2025 and 2026-07-28 protocol revisions.
 - Tool calls create `app.mcp.tool.call` trace spans with the tool name and error class. Arguments and results are not logged.
 - `POST /oauth/register` uses the `AUTH_RATE_LIMITER` binding, per client IP.

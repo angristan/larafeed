@@ -17,6 +17,35 @@ const storageError =
     (cause: D1OperationError | Schema.SchemaError): McpStorageError =>
         new McpStorageError({ operation, cause });
 
+// Client IDs are attacker-chosen for dynamic and CIMD clients. Bound the
+// stored value; the full ID stays in KV.
+const boundedClientId = (clientId: string): string => clientId.slice(0, 512);
+
+/** A security event that is written only if the statement before it changed a row. */
+const clientEvent = (
+    input: {
+        readonly userId: number;
+        readonly clientId: string;
+        readonly eventId: number;
+        readonly now: number;
+    },
+    kind: 'mcp.client.authorized' | 'mcp.client.revoked',
+) => ({
+    sql: `INSERT INTO security_events (
+              id, user_id, actor_user_id, kind, metadata_json, created_at
+          )
+          SELECT ?, ?, ?, ?, json_object('clientId', ?), ?
+          WHERE changes() = 1`,
+    bindings: [
+        input.eventId,
+        input.userId,
+        input.userId,
+        kind,
+        boundedClientId(input.clientId),
+        input.now,
+    ],
+});
+
 export const makeMcpRepository = (d1: D1) => ({
     /**
      * Reads whether a user may use MCP. A missing or disabled user has no
@@ -44,8 +73,9 @@ export const makeMcpRepository = (d1: D1) => ({
             ),
 
     /**
-     * Turns MCP access on or off. The update only matches when the value
-     * changes, so a repeated request is a no-op and records no security event.
+     * Turns MCP access on or off. The user update only matches when the value
+     * changes, so a repeated request records no security event. Turning it
+     * off always revokes every active connection.
      */
     setEnabled: (input: {
         readonly userId: number;
@@ -84,41 +114,118 @@ export const makeMcpRepository = (d1: D1) => ({
                         input.now,
                     ],
                 },
+                {
+                    // Turning MCP off revokes every connection in one
+                    // statement, however many grants the user has.
+                    sql: `UPDATE mcp_connections SET revoked_at = ?
+                          WHERE user_id = ? AND revoked_at IS NULL AND ? = 0`,
+                    bindings: [input.now, input.userId, input.enabled ? 1 : 0],
+                },
             ])
             .pipe(
                 Effect.asVoid,
                 Effect.mapError(storageError('mcp.access.set')),
             ),
 
-    /** Records an MCP client authorization or revocation for the audit log. */
-    recordClientEvent: (input: {
+    /**
+     * Records a new connection for a user who has MCP turned on, with its
+     * security event. Returns false when access was turned off meanwhile.
+     */
+    createConnection: (input: {
+        readonly connectionId: number;
         readonly userId: number;
-        readonly kind: 'mcp.client.authorized' | 'mcp.client.revoked';
+        readonly clientId: string;
+        readonly eventId: number;
+        readonly now: number;
+    }): Effect.Effect<boolean, McpStorageError> =>
+        d1
+            .batch([
+                {
+                    sql: `INSERT INTO mcp_connections (
+                              id, user_id, client_id, created_at
+                          )
+                          SELECT ?, id, ?, ? FROM users
+                          WHERE id = ? AND disabled_at IS NULL
+                            AND mcp_enabled_at IS NOT NULL`,
+                    bindings: [
+                        input.connectionId,
+                        boundedClientId(input.clientId),
+                        input.now,
+                        input.userId,
+                    ],
+                },
+                clientEvent(input, 'mcp.client.authorized'),
+            ])
+            .pipe(
+                Effect.map((results) => results[0]?.meta.changes === 1),
+                Effect.mapError(storageError('mcp.connection.create')),
+            ),
+
+    /**
+     * True when the connection is active and its user still has MCP on and
+     * is not disabled. Runs on every MCP request, so it is one indexed query.
+     */
+    isConnectionActive: (
+        userId: number,
+        connectionId: number,
+    ): Effect.Effect<boolean, McpStorageError> =>
+        d1
+            .first({
+                sql: `SELECT 1 AS active
+                      FROM mcp_connections c
+                      JOIN users u ON u.id = c.user_id
+                      WHERE c.id = ? AND c.user_id = ?
+                        AND c.revoked_at IS NULL
+                        AND u.disabled_at IS NULL
+                        AND u.mcp_enabled_at IS NOT NULL`,
+                bindings: [connectionId, userId],
+            })
+            .pipe(
+                Effect.map((row) => row !== null),
+                Effect.mapError(storageError('mcp.connection.check')),
+            ),
+
+    /** IDs of the user's active connections, for the settings list. */
+    activeConnectionIds: (
+        userId: number,
+    ): Effect.Effect<ReadonlySet<number>, McpStorageError> =>
+        d1
+            .all<{ id: number }>({
+                sql: `SELECT id FROM mcp_connections
+                      WHERE user_id = ? AND revoked_at IS NULL`,
+                bindings: [userId],
+            })
+            .pipe(
+                Effect.map(
+                    (result) => new Set(result.results.map((row) => row.id)),
+                ),
+                Effect.mapError(storageError('mcp.connection.list')),
+            ),
+
+    /**
+     * Revokes one connection and records the event. Every token tied to it
+     * stops working with this write, before the KV grant is deleted.
+     */
+    revokeConnection: (input: {
+        readonly connectionId: number;
+        readonly userId: number;
         readonly clientId: string;
         readonly eventId: number;
         readonly now: number;
     }): Effect.Effect<void, McpStorageError> =>
         d1
-            .run({
-                sql: `INSERT INTO security_events (
-                          id, user_id, actor_user_id, kind,
-                          metadata_json, created_at
-                      )
-                      SELECT ?, id, id, ?, json_object('clientId', ?), ?
-                      FROM users WHERE id = ?`,
-                bindings: [
-                    input.eventId,
-                    input.kind,
-                    // Client IDs are attacker-chosen for dynamic and CIMD
-                    // clients. Bound the stored value; the full ID stays in KV.
-                    input.clientId.slice(0, 512),
-                    input.now,
-                    input.userId,
-                ],
-            })
+            .batch([
+                {
+                    sql: `UPDATE mcp_connections SET revoked_at = ?
+                          WHERE id = ? AND user_id = ?
+                            AND revoked_at IS NULL`,
+                    bindings: [input.now, input.connectionId, input.userId],
+                },
+                clientEvent(input, 'mcp.client.revoked'),
+            ])
             .pipe(
                 Effect.asVoid,
-                Effect.mapError(storageError('mcp.client.event')),
+                Effect.mapError(storageError('mcp.connection.revoke')),
             ),
 });
 

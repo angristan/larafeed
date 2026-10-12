@@ -35,7 +35,10 @@ Use list_entries to browse articles (unread by default) and get_entry to read on
 update_entries marks articles read, starred, or archived. Opening an article with get_entry does not mark it read.
 subscribe and unsubscribe change the user's subscriptions. Confirm with the user before unsubscribing.`;
 
-const MAX_ENTRY_IDS = 100;
+// Updating one entry's read, starred, and archived state can take 12 D1
+// statements. 50 entries stay under D1's 1,000 queries per invocation, with
+// room for the token and connection checks.
+const MAX_ENTRY_IDS = 50;
 const DEFAULT_PAGE_SIZE = 20;
 const CURSOR_PATTERN = /^(\d{1,15}):(\d{1,15})$/u;
 
@@ -433,8 +436,7 @@ export const makeMcpServer = (
                     }
                     const updated: unknown[] = [];
                     const notFound: number[] = [];
-                    // Sequential on purpose: each change is a small D1 write,
-                    // and 100 IDs stay well inside the subrequest budget.
+                    // Sequential on purpose: each change is a small D1 batch.
                     for (const entryId of new Set(input.entryIds)) {
                         const result = yield* Effect.gen(function* () {
                             let state:

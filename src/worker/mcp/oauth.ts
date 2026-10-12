@@ -17,11 +17,12 @@ import type { McpScope } from '@shared/schemas/mcp';
  *   POST /oauth/register (DCR) or a CIMD client_id URL
  *   browser ─▶ GET /authorize ───────▶ passkey session + consent page (ours)
  *   POST /oauth/token ───────────────▶ access + refresh tokens (library)
- *   POST /mcp (Bearer) ──────────────▶ token check + D1 opt-in check + tools
+ *   POST /mcp (Bearer) ──────────────▶ token check + D1 connection check + tools
  *
  * The library stores clients, grants, and token hashes in the OAUTH_KV
- * namespace. Larafeed keeps the per-user opt-in in D1, so turning MCP off
- * blocks every token at once, before any grant is revoked.
+ * namespace. Larafeed keeps the per-user opt-in and one row per connection in
+ * D1, and checks both on every request. Revocation writes D1 first, so it
+ * takes effect at once even if a racing refresh rewrites the KV grant.
  */
 
 export const MCP_PATH = '/mcp';
@@ -44,6 +45,8 @@ const REFRESH_TOKEN_IDLE_TTL_SECONDS = 30 * DAY_SECONDS;
 /** What a completed authorization stores (encrypted) with every token. */
 export interface McpProps {
     readonly userId: number;
+    /** Row in `mcp_connections`; revoking it revokes every token at once. */
+    readonly connectionId: number;
 }
 
 export type McpResourceContext = OAuthResourceContext<McpProps>;
@@ -53,9 +56,10 @@ export interface McpOAuthOptions {
     readonly origin: string;
     /**
      * Runs after the library accepts a token. Return false to reject it with a
-     * 401, for example when the user turned MCP off or was disabled.
+     * 401: the connection was revoked, MCP was turned off, or the user was
+     * disabled.
      */
-    readonly hasAccess: (env: Env, userId: number) => Promise<boolean>;
+    readonly hasAccess: (env: Env, props: McpProps) => Promise<boolean>;
     /** Serves an authenticated MCP request. */
     readonly handleMcp: (
         request: Request,
@@ -73,11 +77,14 @@ export interface McpOAuth {
     readonly resourceServer: OAuthResourceServer<Env, McpProps>;
 }
 
+const isSafeId = (value: unknown): value is number =>
+    Number.isSafeInteger(value) && (value as number) > 0;
+
 const isMcpProps = (value: unknown): value is McpProps =>
     typeof value === 'object' &&
     value !== null &&
-    Number.isSafeInteger(Reflect.get(value, 'userId')) &&
-    (Reflect.get(value, 'userId') as number) > 0;
+    isSafeId(Reflect.get(value, 'userId')) &&
+    isSafeId(Reflect.get(value, 'connectionId'));
 
 // OAuth errors are client mistakes or probing, not Worker faults. Log the
 // stable reason only: descriptions can echo client input.
@@ -132,7 +139,7 @@ export const makeMcpOAuth = (options: McpOAuthOptions): McpOAuth => {
             if (validated === null || !isMcpProps(validated.props)) {
                 return null;
             }
-            if (!(await options.hasAccess(env, validated.props.userId))) {
+            if (!(await options.hasAccess(env, validated.props))) {
                 return null;
             }
             return { ...validated, props: validated.props };

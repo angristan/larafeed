@@ -25,14 +25,16 @@ import { defaultSubscriptionRuntimeFactory } from '../subscriptions/routes';
 import { handleAuthorizeGet, handleAuthorizePost } from './authorize';
 import { McpNotFound, McpValidationError } from './errors';
 import {
+    deleteAllGrants,
+    deleteGrant,
+    findConnectedClient,
     listConnectedClients,
-    revokeAllConnectedClients,
-    revokeConnectedClient,
 } from './grants';
 import {
     AUTHORIZE_PATH,
     MCP_PATH,
     type McpOAuth,
+    type McpProps,
     type McpResourceContext,
     makeMcpOAuth,
     REGISTER_PATH,
@@ -84,11 +86,12 @@ export const defaultMcpToolServices: McpToolServicesFactory = (env) =>
         })),
     );
 
-const hasMcpAccess = (env: Env, userId: number): Promise<boolean> =>
+const hasMcpAccess = (env: Env, props: McpProps): Promise<boolean> =>
     Effect.runPromise(
-        makeMcpRepository(makeD1(env.DB))
-            .getAccess(userId)
-            .pipe(Effect.map((access) => access.enabled)),
+        makeMcpRepository(makeD1(env.DB)).isConnectionActive(
+            props.userId,
+            props.connectionId,
+        ),
     );
 
 /** Serves one authenticated MCP request with a fresh, stateless server. */
@@ -303,6 +306,7 @@ const settingsResponse = (runtime: McpRuntime, env: Env, userId: number) =>
             ? yield* listConnectedClients(
                   runtime.oauth.authorizationServer.getOAuthApi(env),
                   userId,
+                  yield* runtime.repository.activeConnectionIds(userId),
               )
             : [];
         const body = Schema.encodeUnknownSync(McpSettingsResponse)(
@@ -439,29 +443,19 @@ export const registerMcpRoutes = (
                     .getAccess(userId)
                     .pipe(Effect.map((access) => access.enabled)),
             ),
-        recordAuthorized: (userId: number, clientId: string) =>
+        createConnection: (userId: number, clientId: string) =>
             Effect.runPromise(
-                value.safeId().pipe(
-                    Effect.flatMap((eventId) =>
-                        value.repository.recordClientEvent({
-                            userId,
-                            kind: 'mcp.client.authorized',
-                            clientId,
-                            eventId,
-                            now: value.now(),
-                        }),
-                    ),
-                    // The grant already exists; a missing audit row must not
-                    // fail the user's connection.
-                    Effect.catch((error) =>
-                        Effect.sync(() =>
-                            console.error({
-                                event: 'mcp.audit.failed',
-                                errorClass: safeErrorClass(error),
-                            }),
-                        ),
-                    ),
-                ),
+                Effect.gen(function* () {
+                    const connectionId = yield* value.safeId();
+                    const created = yield* value.repository.createConnection({
+                        connectionId,
+                        userId,
+                        clientId,
+                        eventId: yield* value.safeId(),
+                        now: value.now(),
+                    });
+                    return created ? connectionId : null;
+                }),
             ),
     });
 
@@ -515,15 +509,25 @@ export const registerMcpRoutes = (
                                 now: value.now(),
                             });
                             if (!input.enabled) {
-                                // The D1 flag already blocks every token.
-                                // Revoking the grants also deletes the stored
-                                // refresh tokens, so turning MCP on later does
-                                // not revive old connections.
-                                yield* revokeAllConnectedClients(
+                                // D1 already revoked every connection, so no
+                                // token works and turning MCP on later does
+                                // not revive them. Deleting the KV grants is
+                                // cleanup; a failure only leaves dead records.
+                                yield* deleteAllGrants(
                                     value.oauth.authorizationServer.getOAuthApi(
                                         context.env,
                                     ),
                                     userId,
+                                ).pipe(
+                                    Effect.catch((error) =>
+                                        Effect.sync(() =>
+                                            console.warn({
+                                                event: 'mcp.grants.cleanup_failed',
+                                                errorClass:
+                                                    safeErrorClass(error),
+                                            }),
+                                        ),
+                                    ),
                                 );
                             }
                             return yield* settingsResponse(
@@ -550,23 +554,31 @@ export const registerMcpRoutes = (
                                 return yield* new McpValidationError();
                             }
                             const userId = session.user.id;
-                            const clientId = yield* revokeConnectedClient(
+                            const oauth =
                                 value.oauth.authorizationServer.getOAuthApi(
                                     context.env,
-                                ),
+                                );
+                            const grant = yield* findConnectedClient(
+                                oauth,
                                 userId,
                                 grantId,
                             );
-                            if (clientId === null) {
+                            if (grant === null) {
                                 return yield* new McpNotFound();
                             }
-                            yield* value.repository.recordClientEvent({
-                                userId,
-                                kind: 'mcp.client.revoked',
-                                clientId,
-                                eventId: yield* value.safeId(),
-                                now: value.now(),
-                            });
+                            // Revoke in D1 first: it blocks every token at
+                            // once, even if a refresh racing this request
+                            // writes the KV grant back.
+                            if (grant.connectionId !== null) {
+                                yield* value.repository.revokeConnection({
+                                    connectionId: grant.connectionId,
+                                    userId,
+                                    clientId: grant.clientId,
+                                    eventId: yield* value.safeId(),
+                                    now: value.now(),
+                                });
+                            }
+                            yield* deleteGrant(oauth, userId, grant.grantId);
                             return yield* settingsResponse(
                                 value,
                                 context.env,

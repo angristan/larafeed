@@ -76,9 +76,9 @@ const authRuntime: AuthRuntime = {
 
 const oauth = makeMcpOAuth({
     origin: ORIGIN,
-    hasAccess: (_env, userId) =>
+    hasAccess: (_env, props) =>
         Effect.runPromise(
-            repository.getAccess(userId).pipe(Effect.map((a) => a.enabled)),
+            repository.isConnectionActive(props.userId, props.connectionId),
         ),
     handleMcp: makeMcpRequestHandler(defaultMcpToolServices),
 });
@@ -156,7 +156,11 @@ const authorizeQuery = (clientId: string, challenge: string) =>
 /** Registers a client and runs the browser consent flow for one user. */
 const connectClient = async (
     userId: number,
-    options: { readonly allowWrite: boolean },
+    options: {
+        readonly allowWrite: boolean;
+        /** Session that submits the form, when it differs from the viewer. */
+        readonly submitAs?: number;
+    },
 ): Promise<Tokens> => {
     const clientId = await registerClient();
     const verifier = base64Url(crypto.getRandomValues(new Uint8Array(32)));
@@ -184,6 +188,7 @@ const connectClient = async (
 
     const form = new URLSearchParams({
         handle: handle ?? '',
+        user: /name="user" value="(\d+)"/u.exec(html)?.[1] ?? '',
         decision: 'approve',
         ...(options.allowWrite ? { write: 'on' } : {}),
     });
@@ -193,13 +198,15 @@ const connectClient = async (
             origin: ORIGIN,
             'content-type': 'application/x-www-form-urlencoded',
             cookie: [
-                `session=valid-${userId}`,
+                `session=valid-${options.submitAs ?? userId}`,
                 ...cookiePairs(consentPage),
             ].join('; '),
         },
         body: form.toString(),
     });
-    expect(approval.status).toBe(302);
+    if (approval.status !== 302) {
+        throw new ConsentRefused(approval.status, await approval.text());
+    }
     const callback = new URL(approval.headers.get('location') ?? '');
     expect(`${callback.origin}${callback.pathname}`).toBe(REDIRECT_URI);
     expect(callback.searchParams.get('state')).toBe('state-123');
@@ -220,6 +227,42 @@ const connectClient = async (
     });
     expect(token.status).toBe(200);
     return { ...((await token.json()) as Omit<Tokens, 'clientId'>), clientId };
+};
+
+class ConsentRefused extends Error {
+    constructor(
+        readonly status: number,
+        readonly html: string,
+    ) {
+        super(`Consent POST returned ${status}`);
+    }
+}
+
+/** Copies the user's OAuth KV records so a test can put them back later. */
+const snapshotKv = async (userId: number) => {
+    const records: { name: string; value: string; metadata: unknown }[] = [];
+    for (const prefix of [`grant:${userId}:`, `token:${userId}:`]) {
+        const listed = await env.OAUTH_KV.list({ prefix });
+        for (const key of listed.keys) {
+            const value = await env.OAUTH_KV.get(key.name);
+            if (value !== null) {
+                records.push({ name: key.name, value, metadata: key.metadata });
+            }
+        }
+    }
+    return records;
+};
+
+/**
+ * Writes KV records back, as a token refresh racing a revocation can: it
+ * reads the grant before the revocation and writes it after.
+ */
+const restoreKv = async (records: Awaited<ReturnType<typeof snapshotKv>>) => {
+    for (const record of records) {
+        await env.OAUTH_KV.put(record.name, record.value, {
+            metadata: record.metadata,
+        });
+    }
 };
 
 let rpcId = 0;
@@ -487,6 +530,92 @@ describe('MCP over OAuth with Workerd KV and D1', () => {
         ).toBe(false);
     });
 
+    it('refuses a consent form submitted by a different account', async () => {
+        await setEnabled(OWNER, true);
+        await setEnabled(OTHER, true);
+        const refusal = await connectClient(OWNER, {
+            allowWrite: false,
+            submitAs: OTHER,
+        }).catch((error: unknown) => error);
+        expect(refusal).toBeInstanceOf(ConsentRefused);
+        expect((refusal as ConsentRefused).status).toBe(409);
+        const grants = await env.OAUTH_KV.list({ prefix: `grant:${OTHER}:` });
+        expect(grants.keys).toHaveLength(0);
+    });
+
+    it('keeps revoked tokens dead when KV records come back', async () => {
+        await setEnabled(OWNER, true);
+        const tokens = await connectClient(OWNER, { allowWrite: false });
+        const before = await snapshotKv(OWNER);
+
+        const settings = (await (
+            await request('/api/mcp', {
+                headers: { cookie: `session=valid-${OWNER}` },
+            })
+        ).json()) as { clients: { grantId: string; clientId: string }[] };
+        const grant = settings.clients.find(
+            (client) => client.clientId === tokens.clientId,
+        );
+        const disconnected = await request(
+            `/api/mcp/clients/${grant?.grantId}`,
+            {
+                method: 'DELETE',
+                headers: {
+                    cookie: `session=valid-${OWNER}`,
+                    'content-type': 'application/json',
+                },
+            },
+        );
+        expect(disconnected.status).toBe(200);
+
+        // A refresh that raced the disconnect rewrites the grant and token.
+        await restoreKv(before);
+        expect((await rpc(tokens.access_token, 'tools/list')).status).toBe(401);
+        // The rewritten grant stays hidden from settings.
+        const after = (await (
+            await request('/api/mcp', {
+                headers: { cookie: `session=valid-${OWNER}` },
+            })
+        ).json()) as { clients: { clientId: string }[] };
+        expect(
+            after.clients.some((client) => client.clientId === tokens.clientId),
+        ).toBe(false);
+
+        // Turning MCP off revokes in D1 too, so grants the KV cleanup missed
+        // stay dead after MCP is turned back on.
+        const other = await connectClient(OWNER, { allowWrite: false });
+        const beforeDisable = await snapshotKv(OWNER);
+        await request('/api/mcp', {
+            method: 'PUT',
+            headers: {
+                cookie: `session=valid-${OWNER}`,
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({ enabled: false }),
+        });
+        await restoreKv(beforeDisable);
+        await setEnabled(OWNER, true);
+        expect((await rpc(other.access_token, 'tools/list')).status).toBe(401);
+    });
+
+    it('caps update_entries at 50 IDs to stay within D1 query limits', async () => {
+        await setEnabled(OWNER, true);
+        const tokens = await connectClient(OWNER, { allowWrite: true });
+        const response = await rpc(tokens.access_token, 'tools/call', {
+            name: 'update_entries',
+            arguments: {
+                entryIds: Array.from({ length: 51 }, (_, index) => index + 1),
+                read: true,
+            },
+        });
+        const text = await response.text();
+        expect(text).toMatch(/"isError":true|"error"/u);
+        const interactions = await env.DB.prepare(
+            'SELECT count(*) AS count FROM entry_interactions WHERE read_changed_at IS NOT NULL AND entry_id <= 51',
+        ).first<{ count: number }>();
+        expect(interactions?.count).toBe(0);
+    });
+
     it('offers write access unticked on the consent page', async () => {
         await setEnabled(OWNER, true);
         const page = await request(
@@ -565,11 +694,13 @@ describe('MCP over OAuth with Workerd KV and D1', () => {
         await setEnabled(OWNER, true);
         const tokens = await connectClient(OWNER, { allowWrite: true });
 
-        // The D1 opt-in alone gates every request, before any revocation.
+        // The D1 check alone gates every request, before any KV cleanup.
         await setEnabled(OWNER, false);
         expect((await rpc(tokens.access_token, 'tools/list')).status).toBe(401);
         await setEnabled(OWNER, true);
-        expect((await rpc(tokens.access_token, 'tools/list')).status).toBe(200);
+        expect((await rpc(tokens.access_token, 'tools/list')).status).toBe(401);
+        const fresh = await connectClient(OWNER, { allowWrite: true });
+        expect((await rpc(fresh.access_token, 'tools/list')).status).toBe(200);
 
         const settings = await request('/api/mcp', {
             headers: { cookie: `session=valid-${OWNER}` },
@@ -595,18 +726,18 @@ describe('MCP over OAuth with Workerd KV and D1', () => {
             enabled: false,
             clients: [],
         });
-        expect((await rpc(tokens.access_token, 'tools/list')).status).toBe(401);
+        expect((await rpc(fresh.access_token, 'tools/list')).status).toBe(401);
 
         // Turning MCP back on must not bring revoked grants back.
         await setEnabled(OWNER, true);
-        expect((await rpc(tokens.access_token, 'tools/list')).status).toBe(401);
+        expect((await rpc(fresh.access_token, 'tools/list')).status).toBe(401);
         const refreshed = await request('/oauth/token', {
             method: 'POST',
             headers: { 'content-type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({
                 grant_type: 'refresh_token',
-                refresh_token: tokens.refresh_token ?? '',
-                client_id: tokens.clientId,
+                refresh_token: fresh.refresh_token ?? '',
+                client_id: fresh.clientId,
             }).toString(),
         });
         expect(refreshed.status).toBe(400);

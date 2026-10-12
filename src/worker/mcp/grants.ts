@@ -10,9 +10,10 @@ import { McpGrantStoreError } from './errors';
 // The settings page lists at most this many clients. One user with more than
 // 100 live MCP grants is not a realistic case for a personal reader.
 const MAX_LISTED_GRANTS = 100;
-// Disabling MCP revokes every grant. Each revocation costs a few KV
-// operations, so stop well before the Worker subrequest limit; the D1 opt-in
-// check already rejects any token a partial revocation leaves behind.
+// Turning MCP off deletes grants from KV after D1 has revoked them. Each
+// deletion costs a few KV operations, so the cleanup stops well before the
+// Worker subrequest limit. Grants it leaves behind cannot be used (their D1
+// connection is revoked), are hidden from settings, and expire on their own.
 const MAX_REVOKED_GRANTS = 200;
 
 /**
@@ -21,6 +22,8 @@ const MAX_REVOKED_GRANTS = 200;
  * for Client ID Metadata Document clients) every time settings load.
  */
 export interface McpGrantMetadata {
+    /** The `mcp_connections` row that gates this grant's tokens. */
+    readonly connectionId: number;
     readonly clientName: string;
     readonly clientDomain: string | null;
 }
@@ -33,6 +36,14 @@ const metadataString = (metadata: unknown, key: string): string | null => {
     const value = Reflect.get(metadata, key);
     return typeof value === 'string' && value.length > 0
         ? value.slice(0, 200)
+        : null;
+};
+
+const metadataConnectionId = (metadata: unknown): number | null => {
+    if (typeof metadata !== 'object' || metadata === null) return null;
+    const value = Reflect.get(metadata, 'connectionId');
+    return Number.isSafeInteger(value) && (value as number) > 0
+        ? (value as number)
         : null;
 };
 
@@ -82,37 +93,62 @@ const listGrants = (
         return grants;
     });
 
-export const listConnectedClients = (oauth: OAuthHelpers, userId: number) =>
+/** Lists grants whose D1 connection is still active. */
+export const listConnectedClients = (
+    oauth: OAuthHelpers,
+    userId: number,
+    activeConnectionIds: ReadonlySet<number>,
+) =>
     listGrants(oauth, userId, MAX_LISTED_GRANTS).pipe(
         Effect.map((grants) =>
             grants
+                .filter((grant) => {
+                    const id = metadataConnectionId(grant.metadata);
+                    return id !== null && activeConnectionIds.has(id);
+                })
                 .map(toConnectedClient)
                 .sort((left, right) => right.createdAt - left.createdAt),
         ),
     );
 
-/**
- * Revokes one grant owned by the user. Returns the client ID for the audit
- * log, or null when the user owns no grant with that ID.
- */
-export const revokeConnectedClient = (
+export interface OwnedGrant {
+    readonly grantId: string;
+    readonly clientId: string;
+    readonly connectionId: number | null;
+}
+
+/** Finds one grant owned by the user, or null. */
+export const findConnectedClient = (
     oauth: OAuthHelpers,
     userId: number,
     grantId: string,
-): Effect.Effect<string | null, McpGrantStoreError> =>
-    Effect.gen(function* () {
-        const grants = yield* listGrants(oauth, userId, MAX_REVOKED_GRANTS);
-        const grant = grants.find((candidate) => candidate.id === grantId);
-        if (grant === undefined) return null;
-        yield* Effect.tryPromise({
-            try: () => oauth.revokeGrant(grant.id, String(userId)),
-            catch: grantStoreError('mcp.grants.revoke'),
-        });
-        return grant.clientId;
+): Effect.Effect<OwnedGrant | null, McpGrantStoreError> =>
+    listGrants(oauth, userId, MAX_REVOKED_GRANTS).pipe(
+        Effect.map((grants) => {
+            const grant = grants.find((candidate) => candidate.id === grantId);
+            return grant === undefined
+                ? null
+                : {
+                      grantId: grant.id,
+                      clientId: grant.clientId,
+                      connectionId: metadataConnectionId(grant.metadata),
+                  };
+        }),
+    );
+
+/** Deletes one grant and its tokens from KV. */
+export const deleteGrant = (
+    oauth: OAuthHelpers,
+    userId: number,
+    grantId: string,
+): Effect.Effect<void, McpGrantStoreError> =>
+    Effect.tryPromise({
+        try: () => oauth.revokeGrant(grantId, String(userId)),
+        catch: grantStoreError('mcp.grants.revoke'),
     });
 
-/** Revokes every MCP grant the user holds and returns how many it revoked. */
-export const revokeAllConnectedClients = (
+/** Deletes up to 200 of the user's grants from KV; returns how many. */
+export const deleteAllGrants = (
     oauth: OAuthHelpers,
     userId: number,
 ): Effect.Effect<number, McpGrantStoreError> =>

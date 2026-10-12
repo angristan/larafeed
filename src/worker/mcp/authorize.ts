@@ -31,10 +31,14 @@ export interface AuthorizeDependencies {
     /** Resolves the passkey session from the request cookies, or null. */
     readonly authenticate: () => Promise<AuthenticatedSession | null>;
     readonly hasAccess: (userId: number) => Promise<boolean>;
-    readonly recordAuthorized: (
+    /**
+     * Records the connection in D1 and returns its ID, or null when MCP access
+     * was turned off meanwhile.
+     */
+    readonly createConnection: (
         userId: number,
         clientId: string,
-    ) => Promise<void>;
+    ) => Promise<number | null>;
 }
 
 const escapeHtml = (value: string): string =>
@@ -168,6 +172,7 @@ ${publisher}
 ${loopbackWarning}
 <form method="post">
 <input type="hidden" name="handle" value="${escapeHtml(handle)}">
+<input type="hidden" name="user" value="${session.user.id}">
 <fieldset>
 <legend>Permissions</legend>
 <!-- Write access is opt-in: an app gets read-only access unless the user ticks it. -->
@@ -320,6 +325,15 @@ export const handleAuthorizePost = async (
     if (typeof handle !== 'string' || handle.length === 0) {
         return expiredFormPage();
     }
+    // The page named the account it was shown for. If the browser switched
+    // accounts since, refuse instead of granting the other account.
+    if (form.get('user') !== String(session.user.id)) {
+        return messagePage(
+            'Your account changed',
+            'You signed in to another account after this page opened. Start connecting again from your app.',
+            409,
+        );
+    }
 
     try {
         if (form.get('decision') !== 'approve') {
@@ -340,7 +354,14 @@ export const handleAuthorizePost = async (
             { scope },
         );
 
+        const connectionId = await dependencies.createConnection(
+            session.user.id,
+            approved.request.clientId,
+        );
+        if (connectionId === null) return accessOffPage(request);
+
         let metadata: McpGrantMetadata = {
+            connectionId,
             clientName: approved.request.clientId,
             clientDomain: null,
         };
@@ -349,6 +370,7 @@ export const handleAuthorizePost = async (
                 approved.request,
             );
             metadata = {
+                connectionId,
                 clientName: details.clientName,
                 clientDomain: details.clientDomain ?? null,
             };
@@ -356,17 +378,15 @@ export const handleAuthorizePost = async (
             // The name is only shown in settings; the client ID still works.
         }
 
+        // If this fails, the connection row stays unused: no token refers to
+        // it and the settings list only shows connections with a grant.
         const { redirectTo } = await dependencies.oauth.completeAuthorization({
             request: approved.request,
             userId: String(session.user.id),
             metadata,
             scope: approved.request.scope,
-            props: { userId: session.user.id },
+            props: { userId: session.user.id, connectionId },
         });
-        await dependencies.recordAuthorized(
-            session.user.id,
-            approved.request.clientId,
-        );
         return redirect(redirectTo, approved.headers);
     } catch (error) {
         if (error instanceof AuthorizationError) return expiredFormPage();
