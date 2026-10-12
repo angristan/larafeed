@@ -103,12 +103,14 @@ test('turns MCP on, lists apps, and confirms before disconnecting all of them', 
     const dialog = page.getByRole('dialog', { name: 'Turn off MCP access?' });
     await expect(dialog).toContainText('All 1 connected apps lose access');
     await dialog.getByRole('button', { name: 'Cancel' }).click();
+    // Let the close transition finish so the next click opens a fresh modal.
+    await expect(dialog).toBeHidden();
     await expect(toggle).toBeChecked();
     expect(updates).toHaveLength(1);
 
     await toggle.click({ force: true });
-    await page
-        .getByRole('dialog', { name: 'Turn off MCP access?' })
+    await expect(dialog).toBeVisible();
+    await dialog
         .getByRole('button', { name: 'Turn off and disconnect' })
         .click();
     await expect(toggle).not.toBeChecked();
