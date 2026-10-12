@@ -148,42 +148,49 @@ export const loadEntry = (
         } satisfies RenderedEntry;
     });
 
-/** Renders an entry as Markdown-style text for the tool's text content. */
+/**
+ * Renders an entry as compact text:
+ *
+ *   # Title
+ *   8710 · Phoronix (feed 12) · by Ana · 2026-10-12 14:03 · read, starred
+ *   https://example.com/article
+ *
+ *   Body…
+ */
 export const renderEntry = (entry: RenderedEntry): string => {
     const status = [
         entry.read ? 'read' : 'unread',
         ...(entry.starred ? ['starred'] : []),
         ...(entry.archived ? ['archived'] : []),
     ].join(', ');
+    const meta = [
+        String(entry.id),
+        `${entry.feed} (feed ${entry.feedId})`,
+        ...(entry.author === null ? [] : [`by ${entry.author}`]),
+        entry.publishedAt.slice(0, 16).replace('T', ' '),
+        status,
+    ].join(' · ');
     const notes = [
         ...(entry.contentSource === 'article'
-            ? ['Content: full article fetched from the website.']
+            ? ['(Full article fetched from the website.)']
             : []),
         ...(entry.fullContentError === null
             ? []
-            : [`Content: feed content only; ${entry.fullContentError}.`]),
-        ...(entry.truncated
-            ? [
-                  'Content was truncated. Call get_entry with a larger maxChars to read more.',
-              ]
-            : []),
+            : [`(Feed content only: ${entry.fullContentError}.)`]),
     ];
-    return [
-        `# ${entry.title || '(untitled)'}`,
-        '',
-        `Entry ID: ${entry.id}`,
-        `Feed: ${entry.feed} (feed ID ${entry.feedId})`,
-        ...(entry.author === null ? [] : [`Author: ${entry.author}`]),
-        `Published: ${entry.publishedAt}`,
-        ...(entry.url === null ? [] : [`URL: ${entry.url}`]),
-        `Status: ${status}`,
-        ...notes,
-        '',
-        '---',
-        '',
+    const body =
         entry.content.length > 0
             ? entry.content
-            : '(This entry has no stored content. Open the URL, or call get_entry with fullContent: true.)',
+            : '(No stored content. Try fullContent: true.)';
+    return [
+        `# ${entry.title || '(untitled)'}`,
+        meta,
+        ...(entry.url === null ? [] : [entry.url]),
+        ...notes,
+        '',
+        entry.truncated
+            ? `${body}\n(Truncated; raise maxChars for more.)`
+            : body,
     ].join('\n');
 };
 

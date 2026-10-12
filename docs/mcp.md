@@ -20,19 +20,17 @@ Apps get read-only access unless you tick write access on the consent page. To c
 | `list_subscriptions` | read | Categories, feeds, and unread counts |
 | `list_entries` | read | Entries with a plain-text excerpt (200 characters by default, `excerptChars` 0 to 1,000), filtered by feed, category, read state, and `since`/`until`, with pagination |
 | `search_entries` | read | Full-text search over titles, authors, and article text, best matches first, with a snippet around each match and the same filters as `list_entries` |
-| `get_entry` | read | One entry as plain text (default) or sanitized HTML, up to `maxChars` (20,000 by default) |
-| `get_entries` | read | Up to 20 entries in one call, each up to `maxChars` (4,000 by default) |
+| `get_entries` | read | Up to 20 entries with their content: 20,000 characters for one entry or 4,000 each for several by default (`maxChars`), as plain text or sanitized HTML |
 | `feed_health` | read | Feeds that fail to refresh or are gone, with the last error and last success |
-| `update_entries` | write | Marks up to 50 entries read, starred, or archived (or the reverse) |
-| `mark_feed_read` | write | Marks every entry in one feed as read |
+| `update_entries` | write | Marks up to 50 entries read, starred, or archived (or the reverse), or a whole feed read with `feedId` and `read: true` |
 | `subscribe` | write | Adds a feed by feed or website URL. Returns the choices when a site offers several feeds |
 | `unsubscribe` | write | Removes a subscription with its read and starred state |
 
-Reading an entry does not mark it read. Many feeds only carry a teaser: `get_entry` and `get_entries` take `fullContent: true` to fetch the article from its website, using the same cache and per-user rate limit as the web app. When the fetch fails, the tool returns the feed content and says why.
+Reading an entry does not mark it read. Many feeds only carry a teaser: `get_entries` takes `fullContent: true` to fetch the article from its website, using the same cache and per-user rate limit as the web app. When the fetch fails, the tool returns the feed content and says why.
 
 Search syntax: all words must match; `"exact phrase"`, `prefix*`, `a OR b`, and `-excluded` are supported. Case and accents are ignored. The cron indexes new and changed entries in batches of 200, so they become searchable within a few minutes.
 
-JSON results also come as `structuredContent` for clients that read typed data. Images in HTML keep their publisher URLs; proxied image URLs would need a Larafeed session.
+Lists come back as compact text, one line per entry (`id · date (UTC) · feed · title [flags]`) with the excerpt or snippet indented below, because repeated JSON keys roughly double a page's tokens. The full JSON comes as `structuredContent` for clients that read typed data. The tool list is about 4,900 characters: input schemas are flattened, and descriptions state only defaults and meaning. Images in HTML keep their publisher URLs; proxied image URLs would need a Larafeed session.
 
 ## Turning it off and disconnecting apps
 
