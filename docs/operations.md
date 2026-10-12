@@ -152,3 +152,15 @@ After restore:
 3. Verify health, foreign keys, administrator access, and sampled reader data.
 4. Reconcile D1 jobs and outbox rows with the Queue backlog.
 5. Resume consumers and dispatch at low concurrency before scheduling.
+
+## Search index
+
+`entry_search` is an FTS5 table that the scheduled indexer fills from `entries` and `entry_contents`, 200 entries per cron run. An entry is pending when `entries.search_indexed_at` is NULL or older than `updated_at`. The cron result span `app.cron.result` with `app.subsystem=search` reports `app.search.indexed` and `app.search.backlog`.
+
+To rebuild the whole index, mark every entry pending; the cron catches up over the next runs:
+
+```sql
+UPDATE entries SET search_indexed_at = NULL;
+```
+
+Cloudflare cannot `wrangler d1 export` a database that contains virtual tables such as `entry_search`. Use Time Travel for recovery, and the app's OPML export for subscriptions.

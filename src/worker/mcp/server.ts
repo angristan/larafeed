@@ -7,7 +7,9 @@ import { ReaderFilter, ReaderOrder } from '@shared/schemas/reader';
 import { Cause, Effect, Exit, Schema } from 'effect';
 
 import { safeErrorClass, spanNames, traceAsync } from '../observability';
+import type { ReaderEntryScope } from '../reader/repository';
 import type { ReaderService } from '../reader/service';
+import { SearchQueryError, toFtsQuery } from '../search/query';
 import type {
     SubscriptionRateLimited,
     SubscriptionStorageError,
@@ -41,7 +43,7 @@ const SERVER_INFO = { name: 'larafeed', version: '1.0.0' } as const;
 
 const INSTRUCTIONS = `Larafeed is the user's RSS and Atom feed reader.
 Start with list_subscriptions to see categories, feeds, and unread counts.
-Use list_entries to browse articles (unread by default). Each entry includes a short excerpt; use since and until for date ranges.
+Use list_entries to browse articles (unread by default) and search_entries to find articles by words in their title, author, or text. Each entry includes a short excerpt; use since and until for date ranges.
 Read articles with get_entries (several at once) or get_entry (one, with a larger size limit). Many feeds only carry a teaser: pass fullContent: true to fetch the article from the website.
 Reading an article does not mark it read. update_entries marks articles read, starred, or archived.
 feed_health lists feeds that fail to refresh.
@@ -158,6 +160,39 @@ const GetEntriesInput = toolInput(
             ),
         ).annotate({
             description: `Maximum characters of body per entry, 500 to 20000. Defaults to ${DEFAULT_BATCH_ENTRY_CHARS}.`,
+        }),
+    }),
+);
+
+const SearchEntriesInput = toolInput(
+    Schema.Struct({
+        query: Schema.String.check(Schema.isLengthBetween(1, 500)).annotate({
+            description:
+                'Words to find. All words must match. Use "quotes" for a phrase, word* for a prefix, OR between alternatives, and -word to exclude. Case and accents are ignored.',
+        }),
+        filter: Schema.optionalKey(ReaderFilter).annotate({
+            description:
+                'Which entries to search. Defaults to "all". "favorites" means starred.',
+        }),
+        feedId: Schema.optionalKey(SafeId),
+        categoryId: Schema.optionalKey(SafeId),
+        since: Schema.optionalKey(Schema.String).annotate({
+            description:
+                'Only entries published at or after this time. ISO 8601 date or date-time.',
+        }),
+        until: Schema.optionalKey(Schema.String).annotate({
+            description: 'Only entries published before this time.',
+        }),
+        limit: Schema.optionalKey(
+            Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 50 })),
+        ).annotate({
+            description: 'Results per page, 1 to 50. Defaults to 10.',
+        }),
+        offset: Schema.optionalKey(
+            Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 500 })),
+        ).annotate({
+            description:
+                'Results to skip; pass nextOffset from the previous page.',
         }),
     }),
 );
@@ -360,6 +395,44 @@ const parseCursor = (
     });
 };
 
+const entryScope = (input: {
+    readonly feedId?: number;
+    readonly categoryId?: number;
+}): Effect.Effect<ReaderEntryScope, ToolInputError> => {
+    if (input.feedId !== undefined && input.categoryId !== undefined) {
+        return Effect.fail(
+            new ToolInputError({
+                message: 'Pass feedId or categoryId, not both.',
+            }),
+        );
+    }
+    return Effect.succeed(
+        input.feedId !== undefined
+            ? { type: 'feed', id: input.feedId }
+            : input.categoryId !== undefined
+              ? { type: 'category', id: input.categoryId }
+              : { type: 'all' },
+    );
+};
+
+const dateRange = (input: {
+    readonly since?: string;
+    readonly until?: string;
+}) =>
+    Effect.gen(function* () {
+        const from = yield* parseInstant('since', input.since);
+        const to = yield* parseInstant('until', input.until);
+        if (from !== undefined && to !== undefined && from >= to) {
+            return yield* new ToolInputError({
+                message: 'since must be earlier than until.',
+            });
+        }
+        return {
+            ...(from === undefined ? {} : { from }),
+            ...(to === undefined ? {} : { to }),
+        };
+    });
+
 export const makeMcpServer = (
     services: McpToolServices,
     userId: number,
@@ -422,40 +495,15 @@ export const makeMcpServer = (
             runTool(
                 'list_entries',
                 Effect.gen(function* () {
-                    if (
-                        input.feedId !== undefined &&
-                        input.categoryId !== undefined
-                    ) {
-                        return yield* new ToolInputError({
-                            message: 'Pass feedId or categoryId, not both.',
-                        });
-                    }
-                    const since = yield* parseInstant('since', input.since);
-                    const until = yield* parseInstant('until', input.until);
-                    if (
-                        since !== undefined &&
-                        until !== undefined &&
-                        since >= until
-                    ) {
-                        return yield* new ToolInputError({
-                            message: 'since must be earlier than until.',
-                        });
-                    }
+                    const scope = yield* entryScope(input);
+                    const range = yield* dateRange(input);
                     const page = yield* reader.listEntries(userId, {
-                        scope:
-                            input.feedId !== undefined
-                                ? { type: 'feed', id: input.feedId }
-                                : input.categoryId !== undefined
-                                  ? { type: 'category', id: input.categoryId }
-                                  : { type: 'all' },
+                        scope,
                         filter: input.filter ?? 'unread',
                         orderBy: input.orderBy ?? 'published_at',
                         cursor: yield* parseCursor(input.cursor),
                         pageSize: input.limit ?? DEFAULT_PAGE_SIZE,
-                        range: {
-                            ...(since === undefined ? {} : { from: since }),
-                            ...(until === undefined ? {} : { to: until }),
-                        },
+                        range,
                     });
                     const excerptChars =
                         input.excerptChars ?? DEFAULT_EXCERPT_CHARS;
@@ -496,6 +544,57 @@ export const makeMcpServer = (
                                 ? {}
                                 : { excerpt: excerpts.get(entry.id) ?? '' }),
                         })),
+                    });
+                }),
+            ),
+    );
+
+    server.registerTool(
+        'search_entries',
+        {
+            title: 'Search entries',
+            description:
+                'Finds entries by words in their title, author, or text, best matches first. Each result has a snippet with matched words in **bold**. New entries are searchable within a few minutes.',
+            inputSchema: SearchEntriesInput,
+            annotations: { readOnlyHint: true, openWorldHint: false },
+        },
+        (input) =>
+            runTool(
+                'search_entries',
+                Effect.gen(function* () {
+                    const match = yield* Effect.try({
+                        try: () => toFtsQuery(input.query),
+                        catch: (error) =>
+                            new ToolInputError({
+                                message:
+                                    error instanceof SearchQueryError
+                                        ? error.message
+                                        : 'Invalid search query.',
+                            }),
+                    });
+                    const limit = input.limit ?? 10;
+                    const offset = input.offset ?? 0;
+                    const page = yield* reader.searchEntries(userId, {
+                        match,
+                        scope: yield* entryScope(input),
+                        filter: input.filter ?? 'all',
+                        range: yield* dateRange(input),
+                        limit,
+                        offset,
+                    });
+                    return jsonResult({
+                        results: page.results.map((entry) => ({
+                            id: entry.id,
+                            title: entry.title,
+                            url: entry.url,
+                            feedId: entry.feedId,
+                            feed: entry.customFeedName ?? entry.feedName,
+                            publishedAt: iso(entry.publishedAt),
+                            read: entry.read,
+                            starred: entry.starred,
+                            snippet: entry.snippet,
+                        })),
+                        nextOffset: page.hasMore ? offset + limit : null,
                     });
                 }),
             ),
