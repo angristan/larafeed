@@ -57,3 +57,13 @@ describe('truncateText', () => {
         });
     });
 });
+
+describe('htmlToText with void elements', () => {
+    it('handles elements that cannot have an end tag', async () => {
+        await expect(
+            htmlToText(
+                '<p>Before</p><hr><p>After<br>line</p><img src="x" alt="Pic">',
+            ),
+        ).resolves.toBe('Before\n\nAfter\nline\n\n[image: Pic]');
+    });
+});

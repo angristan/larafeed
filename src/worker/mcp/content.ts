@@ -70,6 +70,20 @@ export const decodeHtmlEntities = (text: string): string =>
 
 const isWebLink = (href: string): boolean => /^https?:\/\//iu.test(href);
 
+/**
+ * Runs `callback` at the element's end tag. Void elements such as `<hr>` and
+ * self-closing tags have none, and HTMLRewriter throws if asked; for those the
+ * callback runs right away.
+ */
+const atEndTag = (element: Element, callback: () => void): void => {
+    try {
+        element.onEndTag(callback);
+    } catch {
+        // "Parser error: No end tag." The element ends where it starts.
+        callback();
+    }
+};
+
 export const htmlToText = async (html: string): Promise<string> => {
     const parts: string[] = [];
     let preformattedDepth = 0;
@@ -84,7 +98,7 @@ export const htmlToText = async (html: string): Promise<string> => {
         .on(BLOCK_ELEMENTS, {
             element(element) {
                 parts.push('\n\n');
-                element.onEndTag(() => {
+                atEndTag(element, () => {
                     parts.push('\n\n');
                 });
             },
@@ -93,7 +107,7 @@ export const htmlToText = async (html: string): Promise<string> => {
             element(element) {
                 const level = Number(element.tagName.slice(1));
                 parts.push(`\n\n${'#'.repeat(level)} `);
-                element.onEndTag(() => {
+                atEndTag(element, () => {
                     parts.push('\n\n');
                 });
             },
@@ -102,7 +116,7 @@ export const htmlToText = async (html: string): Promise<string> => {
             element(element) {
                 preformattedDepth += 1;
                 parts.push('\n\n```\n');
-                element.onEndTag(() => {
+                atEndTag(element, () => {
                     preformattedDepth -= 1;
                     parts.push('\n```\n\n');
                 });
@@ -121,7 +135,7 @@ export const htmlToText = async (html: string): Promise<string> => {
         .on('a[href]', {
             element(element) {
                 const href = element.getAttribute('href') ?? '';
-                element.onEndTag(() => {
+                atEndTag(element, () => {
                     if (isWebLink(href)) parts.push(` (${href})`);
                 });
             },
@@ -151,8 +165,16 @@ export const htmlToText = async (html: string): Promise<string> => {
             },
         });
 
-    // The rewriter only runs while its output is consumed.
-    await rewriter.transform(new Response(html)).text();
+    // The rewriter only runs while its output is consumed. If it still fails
+    // on some markup, fall back to dropping tags: rough text beats an error
+    // that would stall the search indexer or a whole page of excerpts.
+    try {
+        await rewriter.transform(new Response(html)).text();
+    } catch {
+        return decodeHtmlEntities(html.replace(/<[^>]*>/gu, ' '))
+            .replace(/\s+/gu, ' ')
+            .trim();
+    }
 
     return parts
         .join('')
