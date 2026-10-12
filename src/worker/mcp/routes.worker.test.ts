@@ -178,7 +178,12 @@ const connectClient = async (
         },
     );
     expect(consentPage.status).toBe(200);
+    // Browsers send `Origin: null` on form POSTs from a `no-referrer` page,
+    // which the consent POST's origin check refuses. The POST below sets the
+    // header by hand, so check the policy that makes browsers send it.
+    expect(consentPage.headers.get('referrer-policy')).toBe('same-origin');
     const html = await consentPage.text();
+    expect(html).not.toContain('content="no-referrer"');
     // Client-chosen names are escaped, never rendered as markup.
     expect(html).toContain('Test &#60;MCP&#62; client');
     expect(html).not.toContain('<MCP>');
