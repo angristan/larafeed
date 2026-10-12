@@ -227,6 +227,40 @@ export const makeMcpRepository = (d1: D1) => ({
                 Effect.asVoid,
                 Effect.mapError(storageError('mcp.connection.revoke')),
             ),
+
+    /**
+     * Returns the start of each owned entry's stored HTML, for list excerpts.
+     * Reading a prefix keeps a page of excerpts to a few KB per entry.
+     */
+    contentPrefixes: (
+        userId: number,
+        entryIds: readonly number[],
+        maxChars: number,
+    ): Effect.Effect<ReadonlyMap<number, string>, McpStorageError> =>
+        entryIds.length === 0
+            ? Effect.succeed(new Map())
+            : d1
+                  .all<{ entry_id: number; html: string | null }>({
+                      sql: `SELECT ec.entry_id, substr(ec.content_html, 1, ?) AS html
+                            FROM entry_contents ec
+                            JOIN entries e ON e.id = ec.entry_id
+                            JOIN feed_subscriptions fs
+                              ON fs.feed_id = e.feed_id AND fs.user_id = ?
+                            WHERE ec.entry_id IN (${entryIds.map(() => '?').join(', ')})`,
+                      bindings: [maxChars, userId, ...entryIds],
+                  })
+                  .pipe(
+                      Effect.map(
+                          (result) =>
+                              new Map(
+                                  result.results.map((row) => [
+                                      row.entry_id,
+                                      row.html ?? '',
+                                  ]),
+                              ),
+                      ),
+                      Effect.mapError(storageError('mcp.entries.excerpts')),
+                  ),
 });
 
 export type McpRepository = ReturnType<typeof makeMcpRepository>;

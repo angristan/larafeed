@@ -18,14 +18,18 @@ Apps get read-only access unless you tick write access on the consent page. To c
 | Tool | Access | What it does |
 | --- | --- | --- |
 | `list_subscriptions` | read | Categories, feeds, and unread counts |
-| `list_entries` | read | Entries without content, filtered by feed, category, and read state, with pagination |
-| `get_entry` | read | One entry with its content as plain text (default) or sanitized HTML. It does not mark the entry read |
+| `list_entries` | read | Entries with a plain-text excerpt (200 characters by default, `excerptChars` 0 to 1,000), filtered by feed, category, read state, and `since`/`until`, with pagination |
+| `get_entry` | read | One entry as plain text (default) or sanitized HTML, up to `maxChars` (20,000 by default) |
+| `get_entries` | read | Up to 20 entries in one call, each up to `maxChars` (4,000 by default) |
+| `feed_health` | read | Feeds that fail to refresh or are gone, with the last error and last success |
 | `update_entries` | write | Marks up to 50 entries read, starred, or archived (or the reverse) |
 | `mark_feed_read` | write | Marks every entry in one feed as read |
 | `subscribe` | write | Adds a feed by feed or website URL. Returns the choices when a site offers several feeds |
 | `unsubscribe` | write | Removes a subscription with its read and starred state |
 
-Images in `get_entry` HTML keep their publisher URLs. Proxied image URLs would need a Larafeed session.
+Reading an entry does not mark it read. Many feeds only carry a teaser: `get_entry` and `get_entries` take `fullContent: true` to fetch the article from its website, using the same cache and per-user rate limit as the web app. When the fetch fails, the tool returns the feed content and says why.
+
+JSON results also come as `structuredContent` for clients that read typed data. Images in HTML keep their publisher URLs; proxied image URLs would need a Larafeed session.
 
 ## Turning it off and disconnecting apps
 

@@ -11,6 +11,10 @@ import { getCookie } from 'hono/cookie';
 import { generateSafeId } from '../auth/crypto';
 import { type AuthRuntime, makeDefaultAuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession } from '../auth/service';
+import {
+    fullContentRateLimit,
+    makeFullContentServiceForEnv,
+} from '../fullcontent/routes';
 import { recoverHttpCause } from '../http/failures';
 import {
     isRequestBodyTooLarge,
@@ -73,17 +77,32 @@ export interface McpRouteDependencies {
 }
 
 export const defaultMcpToolServices: McpToolServicesFactory = (env) =>
-    defaultSubscriptionRuntimeFactory(env).pipe(
-        Effect.map((subscriptions) => ({
-            reader: makeReaderService({
-                repository: makeReaderRepository(makeD1(env.DB)),
-                // Proxied image URLs are relative to Larafeed and need a
-                // session, so MCP clients get the publisher's URLs.
-                proxyImages: false,
-            }),
-            subscriptions: subscriptions.service,
-            limitFeedAdd: subscriptions.limitFeedAdd,
-        })),
+    Effect.all({
+        subscriptions: defaultSubscriptionRuntimeFactory(env),
+        // A broken full-content configuration only disables that option;
+        // every other tool keeps working.
+        fullContent: makeFullContentServiceForEnv(env, {
+            proxyImages: false,
+        }).pipe(Effect.orElseSucceed(() => null)),
+    }).pipe(
+        Effect.map(({ subscriptions, fullContent }) => {
+            const d1 = makeD1(env.DB);
+            const repository = makeMcpRepository(d1);
+            return {
+                reader: makeReaderService({
+                    repository: makeReaderRepository(d1),
+                    // Proxied image URLs are relative to Larafeed and need a
+                    // session, so MCP clients get the publisher's URLs.
+                    proxyImages: false,
+                }),
+                subscriptions: subscriptions.service,
+                limitFeedAdd: subscriptions.limitFeedAdd,
+                fullContent,
+                limitFullContent: (userId: number) =>
+                    fullContentRateLimit(env, userId),
+                contentPrefixes: repository.contentPrefixes,
+            };
+        }),
     );
 
 const hasMcpAccess = (env: Env, props: McpProps): Promise<boolean> =>

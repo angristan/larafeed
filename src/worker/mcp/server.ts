@@ -13,12 +13,22 @@ import type {
     SubscriptionStorageError,
 } from '../subscriptions/errors';
 import type { SubscriptionService } from '../subscriptions/service';
-import { htmlToText } from './content';
+import {
+    buildExcerpts,
+    type EntryContentServices,
+    loadEntry,
+    renderEntry,
+} from './entries';
 import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from './oauth';
 
-export interface McpToolServices {
-    readonly reader: ReaderService;
+export interface McpToolServices extends EntryContentServices {
     readonly subscriptions: SubscriptionService;
+    /** Start of each owned entry's stored HTML, keyed by entry ID. */
+    readonly contentPrefixes: (
+        userId: number,
+        entryIds: readonly number[],
+        maxChars: number,
+    ) => Effect.Effect<ReadonlyMap<number, string>, unknown>;
     readonly limitFeedAdd: (
         userId: number,
     ) => Effect.Effect<
@@ -31,8 +41,10 @@ const SERVER_INFO = { name: 'larafeed', version: '1.0.0' } as const;
 
 const INSTRUCTIONS = `Larafeed is the user's RSS and Atom feed reader.
 Start with list_subscriptions to see categories, feeds, and unread counts.
-Use list_entries to browse articles (unread by default) and get_entry to read one.
-update_entries marks articles read, starred, or archived. Opening an article with get_entry does not mark it read.
+Use list_entries to browse articles (unread by default). Each entry includes a short excerpt; use since and until for date ranges.
+Read articles with get_entries (several at once) or get_entry (one, with a larger size limit). Many feeds only carry a teaser: pass fullContent: true to fetch the article from the website.
+Reading an article does not mark it read. update_entries marks articles read, starred, or archived.
+feed_health lists feeds that fail to refresh.
 subscribe and unsubscribe change the user's subscriptions. Confirm with the user before unsubscribing.`;
 
 // Updating one entry's read, starred, and archived state can take 12 D1
@@ -40,6 +52,13 @@ subscribe and unsubscribe change the user's subscriptions. Confirm with the user
 // room for the token and connection checks.
 const MAX_ENTRY_IDS = 50;
 const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_EXCERPT_CHARS = 200;
+const MAX_EXCERPT_CHARS = 1_000;
+const DEFAULT_ENTRY_CHARS = 20_000;
+const DEFAULT_BATCH_ENTRY_CHARS = 4_000;
+// get_entries returns up to 20 bodies of up to 20,000 characters each, so
+// one call stays below about 400 KB of text.
+const MAX_BATCH_ENTRIES = 20;
 const CURSOR_PATTERN = /^(\d{1,15}):(\d{1,15})$/u;
 
 // Every write tool needs both scopes: the client steps up to `mcp:write` when
@@ -80,15 +99,74 @@ const ListEntriesInput = toolInput(
         limit: Schema.optionalKey(
             Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 })),
         ).annotate({ description: 'Page size, 1 to 100. Defaults to 20.' }),
+        since: Schema.optionalKey(Schema.String).annotate({
+            description:
+                'Only entries at or after this time, compared with orderBy. ISO 8601 date or date-time, e.g. 2026-10-12 or 2026-10-12T08:00:00Z. Times without a zone are UTC.',
+        }),
+        until: Schema.optionalKey(Schema.String).annotate({
+            description:
+                'Only entries before this time, compared with orderBy. Same format as since.',
+        }),
+        excerptChars: Schema.optionalKey(
+            Schema.Int.check(
+                Schema.isBetween({ minimum: 0, maximum: MAX_EXCERPT_CHARS }),
+            ),
+        ).annotate({
+            description: `Length of the plain-text excerpt per entry, 0 to ${MAX_EXCERPT_CHARS}. Defaults to ${DEFAULT_EXCERPT_CHARS}; 0 omits excerpts.`,
+        }),
     }),
 );
+
+const EntryFormat = Schema.optionalKey(
+    Schema.Literals(['text', 'html']),
+).annotate({
+    description:
+        'Article body format. "text" (default) is plain text with link targets; "html" is sanitized HTML.',
+});
+
+const FullContentFlag = Schema.optionalKey(Schema.Boolean).annotate({
+    description:
+        'Fetch the full article from the website instead of the feed content. Use it when the feed only has a teaser. Falls back to the feed content, with the reason, when the fetch fails.',
+});
+
+const maxCharsField = (defaultChars: number) =>
+    Schema.optionalKey(
+        Schema.Int.check(Schema.isBetween({ minimum: 500, maximum: 100_000 })),
+    ).annotate({
+        description: `Maximum characters of article body, 500 to 100000. Defaults to ${defaultChars}. Longer bodies are cut and marked truncated.`,
+    });
 
 const GetEntryInput = toolInput(
     Schema.Struct({
         entryId: SafeId,
-        format: Schema.optionalKey(Schema.Literals(['text', 'html'])).annotate({
+        format: EntryFormat,
+        fullContent: FullContentFlag,
+        maxChars: maxCharsField(DEFAULT_ENTRY_CHARS),
+    }),
+);
+
+const GetEntriesInput = toolInput(
+    Schema.Struct({
+        entryIds: Schema.Array(SafeId)
+            .check(Schema.isMinLength(1), Schema.isMaxLength(MAX_BATCH_ENTRIES))
+            .annotate({ description: `1 to ${MAX_BATCH_ENTRIES} entry IDs.` }),
+        format: EntryFormat,
+        fullContent: FullContentFlag,
+        maxChars: Schema.optionalKey(
+            Schema.Int.check(
+                Schema.isBetween({ minimum: 500, maximum: 20_000 }),
+            ),
+        ).annotate({
+            description: `Maximum characters of body per entry, 500 to 20000. Defaults to ${DEFAULT_BATCH_ENTRY_CHARS}.`,
+        }),
+    }),
+);
+
+const FeedHealthInput = toolInput(
+    Schema.Struct({
+        onlyProblems: Schema.optionalKey(Schema.Boolean).annotate({
             description:
-                'Article body format. "text" (default) is plain text with link targets; "html" is the sanitized stored HTML.',
+                'Only feeds that are failing or gone. Defaults to true; false lists every feed.',
         }),
     }),
 );
@@ -133,13 +211,22 @@ const SubscribeInput = toolInput(
 const iso = (timestamp: number | null): string | null =>
     timestamp === null ? null : new Date(timestamp).toISOString();
 
-const textResult = (value: unknown): CallToolResult => ({
-    content: [
-        {
-            type: 'text',
-            text: typeof value === 'string' ? value : JSON.stringify(value),
-        },
-    ],
+/**
+ * A result for clients that read text and for clients that read typed
+ * `structuredContent`. MCP asks servers to send the JSON as text too.
+ */
+const jsonResult = (value: Record<string, unknown>): CallToolResult => ({
+    content: [{ type: 'text', text: JSON.stringify(value) }],
+    structuredContent: value,
+});
+
+/** Readable text for the model, with the same data as structured content. */
+const textAndDataResult = (
+    text: string,
+    value: Record<string, unknown>,
+): CallToolResult => ({
+    content: [{ type: 'text', text }],
+    structuredContent: value,
 });
 
 const errorResult = (message: string): CallToolResult => ({
@@ -232,6 +319,29 @@ const runTool = (
         },
     );
 
+/** Parses an ISO 8601 date or date-time into epoch milliseconds. */
+const parseInstant = (
+    field: 'since' | 'until',
+    value: string | undefined,
+): Effect.Effect<number | undefined, ToolInputError> => {
+    if (value === undefined) return Effect.succeed(undefined);
+    // Without a zone, Date.parse reads date-times as local time. Workers run
+    // in UTC; append Z so the meaning does not depend on that.
+    const normalized = /^\d{4}-\d{2}-\d{2}T[^Zz+-]*$/u.test(value)
+        ? `${value}Z`
+        : value;
+    const parsed = /^\d{4}-\d{2}-\d{2}/u.test(normalized)
+        ? Date.parse(normalized)
+        : Number.NaN;
+    return Number.isFinite(parsed)
+        ? Effect.succeed(parsed)
+        : Effect.fail(
+              new ToolInputError({
+                  message: `Invalid ${field}. Use an ISO 8601 date or date-time, e.g. 2026-10-12 or 2026-10-12T08:00:00Z.`,
+              }),
+          );
+};
+
 const parseCursor = (
     value: string | undefined,
 ): Effect.Effect<{ orderValue: number; id: number } | null, ToolInputError> => {
@@ -274,7 +384,7 @@ export const makeMcpServer = (
                         reader.listCategories(userId),
                         reader.listSubscriptions(userId),
                     ]);
-                    return textResult({
+                    return jsonResult({
                         counts: {
                             unread: counts.unread,
                             starred: counts.starred,
@@ -304,7 +414,7 @@ export const makeMcpServer = (
         {
             title: 'List entries',
             description:
-                'Lists feed entries, newest first, without their content. Use get_entry to read one.',
+                'Lists feed entries, newest first, with a short plain-text excerpt of each. Use get_entries or get_entry to read them.',
             inputSchema: ListEntriesInput,
             annotations: { readOnlyHint: true, openWorldHint: false },
         },
@@ -320,6 +430,17 @@ export const makeMcpServer = (
                             message: 'Pass feedId or categoryId, not both.',
                         });
                     }
+                    const since = yield* parseInstant('since', input.since);
+                    const until = yield* parseInstant('until', input.until);
+                    if (
+                        since !== undefined &&
+                        until !== undefined &&
+                        since >= until
+                    ) {
+                        return yield* new ToolInputError({
+                            message: 'since must be earlier than until.',
+                        });
+                    }
                     const page = yield* reader.listEntries(userId, {
                         scope:
                             input.feedId !== undefined
@@ -331,8 +452,33 @@ export const makeMcpServer = (
                         orderBy: input.orderBy ?? 'published_at',
                         cursor: yield* parseCursor(input.cursor),
                         pageSize: input.limit ?? DEFAULT_PAGE_SIZE,
+                        range: {
+                            ...(since === undefined ? {} : { from: since }),
+                            ...(until === undefined ? {} : { to: until }),
+                        },
                     });
-                    return textResult({
+                    const excerptChars =
+                        input.excerptChars ?? DEFAULT_EXCERPT_CHARS;
+                    const excerpts =
+                        excerptChars === 0
+                            ? new Map<number, string>()
+                            : yield* services
+                                  .contentPrefixes(
+                                      userId,
+                                      page.entries.map((entry) => entry.id),
+                                      // Markup usually outweighs text, so
+                                      // read several times the excerpt.
+                                      Math.min(
+                                          16_384,
+                                          excerptChars * 8 + 2_048,
+                                      ),
+                                  )
+                                  .pipe(
+                                      Effect.flatMap((prefixes) =>
+                                          buildExcerpts(prefixes, excerptChars),
+                                      ),
+                                  );
+                    return jsonResult({
                         total: page.total,
                         nextCursor: page.nextCursor,
                         entries: page.entries.map((entry) => ({
@@ -346,6 +492,9 @@ export const makeMcpServer = (
                             read: entry.read,
                             starred: entry.starred,
                             archived: entry.archived,
+                            ...(excerptChars === 0
+                                ? {}
+                                : { excerpt: excerpts.get(entry.id) ?? '' }),
                         })),
                     });
                 }),
@@ -357,50 +506,75 @@ export const makeMcpServer = (
         {
             title: 'Read entry',
             description:
-                'Returns one entry with its full stored content. It does not mark the entry read.',
+                'Returns one entry with its content, up to maxChars. It does not mark the entry read.',
             inputSchema: GetEntryInput,
-            annotations: { readOnlyHint: true, openWorldHint: false },
+            annotations: {
+                readOnlyHint: true,
+                // fullContent fetches the article's web page.
+                openWorldHint: true,
+            },
         },
         (input) =>
             runTool(
                 'get_entry',
+                loadEntry(services, userId, input.entryId, {
+                    format: input.format ?? 'text',
+                    maxChars: input.maxChars ?? DEFAULT_ENTRY_CHARS,
+                    fullContent: input.fullContent ?? false,
+                }).pipe(
+                    Effect.map((entry) =>
+                        textAndDataResult(renderEntry(entry), { ...entry }),
+                    ),
+                ),
+            ),
+    );
+
+    server.registerTool(
+        'get_entries',
+        {
+            title: 'Read entries',
+            description: `Returns up to ${MAX_BATCH_ENTRIES} entries with their content in one call, each cut to maxChars. Use it to read or summarize several articles. It does not mark them read.`,
+            inputSchema: GetEntriesInput,
+            annotations: { readOnlyHint: true, openWorldHint: true },
+        },
+        (input) =>
+            runTool(
+                'get_entries',
                 Effect.gen(function* () {
-                    const entry = yield* reader.findEntry(
-                        userId,
-                        input.entryId,
+                    const options = {
+                        format: input.format ?? 'text',
+                        maxChars: input.maxChars ?? DEFAULT_BATCH_ENTRY_CHARS,
+                        fullContent: input.fullContent ?? false,
+                    } as const;
+                    const ids = [...new Set(input.entryIds)];
+                    const loaded = yield* Effect.forEach(
+                        ids,
+                        (entryId) =>
+                            loadEntry(services, userId, entryId, options).pipe(
+                                Effect.map((entry) => ({ entryId, entry })),
+                                Effect.catchTag('ReaderNotFound', () =>
+                                    Effect.succeed({ entryId, entry: null }),
+                                ),
+                            ),
+                        // Article fetches go to different websites; a few in
+                        // parallel keep the call fast without a burst.
+                        { concurrency: 4 },
                     );
-                    const html = entry.contentHtml ?? '';
-                    const body =
-                        input.format === 'html'
-                            ? html
-                            : yield* Effect.promise(() => htmlToText(html));
-                    const status = [
-                        entry.read ? 'read' : 'unread',
-                        ...(entry.starred ? ['starred'] : []),
-                        ...(entry.archived ? ['archived'] : []),
-                    ].join(', ');
-                    return textResult(
-                        [
-                            `# ${entry.title || '(untitled)'}`,
-                            '',
-                            `Entry ID: ${entry.id}`,
-                            `Feed: ${entry.customFeedName ?? entry.feedName} (feed ID ${entry.feedId})`,
-                            ...(entry.author === null
-                                ? []
-                                : [`Author: ${entry.author}`]),
-                            `Published: ${iso(entry.publishedAt)}`,
-                            ...(entry.url === null
-                                ? []
-                                : [`URL: ${entry.url}`]),
-                            `Status: ${status}`,
-                            '',
-                            '---',
-                            '',
-                            body.length > 0
-                                ? body
-                                : '(This entry has no stored content. Open the URL to read it.)',
-                        ].join('\n'),
+                    const entries = loaded.flatMap(({ entry }) =>
+                        entry === null ? [] : [entry],
                     );
+                    const notFound = loaded.flatMap(({ entryId, entry }) =>
+                        entry === null ? [entryId] : [],
+                    );
+                    const text = [
+                        ...entries.map(renderEntry),
+                        ...(notFound.length === 0
+                            ? []
+                            : [
+                                  `Not found in this account: ${notFound.join(', ')}`,
+                              ]),
+                    ].join('\n\n======\n\n');
+                    return textAndDataResult(text, { entries, notFound });
                 }),
             ),
     );
@@ -482,7 +656,7 @@ export const makeMcpServer = (
                             });
                         }
                     }
-                    return textResult({ updated, notFound });
+                    return jsonResult({ updated, notFound });
                 }),
             ),
     );
@@ -509,9 +683,61 @@ export const makeMcpServer = (
                     .advanceReadThrough(userId, input.feedId)
                     .pipe(
                         Effect.map((result) =>
-                            textResult({ feedId: result.feedId, read: true }),
+                            jsonResult({ feedId: result.feedId, read: true }),
                         ),
                     ),
+            ),
+    );
+
+    server.registerTool(
+        'feed_health',
+        {
+            title: 'Feed health',
+            description:
+                'Lists feeds that fail to refresh or are gone, with the last error and the last successful refresh.',
+            inputSchema: FeedHealthInput,
+            annotations: { readOnlyHint: true, openWorldHint: false },
+        },
+        (input) =>
+            runTool(
+                'feed_health',
+                subscriptions.list(userId).pipe(
+                    Effect.map(({ subscriptions: feeds }) => {
+                        const described = feeds.map((feed) => ({
+                            feedId: feed.feedId,
+                            name: feed.customFeedName ?? feed.feedName,
+                            category: feed.categoryName,
+                            feedUrl: feed.feedUrl,
+                            siteUrl: feed.siteUrl,
+                            status: feed.isGone
+                                ? 'gone'
+                                : feed.consecutiveFailures > 0
+                                  ? 'failing'
+                                  : 'ok',
+                            consecutiveFailures: feed.consecutiveFailures,
+                            lastError:
+                                feed.lastErrorMessage ?? feed.lastErrorClass,
+                            lastAttemptAt: iso(feed.lastAttemptAt),
+                            lastSuccessAt: iso(feed.lastSuccessfulRefreshAt),
+                        }));
+                        const problems = described.filter(
+                            (feed) => feed.status !== 'ok',
+                        );
+                        return jsonResult({
+                            totalFeeds: described.length,
+                            failing: problems.filter(
+                                (feed) => feed.status === 'failing',
+                            ).length,
+                            gone: problems.filter(
+                                (feed) => feed.status === 'gone',
+                            ).length,
+                            feeds:
+                                (input.onlyProblems ?? true)
+                                    ? problems
+                                    : described,
+                        });
+                    }),
+                ),
             ),
     );
 
@@ -558,7 +784,7 @@ export const makeMcpServer = (
                         },
                     );
                     if (result.kind === 'selection_required') {
-                        return textResult({
+                        return jsonResult({
                             status: 'choose_feed',
                             message:
                                 'This website offers several feeds. Ask the user which one to follow, then call subscribe with its feedUrl.',
@@ -570,7 +796,7 @@ export const makeMcpServer = (
                         });
                     }
                     const subscription = result.subscription;
-                    return textResult({
+                    return jsonResult({
                         status: result.createdSubscription
                             ? 'subscribed'
                             : 'already_subscribed',
@@ -607,7 +833,7 @@ export const makeMcpServer = (
                 'unsubscribe',
                 subscriptions.unsubscribe(userId, input.feedId).pipe(
                     Effect.as(
-                        textResult({
+                        jsonResult({
                             feedId: input.feedId,
                             unsubscribed: true,
                         }),

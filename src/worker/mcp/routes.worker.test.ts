@@ -7,12 +7,14 @@ import type { AuthConfig } from '../auth/config';
 import { Unauthenticated } from '../auth/errors';
 import type { AuthRuntime } from '../auth/routes';
 import type { AuthenticatedSession, AuthService } from '../auth/service';
+import type { FullContentService } from '../fullcontent/service';
 import { makeD1 } from '../infrastructure/d1';
 import { makeMcpOAuth } from './oauth';
 import { makeMcpRepository } from './repository';
 import {
     defaultMcpToolServices,
     type McpRuntime,
+    type McpToolServicesFactory,
     makeMcpRequestHandler,
     registerMcpRoutes,
 } from './routes';
@@ -74,13 +76,35 @@ const authRuntime: AuthRuntime = {
     } as unknown as AuthService,
 };
 
+// Article fetching reaches the public web, so the test replaces it with a
+// fixed page. Everything else is the production wiring.
+const toolServices: McpToolServicesFactory = (workerEnv) =>
+    defaultMcpToolServices(workerEnv).pipe(
+        Effect.map((services) => ({
+            ...services,
+            limitFullContent: () => Effect.void,
+            fullContent: {
+                fetchContent: (_userId: number, entryId: number) =>
+                    Effect.succeed({
+                        fullContent: {
+                            entryId,
+                            html: '<p>Full article from the website.</p>',
+                            sourceUrl: 'https://example.test/item',
+                            fetchedAt: now,
+                            summary: null,
+                        },
+                    }),
+            } as unknown as FullContentService,
+        })),
+    );
+
 const oauth = makeMcpOAuth({
     origin: ORIGIN,
     hasAccess: (_env, props) =>
         Effect.runPromise(
             repository.isConnectionActive(props.userId, props.connectionId),
         ),
-    handleMcp: makeMcpRequestHandler(defaultMcpToolServices),
+    handleMcp: makeMcpRequestHandler(toolServices),
 });
 
 let nextEventId = 7_690_000;
@@ -302,6 +326,7 @@ const rpcResult = async (response: Response) => {
     const message = JSON.parse(json) as {
         result?: {
             content?: { type: string; text: string }[];
+            structuredContent?: Record<string, unknown>;
             isError?: boolean;
             tools?: { name: string }[];
         };
@@ -322,6 +347,7 @@ const callTool = async (
     return {
         isError: result.isError === true,
         text: result.content?.map((block) => block.text).join('\n') ?? '',
+        data: result.structuredContent ?? {},
     };
 };
 
@@ -533,6 +559,102 @@ describe('MCP over OAuth with Workerd KV and D1', () => {
             (await callTool(readOnly.access_token, 'list_subscriptions'))
                 .isError,
         ).toBe(false);
+    });
+
+    it('reads with excerpts, date ranges, batches, full articles, and feed health', async () => {
+        await setEnabled(OWNER, true);
+        const { access_token: token } = await connectClient(OWNER, {
+            allowWrite: false,
+        });
+
+        type Listed = {
+            total: number;
+            entries: { id: number; excerpt?: string }[];
+        };
+        const listed = await callTool(token, 'list_entries', {
+            filter: 'all',
+        });
+        const page = listed.data as Listed;
+        expect(JSON.parse(listed.text)).toEqual(page);
+        expect(page.entries).toEqual([
+            expect.objectContaining({
+                id: ENTRY,
+                excerpt: 'Hello & welcome (https://example.test/x)',
+            }),
+        ]);
+        const bare = (
+            await callTool(token, 'list_entries', {
+                filter: 'all',
+                excerptChars: 0,
+            })
+        ).data as Listed;
+        expect(bare.entries[0]).not.toHaveProperty('excerpt');
+
+        // since is inclusive and until exclusive, on publication time.
+        const at = (offset: number) => new Date(now + offset).toISOString();
+        const totalFor = async (range: Record<string, string>) =>
+            (
+                (
+                    await callTool(token, 'list_entries', {
+                        filter: 'all',
+                        ...range,
+                    })
+                ).data as Listed
+            ).total;
+        expect(await totalFor({ since: at(0) })).toBe(1);
+        expect(await totalFor({ since: at(1) })).toBe(0);
+        expect(await totalFor({ until: at(0) })).toBe(0);
+        expect(await totalFor({ until: at(1) })).toBe(1);
+        const badDate = await callTool(token, 'list_entries', {
+            since: 'yesterday',
+        });
+        expect(badDate.isError).toBe(true);
+        expect(badDate.text).toContain('Invalid since');
+
+        const batch = await callTool(token, 'get_entries', {
+            entryIds: [ENTRY, OTHER_ENTRY],
+        });
+        expect(batch.data).toMatchObject({
+            entries: [{ id: ENTRY, contentSource: 'feed' }],
+            notFound: [OTHER_ENTRY],
+        });
+        expect(batch.text).toContain(`Private article ${OWNER}`);
+        expect(batch.text).not.toContain(`Private article ${OTHER}`);
+
+        const full = await callTool(token, 'get_entry', {
+            entryId: ENTRY,
+            fullContent: true,
+        });
+        expect(full.data).toMatchObject({
+            contentSource: 'article',
+            content: 'Full article from the website.',
+            truncated: false,
+        });
+
+        type Health = {
+            totalFeeds: number;
+            failing: number;
+            feeds: { feedId: number; status: string; lastError: string }[];
+        };
+        const healthy = (await callTool(token, 'feed_health')).data as Health;
+        expect(healthy).toMatchObject({ totalFeeds: 1, failing: 0, feeds: [] });
+        await env.DB.prepare(
+            `UPDATE feeds SET consecutive_failures = 3,
+                last_error_message = 'HTTP 500' WHERE id = ?`,
+        )
+            .bind(FEED)
+            .run();
+        const failing = (await callTool(token, 'feed_health')).data as Health;
+        expect(failing).toMatchObject({
+            failing: 1,
+            feeds: [{ feedId: FEED, status: 'failing', lastError: 'HTTP 500' }],
+        });
+        await env.DB.prepare(
+            `UPDATE feeds SET consecutive_failures = 0,
+                last_error_message = NULL WHERE id = ?`,
+        )
+            .bind(FEED)
+            .run();
     });
 
     it('refuses a consent form submitted by a different account', async () => {

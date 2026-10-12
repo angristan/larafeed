@@ -56,25 +56,41 @@ export const defaultFullContentRuntimeFactory: FullContentRuntimeFactory = (
     const d1 = makeD1(env.DB);
     return Effect.all({
         auth: makeDefaultAuthRuntime(env, d1),
+        service: makeFullContentServiceForEnv(env, {
+            proxyImages: env.IMAGES_ENABLED === 'true',
+        }),
+    });
+};
+
+/**
+ * Builds the full-content service from Worker bindings. Callers outside the
+ * web app (MCP) pass `proxyImages: false`: proxied image URLs are relative to
+ * Larafeed and need a browser session.
+ */
+export const makeFullContentServiceForEnv = (
+    env: Env,
+    options: { readonly proxyImages: boolean },
+): Effect.Effect<FullContentService, FullContentConfigError> => {
+    const d1 = makeD1(env.DB);
+    return Effect.all({
         config: parseFullContentConfig(env),
         summaryConfig: parseSummaryConfig(env).pipe(
             Effect.mapError(() => new FullContentConfigError()),
         ),
     }).pipe(
-        Effect.flatMap(({ auth, config, summaryConfig }) => {
+        Effect.flatMap(({ config, summaryConfig }) => {
             const kv = env.FULL_CONTENT_KV;
             if (config.enabled && kv === undefined) {
                 return Effect.fail(new FullContentConfigError());
             }
-            return Effect.succeed({
-                auth,
-                service: makeFullContentService({
+            return Effect.succeed(
+                makeFullContentService({
                     config,
                     summaryConfig,
                     repository: makeFullContentRepository(d1),
                     store: makeKvFullContentStore(kv),
                     fetchPage: makeArticlePageFetcher(),
-                    ...(env.IMAGES_ENABLED === 'true'
+                    ...(options.proxyImages
                         ? {
                               rewriteImages: (
                                   entryId: number,
@@ -98,7 +114,7 @@ export const defaultFullContentRuntimeFactory: FullContentRuntimeFactory = (
                           }
                         : {}),
                 }),
-            });
+            );
         }),
     );
 };
@@ -360,7 +376,8 @@ const authorizeMutation = (
             context.req.raw.headers.get('X-CSRF-Token') ?? undefined,
     });
 
-const rateLimit = (env: Env, userId: number) =>
+/** The per-user full-content fetch limit shared by the web app and MCP. */
+export const fullContentRateLimit = (env: Env, userId: number) =>
     Effect.tryPromise({
         try: () =>
             env.AUTH_RATE_LIMITER.limit({ key: `full-content:${userId}` }),
@@ -423,7 +440,7 @@ export const registerFullContentRoutes = (
                     authorizeMutation(context, value, session),
                 ),
                 Effect.tap(({ session }) =>
-                    rateLimit(context.env, session.user.id),
+                    fullContentRateLimit(context.env, session.user.id),
                 ),
                 Effect.tap(() => requireEmptyJson(context.req.raw)),
                 Effect.bind('entryId', () =>
