@@ -876,6 +876,70 @@ describe('MCP over OAuth with Workerd KV and D1', () => {
         expect((await rpc(kept.access_token, 'tools/list')).status).toBe(200);
     });
 
+    it('lists a full page of 100 entries with excerpts', async () => {
+        await setEnabled(OWNER, true);
+        const { access_token: token } = await connectClient(OWNER, {
+            allowWrite: false,
+        });
+        const html = '<p>Bulk entry body</p>';
+        // 32-byte keys that differ per entry: the ID in the first bytes.
+        const uniqueKey = (value: number) => {
+            const key = new Uint8Array(32).fill(7);
+            new DataView(key.buffer).setFloat64(0, value);
+            return key;
+        };
+        await Effect.runPromise(
+            d1.batch(
+                Array.from({ length: 100 }, (_, index) => {
+                    const id = 7_650_000 + index;
+                    return [
+                        {
+                            sql: `INSERT INTO entries (
+                                id, feed_id, deduplication_key, title, url, author,
+                                published_at, content_status, created_at, updated_at
+                            ) VALUES (?, ?, ?, ?, NULL, NULL, ?, 'stored', ?, ?)`,
+                            bindings: [
+                                id,
+                                FEED,
+                                uniqueKey(id),
+                                `Bulk ${index}`,
+                                now - index,
+                                now,
+                                now,
+                            ],
+                        },
+                        {
+                            sql: `INSERT INTO entry_contents (
+                                entry_id, content_html, content_hash,
+                                encoded_size_bytes, created_at, updated_at
+                            ) VALUES (?, ?, ?, ?, ?, ?)`,
+                            bindings: [
+                                id,
+                                html,
+                                uniqueKey(id + 1_000_000),
+                                html.length,
+                                now,
+                                now,
+                            ],
+                        },
+                    ];
+                }).flat(),
+            ),
+        );
+
+        const page = await callTool(token, 'list_entries', {
+            filter: 'all',
+            limit: 100,
+        });
+        expect(page.isError).toBe(false);
+        const entries = (page.data as { entries: { excerpt?: string }[] })
+            .entries;
+        expect(entries).toHaveLength(100);
+        expect(
+            entries.filter((entry) => entry.excerpt === 'Bulk entry body'),
+        ).toHaveLength(99);
+    });
+
     it('cuts off tokens when MCP is turned off and does not revive them', async () => {
         await setEnabled(OWNER, true);
         const tokens = await connectClient(OWNER, { allowWrite: true });
