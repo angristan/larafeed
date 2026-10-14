@@ -21,6 +21,7 @@ Apps get read-only access unless you tick write access on the consent page. To c
 | `list_entries` | read | Entries with a plain-text excerpt (200 characters by default, `excerptChars` 0 to 1,000), filtered by feed, category, read state, and `since`/`until`, with pagination |
 | `search_entries` | read | Full-text search over titles, authors, and article text, best matches first, with a snippet around each match and the same filters as `list_entries` |
 | `get_entries` | read | Up to 20 entries with their content: 20,000 characters for one entry or 4,000 each for several by default (`maxChars`), as plain text or sanitized HTML |
+| `show_entries` | read | Shows entries to the user as an interactive card (MCP App), by filter or by `entryIds` |
 | `feed_health` | read | Feeds that fail to refresh or are gone, with the last error and last success |
 | `update_entries` | write | Marks up to 50 entries read, starred, or archived (or the reverse), or a whole feed read with `feedId` and `read: true` |
 | `subscribe` | write | Adds a feed by feed or website URL. Returns the choices when a site offers several feeds |
@@ -66,3 +67,13 @@ POST /mcp (Bearer) ───────────────▶ token check,
 ### Compatibility flag
 
 Client ID Metadata Documents need the `global_fetch_strictly_public` compatibility flag. It makes every outbound `fetch` go to the public internet, even for hostnames on the Worker's own Cloudflare zone. Feed, favicon, and full-content fetches already target public publishers, so they behave the same.
+
+## Interactive card (MCP App)
+
+`show_entries` returns the same entries as `list_entries`, and hosts that support [MCP Apps](https://modelcontextprotocol.io/extensions/apps) (Claude, ChatGPT, VS Code, Goose) render them as a card in the conversation. Le Chat does not render MCP Apps yet and shows the text result instead.
+
+The other tools stay text-only, so the card appears only when the model calls `show_entries`, which its description limits to when the user wants to see or browse entries.
+
+From the card you can star and mark entries read or unread, open an article (which marks it read, as in the web app), load more, and send "Summarize these entries" back to the chat. Actions go through the host to `update_entries` and `show_entries`, so they need the same OAuth scopes as when the model calls them.
+
+The view lives in `src/mcp-app/`. A Vite plugin (`scripts/mcp-app-view-plugin.ts`) bundles it into one HTML string served as the `ui://larafeed/entries.html` resource. Its CSP allows only images from Larafeed's origin, for public favicons; feed text is always inserted as text, never as HTML.
