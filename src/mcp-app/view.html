@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Larafeed</title>
+<style>
+/*
+ * Host style variables (MCP Apps) win when the host sends them; otherwise
+ * the view falls back to Larafeed's own palette, light and dark.
+ */
+:root {
+    color-scheme: light dark;
+    --bg: var(--color-background-primary, #fbfaf7);
+    --bg-hover: var(--color-background-secondary, #f3efe8);
+    --text: var(--color-text-primary, #1d1d1b);
+    --muted: var(--color-text-secondary, #6b6a64);
+    --line: var(--color-border-tertiary, #e6e1d8);
+    --accent: var(--color-text-info, #1b6f6a);
+    --star: #d9a400;
+    --danger: var(--color-text-danger, #b42318);
+    --radius: var(--border-radius-md, 10px);
+    --font: var(--font-sans, system-ui, -apple-system, "Segoe UI", sans-serif);
+}
+:root[data-theme="dark"] {
+    --bg: var(--color-background-primary, #171816);
+    --bg-hover: var(--color-background-secondary, #22231f);
+    --text: var(--color-text-primary, #ebe8e2);
+    --muted: var(--color-text-secondary, #a19e96);
+    --line: var(--color-border-tertiary, #2e2f2a);
+    --accent: var(--color-text-info, #5fb8b1);
+}
+* { box-sizing: border-box; }
+/* Class rules below set display; keep the hidden attribute authoritative. */
+[hidden] { display: none !important; }
+html, body { margin: 0; background: transparent; }
+:root, :root[data-theme] { background: transparent; }
+body { font: 14px/1.45 var(--font); color: var(--text); }
+.card {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; border-bottom: 1px solid var(--line);
+}
+header .brand { font-weight: 650; letter-spacing: .01em; }
+header .count { color: var(--muted); font-size: 13px; }
+header .spacer { flex: 1; }
+button {
+    font: inherit; color: inherit; background: none; border: 0;
+    cursor: pointer; border-radius: 6px;
+}
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.primary {
+    background: var(--accent); color: var(--bg);
+    padding: 5px 10px; font-size: 13px; font-weight: 600;
+}
+ul { list-style: none; margin: 0; padding: 0; }
+li {
+    display: grid; grid-template-columns: 18px 20px 1fr auto;
+    gap: 10px; align-items: start;
+    padding: 10px 14px; border-bottom: 1px solid var(--line);
+}
+li:last-child { border-bottom: 0; }
+li:hover { background: var(--bg-hover); }
+li.read .title { color: var(--muted); font-weight: 450; }
+input[type="checkbox"] { margin: 3px 0 0; accent-color: var(--accent); }
+.icon {
+    width: 20px; height: 20px; border-radius: 5px; margin-top: 1px;
+    display: grid; place-items: center; overflow: hidden;
+    font-size: 11px; font-weight: 700; color: #fff;
+}
+.icon img { width: 20px; height: 20px; object-fit: contain; }
+:root[data-theme="dark"] .icon img.dark { filter: invert(1) hue-rotate(180deg); }
+.body { min-width: 0; }
+.title {
+    display: block; text-align: left; padding: 0;
+    font-weight: 600; color: var(--text);
+    overflow-wrap: anywhere;
+}
+.title:hover { text-decoration: underline; }
+.meta { color: var(--muted); font-size: 12px; margin-top: 1px; }
+.excerpt {
+    color: var(--muted); font-size: 13px; margin-top: 3px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.actions { display: flex; gap: 2px; }
+.actions button {
+    width: 28px; height: 28px; display: grid; place-items: center;
+    color: var(--muted);
+}
+.actions button:hover { background: var(--line); color: var(--text); }
+.actions button.on.star { color: var(--star); }
+.actions button.on.done { color: var(--accent); }
+.actions svg { width: 16px; height: 16px; }
+.more { display: block; width: 100%; padding: 10px; color: var(--accent); font-weight: 600; }
+.more:hover { background: var(--bg-hover); }
+.empty { padding: 18px 14px; color: var(--muted); }
+.notice { padding: 8px 14px; color: var(--danger); font-size: 13px; border-top: 1px solid var(--line); }
+.notice:empty { display: none; }
+</style>
+</head>
+<body>
+<div class="card">
+    <header>
+        <span class="brand">Larafeed</span>
+        <span class="count" id="count"></span>
+        <span class="spacer"></span>
+        <button class="primary" id="summarize" hidden></button>
+    </header>
+    <ul id="entries"></ul>
+    <div class="empty" id="empty" hidden>No entries.</div>
+    <button class="more" id="more" hidden>Load more</button>
+    <div class="notice" id="notice" role="status"></div>
+</div>
+<!-- SCRIPT -->
+</body>
+</html>

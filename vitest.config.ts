@@ -1,7 +1,10 @@
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
+import { mcpAppView } from './scripts/mcp-app-view-plugin';
+
 export default defineConfig({
+    plugins: [mcpAppView()],
     resolve: {
         alias: {
             '@': fileURLToPath(new URL('./src/client', import.meta.url)),

@@ -28,6 +28,7 @@
         "worker-configuration.d.ts",
         "vite.config.ts",
         "vitest.config.ts",
-        "vitest.worker.config.ts"
+        "vitest.worker.config.ts",
+        "scripts/mcp-app-view-plugin.ts"
     ]
 }

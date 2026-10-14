@@ -5,10 +5,13 @@ import {
 } from '@cloudflare/vitest-pool-workers';
 import { defineConfig } from 'vitest/config';
 
+import { mcpAppView } from './scripts/mcp-app-view-plugin';
+
 const migrationsPath = fileURLToPath(new URL('./migrations', import.meta.url));
 
 export default defineConfig({
     plugins: [
+        mcpAppView(),
         cloudflareTest(async () => ({
             miniflare: {
                 bindings: {

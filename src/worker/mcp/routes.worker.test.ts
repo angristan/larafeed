@@ -513,6 +513,7 @@ describe('MCP over OAuth with Workerd KV and D1', () => {
             'list_entries',
             'list_subscriptions',
             'search_entries',
+            'show_entries',
             'subscribe',
             'unsubscribe',
             'update_entries',
@@ -522,7 +523,7 @@ describe('MCP over OAuth with Workerd KV and D1', () => {
         const toolList = JSON.stringify(tools);
         expect(toolList).not.toContain('allOf');
         expect(toolList).not.toContain(String(Number.MAX_SAFE_INTEGER));
-        expect(toolList.length).toBeLessThan(6_000);
+        expect(toolList.length).toBeLessThan(6_500);
 
         const listed = await callTool(tokens.access_token, 'list_entries');
         expect(listed.isError).toBe(false);
@@ -670,6 +671,58 @@ describe('MCP over OAuth with Workerd KV and D1', () => {
                 },
             ],
         });
+
+        // The MCP App: show_entries points at a ui:// resource with the view.
+        const listedTools = (await rpcResult(await rpc(token, 'tools/list')))
+            .tools as unknown as {
+            name: string;
+            _meta?: { ui?: { resourceUri?: string } };
+        }[];
+        const showTool = listedTools.find(
+            (tool) => tool.name === 'show_entries',
+        );
+        const viewUri = showTool?._meta?.ui?.resourceUri;
+        expect(viewUri).toBe('ui://larafeed/entries.html');
+        const resource = (await rpcResult(
+            await rpc(token, 'resources/read', { uri: viewUri }),
+        )) as unknown as {
+            contents: {
+                mimeType: string;
+                text: string;
+                _meta: { ui: { csp: { resourceDomains: string[] } } };
+            }[];
+        };
+        const view = resource.contents[0];
+        expect(view?.mimeType).toBe('text/html;profile=mcp-app');
+        expect(view?.text).toContain('<script type="module">');
+        expect(view?.text).not.toContain('<!-- SCRIPT -->');
+        expect(view?._meta.ui.csp.resourceDomains).toEqual([env.AUTH_ORIGIN]);
+
+        const shown = await callTool(token, 'show_entries', { filter: 'all' });
+        expect(shown.text).toContain(
+            'Shown to the user as an interactive card.',
+        );
+        expect(shown.data).toMatchObject({
+            total: 1,
+            nextCursor: null,
+            request: { filter: 'all' },
+            entries: [
+                {
+                    id: ENTRY,
+                    feed: `Feed ${OWNER}`,
+                    excerpt: 'Hello & welcome (https://example.test/x)',
+                    faviconUrl: null,
+                },
+            ],
+        });
+        const picked = await callTool(token, 'show_entries', {
+            entryIds: [ENTRY, OTHER_ENTRY],
+        });
+        expect(
+            (picked.data as { entries: { id: number }[] }).entries.map(
+                (entry) => entry.id,
+            ),
+        ).toEqual([ENTRY]);
 
         // Both users' entries contain "welcome"; search sees only the owner's.
         await Effect.runPromise(runSearchIndexer(d1));

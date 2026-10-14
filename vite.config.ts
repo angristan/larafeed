@@ -3,8 +3,10 @@ import { cloudflare } from '@cloudflare/vite-plugin';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
+import { mcpAppView } from './scripts/mcp-app-view-plugin';
+
 export default defineConfig({
-    plugins: [react(), cloudflare()],
+    plugins: [react(), cloudflare(), mcpAppView()],
     envDir: false,
     resolve: {
         alias: {

@@ -101,6 +101,7 @@ export const defaultMcpToolServices: McpToolServicesFactory = (env) =>
                 limitFullContent: (userId: number) =>
                     fullContentRateLimit(env, userId),
                 contentPrefixes: repository.contentPrefixes,
+                publicOrigin: env.AUTH_ORIGIN,
             };
         }),
     );

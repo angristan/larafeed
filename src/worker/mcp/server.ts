@@ -1,11 +1,17 @@
+import { registerAppTool } from '@modelcontextprotocol/ext-apps/server';
 import {
     type CallToolResult,
     McpServer,
     requireScopes,
 } from '@modelcontextprotocol/server';
+import type { ReaderEntry } from '@shared/schemas/reader';
 import { ReaderFilter, ReaderOrder } from '@shared/schemas/reader';
 import { Cause, Effect, Exit, Schema } from 'effect';
-
+import {
+    SHOW_ENTRIES_TOOL,
+    type ShowEntriesData,
+    VIEW_URI,
+} from '../../mcp-app/contract';
 import { safeErrorClass, spanNames, traceAsync } from '../observability';
 import type { ReaderEntryScope } from '../reader/repository';
 import type { ReaderService } from '../reader/service';
@@ -15,6 +21,7 @@ import type {
     SubscriptionStorageError,
 } from '../subscriptions/errors';
 import type { SubscriptionService } from '../subscriptions/service';
+import { registerEntriesView, toShowEntry } from './app';
 import {
     buildExcerpts,
     type EntryContentServices,
@@ -26,6 +33,8 @@ import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from './oauth';
 import { toolInput } from './schema';
 
 export interface McpToolServices extends EntryContentServices {
+    /** Larafeed's public origin, for absolute favicon URLs in the app. */
+    readonly publicOrigin: string;
     readonly subscriptions: SubscriptionService;
     /** Start of each owned entry's stored HTML, keyed by entry ID. */
     readonly contentPrefixes: (
@@ -46,6 +55,7 @@ const SERVER_INFO = { name: 'larafeed', version: '1.0.0' } as const;
 // Sent once per session. Tool descriptions carry the details.
 const INSTRUCTIONS = `Larafeed is the user's feed reader. Entry lists read "id · date (UTC) · feed · title [flags]", with an excerpt or snippet below.
 Browse with list_entries, find with search_entries, read with get_entries (fullContent: true fetches the web page when a feed only has a teaser). Reading does not mark entries read; update_entries does.
+show_entries displays entries as an interactive card, only when the user wants to see or browse them.
 Confirm with the user before unsubscribe.`;
 
 // Updating one entry's read, starred, and archived state can take 12 D1
@@ -151,6 +161,23 @@ const UpdateEntriesInput = toolInput(
         read: Schema.optionalKey(Schema.Boolean),
         starred: Schema.optionalKey(Schema.Boolean),
         archived: Schema.optionalKey(Schema.Boolean),
+    }),
+);
+
+const ShowEntriesInput = toolInput(
+    Schema.Struct({
+        filter: described(ReaderFilter, 'Default unread.'),
+        ...scopeFields,
+        ...rangeFields,
+        entryIds: described(
+            Schema.Array(SafeId).check(
+                Schema.isMinLength(1),
+                Schema.isMaxLength(MAX_UPDATE_IDS),
+            ),
+            'Show these entries instead, e.g. search results.',
+        ),
+        limit: described(intBetween(1, 50), 'Default 20.'),
+        cursor: Schema.optionalKey(Schema.String),
     }),
 );
 
@@ -381,6 +408,23 @@ export const makeMcpServer = (
     const server = new McpServer(SERVER_INFO, { instructions: INSTRUCTIONS });
     const { reader, subscriptions } = services;
 
+    const excerptsFor = (entryIds: readonly number[], chars: number) =>
+        chars === 0 || entryIds.length === 0
+            ? Effect.succeed(new Map<number, string>())
+            : services
+                  .contentPrefixes(
+                      userId,
+                      entryIds,
+                      // Markup usually outweighs text, so read several
+                      // times the excerpt length.
+                      Math.min(16_384, chars * 8 + 2_048),
+                  )
+                  .pipe(
+                      Effect.flatMap((prefixes) =>
+                          buildExcerpts(prefixes, chars),
+                      ),
+                  );
+
     server.registerTool(
         'list_subscriptions',
         {
@@ -453,25 +497,10 @@ export const makeMcpServer = (
                     });
                     const excerptChars =
                         input.excerptChars ?? DEFAULT_EXCERPT_CHARS;
-                    const excerpts =
-                        excerptChars === 0
-                            ? new Map<number, string>()
-                            : yield* services
-                                  .contentPrefixes(
-                                      userId,
-                                      page.entries.map((entry) => entry.id),
-                                      // Markup usually outweighs text, so
-                                      // read several times the excerpt.
-                                      Math.min(
-                                          16_384,
-                                          excerptChars * 8 + 2_048,
-                                      ),
-                                  )
-                                  .pipe(
-                                      Effect.flatMap((prefixes) =>
-                                          buildExcerpts(prefixes, excerptChars),
-                                      ),
-                                  );
+                    const excerpts = yield* excerptsFor(
+                        page.entries.map((entry) => entry.id),
+                        excerptChars,
+                    );
                     const entries = page.entries.map((entry) => ({
                         ...entry,
                         feed: entry.customFeedName ?? entry.feedName,
@@ -503,6 +532,85 @@ export const makeMcpServer = (
                                     : { excerpt: entry.excerpt ?? '' }),
                             })),
                         },
+                    );
+                }),
+            ),
+    );
+
+    registerEntriesView(server, services.publicOrigin);
+    registerAppTool(
+        server,
+        SHOW_ENTRIES_TOOL,
+        {
+            description:
+                'Shows entries to the user as an interactive card to browse, star, and mark read. Use only when the user wants to see entries; use list_entries to read them yourself.',
+            inputSchema: ShowEntriesInput,
+            annotations: readOnly,
+            _meta: { ui: { resourceUri: VIEW_URI } },
+        },
+        (input) =>
+            runTool(
+                SHOW_ENTRIES_TOOL,
+                Effect.gen(function* () {
+                    let total: number;
+                    let nextCursor: string | null = null;
+                    let found: readonly ReaderEntry[];
+                    if (input.entryIds !== undefined) {
+                        const loaded = yield* Effect.forEach(
+                            [...new Set(input.entryIds)],
+                            (entryId) =>
+                                reader.findEntry(userId, entryId).pipe(
+                                    Effect.map(
+                                        (entry): ReaderEntry | null => entry,
+                                    ),
+                                    Effect.catchTag('ReaderNotFound', () =>
+                                        Effect.succeed(null),
+                                    ),
+                                ),
+                            { concurrency: 4 },
+                        );
+                        found = loaded.filter(
+                            (entry): entry is ReaderEntry => entry !== null,
+                        );
+                        total = found.length;
+                    } else {
+                        const page = yield* reader.listEntries(userId, {
+                            scope: yield* entryScope(input),
+                            filter: input.filter ?? 'unread',
+                            orderBy: 'published_at',
+                            cursor: yield* parseCursor(input.cursor),
+                            pageSize: input.limit ?? DEFAULT_PAGE_SIZE,
+                            range: yield* dateRange(input),
+                        });
+                        found = page.entries;
+                        total = page.total;
+                        nextCursor = page.nextCursor;
+                    }
+                    const excerpts = yield* excerptsFor(
+                        found.map((entry) => entry.id),
+                        DEFAULT_EXCERPT_CHARS,
+                    );
+                    const { cursor: _cursor, ...request } = input;
+                    const data: ShowEntriesData = {
+                        total,
+                        nextCursor,
+                        request,
+                        entries: found.map((entry) =>
+                            toShowEntry(
+                                entry,
+                                excerpts.get(entry.id) ?? '',
+                                services.publicOrigin,
+                            ),
+                        ),
+                    };
+                    return textResult(
+                        lines(
+                            `Shown to the user as an interactive card. ${total} entries${nextCursor === null ? '' : ` · next cursor ${nextCursor}`}`,
+                            ...data.entries.map((entry) =>
+                                entryLine(entry, entry.excerpt),
+                            ),
+                        ),
+                        { ...data },
                     );
                 }),
             ),
