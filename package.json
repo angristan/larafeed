@@ -5,6 +5,9 @@
     "engines": {
         "node": ">=24 <27"
     },
+    "overrides": {
+        "sharp": "0.35.5"
+    },
     "scripts": {
         "dev": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false vite",
         "build": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false bun scripts/cloudflare-build.ts",
