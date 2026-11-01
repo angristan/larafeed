@@ -282,8 +282,14 @@
     }
 }
 
+/* The list header overlays the top 57px of the viewport. The virtualizer
+   reserves that space via paddingStart, so only the non-list states
+   (skeleton, error, empty) need the offset here. */
 .entryScrollContent {
     min-height: 100%;
+}
+
+.entryScrollState {
     padding-top: 57px;
 }
 
@@ -300,10 +306,13 @@
 }
 
 /* Rows rise in when the scope changes or entries first load. The list is
-   virtualized, so rows outside the window remount on scroll and must not
-   replay the animation; the data-animating gate covers that, and in-place
-   patches such as read or star keep their DOM nodes regardless. */
-.entriesList[data-animating] .entryItem {
+   virtualized: the <li> carries the virtualizer's positioning transform, so
+   the animation must run on the inner link — a transform keyframe on the
+   <li> would override it and drop rows at the top of the list. Only rows
+   present when the scope loaded get .rowEnter; rows mounted later by
+   scrolling must not animate, or the stagger delay holds them at opacity 0
+   and fast scrolling flashes blank rows. */
+.rowEnter .entry {
     animation: entry-in var(--ds-motion-standard) var(--ds-motion-easing)
         both;
     animation-delay: var(--entry-enter-delay, 0ms);
@@ -794,8 +803,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+    /* Same selector as the animation gate so this override wins on source
+       order at equal specificity. */
     .newEntriesChip,
-    .entryItem {
+    .rowEnter .entry {
         animation: none;
     }
 

@@ -38,7 +38,18 @@ async function mockReaderApi(
     page: Page,
     feedName = 'Example feed',
     newEntryCount = 0,
+    entryCount = 1,
 ): Promise<ApiState> {
+    const listEntries =
+        entryCount === 1
+            ? [entry]
+            : Array.from({ length: entryCount }, (_, index) => ({
+                  ...entry,
+                  id: 41 + index,
+                  title: `Entry ${index + 1}`,
+                  publishedAt: now - (index + 1) * 60_000,
+                  createdAt: now - (index + 1) * 60_000,
+              }));
     const state: ApiState = {
         entryListRequests: 0,
         summaryPosts: 0,
@@ -243,21 +254,44 @@ async function mockReaderApi(
             const isNewEntryProbe =
                 url.searchParams.get('order_by') === 'created_at' &&
                 url.searchParams.get('page_size') === '1';
+            if (isNewEntryProbe) {
+                await route.fulfill(
+                    json({
+                        entries:
+                            newEntryCount > 0
+                                ? [
+                                      {
+                                          ...entry,
+                                          id: 42,
+                                          createdAt: now,
+                                          title: 'Newly ingested entry',
+                                      },
+                                  ]
+                                : listEntries.slice(0, 1),
+                        total: listEntries.length + newEntryCount,
+                        nextCursor: null,
+                    }),
+                );
+                return;
+            }
+            const pageSize = Number(url.searchParams.get('page_size') ?? '30');
+            const cursor = url.searchParams.get('cursor');
+            const start =
+                cursor === null
+                    ? 0
+                    : listEntries.findIndex(
+                          (listEntry) => listEntry.id === Number(cursor),
+                      ) + 1;
+            const pageEntries = listEntries.slice(start, start + pageSize);
             await route.fulfill(
                 json({
-                    entries:
-                        isNewEntryProbe && newEntryCount > 0
-                            ? [
-                                  {
-                                      ...entry,
-                                      id: 42,
-                                      createdAt: now,
-                                      title: 'Newly ingested entry',
-                                  },
-                              ]
-                            : [entry],
-                    total: 1 + (isNewEntryProbe ? newEntryCount : 0),
-                    nextCursor: null,
+                    entries: pageEntries,
+                    total: listEntries.length,
+                    nextCursor:
+                        pageEntries.length > 0 &&
+                        pageEntries.length === pageSize
+                            ? String(pageEntries[pageEntries.length - 1].id)
+                            : null,
                 }),
             );
             return;
@@ -737,4 +771,95 @@ test('uses a single list or detail pane on mobile with working back navigation',
         .toEqual({ entry: null, filter: 'unread', summarize: null });
     await expect(entryLink).toBeVisible();
     await expect(back).toBeHidden();
+});
+
+test('keeps virtual rows stacked while scrolling during the enter animation', async ({
+    page,
+}) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await mockReaderApi(page, 'Example feed', 0, 90);
+    await page.goto('/feeds?filter=all&order_by=published_at');
+
+    const list = page.locator('section[aria-label="All entries"]');
+    const viewport = list.locator('[data-scrollarea-viewport]');
+    await list.locator('li[data-index]').first().waitFor({ state: 'attached' });
+
+    // Scroll within the enter-animation window: data-animating stays set for
+    // 900ms after the list loads, and a transform keyframe on the positioned
+    // row would override the virtualizer's translateY and collapse the rows.
+    await viewport.evaluate((element) => {
+        element.scrollTop = 900;
+    });
+    // Wait until scrolling has moved the virtual window past the initial
+    // one. (The enter-animation gate only lasts 900ms, so requiring it here
+    // would flake on slow runners; on fast runners this still samples while
+    // the gate is active, which is when a positioning bug would show.)
+    await page.waitForFunction(() => {
+        const rows = document.querySelectorAll('li[data-index]');
+        if (rows.length === 0) {
+            return false;
+        }
+        const first = Number(rows[0].getAttribute('data-index'));
+        const last = Number(rows[rows.length - 1].getAttribute('data-index'));
+        return first > 0 && last >= 20;
+    });
+
+    const rows = await list.locator('li[data-index]').evaluateAll((elements) =>
+        elements.map((element) => {
+            const rect = element.getBoundingClientRect();
+            return {
+                index: Number(element.getAttribute('data-index')),
+                top: rect.top,
+                height: rect.height,
+            };
+        }),
+    );
+    const stacked = [...rows].sort((a, b) => a.index - b.index);
+    expect(stacked.length).toBeGreaterThan(3);
+    for (let i = 1; i < stacked.length; i += 1) {
+        expect(stacked[i].top).toBeGreaterThanOrEqual(
+            stacked[i - 1].top + stacked[i - 1].height - 2,
+        );
+    }
+});
+
+test('keeps a deep-linked entry fully visible below the list header', async ({
+    page,
+}) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await mockReaderApi(page, 'Example feed', 0, 90);
+    // Entry id 70 is the 30th entry (index 29), at the end of the first page.
+    await page.goto('/feeds?filter=all&order_by=published_at&entry=70');
+
+    const list = page.locator('section[aria-label="All entries"]');
+    const row = list.locator('li[data-index="29"]');
+    await expect(row).toBeVisible();
+
+    const viewport = list.locator('[data-scrollarea-viewport]');
+    const [rowBox, viewportBox] = await Promise.all([
+        row.boundingBox(),
+        viewport.boundingBox(),
+    ]);
+    expect(rowBox).not.toBeNull();
+    expect(viewportBox).not.toBeNull();
+    // The 57px list header overlays the top of the viewport.
+    expect((rowBox?.y ?? 0) - (viewportBox?.y ?? 0)).toBeGreaterThanOrEqual(
+        56,
+    );
+    expect(
+        (rowBox?.y ?? 0) + (rowBox?.height ?? 0),
+    ).toBeLessThanOrEqual((viewportBox?.y ?? 0) + (viewportBox?.height ?? 0) + 1);
+});
+
+test('skips the row enter animation under reduced motion', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await mockReaderApi(page);
+    await page.goto('/feeds?filter=all&order_by=published_at');
+
+    const rowLink = page.locator('li[data-index] a').first();
+    await rowLink.waitFor({ state: 'attached' });
+    const animationName = await rowLink.evaluate(
+        (element) => getComputedStyle(element).animationName,
+    );
+    expect(animationName).toBe('none');
 });

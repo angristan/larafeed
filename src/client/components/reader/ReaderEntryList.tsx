@@ -101,6 +101,10 @@ const orderLabels = {
     created_at: 'Added',
 } as const;
 
+// The list header overlays the top of the scroll viewport; the virtualizer
+// must reserve that space so scrollToIndex keeps rows clear of it.
+const LIST_HEADER_HEIGHT = 57;
+
 // Row heights from Reader.module.css (min-height plus the 1px separator).
 const estimateEntrySize = (density: FeedListDensity): number => {
     switch (density) {
@@ -136,13 +140,19 @@ export function ReaderEntryList({
     const sentinel = useRef<HTMLDivElement>(null);
     const loadMore = useRef(onLoadMore);
     loadMore.current = onLoadMore;
-    const [animateEntries, setAnimateEntries] = useState(false);
+    // Indices of the rows present when the scope changed or entries first
+    // loaded; only those get the enter animation.
+    const [animateRows, setAnimateRows] = useState<ReadonlySet<number> | null>(
+        null,
+    );
 
     const virtualizer = useVirtualizer({
         count: entries.length,
         getScrollElement: () => viewport.current,
         estimateSize: () => estimateEntrySize(density),
         overscan: 6,
+        paddingStart: LIST_HEADER_HEIGHT,
+        scrollPaddingStart: LIST_HEADER_HEIGHT,
         // Gives server-rendered markup a first window of rows; the real
         // viewport rect replaces it once the scroll element mounts.
         initialRect: { width: 1024, height: 640 },
@@ -152,6 +162,7 @@ export function ReaderEntryList({
     const scopeKey = `${state.feedId}:${state.categoryId}:${state.filter}:${state.orderBy}`;
     const previousScope = useRef(scopeKey);
     const wasEmpty = useRef(entries.length === 0);
+    const animationTimer = useRef<number | null>(null);
     useEffect(() => {
         const scopeChanged = previousScope.current !== scopeKey;
         const entriesArrived = wasEmpty.current && entries.length > 0;
@@ -164,20 +175,64 @@ export function ReaderEntryList({
             return;
         }
         // Rows mount and unmount as the virtual window moves, so the enter
-        // animation only plays when the scope changes or entries first load.
-        setAnimateEntries(true);
-        const timer = window.setTimeout(() => setAnimateEntries(false), 900);
-        return () => window.clearTimeout(timer);
-    }, [scopeKey, entries.length]);
-
-    const activeIndex = entries.findIndex(
-        (entry) => entry.id === state.entryId,
-    );
-    useEffect(() => {
-        if (activeIndex >= 0) {
-            virtualizer.scrollToIndex(activeIndex, { align: 'auto' });
+        // animation only plays for rows present when the scope changes or
+        // entries first load; scroll-mounted rows must not animate (the
+        // stagger delay would hold them at opacity 0). The expiry timer
+        // lives in a ref: effect re-runs caused by pagination must not
+        // cancel it, or the gate would stay on indefinitely.
+        setAnimateRows(
+            new Set(virtualizer.getVirtualItems().map((item) => item.index)),
+        );
+        if (animationTimer.current !== null) {
+            window.clearTimeout(animationTimer.current);
         }
-    }, [activeIndex, virtualizer]);
+        animationTimer.current = window.setTimeout(() => {
+            animationTimer.current = null;
+            setAnimateRows(null);
+        }, 900);
+    }, [scopeKey, entries.length, virtualizer.getVirtualItems]);
+    useEffect(
+        () => () => {
+            if (animationTimer.current !== null) {
+                window.clearTimeout(animationTimer.current);
+            }
+        },
+        [],
+    );
+
+    // Scroll to the selected row only when the selection changes or the list
+    // first loads with a selection (deep link). Refetches can shift the row's
+    // index when new entries arrive above it, and scrolling then would yank
+    // the user's scroll position.
+    const selectedEntryId = state.entryId;
+    const previousSelection = useRef<number | null>(selectedEntryId);
+    const selectionScrollPending = useRef(selectedEntryId !== null);
+    useEffect(() => {
+        if (selectedEntryId === null) {
+            previousSelection.current = null;
+            selectionScrollPending.current = false;
+            return;
+        }
+        // Persist the pending request on every selection change and clear it
+        // only once the row is found or the selection is cleared, so history
+        // navigation to an entry on a not-yet-loaded page still scrolls once
+        // it arrives.
+        if (previousSelection.current !== selectedEntryId) {
+            previousSelection.current = selectedEntryId;
+            selectionScrollPending.current = true;
+        }
+        if (!selectionScrollPending.current) {
+            return;
+        }
+        const index = entries.findIndex(
+            (entry) => entry.id === selectedEntryId,
+        );
+        if (index === -1) {
+            return;
+        }
+        selectionScrollPending.current = false;
+        virtualizer.scrollToIndex(index, { align: 'auto' });
+    }, [selectedEntryId, entries, virtualizer]);
 
     useEffect(() => {
         if (restoreFocusEntryId === null) {
@@ -305,7 +360,11 @@ export function ReaderEntryList({
             >
                 <div className={classes.entryScrollContent}>
                     {isPending && (
-                        <Stack gap={0} aria-label="Loading entries">
+                        <Stack
+                            aria-label="Loading entries"
+                            className={classes.entryScrollState}
+                            gap={0}
+                        >
                             {[
                                 'first',
                                 'second',
@@ -334,7 +393,11 @@ export function ReaderEntryList({
                     )}
 
                     {error !== null && entries.length === 0 && (
-                        <Center p="xl">
+                        <Center
+                            className={classes.entryScrollState}
+                            pb="xl"
+                            px="xl"
+                        >
                             <Alert color="red" title="Entries unavailable">
                                 <Stack gap="sm">
                                     <Text size="sm">{error.message}</Text>
@@ -357,7 +420,9 @@ export function ReaderEntryList({
                     )}
 
                     {!isPending && error === null && entries.length === 0 && (
-                        <Center className={classes.emptyEntries}>
+                        <Center
+                            className={`${classes.emptyEntries} ${classes.entryScrollState}`}
+                        >
                             <Stack align="center" gap={4} ta="center">
                                 <Text fw={650} size="sm">
                                     {emptyState.title}
@@ -372,7 +437,7 @@ export function ReaderEntryList({
                     {entries.length > 0 && (
                         <ul
                             className={classes.entriesList}
-                            data-animating={animateEntries || undefined}
+                            data-animating={animateRows !== null || undefined}
                             style={{
                                 height: `${virtualizer.getTotalSize()}px`,
                             }}
@@ -389,7 +454,7 @@ export function ReaderEntryList({
                                         entry.customFeedName ?? entry.feedName;
                                     return (
                                         <li
-                                            className={classes.entryItem}
+                                            className={`${classes.entryItem}${animateRows?.has(virtualItem.index) ? ` ${classes.rowEnter}` : ''}`}
                                             data-index={virtualItem.index}
                                             key={entry.id}
                                             ref={virtualizer.measureElement}
