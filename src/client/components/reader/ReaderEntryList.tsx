@@ -170,14 +170,29 @@ export function ReaderEntryList({
         return () => window.clearTimeout(timer);
     }, [scopeKey, entries.length]);
 
-    const activeIndex = entries.findIndex(
-        (entry) => entry.id === state.entryId,
-    );
+    // Scroll to the selected row only when the selection changes or the list
+    // first loads with a selection (deep link). Refetches can shift the row's
+    // index when new entries arrive above it, and scrolling then would yank
+    // the user's scroll position.
+    const selectedEntryId = state.entryId;
+    const previousSelection = useRef<number | null>(selectedEntryId);
+    const selectionScrollPending = useRef(selectedEntryId !== null);
     useEffect(() => {
-        if (activeIndex >= 0) {
-            virtualizer.scrollToIndex(activeIndex, { align: 'auto' });
+        const selectionChanged = previousSelection.current !== selectedEntryId;
+        previousSelection.current = selectedEntryId;
+        const pending = selectionChanged || selectionScrollPending.current;
+        if (selectedEntryId === null || !pending) {
+            return;
         }
-    }, [activeIndex, virtualizer]);
+        const index = entries.findIndex(
+            (entry) => entry.id === selectedEntryId,
+        );
+        if (index === -1) {
+            return;
+        }
+        selectionScrollPending.current = false;
+        virtualizer.scrollToIndex(index, { align: 'auto' });
+    }, [selectedEntryId, entries, virtualizer]);
 
     useEffect(() => {
         if (restoreFocusEntryId === null) {

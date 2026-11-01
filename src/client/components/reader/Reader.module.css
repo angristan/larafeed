@@ -300,10 +300,12 @@
 }
 
 /* Rows rise in when the scope changes or entries first load. The list is
-   virtualized, so rows outside the window remount on scroll and must not
-   replay the animation; the data-animating gate covers that, and in-place
-   patches such as read or star keep their DOM nodes regardless. */
-.entriesList[data-animating] .entryItem {
+   virtualized: the <li> carries the virtualizer's positioning transform, so
+   the animation must run on the inner link — a transform keyframe on the
+   <li> would override it and drop rows at the top of the list. Rows
+   remounted by scrolling must not replay the animation either; the
+   data-animating gate covers that. */
+.entriesList[data-animating] .entry {
     animation: entry-in var(--ds-motion-standard) var(--ds-motion-easing)
         both;
     animation-delay: var(--entry-enter-delay, 0ms);
@@ -795,7 +797,7 @@
 
 @media (prefers-reduced-motion: reduce) {
     .newEntriesChip,
-    .entryItem {
+    .entry {
         animation: none;
     }
 
