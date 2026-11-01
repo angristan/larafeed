@@ -205,7 +205,9 @@ export function ReaderPage() {
     });
     const entryMutations = useEntryInteractionMutations(selectedEntryId);
     const openedReadAttempt = useRef<number | null>(null);
-    const returnFocusEntryId = useRef<number | null>(null);
+    const [returnFocusEntryId, setReturnFocusEntryId] = useState<number | null>(
+        null,
+    );
 
     useEffect(() => {
         const entry = entryDetailQuery.data;
@@ -230,18 +232,6 @@ export function ReaderPage() {
                 }),
         });
     }, [entryDetailQuery.data, entryMutations.read, state.entryId]);
-
-    useEffect(() => {
-        if (state.entryId !== null || returnFocusEntryId.current === null) {
-            return;
-        }
-
-        const entryId = returnFocusEntryId.current;
-        returnFocusEntryId.current = null;
-        window.requestAnimationFrame(() => {
-            document.getElementById(`reader-entry-${entryId}`)?.focus();
-        });
-    }, [state.entryId]);
 
     useEffect(() => {
         const navigateList = (event: KeyboardEvent) => {
@@ -343,7 +333,7 @@ export function ReaderPage() {
             : baseScopeTitle;
 
     const backToList = () => {
-        returnFocusEntryId.current = state.entryId;
+        setReturnFocusEntryId(state.entryId);
         openedReadAttempt.current = null;
         void navigate(readerHref(state, { entryId: null }));
     };
@@ -433,7 +423,11 @@ export function ReaderPage() {
                                     entryDetailQueryOptions(entryId),
                                 );
                             }}
+                            onRestoreFocusHandled={() =>
+                                setReturnFocusEntryId(null)
+                            }
                             onRetry={() => void entryListQuery.refetch()}
+                            restoreFocusEntryId={returnFocusEntryId}
                             state={state}
                             total={entryListQuery.data?.pages[0]?.total}
                         />
