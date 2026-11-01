@@ -308,10 +308,11 @@
 /* Rows rise in when the scope changes or entries first load. The list is
    virtualized: the <li> carries the virtualizer's positioning transform, so
    the animation must run on the inner link — a transform keyframe on the
-   <li> would override it and drop rows at the top of the list. Rows
-   remounted by scrolling must not replay the animation either; the
-   data-animating gate covers that. */
-.entriesList[data-animating] .entry {
+   <li> would override it and drop rows at the top of the list. Only rows
+   present when the scope loaded get .rowEnter; rows mounted later by
+   scrolling must not animate, or the stagger delay holds them at opacity 0
+   and fast scrolling flashes blank rows. */
+.rowEnter .entry {
     animation: entry-in var(--ds-motion-standard) var(--ds-motion-easing)
         both;
     animation-delay: var(--entry-enter-delay, 0ms);
@@ -805,7 +806,7 @@
     /* Same selector as the animation gate so this override wins on source
        order at equal specificity. */
     .newEntriesChip,
-    .entriesList[data-animating] .entry {
+    .rowEnter .entry {
         animation: none;
     }
 

@@ -790,12 +790,20 @@ test('keeps virtual rows stacked while scrolling during the enter animation', as
     await viewport.evaluate((element) => {
         element.scrollTop = 900;
     });
+    // Wait until scrolling has moved the virtual window past the initial
+    // one, while the enter-animation gate is still active; sampling after
+    // the gate expires would let a row-positioning bug pass.
     await page.waitForFunction(() => {
         const rows = document.querySelectorAll('li[data-index]');
-        return (
-            rows.length > 0 &&
-            Number(rows[rows.length - 1].getAttribute('data-index')) >= 8
-        );
+        if (rows.length === 0) {
+            return false;
+        }
+        const first = Number(rows[0].getAttribute('data-index'));
+        const last = Number(rows[rows.length - 1].getAttribute('data-index'));
+        const gateActive = document
+            .querySelector('section[aria-label="All entries"] ul')
+            ?.hasAttribute('data-animating');
+        return first > 0 && last >= 20 && gateActive === true;
     });
 
     const rows = await list.locator('li[data-index]').evaluateAll((elements) =>

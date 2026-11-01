@@ -140,7 +140,11 @@ export function ReaderEntryList({
     const sentinel = useRef<HTMLDivElement>(null);
     const loadMore = useRef(onLoadMore);
     loadMore.current = onLoadMore;
-    const [animateEntries, setAnimateEntries] = useState(false);
+    // Indices of the rows present when the scope changed or entries first
+    // loaded; only those get the enter animation.
+    const [animateRows, setAnimateRows] = useState<ReadonlySet<number> | null>(
+        null,
+    );
 
     const virtualizer = useVirtualizer({
         count: entries.length,
@@ -171,19 +175,22 @@ export function ReaderEntryList({
             return;
         }
         // Rows mount and unmount as the virtual window moves, so the enter
-        // animation only plays when the scope changes or entries first load.
-        // The expiry timer lives in a ref: effect re-runs caused by
-        // pagination must not cancel it, or the gate would stay on and the
-        // animation would replay on every scroll-remounted row.
-        setAnimateEntries(true);
+        // animation only plays for rows present when the scope changes or
+        // entries first load; scroll-mounted rows must not animate (the
+        // stagger delay would hold them at opacity 0). The expiry timer
+        // lives in a ref: effect re-runs caused by pagination must not
+        // cancel it, or the gate would stay on indefinitely.
+        setAnimateRows(
+            new Set(virtualizer.getVirtualItems().map((item) => item.index)),
+        );
         if (animationTimer.current !== null) {
             window.clearTimeout(animationTimer.current);
         }
         animationTimer.current = window.setTimeout(() => {
             animationTimer.current = null;
-            setAnimateEntries(false);
+            setAnimateRows(null);
         }, 900);
-    }, [scopeKey, entries.length]);
+    }, [scopeKey, entries.length, virtualizer.getVirtualItems]);
     useEffect(
         () => () => {
             if (animationTimer.current !== null) {
@@ -201,10 +208,20 @@ export function ReaderEntryList({
     const previousSelection = useRef<number | null>(selectedEntryId);
     const selectionScrollPending = useRef(selectedEntryId !== null);
     useEffect(() => {
-        const selectionChanged = previousSelection.current !== selectedEntryId;
-        previousSelection.current = selectedEntryId;
-        const pending = selectionChanged || selectionScrollPending.current;
-        if (selectedEntryId === null || !pending) {
+        if (selectedEntryId === null) {
+            previousSelection.current = null;
+            selectionScrollPending.current = false;
+            return;
+        }
+        // Persist the pending request on every selection change and clear it
+        // only once the row is found or the selection is cleared, so history
+        // navigation to an entry on a not-yet-loaded page still scrolls once
+        // it arrives.
+        if (previousSelection.current !== selectedEntryId) {
+            previousSelection.current = selectedEntryId;
+            selectionScrollPending.current = true;
+        }
+        if (!selectionScrollPending.current) {
             return;
         }
         const index = entries.findIndex(
@@ -376,7 +393,11 @@ export function ReaderEntryList({
                     )}
 
                     {error !== null && entries.length === 0 && (
-                        <Center className={classes.entryScrollState} p="xl">
+                        <Center
+                            className={classes.entryScrollState}
+                            pb="xl"
+                            px="xl"
+                        >
                             <Alert color="red" title="Entries unavailable">
                                 <Stack gap="sm">
                                     <Text size="sm">{error.message}</Text>
@@ -416,7 +437,7 @@ export function ReaderEntryList({
                     {entries.length > 0 && (
                         <ul
                             className={classes.entriesList}
-                            data-animating={animateEntries || undefined}
+                            data-animating={animateRows !== null || undefined}
                             style={{
                                 height: `${virtualizer.getTotalSize()}px`,
                             }}
@@ -433,7 +454,7 @@ export function ReaderEntryList({
                                         entry.customFeedName ?? entry.feedName;
                                     return (
                                         <li
-                                            className={classes.entryItem}
+                                            className={`${classes.entryItem}${animateRows?.has(virtualItem.index) ? ` ${classes.rowEnter}` : ''}`}
                                             data-index={virtualItem.index}
                                             key={entry.id}
                                             ref={virtualizer.measureElement}
