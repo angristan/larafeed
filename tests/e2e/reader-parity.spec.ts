@@ -816,3 +816,44 @@ test('keeps virtual rows stacked while scrolling during the enter animation', as
         );
     }
 });
+
+test('keeps a deep-linked entry fully visible below the list header', async ({
+    page,
+}) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await mockReaderApi(page, 'Example feed', 0, 90);
+    // Entry id 70 is the 30th entry (index 29), at the end of the first page.
+    await page.goto('/feeds?filter=all&order_by=published_at&entry=70');
+
+    const list = page.locator('section[aria-label="All entries"]');
+    const row = list.locator('li[data-index="29"]');
+    await expect(row).toBeVisible();
+
+    const viewport = list.locator('[data-scrollarea-viewport]');
+    const [rowBox, viewportBox] = await Promise.all([
+        row.boundingBox(),
+        viewport.boundingBox(),
+    ]);
+    expect(rowBox).not.toBeNull();
+    expect(viewportBox).not.toBeNull();
+    // The 57px list header overlays the top of the viewport.
+    expect((rowBox?.y ?? 0) - (viewportBox?.y ?? 0)).toBeGreaterThanOrEqual(
+        56,
+    );
+    expect(
+        (rowBox?.y ?? 0) + (rowBox?.height ?? 0),
+    ).toBeLessThanOrEqual((viewportBox?.y ?? 0) + (viewportBox?.height ?? 0) + 1);
+});
+
+test('skips the row enter animation under reduced motion', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await mockReaderApi(page);
+    await page.goto('/feeds?filter=all&order_by=published_at');
+
+    const rowLink = page.locator('li[data-index] a').first();
+    await rowLink.waitFor({ state: 'attached' });
+    const animationName = await rowLink.evaluate(
+        (element) => getComputedStyle(element).animationName,
+    );
+    expect(animationName).toBe('none');
+});

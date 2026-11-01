@@ -282,8 +282,14 @@
     }
 }
 
+/* The list header overlays the top 57px of the viewport. The virtualizer
+   reserves that space via paddingStart, so only the non-list states
+   (skeleton, error, empty) need the offset here. */
 .entryScrollContent {
     min-height: 100%;
+}
+
+.entryScrollState {
     padding-top: 57px;
 }
 
@@ -796,8 +802,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+    /* Same selector as the animation gate so this override wins on source
+       order at equal specificity. */
     .newEntriesChip,
-    .entry {
+    .entriesList[data-animating] .entry {
         animation: none;
     }
 

@@ -101,6 +101,10 @@ const orderLabels = {
     created_at: 'Added',
 } as const;
 
+// The list header overlays the top of the scroll viewport; the virtualizer
+// must reserve that space so scrollToIndex keeps rows clear of it.
+const LIST_HEADER_HEIGHT = 57;
+
 // Row heights from Reader.module.css (min-height plus the 1px separator).
 const estimateEntrySize = (density: FeedListDensity): number => {
     switch (density) {
@@ -143,6 +147,8 @@ export function ReaderEntryList({
         getScrollElement: () => viewport.current,
         estimateSize: () => estimateEntrySize(density),
         overscan: 6,
+        paddingStart: LIST_HEADER_HEIGHT,
+        scrollPaddingStart: LIST_HEADER_HEIGHT,
         // Gives server-rendered markup a first window of rows; the real
         // viewport rect replaces it once the scroll element mounts.
         initialRect: { width: 1024, height: 640 },
@@ -152,6 +158,7 @@ export function ReaderEntryList({
     const scopeKey = `${state.feedId}:${state.categoryId}:${state.filter}:${state.orderBy}`;
     const previousScope = useRef(scopeKey);
     const wasEmpty = useRef(entries.length === 0);
+    const animationTimer = useRef<number | null>(null);
     useEffect(() => {
         const scopeChanged = previousScope.current !== scopeKey;
         const entriesArrived = wasEmpty.current && entries.length > 0;
@@ -165,10 +172,26 @@ export function ReaderEntryList({
         }
         // Rows mount and unmount as the virtual window moves, so the enter
         // animation only plays when the scope changes or entries first load.
+        // The expiry timer lives in a ref: effect re-runs caused by
+        // pagination must not cancel it, or the gate would stay on and the
+        // animation would replay on every scroll-remounted row.
         setAnimateEntries(true);
-        const timer = window.setTimeout(() => setAnimateEntries(false), 900);
-        return () => window.clearTimeout(timer);
+        if (animationTimer.current !== null) {
+            window.clearTimeout(animationTimer.current);
+        }
+        animationTimer.current = window.setTimeout(() => {
+            animationTimer.current = null;
+            setAnimateEntries(false);
+        }, 900);
     }, [scopeKey, entries.length]);
+    useEffect(
+        () => () => {
+            if (animationTimer.current !== null) {
+                window.clearTimeout(animationTimer.current);
+            }
+        },
+        [],
+    );
 
     // Scroll to the selected row only when the selection changes or the list
     // first loads with a selection (deep link). Refetches can shift the row's
@@ -320,7 +343,11 @@ export function ReaderEntryList({
             >
                 <div className={classes.entryScrollContent}>
                     {isPending && (
-                        <Stack gap={0} aria-label="Loading entries">
+                        <Stack
+                            aria-label="Loading entries"
+                            className={classes.entryScrollState}
+                            gap={0}
+                        >
                             {[
                                 'first',
                                 'second',
@@ -349,7 +376,7 @@ export function ReaderEntryList({
                     )}
 
                     {error !== null && entries.length === 0 && (
-                        <Center p="xl">
+                        <Center className={classes.entryScrollState} p="xl">
                             <Alert color="red" title="Entries unavailable">
                                 <Stack gap="sm">
                                     <Text size="sm">{error.message}</Text>
@@ -372,7 +399,9 @@ export function ReaderEntryList({
                     )}
 
                     {!isPending && error === null && entries.length === 0 && (
-                        <Center className={classes.emptyEntries}>
+                        <Center
+                            className={`${classes.emptyEntries} ${classes.entryScrollState}`}
+                        >
                             <Stack align="center" gap={4} ta="center">
                                 <Text fw={650} size="sm">
                                     {emptyState.title}
