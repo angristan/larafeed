@@ -16,7 +16,8 @@ import {
     IconRefresh,
     IconStarFilled,
 } from '@tabler/icons-react';
-import { type CSSProperties, useEffect, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 
 import type { ReaderEntryPage } from '../../api/reader';
@@ -41,6 +42,8 @@ interface ReaderEntryListProps {
     readonly onPrefetchEntry: (entryId: number) => void;
     readonly onLoadMore: () => void;
     readonly onShowNewEntries: () => void;
+    readonly restoreFocusEntryId: number | null;
+    readonly onRestoreFocusHandled: () => void;
 }
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, {
@@ -98,6 +101,18 @@ const orderLabels = {
     created_at: 'Added',
 } as const;
 
+// Row heights from Reader.module.css (min-height plus the 1px separator).
+const estimateEntrySize = (density: FeedListDensity): number => {
+    switch (density) {
+        case 'compact':
+            return 45;
+        case 'spacious':
+            return 73;
+        default:
+            return 65;
+    }
+};
+
 export function ReaderEntryList({
     density,
     state,
@@ -114,18 +129,93 @@ export function ReaderEntryList({
     onPrefetchEntry,
     onLoadMore,
     onShowNewEntries,
+    restoreFocusEntryId,
+    onRestoreFocusHandled,
 }: ReaderEntryListProps) {
     const viewport = useRef<HTMLDivElement>(null);
     const sentinel = useRef<HTMLDivElement>(null);
     const loadMore = useRef(onLoadMore);
     loadMore.current = onLoadMore;
+    const [animateEntries, setAnimateEntries] = useState(false);
+
+    const virtualizer = useVirtualizer({
+        count: entries.length,
+        getScrollElement: () => viewport.current,
+        estimateSize: () => estimateEntrySize(density),
+        overscan: 6,
+        // Gives server-rendered markup a first window of rows; the real
+        // viewport rect replaces it once the scroll element mounts.
+        initialRect: { width: 1024, height: 640 },
+    });
 
     const emptyState = emptyStates[state.filter];
     const scopeKey = `${state.feedId}:${state.categoryId}:${state.filter}:${state.orderBy}`;
-    // biome-ignore lint/correctness/useExhaustiveDependencies: the scroll position resets whenever the list scope changes
+    const previousScope = useRef(scopeKey);
+    const wasEmpty = useRef(entries.length === 0);
     useEffect(() => {
-        viewport.current?.scrollTo({ top: 0, behavior: 'instant' });
-    }, [scopeKey]);
+        const scopeChanged = previousScope.current !== scopeKey;
+        const entriesArrived = wasEmpty.current && entries.length > 0;
+        previousScope.current = scopeKey;
+        wasEmpty.current = entries.length === 0;
+        if (scopeChanged) {
+            viewport.current?.scrollTo({ top: 0, behavior: 'instant' });
+        }
+        if (!scopeChanged && !entriesArrived) {
+            return;
+        }
+        // Rows mount and unmount as the virtual window moves, so the enter
+        // animation only plays when the scope changes or entries first load.
+        setAnimateEntries(true);
+        const timer = window.setTimeout(() => setAnimateEntries(false), 900);
+        return () => window.clearTimeout(timer);
+    }, [scopeKey, entries.length]);
+
+    const activeIndex = entries.findIndex(
+        (entry) => entry.id === state.entryId,
+    );
+    useEffect(() => {
+        if (activeIndex >= 0) {
+            virtualizer.scrollToIndex(activeIndex, { align: 'auto' });
+        }
+    }, [activeIndex, virtualizer]);
+
+    useEffect(() => {
+        if (restoreFocusEntryId === null) {
+            return;
+        }
+        const index = entries.findIndex(
+            (entry) => entry.id === restoreFocusEntryId,
+        );
+        if (index === -1) {
+            return;
+        }
+        const entryId = restoreFocusEntryId;
+        virtualizer.scrollToIndex(index, { align: 'center' });
+        // On single-pane layouts the list pane is display:none while the
+        // detail is open, so the row only mounts once the pane is visible
+        // again; retry until then.
+        let cancelled = false;
+        let frame = 0;
+        let attempts = 0;
+        const focusWhenMounted = () => {
+            if (cancelled) {
+                return;
+            }
+            const row = document.getElementById(`reader-entry-${entryId}`);
+            if (row !== null || attempts >= 180) {
+                row?.focus();
+                onRestoreFocusHandled();
+                return;
+            }
+            attempts += 1;
+            frame = window.requestAnimationFrame(focusWhenMounted);
+        };
+        frame = window.requestAnimationFrame(focusWhenMounted);
+        return () => {
+            cancelled = true;
+            window.cancelAnimationFrame(frame);
+        };
+    }, [restoreFocusEntryId, entries, virtualizer, onRestoreFocusHandled]);
 
     useEffect(() => {
         const target = sentinel.current;
@@ -280,120 +370,147 @@ export function ReaderEntryList({
                     )}
 
                     {entries.length > 0 && (
-                        <ul className={classes.entriesList}>
-                            {entries.map((entry, index) => {
-                                const active = state.entryId === entry.id;
-                                const feedName =
-                                    entry.customFeedName ?? entry.feedName;
-                                return (
-                                    <li
-                                        className={classes.entryItem}
-                                        key={entry.id}
-                                        style={
-                                            {
-                                                '--entry-enter-delay': `${Math.min(index, 12) * 16}ms`,
-                                            } as CSSProperties
-                                        }
-                                    >
-                                        <Link
-                                            id={`reader-entry-${entry.id}`}
-                                            aria-current={
-                                                active ? 'true' : undefined
+                        <ul
+                            className={classes.entriesList}
+                            data-animating={animateEntries || undefined}
+                            style={{
+                                height: `${virtualizer.getTotalSize()}px`,
+                            }}
+                        >
+                            {virtualizer
+                                .getVirtualItems()
+                                .map((virtualItem) => {
+                                    const entry = entries[virtualItem.index];
+                                    if (entry === undefined) {
+                                        return null;
+                                    }
+                                    const active = state.entryId === entry.id;
+                                    const feedName =
+                                        entry.customFeedName ?? entry.feedName;
+                                    return (
+                                        <li
+                                            className={classes.entryItem}
+                                            data-index={virtualItem.index}
+                                            key={entry.id}
+                                            ref={virtualizer.measureElement}
+                                            style={
+                                                {
+                                                    position: 'absolute',
+                                                    top: 0,
+                                                    left: 0,
+                                                    width: '100%',
+                                                    transform: `translateY(${virtualItem.start}px)`,
+                                                    '--entry-enter-delay': `${Math.min(virtualItem.index, 12) * 16}ms`,
+                                                } as CSSProperties
                                             }
-                                            className={`${classes.entry} ${
-                                                active
-                                                    ? classes.activeEntry
-                                                    : ''
-                                            } ${entry.read ? classes.readEntry : ''}`}
-                                            data-read={entry.read}
-                                            onFocus={() =>
-                                                onPrefetchEntry(entry.id)
-                                            }
-                                            onMouseEnter={() =>
-                                                onPrefetchEntry(entry.id)
-                                            }
-                                            to={readerHref(state, {
-                                                entryId: entry.id,
-                                            })}
                                         >
-                                            <span
-                                                aria-hidden="true"
-                                                className={classes.unreadMarker}
-                                                data-read={
-                                                    entry.read || undefined
+                                            <Link
+                                                id={`reader-entry-${entry.id}`}
+                                                aria-current={
+                                                    active ? 'true' : undefined
                                                 }
+                                                className={`${classes.entry} ${
+                                                    active
+                                                        ? classes.activeEntry
+                                                        : ''
+                                                } ${entry.read ? classes.readEntry : ''}`}
+                                                data-read={entry.read}
+                                                onFocus={() =>
+                                                    onPrefetchEntry(entry.id)
+                                                }
+                                                onMouseEnter={() =>
+                                                    onPrefetchEntry(entry.id)
+                                                }
+                                                to={readerHref(state, {
+                                                    entryId: entry.id,
+                                                })}
                                             >
-                                                {entry.read && (
-                                                    <IconCheck
-                                                        size={11}
-                                                        stroke={2.5}
-                                                    />
-                                                )}
-                                            </span>
-                                            <VisuallyHidden>
-                                                {entry.read
-                                                    ? 'Read entry. '
-                                                    : 'Unread entry. '}
-                                            </VisuallyHidden>
-                                            <span className={classes.entryCopy}>
                                                 <span
+                                                    aria-hidden="true"
                                                     className={
-                                                        classes.entryTitle
+                                                        classes.unreadMarker
+                                                    }
+                                                    data-read={
+                                                        entry.read || undefined
                                                     }
                                                 >
-                                                    {entry.title ||
-                                                        'Untitled entry'}
-                                                    {entry.starred && (
-                                                        <IconStarFilled
-                                                            aria-label="Favorite"
-                                                            className={
-                                                                classes.starredIcon
-                                                            }
-                                                            size={14}
+                                                    {entry.read && (
+                                                        <IconCheck
+                                                            size={11}
+                                                            stroke={2.5}
                                                         />
                                                     )}
                                                 </span>
+                                                <VisuallyHidden>
+                                                    {entry.read
+                                                        ? 'Read entry. '
+                                                        : 'Unread entry. '}
+                                                </VisuallyHidden>
                                                 <span
                                                     className={
-                                                        classes.entryMeta
+                                                        classes.entryCopy
                                                     }
                                                 >
                                                     <span
                                                         className={
-                                                            classes.feedMeta
+                                                            classes.entryTitle
                                                         }
                                                     >
-                                                        <FeedFavicon
-                                                            isDark={
-                                                                entry.faviconIsDark
-                                                            }
-                                                            size={18}
-                                                            src={
-                                                                entry.faviconUrl
-                                                            }
-                                                        />
-                                                        <span title={feedName}>
-                                                            {feedName}
-                                                        </span>
+                                                        {entry.title ||
+                                                            'Untitled entry'}
+                                                        {entry.starred && (
+                                                            <IconStarFilled
+                                                                aria-label="Favorite"
+                                                                className={
+                                                                    classes.starredIcon
+                                                                }
+                                                                size={14}
+                                                            />
+                                                        )}
                                                     </span>
-                                                    <time
-                                                        dateTime={new Date(
-                                                            entry.publishedAt,
-                                                        ).toISOString()}
-                                                        title={absoluteTimeFormatter.format(
-                                                            entry.publishedAt,
-                                                        )}
+                                                    <span
+                                                        className={
+                                                            classes.entryMeta
+                                                        }
                                                     >
-                                                        {formatRelativeTime(
-                                                            entry.publishedAt,
-                                                        )}
-                                                    </time>
+                                                        <span
+                                                            className={
+                                                                classes.feedMeta
+                                                            }
+                                                        >
+                                                            <FeedFavicon
+                                                                isDark={
+                                                                    entry.faviconIsDark
+                                                                }
+                                                                size={18}
+                                                                src={
+                                                                    entry.faviconUrl
+                                                                }
+                                                            />
+                                                            <span
+                                                                title={feedName}
+                                                            >
+                                                                {feedName}
+                                                            </span>
+                                                        </span>
+                                                        <time
+                                                            dateTime={new Date(
+                                                                entry.publishedAt,
+                                                            ).toISOString()}
+                                                            title={absoluteTimeFormatter.format(
+                                                                entry.publishedAt,
+                                                            )}
+                                                        >
+                                                            {formatRelativeTime(
+                                                                entry.publishedAt,
+                                                            )}
+                                                        </time>
+                                                    </span>
                                                 </span>
-                                            </span>
-                                        </Link>
-                                    </li>
-                                );
-                            })}
+                                            </Link>
+                                        </li>
+                                    );
+                                })}
                         </ul>
                     )}
                     {hasNextPage && (

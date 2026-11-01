@@ -288,6 +288,7 @@
 }
 
 .entriesList {
+    position: relative;
     padding: 0;
     margin: 0;
     list-style: none;
@@ -298,9 +299,11 @@
         color-mix(in srgb, var(--ds-line) 68%, transparent);
 }
 
-/* Rows rise in when list content arrives; in-place patches such as
-   read or star keep their DOM nodes and never replay this. */
-.entryItem {
+/* Rows rise in when the scope changes or entries first load. The list is
+   virtualized, so rows outside the window remount on scroll and must not
+   replay the animation; the data-animating gate covers that, and in-place
+   patches such as read or star keep their DOM nodes regardless. */
+.entriesList[data-animating] .entryItem {
     animation: entry-in var(--ds-motion-standard) var(--ds-motion-easing)
         both;
     animation-delay: var(--entry-enter-delay, 0ms);

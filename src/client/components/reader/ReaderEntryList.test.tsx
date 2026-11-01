@@ -51,8 +51,10 @@ function render(overrides: Partial<Parameters<typeof ReaderEntryList>[0]>) {
                     isPending={false}
                     onLoadMore={() => undefined}
                     onPrefetchEntry={() => undefined}
+                    onRestoreFocusHandled={() => undefined}
                     onShowNewEntries={() => undefined}
                     onRetry={() => undefined}
+                    restoreFocusEntryId={null}
                     state={state}
                     total={entries.length}
                     {...overrides}
@@ -115,5 +117,19 @@ describe('ReaderEntryList infinite list', () => {
         });
 
         expect(markup).toContain('aria-label="Loading more entries"');
+    });
+
+    it('renders only the first window of a long list', () => {
+        const manyEntries = Array.from({ length: 50 }, (_, index) => ({
+            ...entries[0],
+            id: 100 + index,
+            title: `Entry ${index + 1}`,
+        }));
+        const markup = render({ entries: manyEntries, total: 50 });
+
+        const renderedRows = markup.match(/reader-entry-\d+/g) ?? [];
+        expect(renderedRows.length).toBeGreaterThan(0);
+        expect(renderedRows.length).toBeLessThan(manyEntries.length);
+        expect(markup).toContain('Entry 1');
     });
 });

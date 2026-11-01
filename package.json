@@ -111,6 +111,7 @@
         "@simplewebauthn/browser": "13.3.0",
         "@simplewebauthn/server": "13.3.2",
         "@tanstack/react-query": "5.101.4",
+        "@tanstack/react-virtual": "3.14.24",
         "effect": "4.0.0-beta.105",
         "fast-xml-parser": "5.10.1",
         "hast-util-from-html": "2.0.3",

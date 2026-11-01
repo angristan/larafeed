@@ -648,11 +648,13 @@ test('moves focus between single panes at tablet width', async ({ page }) => {
     const back = page.getByRole('button', { name: 'Back to entry list' });
     await expect(detailHeading).toBeVisible();
     await expect(detailHeading).toBeFocused();
-    await expect(entryLink).toBeHidden();
+    // The list pane is display:none in single-pane mode, so its rows are
+    // unmounted while the detail is open; assert on the row locator.
+    await expect(entryRow).toBeHidden();
     await expect(back).toBeVisible();
 
     await back.click();
-    await expect(entryLink).toBeVisible();
+    await expect(entryRow).toBeVisible();
     await expect(entryRow).toBeFocused();
     await expect(back).toBeHidden();
 });
@@ -678,7 +680,9 @@ test('uses a single list or detail pane on mobile with working back navigation',
     await expect(back).toBeVisible();
     await expect(detailHeading).toBeVisible();
     await expect(detailHeading).toBeFocused();
-    await expect(entryLink).toBeHidden();
+    // The list pane is display:none in single-pane mode, so its rows are
+    // unmounted while the detail is open; assert on the row locator.
+    await expect(entryRow).toBeHidden();
 
     const mobileToolbar = page.locator('[data-entry-toolbar]');
     const [
@@ -709,7 +713,7 @@ test('uses a single list or detail pane on mobile with working back navigation',
     expect((await moreActions.boundingBox())?.width).toBeGreaterThanOrEqual(39);
 
     await back.click();
-    await expect(entryLink).toBeVisible();
+    await expect(entryRow).toBeVisible();
     await expect(entryRow).toBeFocused();
     await expect(back).toBeHidden();
 
