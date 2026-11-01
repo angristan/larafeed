@@ -191,13 +191,30 @@ export function ReaderEntryList({
         }
         const entryId = restoreFocusEntryId;
         virtualizer.scrollToIndex(index, { align: 'center' });
-        const frame = window.requestAnimationFrame(() => {
-            window.requestAnimationFrame(() => {
-                document.getElementById(`reader-entry-${entryId}`)?.focus();
+        // On single-pane layouts the list pane is display:none while the
+        // detail is open, so the row only mounts once the pane is visible
+        // again; retry until then.
+        let cancelled = false;
+        let frame = 0;
+        let attempts = 0;
+        const focusWhenMounted = () => {
+            if (cancelled) {
+                return;
+            }
+            const row = document.getElementById(`reader-entry-${entryId}`);
+            if (row !== null || attempts >= 180) {
+                row?.focus();
                 onRestoreFocusHandled();
-            });
-        });
-        return () => window.cancelAnimationFrame(frame);
+                return;
+            }
+            attempts += 1;
+            frame = window.requestAnimationFrame(focusWhenMounted);
+        };
+        frame = window.requestAnimationFrame(focusWhenMounted);
+        return () => {
+            cancelled = true;
+            window.cancelAnimationFrame(frame);
+        };
     }, [restoreFocusEntryId, entries, virtualizer, onRestoreFocusHandled]);
 
     useEffect(() => {
