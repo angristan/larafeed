@@ -38,6 +38,13 @@ Supported routes include user info, token echo, tag list, subscriptions, item ID
 
 Item contents carry the article HTML in both `content` and `summary`, since clients differ in which field they read.
 
+Clients can also manage subscriptions:
+
+- `POST subscription/quickadd` with `quickadd=<feed or site URL>` subscribes and returns `numResults`, `query`, `streamId`, and `streamName`. New subscriptions go to an `Uncategorized` folder.
+- `POST subscription/edit` with `ac=subscribe`, `ac=unsubscribe`, or `ac=edit` and `s=feed/<url>` or `s=feed/<id>`. `t=<title>` sets a custom name and `a=user/-/label/<Folder>` files the feed in that folder, creating it when missing. A feed has one folder, so `r=` is accepted but only `a=` changes it.
+
+Subscribing uses the same feed discovery and per-user feed-add rate limit as the web app. When a site advertises several feeds, the first is used. Subscribing to a feed you already follow does not create a duplicate, and unsubscribing from a feed you do not follow succeeds.
+
 ## Fever
 
 For the same deployment:

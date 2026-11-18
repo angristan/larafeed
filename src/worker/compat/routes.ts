@@ -11,6 +11,10 @@ import {
 } from '../http/request-body';
 import { makeD1 } from '../infrastructure/d1';
 import {
+    makeSubscriptionManagement,
+    type SubscriptionRuntime,
+} from '../subscriptions/routes';
+import {
     CompatibilityRateLimited,
     CompatibilityStorageError,
     CompatibilityValidationError,
@@ -40,6 +44,7 @@ type CompatibilityContext = Context<{ Bindings: Env }>;
 export interface CompatibilityRuntime {
     readonly auth: AuthRuntime;
     readonly repository: CompatibilityRepository;
+    readonly subscriptions: Omit<SubscriptionRuntime, 'auth'>;
     readonly now: () => number;
 }
 
@@ -66,6 +71,7 @@ export const defaultCompatibilityRuntimeFactory: CompatibilityRuntimeFactory = (
         Effect.map((auth) => ({
             auth,
             repository: makeCompatibilityRepository(d1),
+            subscriptions: makeSubscriptionManagement(env, d1),
             now: Date.now,
         })),
     );
@@ -123,12 +129,18 @@ const googleFailure = (
         case 'AuthenticationFailed':
             return text(`Error=${authenticationError}\n`, 403);
         case 'CompatibilityValidationError':
+        case 'SubscriptionValidationError':
+        case 'SubscriptionFeedError':
             return text('Error=BadRequest\n', 400);
+        case 'SubscriptionNotFound':
+            return text('Error=NotFound\n', 404);
         case 'CompatibilityRateLimited':
+        case 'SubscriptionRateLimited':
             return text('Error=RateLimited\n', 429);
         case 'AuthStorageError':
         case 'CompatibilityStorageError':
         case 'ReaderStorageError':
+        case 'SubscriptionStorageError':
             return text('Error=ServiceUnavailable\n', 503);
         case 'ReaderNotFound':
             return text('OK');
@@ -280,6 +292,67 @@ const parseBoundedInt = (
         (allowZero ? parsed >= 0 : parsed > 0)
         ? Effect.succeed(parsed)
         : Effect.fail(new CompatibilityValidationError());
+};
+
+const MAX_FEED_URL_LENGTH = 2_048;
+const MAX_CATEGORY_NAME_LENGTH = 255;
+const DEFAULT_GOOGLE_CATEGORY = 'Uncategorized';
+
+type GoogleFeedStream =
+    | { readonly kind: 'id'; readonly feedId: number }
+    | { readonly kind: 'url'; readonly url: string };
+
+/** Parses `feed/<id>` (as listed by Larafeed) or `feed/<url>` (as sent by clients). */
+const parseGoogleFeedStream = (
+    value: string | null,
+): Effect.Effect<GoogleFeedStream, CompatibilityValidationError> => {
+    if (value === null || !value.startsWith('feed/')) {
+        return Effect.fail(new CompatibilityValidationError());
+    }
+    const target = value.slice('feed/'.length).trim();
+    if (target.length === 0 || target.length > MAX_FEED_URL_LENGTH) {
+        return Effect.fail(new CompatibilityValidationError());
+    }
+    if (/^\d+$/u.test(target)) {
+        const feedId = Number(target);
+        return Number.isSafeInteger(feedId) && feedId > 0
+            ? Effect.succeed({ kind: 'id', feedId })
+            : Effect.fail(new CompatibilityValidationError());
+    }
+    return Effect.succeed({ kind: 'url', url: target });
+};
+
+/** Parses `user/-/label/<name>` or `user/<id>/label/<name>`; null when absent. */
+const parseGoogleLabel = (
+    value: string | null,
+): Effect.Effect<string | undefined, CompatibilityValidationError> => {
+    if (value === null || value === '') return Effect.succeed(undefined);
+    const match = /^user\/(?:-|\d+)\/label\/(.+)$/u.exec(value);
+    const name = match?.[1]?.trim();
+    return name !== undefined &&
+        name.length > 0 &&
+        name.length <= MAX_CATEGORY_NAME_LENGTH
+        ? Effect.succeed(name)
+        : Effect.fail(new CompatibilityValidationError());
+};
+
+const parseGoogleTitle = (
+    value: string | null,
+): Effect.Effect<string | undefined, CompatibilityValidationError> => {
+    if (value === null) return Effect.succeed(undefined);
+    const title = value.trim();
+    return title.length <= MAX_CATEGORY_NAME_LENGTH
+        ? Effect.succeed(title)
+        : Effect.fail(new CompatibilityValidationError());
+};
+
+const sameFeedUrl = (left: string, right: string): boolean => {
+    if (left === right) return true;
+    try {
+        return new URL(left).href === new URL(right).href;
+    } catch {
+        return false;
+    }
 };
 
 const remoteIp = (context: CompatibilityContext): string =>
@@ -435,6 +508,188 @@ export const registerCompatibilityRoutes = (
                     }),
                 ),
             ),
+        ),
+    );
+
+    /** Resolves a stream to a feed the user follows, or null when not followed. */
+    const findSubscribedFeedId = (
+        compat: CompatibilityRuntime,
+        userId: number,
+        stream: GoogleFeedStream,
+    ) =>
+        compat.repository
+            .listSubscriptions(userId)
+            .pipe(
+                Effect.map(
+                    (subscriptions) =>
+                        subscriptions.find((subscription) =>
+                            stream.kind === 'id'
+                                ? subscription.feedId === stream.feedId
+                                : sameFeedUrl(subscription.feedUrl, stream.url),
+                        )?.feedId ?? null,
+                ),
+            );
+
+    const subscribeGoogle = (
+        compat: CompatibilityRuntime,
+        userId: number,
+        feedUrl: string,
+        categoryName: string | undefined,
+    ) =>
+        Effect.gen(function* () {
+            yield* compat.subscriptions.limitFeedAdd(userId);
+            const outcome =
+                yield* compat.subscriptions.service.subscribeFirstCandidate(
+                    userId,
+                    {
+                        feedUrl,
+                        categoryName: categoryName ?? DEFAULT_GOOGLE_CATEGORY,
+                    },
+                );
+            // Re-subscribing does not move an existing subscription; an
+            // explicit label from the client still files it where asked.
+            if (!outcome.createdSubscription && categoryName !== undefined) {
+                yield* compat.subscriptions.service.editSubscription(
+                    userId,
+                    outcome.feedId,
+                    { categoryName },
+                );
+            }
+            return outcome.feedId;
+        });
+
+    app.post(`${GOOGLE_ROOT}/subscription/quickadd`, (context) =>
+        protectedGoogle(context, (compat, authentication) =>
+            Effect.gen(function* () {
+                const form = yield* requestParameters(context.req.raw);
+                const query = yield* requiredValue(
+                    form,
+                    'quickadd',
+                    MAX_FEED_URL_LENGTH,
+                );
+                // Some clients send the stream id rather than the bare URL.
+                const feedUrl = query.startsWith('feed/')
+                    ? query.slice('feed/'.length)
+                    : query;
+                const feedId = yield* subscribeGoogle(
+                    compat,
+                    authentication.user.id,
+                    feedUrl,
+                    undefined,
+                );
+                const subscription =
+                    (yield* compat.repository.listSubscriptions(
+                        authentication.user.id,
+                    )).find((candidate) => candidate.feedId === feedId);
+                return json({
+                    numResults: 1,
+                    query,
+                    streamId: `feed/${feedId}`,
+                    ...(subscription === undefined
+                        ? {}
+                        : { streamName: subscription.title }),
+                });
+            }),
+        ),
+    );
+
+    app.post(`${GOOGLE_ROOT}/subscription/edit`, (context) =>
+        protectedGoogle(context, (compat, authentication) =>
+            Effect.gen(function* () {
+                const userId = authentication.user.id;
+                const form = yield* requestParameters(context.req.raw);
+                const action = form.get('ac');
+                const stream = yield* parseGoogleFeedStream(form.get('s'));
+                const title = yield* parseGoogleTitle(form.get('t'));
+                const addLabel = yield* parseGoogleLabel(form.get('a'));
+                // Larafeed files each subscription in exactly one category, so
+                // `r` (remove label) has no effect beyond what `a` replaces.
+                yield* parseGoogleLabel(form.get('r'));
+
+                switch (action) {
+                    case 'subscribe': {
+                        const existing = yield* findSubscribedFeedId(
+                            compat,
+                            userId,
+                            stream,
+                        );
+                        let feedId: number;
+                        if (existing !== null) {
+                            feedId = existing;
+                            if (addLabel !== undefined) {
+                                yield* compat.subscriptions.service.editSubscription(
+                                    userId,
+                                    feedId,
+                                    { categoryName: addLabel },
+                                );
+                            }
+                        } else if (stream.kind === 'url') {
+                            feedId = yield* subscribeGoogle(
+                                compat,
+                                userId,
+                                stream.url,
+                                addLabel,
+                            );
+                        } else {
+                            return yield* Effect.fail(
+                                new CompatibilityValidationError(),
+                            );
+                        }
+                        if (title !== undefined) {
+                            yield* compat.subscriptions.service.editSubscription(
+                                userId,
+                                feedId,
+                                { customFeedName: title === '' ? null : title },
+                            );
+                        }
+                        return text('OK');
+                    }
+                    case 'unsubscribe': {
+                        const feedId = yield* findSubscribedFeedId(
+                            compat,
+                            userId,
+                            stream,
+                        );
+                        if (feedId !== null) {
+                            yield* compat.subscriptions.service.unsubscribe(
+                                userId,
+                                feedId,
+                            );
+                        }
+                        return text('OK');
+                    }
+                    case 'edit': {
+                        const feedId = yield* findSubscribedFeedId(
+                            compat,
+                            userId,
+                            stream,
+                        );
+                        if (feedId === null) {
+                            return text('Error=NotFound\n', 404);
+                        }
+                        yield* compat.subscriptions.service.editSubscription(
+                            userId,
+                            feedId,
+                            {
+                                ...(addLabel === undefined
+                                    ? {}
+                                    : { categoryName: addLabel }),
+                                ...(title === undefined
+                                    ? {}
+                                    : {
+                                          customFeedName:
+                                              title === '' ? null : title,
+                                      }),
+                            },
+                        );
+                        return text('OK');
+                    }
+                    default:
+                        return yield* Effect.fail(
+                            new CompatibilityValidationError(),
+                        );
+                }
+            }),
         ),
     );
 

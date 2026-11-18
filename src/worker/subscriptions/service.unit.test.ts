@@ -838,3 +838,171 @@ describe('favicon scheduling on subscribe', () => {
         expect(scheduleFavicon).toHaveBeenCalledOnce();
     });
 });
+
+describe('protocol subscription helpers', () => {
+    const feedResult = (finalUrl: string, title: string) => ({
+        kind: 'updated' as const,
+        finalUrl,
+        etag: null,
+        lastModified: null,
+        httpStatus: 200,
+        feed: {
+            title,
+            description: null,
+            siteUrl: null,
+            faviconUrl: null,
+            sourceUpdatedAt: null,
+        },
+        entries: [],
+    });
+
+    it('subscribes to the first advertised feed instead of asking', async () => {
+        const subscribeDiscovered = vi.fn(() =>
+            Effect.succeed({
+                feedId: 21,
+                createdFeed: true,
+                createdSubscription: true,
+            }),
+        );
+        const findOrCreateCategory = vi.fn(() =>
+            Effect.succeed({
+                id: 12,
+                name: 'Newsletters',
+                subscriptionCount: 0,
+            }),
+        );
+        const service = makeSubscriptionService({
+            repository: repository({
+                findOrCreateCategory,
+                subscribeDiscovered,
+            }),
+            discoverFeeds: () =>
+                Effect.succeed({
+                    kind: 'website' as const,
+                    candidates: [
+                        {
+                            result: feedResult(
+                                'https://example.test/feed.xml',
+                                'Example',
+                            ),
+                            identicalFeedUrls: [],
+                        },
+                        {
+                            result: feedResult(
+                                'https://example.test/comments.xml',
+                                'Comments',
+                            ),
+                            identicalFeedUrls: [],
+                        },
+                    ],
+                }),
+            generateId: () => Effect.succeed(12),
+            now: () => 1_000,
+        });
+
+        await expect(
+            Effect.runPromise(
+                service.subscribeFirstCandidate(7, {
+                    feedUrl: 'https://example.test/',
+                    categoryName: 'Newsletters',
+                }),
+            ),
+        ).resolves.toEqual({
+            feedId: 21,
+            createdFeed: true,
+            createdSubscription: true,
+        });
+        expect(findOrCreateCategory).toHaveBeenCalledWith(
+            12,
+            7,
+            'Newsletters',
+            1_000,
+        );
+        expect(subscribeDiscovered).toHaveBeenCalledWith(
+            expect.objectContaining({
+                feedUrl: 'https://example.test/feed.xml',
+                categoryId: 12,
+            }),
+        );
+    });
+
+    it('reports an existing subscription instead of a conflict', async () => {
+        const subscribeExisting = vi.fn(() => Effect.succeed(false));
+        const service = makeSubscriptionService({
+            repository: repository({
+                findFeedByUrl: () => Effect.succeed(21),
+                findOrCreateCategory: () =>
+                    Effect.succeed({
+                        id: 12,
+                        name: 'Newsletters',
+                        subscriptionCount: 1,
+                    }),
+                subscribeExisting,
+            }),
+            discoverFeeds: () => Effect.die('must not fetch'),
+            generateId: () => Effect.succeed(12),
+        });
+
+        await expect(
+            Effect.runPromise(
+                service.subscribeFirstCandidate(7, {
+                    feedUrl: 'https://example.test/feed.xml',
+                    categoryName: 'Newsletters',
+                }),
+            ),
+        ).resolves.toEqual({
+            feedId: 21,
+            createdFeed: false,
+            createdSubscription: false,
+        });
+        expect(subscribeExisting).toHaveBeenCalledOnce();
+    });
+
+    it('renames and moves a subscription into a created folder, keeping filters', async () => {
+        const findOrCreateCategory = vi.fn(() =>
+            Effect.succeed({
+                id: 12,
+                name: 'Newsletters',
+                subscriptionCount: 0,
+            }),
+        );
+        const updateSubscription = vi.fn(() => Effect.void);
+        const updateSubscriptionWithFilterRebuild = vi.fn(() =>
+            Effect.die('must not rebuild'),
+        );
+        const service = makeSubscriptionService({
+            repository: repository({
+                findOrCreateCategory,
+                updateSubscription,
+                updateSubscriptionWithFilterRebuild,
+            }),
+            discoverFeeds: () => Effect.die('unused'),
+            generateId: () => Effect.succeed(12),
+            now: () => 2_000,
+        });
+
+        await Effect.runPromise(
+            service.editSubscription(7, 21, {
+                categoryName: 'Newsletters',
+                customFeedName: ' Acme Weekly ',
+            }),
+        );
+        expect(findOrCreateCategory).toHaveBeenCalledWith(
+            12,
+            7,
+            'Newsletters',
+            2_000,
+        );
+        expect(updateSubscription).toHaveBeenCalledWith(
+            7,
+            21,
+            12,
+            'Acme Weekly',
+            2_000,
+        );
+
+        updateSubscription.mockClear();
+        await Effect.runPromise(service.editSubscription(7, 21, {}));
+        expect(updateSubscription).not.toHaveBeenCalled();
+    });
+});

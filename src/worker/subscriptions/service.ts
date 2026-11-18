@@ -313,6 +313,93 @@ export const makeSubscriptionService = (
             });
         });
 
+    const subscribe = (
+        userId: number,
+        input: CreateSubscriptionInput,
+        onMultipleCandidates: 'ask' | 'first',
+    ) =>
+        Effect.gen(function* () {
+            const requestedUrl = /^[a-z][a-z\d+.-]*:\/\//iu.test(input.feedUrl)
+                ? input.feedUrl
+                : `https://${input.feedUrl}`;
+            let canonicalRequestedUrl: string;
+            try {
+                canonicalRequestedUrl = validateFeedUrl(requestedUrl).href;
+            } catch {
+                return yield* Effect.fail(
+                    new SubscriptionFeedError({ reason: 'invalid_url' }),
+                );
+            }
+
+            const choice = yield* categoryChoice(input);
+            const existingFeedId = yield* repository.findFeedByUrl(
+                canonicalRequestedUrl,
+            );
+            if (existingFeedId !== null) {
+                const categoryId = yield* resolveCategoryId(userId, choice);
+                return {
+                    kind: 'subscribed' as const,
+                    outcome: {
+                        feedId: existingFeedId,
+                        createdFeed: false,
+                        createdSubscription:
+                            yield* repository.subscribeExisting(
+                                userId,
+                                existingFeedId,
+                                categoryId,
+                                now(),
+                            ),
+                    },
+                };
+            }
+
+            const startedAt = now();
+            const discovery = yield* dependencies
+                .discoverFeeds(canonicalRequestedUrl)
+                .pipe(Effect.mapError(feedDiscoveryError));
+            if (
+                onMultipleCandidates === 'ask' &&
+                discovery.kind === 'website' &&
+                discovery.candidates.length > 1
+            ) {
+                return {
+                    kind: 'selection_required' as const,
+                    response: SubscriptionCandidateSelectionResponse.make({
+                        kind: 'selection_required',
+                        candidates: discovery.candidates.map((candidate) => {
+                            const feedUrl = candidate.result.finalUrl;
+                            return SubscriptionFeedCandidate.make({
+                                title: candidate.result.feed.title || feedUrl,
+                                feedUrl,
+                                siteUrl: candidate.result.feed.siteUrl,
+                                identicalTo: candidate.identicalFeedUrls,
+                            });
+                        }),
+                    }),
+                };
+            }
+
+            const discovered = discovery.candidates[0]?.result;
+            if (discovered === undefined) {
+                return yield* Effect.fail(
+                    new SubscriptionFeedError({
+                        reason: 'unsupported_feed',
+                    }),
+                );
+            }
+            const categoryId = yield* resolveCategoryId(userId, choice);
+            const outcome = yield* persistDiscovered(
+                userId,
+                categoryId,
+                discovered,
+                startedAt,
+            );
+            if (outcome.createdFeed) {
+                yield* scheduleNewFeedFavicon(outcome.feedId);
+            }
+            return { kind: 'subscribed' as const, outcome };
+        });
+
     return {
         list: (userId: number) =>
             repository.listManagement(userId).pipe(
@@ -349,80 +436,77 @@ export const makeSubscriptionService = (
 
         createSubscription: (userId: number, input: CreateSubscriptionInput) =>
             Effect.gen(function* () {
-                const requestedUrl = /^[a-z][a-z\d+.-]*:\/\//iu.test(
-                    input.feedUrl,
-                )
-                    ? input.feedUrl
-                    : `https://${input.feedUrl}`;
-                let canonicalRequestedUrl: string;
-                try {
-                    canonicalRequestedUrl = validateFeedUrl(requestedUrl).href;
-                } catch {
-                    return yield* Effect.fail(
-                        new SubscriptionFeedError({ reason: 'invalid_url' }),
-                    );
+                const result = yield* subscribe(userId, input, 'ask');
+                if (result.kind === 'selection_required') {
+                    return result.response;
                 }
+                return yield* createdResponse(userId, result.outcome);
+            }),
 
-                const choice = yield* categoryChoice(input);
-                const existingFeedId = yield* repository.findFeedByUrl(
-                    canonicalRequestedUrl,
-                );
-                if (existingFeedId !== null) {
-                    const categoryId = yield* resolveCategoryId(userId, choice);
-                    return yield* createdResponse(userId, {
-                        feedId: existingFeedId,
-                        createdFeed: false,
-                        createdSubscription:
-                            yield* repository.subscribeExisting(
-                                userId,
-                                existingFeedId,
-                                categoryId,
-                                now(),
-                            ),
-                    });
-                }
+        /**
+         * Subscribes without interactive candidate selection: when a website
+         * advertises several feeds, the first one is used. Subscribing to a
+         * feed the user already follows succeeds without a duplicate, so
+         * protocol clients can retry safely.
+         */
+        subscribeFirstCandidate: (
+            userId: number,
+            input: CreateSubscriptionInput,
+        ) =>
+            subscribe(userId, input, 'first').pipe(
+                Effect.flatMap((result) =>
+                    result.kind === 'subscribed'
+                        ? Effect.succeed(result.outcome)
+                        : Effect.fail(
+                              new SubscriptionFeedError({
+                                  reason: 'unsupported_feed',
+                              }),
+                          ),
+                ),
+            ),
 
-                const startedAt = now();
-                const discovery = yield* dependencies
-                    .discoverFeeds(canonicalRequestedUrl)
-                    .pipe(Effect.mapError(feedDiscoveryError));
-                if (
-                    discovery.kind === 'website' &&
-                    discovery.candidates.length > 1
-                ) {
-                    return SubscriptionCandidateSelectionResponse.make({
-                        kind: 'selection_required',
-                        candidates: discovery.candidates.map((candidate) => {
-                            const feedUrl = candidate.result.finalUrl;
-                            return SubscriptionFeedCandidate.make({
-                                title: candidate.result.feed.title || feedUrl,
-                                feedUrl,
-                                siteUrl: candidate.result.feed.siteUrl,
-                                identicalTo: candidate.identicalFeedUrls,
-                            });
-                        }),
-                    });
-                }
-
-                const discovered = discovery.candidates[0]?.result;
-                if (discovered === undefined) {
-                    return yield* Effect.fail(
-                        new SubscriptionFeedError({
-                            reason: 'unsupported_feed',
-                        }),
-                    );
-                }
-                const categoryId = yield* resolveCategoryId(userId, choice);
-                const outcome = yield* persistDiscovered(
+        /**
+         * Renames and/or moves a subscription without touching its filters.
+         * `customFeedName: null` clears the custom name; an omitted field is
+         * left unchanged. A named category is created when it does not exist.
+         */
+        editSubscription: (
+            userId: number,
+            feedId: number,
+            input: {
+                readonly customFeedName?: string | null;
+                readonly categoryName?: string;
+            },
+        ) =>
+            Effect.gen(function* () {
+                const current = yield* repository.findSubscription(
                     userId,
-                    categoryId,
-                    discovered,
-                    startedAt,
+                    feedId,
                 );
-                if (outcome.createdFeed) {
-                    yield* scheduleNewFeedFavicon(outcome.feedId);
+                const categoryId =
+                    input.categoryName === undefined
+                        ? current.categoryId
+                        : yield* resolveCategoryId(userId, {
+                              kind: 'new',
+                              categoryName: input.categoryName,
+                          });
+                const customFeedName =
+                    input.customFeedName === undefined
+                        ? current.customFeedName
+                        : input.customFeedName?.trim() || null;
+                if (
+                    categoryId === current.categoryId &&
+                    customFeedName === current.customFeedName
+                ) {
+                    return;
                 }
-                return yield* createdResponse(userId, outcome);
+                yield* repository.updateSubscription(
+                    userId,
+                    feedId,
+                    categoryId,
+                    customFeedName,
+                    now(),
+                );
             }),
 
         updateSubscription: (

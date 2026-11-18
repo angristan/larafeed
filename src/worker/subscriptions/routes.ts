@@ -25,7 +25,7 @@ import {
     type RequestBodyError,
     readBoundedJsonBody,
 } from '../http/request-body';
-import { makeD1 } from '../infrastructure/d1';
+import { type D1, makeD1 } from '../infrastructure/d1';
 import {
     SubscriptionRateLimited,
     SubscriptionStorageError,
@@ -87,55 +87,67 @@ const logFeedDiscoveryFailure = (rawUrl: string, error: unknown) =>
         });
     });
 
+/**
+ * Builds the subscription service and its feed-add rate limit. Shared by the
+ * session-authenticated management API and the Google Reader compatibility
+ * API so both paths apply the same discovery, persistence, and limits.
+ */
+export const makeSubscriptionManagement = (
+    env: Env,
+    d1: D1,
+): Omit<SubscriptionRuntime, 'auth'> => {
+    const feedService = makeFeedRefreshService();
+    const favicon = faviconRefreshEnabled(env)
+        ? makeFaviconRuntime(env).orchestrator
+        : null;
+    return {
+        service: makeSubscriptionService({
+            repository: makeSubscriptionRepository(d1),
+            discoverFeeds: (url) =>
+                feedService
+                    .discoverCandidates(url)
+                    .pipe(
+                        Effect.tapError((error) =>
+                            logFeedDiscoveryFailure(url, error),
+                        ),
+                    ),
+            ...(favicon === null
+                ? {}
+                : {
+                      scheduleFavicon: (feedId: number) =>
+                          favicon.scheduleFeed(feedId),
+                  }),
+        }),
+        limitFeedAdd: (userId) =>
+            Effect.tryPromise({
+                try: () =>
+                    env.AUTH_RATE_LIMITER.limit({
+                        key: `subscription-add:${userId}`,
+                    }),
+                catch: (cause) =>
+                    new SubscriptionStorageError({
+                        operation: 'subscriptions.rateLimit',
+                        cause,
+                    }),
+            }).pipe(
+                Effect.flatMap((result) =>
+                    result.success
+                        ? Effect.void
+                        : Effect.fail(new SubscriptionRateLimited()),
+                ),
+            ),
+    };
+};
+
 export const defaultSubscriptionRuntimeFactory: SubscriptionRuntimeFactory = (
     env,
 ) => {
     const d1 = makeD1(env.DB);
     return makeDefaultAuthRuntime(env, d1).pipe(
-        Effect.map((auth) => {
-            const feedService = makeFeedRefreshService();
-            const favicon = faviconRefreshEnabled(env)
-                ? makeFaviconRuntime(env).orchestrator
-                : null;
-            return {
-                auth,
-                service: makeSubscriptionService({
-                    repository: makeSubscriptionRepository(d1),
-                    discoverFeeds: (url) =>
-                        feedService
-                            .discoverCandidates(url)
-                            .pipe(
-                                Effect.tapError((error) =>
-                                    logFeedDiscoveryFailure(url, error),
-                                ),
-                            ),
-                    ...(favicon === null
-                        ? {}
-                        : {
-                              scheduleFavicon: (feedId: number) =>
-                                  favicon.scheduleFeed(feedId),
-                          }),
-                }),
-                limitFeedAdd: (userId) =>
-                    Effect.tryPromise({
-                        try: () =>
-                            env.AUTH_RATE_LIMITER.limit({
-                                key: `subscription-add:${userId}`,
-                            }),
-                        catch: (cause) =>
-                            new SubscriptionStorageError({
-                                operation: 'subscriptions.rateLimit',
-                                cause,
-                            }),
-                    }).pipe(
-                        Effect.flatMap((result) =>
-                            result.success
-                                ? Effect.void
-                                : Effect.fail(new SubscriptionRateLimited()),
-                        ),
-                    ),
-            };
-        }),
+        Effect.map((auth) => ({
+            auth,
+            ...makeSubscriptionManagement(env, d1),
+        })),
     );
 };
 
