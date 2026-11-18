@@ -140,10 +140,12 @@ describe('compatibility routes with Workerd D1', () => {
             env,
         );
         expect(await google.json()).toMatchObject({
+            id: `user/${userId}/state/com.google/reading-list`,
             items: [
                 {
                     title: 'Workerd Item',
                     content: { content: '<p>Workerd</p>' },
+                    summary: { content: '<p>Workerd</p>' },
                     origin: { streamId: `feed/${feedId}` },
                 },
             ],
@@ -159,8 +161,35 @@ describe('compatibility routes with Workerd D1', () => {
             env,
         );
         expect(await subscriptions.json()).toMatchObject({
-            subscriptions: [{ id: `feed/${feedId}`, iconUrl: '' }],
+            subscriptions: [
+                {
+                    id: `feed/${feedId}`,
+                    iconUrl: '',
+                    categories: [{ id: `user/${userId}/label/Workerd` }],
+                },
+            ],
         });
+
+        const tags = await app.request(
+            '/api/reader/reader/api/0/tag/list?output=json',
+            {
+                headers: {
+                    Authorization: `GoogleLogin auth=${plaintextToken}`,
+                },
+            },
+            env,
+        );
+        expect(await tags.json()).toEqual({
+            tags: [
+                { id: `user/${userId}/state/com.google/starred` },
+                {
+                    id: `user/${userId}/label/Workerd`,
+                    label: 'Workerd',
+                    type: 'folder',
+                },
+            ],
+        });
+        expect(tags.headers.get('cache-control')).toBe('no-store');
 
         const fever = await app.request(
             '/api/fever/?groups&feeds&items&unread_item_ids',

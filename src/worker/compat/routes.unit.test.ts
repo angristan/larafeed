@@ -6,7 +6,10 @@ import type { AuthConfig } from '../auth/config';
 import { AuthenticationFailed } from '../auth/errors';
 import type { AuthService } from '../auth/service';
 import { CompatibilityRateLimited } from './errors';
-import type { CompatibilityRepository } from './repository';
+import {
+    type CompatibilityRepository,
+    MAX_GOOGLE_CONTENT_ITEMS,
+} from './repository';
 import {
     type CompatibilityRouteDependencies,
     type CompatibilityRuntime,
@@ -318,6 +321,11 @@ describe('compatibility protocol routes', () => {
             body: undefined,
         },
         {
+            name: 'tag list',
+            path: '/api/reader/reader/api/0/tag/list?output=json',
+            body: undefined,
+        },
+        {
             name: 'item IDs',
             path: '/api/reader/reader/api/0/stream/items/ids',
             body: undefined,
@@ -391,6 +399,83 @@ describe('compatibility protocol routes', () => {
         });
     });
 
+    it('lists Google tags whose label IDs match subscription categories', async () => {
+        const harness = makeHarness({});
+        const request = (path: string) =>
+            harness.app.request(
+                path,
+                {
+                    headers: {
+                        Authorization: 'GoogleLogin auth=opaque-token',
+                    },
+                },
+                {} as Env,
+            );
+
+        const response = await request(
+            '/api/reader/reader/api/0/tag/list?output=json',
+        );
+        const subscriptions = await request(
+            '/api/reader/reader/api/0/subscription/list?output=json',
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get('cache-control')).toBe('no-store');
+        expect(response.headers.get('content-type')).toBe(
+            'application/json; charset=UTF-8',
+        );
+        expect(await response.json()).toEqual({
+            tags: [
+                { id: 'user/72/state/com.google/starred' },
+                { id: 'user/72/label/News', label: 'News', type: 'folder' },
+            ],
+        });
+        expect(await subscriptions.json()).toMatchObject({
+            subscriptions: [
+                { categories: [{ id: 'user/72/label/News', label: 'News' }] },
+            ],
+        });
+
+        const denied = await harness.app.request(
+            '/api/reader/reader/api/0/tag/list',
+            { headers: { Authorization: 'GoogleLogin auth=bad' } },
+            {} as Env,
+        );
+        expect(denied.status).toBe(403);
+        expect(await denied.text()).toBe('Error=InvalidAuthToken\n');
+    });
+
+    it('accepts NetNewsWire content batches up to the item cap', async () => {
+        const findEntries = vi.fn(() => Effect.succeed([]));
+        const harness = makeHarness({ repository: { findEntries } });
+        const request = (count: number) => {
+            const body = new URLSearchParams({
+                T: 'opaque-token',
+                output: 'json',
+            });
+            for (let id = 1; id <= count; id += 1) {
+                body.append('i', String(id));
+            }
+            return harness.app.request(
+                '/api/reader/reader/api/0/stream/items/contents',
+                {
+                    ...formRequest(body),
+                    headers: {
+                        'content-type': 'application/x-www-form-urlencoded',
+                        Authorization: 'GoogleLogin auth=opaque-token',
+                    },
+                },
+                {} as Env,
+            );
+        };
+
+        expect((await request(MAX_GOOGLE_CONTENT_ITEMS)).status).toBe(200);
+        expect(findEntries).toHaveBeenCalledTimes(1);
+        const rejected = await request(MAX_GOOGLE_CONTENT_ITEMS + 1);
+        expect(rejected.status).toBe(400);
+        expect(findEntries).toHaveBeenCalledTimes(1);
+    });
+
     it('serves Google JSON content and text authentication errors', async () => {
         const harness = makeHarness({});
         const response = await harness.app.request(
@@ -406,10 +491,13 @@ describe('compatibility protocol routes', () => {
         );
         expect(response.status).toBe(200);
         expect(await response.json()).toMatchObject({
+            id: 'user/72/state/com.google/reading-list',
             items: [
                 {
                     id: 'tag:google.com,2005:reader/item/0000000000001234',
                     categories: ['user/72/state/com.google/reading-list'],
+                    content: { content: '<p>Item</p>' },
+                    summary: { content: '<p>Item</p>' },
                 },
             ],
             updated: 1_800_000_000,
