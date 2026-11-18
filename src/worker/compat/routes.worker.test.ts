@@ -388,6 +388,23 @@ describe('compatibility routes with Workerd D1', () => {
         });
         expect(await list()).toHaveLength(2);
 
+        // Re-adding followed feeds creates no categories and no duplicates.
+        const categoryNames = async () =>
+            (
+                await Effect.runPromise(
+                    d1.all<{ name: string }>({
+                        sql: `SELECT name FROM subscription_categories
+                            WHERE user_id = ? ORDER BY name`,
+                        bindings: [userId],
+                    }),
+                )
+            ).results.map((row) => row.name);
+        expect(await categoryNames()).toEqual(['Newsletters', 'Uncategorized']);
+        await post('edit', { ac: 'subscribe', s: `feed/${newsletterUrl}` });
+        await post('quickadd', { quickadd: newsletterUrl });
+        expect(await categoryNames()).toEqual(['Newsletters', 'Uncategorized']);
+        expect(await list()).toHaveLength(2);
+
         expect(
             await (
                 await post('edit', {
@@ -399,5 +416,10 @@ describe('compatibility routes with Workerd D1', () => {
         expect((await list()).map((subscription) => subscription.url)).toEqual([
             'https://blog.example.test/feed.xml',
         ]);
+        const repeated = await post('edit', {
+            ac: 'unsubscribe',
+            s: `feed/${newsletterUrl}`,
+        });
+        expect(repeated.status).toBe(404);
     });
 });

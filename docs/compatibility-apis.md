@@ -41,9 +41,9 @@ Item contents carry the article HTML in both `content` and `summary`, since clie
 Clients can also manage subscriptions:
 
 - `POST subscription/quickadd` with `quickadd=<feed or site URL>` subscribes and returns `numResults`, `query`, `streamId`, and `streamName`. New subscriptions go to an `Uncategorized` folder.
-- `POST subscription/edit` with `ac=subscribe`, `ac=unsubscribe`, or `ac=edit` and `s=feed/<url>` or `s=feed/<id>`. `t=<title>` sets a custom name and `a=user/-/label/<Folder>` files the feed in that folder, creating it when missing. A feed has one folder, so `r=` is accepted but only `a=` changes it.
+- `POST subscription/edit` with `ac=subscribe`, `ac=unsubscribe`, or `ac=edit` and `s=feed/<url>` or `s=feed/<id>`. `t=<title>` sets a custom name; a title equal to the feed's own title clears it instead, so publisher renames still show. `a=user/-/label/<Folder>` files the feed in that folder, creating it when missing. A feed has exactly one folder: `r=` naming its current folder without an `a=` moves it to `Uncategorized`. Tags that are not folder labels are ignored.
 
-Subscribing uses the same feed discovery and per-user feed-add rate limit as the web app. When a site advertises several feeds, the first is used. Subscribing to a feed you already follow does not create a duplicate, and unsubscribing from a feed you do not follow succeeds.
+Subscribing uses the same feed discovery and per-user feed-add rate limit as the web app. When a site advertises several feeds, the first is used. Subscribing to a feed you already follow creates no duplicate and no empty folder, and applies any `t=` and `a=` values. A feed URL is matched after the same normalization used when adding feeds; `unsubscribe` and `edit` return `404` for a feed you do not follow.
 
 ## Fever
 

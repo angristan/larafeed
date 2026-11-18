@@ -15,6 +15,7 @@ import {
     SubscriptionConflict,
     SubscriptionFeedError,
     SubscriptionInvariantError,
+    SubscriptionNotFound,
     SubscriptionValidationError,
 } from './errors';
 import type { SubscriptionRepository } from './repository';
@@ -58,6 +59,7 @@ const repository = (
         listManagement: () =>
             Effect.succeed({ categories: [], subscriptions: [] }),
         findSubscription: () => Effect.succeed(baseSubscription),
+        findSubscriptionSummary: () => Effect.succeed(null),
         createCategory: () => Effect.die('unused'),
         findOrCreateCategory: () => Effect.die('unused'),
         updateCategory: () => Effect.die('unused'),
@@ -926,28 +928,32 @@ describe('protocol subscription helpers', () => {
         );
     });
 
-    it('reports an existing subscription instead of a conflict', async () => {
-        const subscribeExisting = vi.fn(() => Effect.succeed(false));
+    const summary = {
+        feedId: 21,
+        categoryId: 11,
+        categoryName: 'Tech',
+        feedName: 'Feed',
+        customFeedName: null,
+    };
+
+    it('reports an existing subscription without creating its category', async () => {
+        const findOrCreateCategory = vi.fn(() => Effect.die('must not create'));
+        const subscribeExisting = vi.fn(() => Effect.die('must not write'));
         const service = makeSubscriptionService({
             repository: repository({
                 findFeedByUrl: () => Effect.succeed(21),
-                findOrCreateCategory: () =>
-                    Effect.succeed({
-                        id: 12,
-                        name: 'Newsletters',
-                        subscriptionCount: 1,
-                    }),
+                findSubscriptionSummary: () => Effect.succeed(summary),
+                findOrCreateCategory,
                 subscribeExisting,
             }),
             discoverFeeds: () => Effect.die('must not fetch'),
-            generateId: () => Effect.succeed(12),
         });
 
         await expect(
             Effect.runPromise(
                 service.subscribeFirstCandidate(7, {
                     feedUrl: 'https://example.test/feed.xml',
-                    categoryName: 'Newsletters',
+                    categoryName: 'Uncategorized',
                 }),
             ),
         ).resolves.toEqual({
@@ -955,7 +961,67 @@ describe('protocol subscription helpers', () => {
             createdFeed: false,
             createdSubscription: false,
         });
-        expect(subscribeExisting).toHaveBeenCalledOnce();
+        expect(findOrCreateCategory).not.toHaveBeenCalled();
+        expect(subscribeExisting).not.toHaveBeenCalled();
+    });
+
+    it('stops before persisting when a redirect lands on a followed feed', async () => {
+        const findOrCreateCategory = vi.fn(() => Effect.die('must not create'));
+        const subscribeDiscovered = vi.fn(() => Effect.die('must not write'));
+        const findFeedByUrl = vi.fn((url: string) =>
+            Effect.succeed(url === 'https://example.test/feed.xml' ? 21 : null),
+        );
+        const service = makeSubscriptionService({
+            repository: repository({
+                findFeedByUrl,
+                findSubscriptionSummary: () => Effect.succeed(summary),
+                findOrCreateCategory,
+                subscribeDiscovered,
+            }),
+            discoverFeeds: discoverDirect(() =>
+                Effect.succeed(
+                    feedResult('https://example.test/feed.xml', 'Feed'),
+                ),
+            ),
+        });
+
+        await expect(
+            Effect.runPromise(
+                service.subscribeFirstCandidate(7, {
+                    feedUrl: 'http://example.test/rss',
+                    categoryName: 'Uncategorized',
+                }),
+            ),
+        ).resolves.toEqual({
+            feedId: 21,
+            createdFeed: false,
+            createdSubscription: false,
+        });
+        expect(findOrCreateCategory).not.toHaveBeenCalled();
+        expect(subscribeDiscovered).not.toHaveBeenCalled();
+    });
+
+    it('finds a subscription by id or by normalized feed URL', async () => {
+        const findFeedByUrl = vi.fn((url: string) =>
+            Effect.succeed(url === 'https://example.test/feed.xml' ? 21 : null),
+        );
+        const service = makeSubscriptionService({
+            repository: repository({
+                findFeedByUrl,
+                findSubscriptionSummary: (_userId, feedId) =>
+                    Effect.succeed(feedId === 21 ? summary : null),
+            }),
+            discoverFeeds: () => Effect.die('unused'),
+        });
+        const find = (target: { feedId: number } | { feedUrl: string }) =>
+            Effect.runPromise(service.findSubscribedFeed(7, target));
+
+        await expect(find({ feedId: 21 })).resolves.toEqual(summary);
+        await expect(find({ feedId: 22 })).resolves.toBeNull();
+        await expect(
+            find({ feedUrl: 'example.test/feed.xml' }),
+        ).resolves.toEqual(summary);
+        await expect(find({ feedUrl: 'not a url' })).resolves.toBeNull();
     });
 
     it('renames and moves a subscription into a created folder, keeping filters', async () => {
@@ -972,6 +1038,7 @@ describe('protocol subscription helpers', () => {
         );
         const service = makeSubscriptionService({
             repository: repository({
+                findSubscriptionSummary: () => Effect.succeed(summary),
                 findOrCreateCategory,
                 updateSubscription,
                 updateSubscriptionWithFilterRebuild,
@@ -1004,5 +1071,33 @@ describe('protocol subscription helpers', () => {
         updateSubscription.mockClear();
         await Effect.runPromise(service.editSubscription(7, 21, {}));
         expect(updateSubscription).not.toHaveBeenCalled();
+    });
+
+    it("does not pin a custom name equal to the feed's own title", async () => {
+        const updateSubscription = vi.fn(() => Effect.void);
+        const service = makeSubscriptionService({
+            repository: repository({
+                findSubscriptionSummary: () =>
+                    Effect.succeed({ ...summary, customFeedName: 'Old' }),
+                updateSubscription,
+            }),
+            discoverFeeds: () => Effect.die('unused'),
+            now: () => 3_000,
+        });
+
+        await Effect.runPromise(
+            service.editSubscription(7, 21, { customFeedName: 'Feed' }),
+        );
+        expect(updateSubscription).toHaveBeenCalledWith(7, 21, 11, null, 3_000);
+    });
+
+    it('fails to edit a feed the user does not follow', async () => {
+        const service = makeSubscriptionService({
+            repository: repository(),
+            discoverFeeds: () => Effect.die('unused'),
+        });
+        await expect(
+            Effect.runPromise(service.editSubscription(7, 21, {})),
+        ).rejects.toEqual(new SubscriptionNotFound());
     });
 });

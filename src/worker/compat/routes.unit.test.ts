@@ -654,6 +654,19 @@ describe('Google Reader subscription writes', () => {
             categories.set(id, name);
             return id;
         };
+        const summary = (feedId: number) => {
+            const subscription = subscriptions.get(feedId);
+            return subscription === undefined
+                ? null
+                : {
+                      feedId,
+                      categoryId: subscription.categoryId,
+                      categoryName:
+                          categories.get(subscription.categoryId) ?? '',
+                      feedName: 'Feed',
+                      customFeedName: subscription.customFeedName,
+                  };
+        };
         const subscribeFirstCandidate = vi.fn(
             (
                 _userId: number,
@@ -677,6 +690,20 @@ describe('Google Reader subscription writes', () => {
                     createdFeed,
                     createdSubscription,
                 });
+            },
+        );
+        const findSubscribedFeed = vi.fn(
+            (
+                _userId: number,
+                target: { feedId: number } | { feedUrl: string },
+            ) => {
+                const feedId =
+                    'feedId' in target
+                        ? target.feedId
+                        : feeds.get(target.feedUrl);
+                return Effect.succeed(
+                    feedId === undefined ? null : summary(feedId),
+                );
             },
         );
         const editSubscription = vi.fn(
@@ -707,39 +734,24 @@ describe('Google Reader subscription writes', () => {
         const limitFeedAdd = vi.fn(
             (): Effect.Effect<void, SubscriptionRateLimited> => Effect.void,
         );
-        const listSubscriptions = () =>
-            Effect.succeed(
-                [...subscriptions].map(([feedId, subscription]) => {
-                    const feedUrl =
-                        [...feeds].find(([, id]) => id === feedId)?.[0] ?? '';
-                    return {
-                        feedId,
-                        categoryId: subscription.categoryId,
-                        categoryName:
-                            categories.get(subscription.categoryId) ?? '',
-                        title: subscription.customFeedName ?? 'Feed',
-                        feedUrl,
-                        siteUrl: '',
-                        faviconUrl: '',
-                        lastSuccessfulRefreshAt: null,
-                    };
-                }),
-            );
         const harness = makeHarness({
-            repository: { listSubscriptions },
             subscriptions: {
                 service: {
                     subscribeFirstCandidate,
+                    findSubscribedFeed,
                     editSubscription,
                     unsubscribe,
                 } as unknown as SubscriptionService,
                 limitFeedAdd,
             },
         });
+        const folderId = (name: string) =>
+            [...categories].find(([, existing]) => existing === name)?.[0];
         return {
             ...harness,
             categories,
             subscriptions,
+            folderId,
             subscribeFirstCandidate,
             editSubscription,
             unsubscribe,
@@ -767,6 +779,7 @@ describe('Google Reader subscription writes', () => {
             feedUrl: 'https://news.example/atom.xml',
             categoryName: 'Uncategorized',
         });
+        expect(fake.editSubscription).not.toHaveBeenCalled();
         expect(fake.authenticateAppTokenCredential).toHaveBeenCalledWith({
             plaintextToken: 'opaque-token',
             requiredScope: 'google-reader',
@@ -792,12 +805,9 @@ describe('Google Reader subscription writes', () => {
             feedUrl: 'https://newsletters.example/acme.xml',
             categoryName: 'Newsletters',
         });
-        const folderId = [...fake.categories].find(
-            ([, name]) => name === 'Newsletters',
-        )?.[0];
-        expect(folderId).toBeDefined();
+        expect(fake.folderId('Newsletters')).toBeDefined();
         expect([...fake.subscriptions.values()]).toContainEqual({
-            categoryId: folderId,
+            categoryId: fake.folderId('Newsletters'),
             customFeedName: 'Acme Weekly',
         });
     });
@@ -821,14 +831,12 @@ describe('Google Reader subscription writes', () => {
         expect(fake.limitFeedAdd).not.toHaveBeenCalled();
         expect(fake.subscriptions.size).toBe(1);
         expect(fake.subscriptions.get(8)).toEqual({
-            categoryId: [...fake.categories].find(
-                ([, name]) => name === 'Newsletters',
-            )?.[0],
+            categoryId: fake.folderId('Newsletters'),
             customFeedName: 'Renamed',
         });
     });
 
-    it('unsubscribe removes a feed by URL or id and tolerates unknown feeds', async () => {
+    it('unsubscribe removes a feed by URL or id and reports unknown feeds', async () => {
         const fake = makeSubscriptionFake();
         const byUrl = await fake.app.request(
             ...googleForm('edit', {
@@ -843,7 +851,8 @@ describe('Google Reader subscription writes', () => {
         const again = await fake.app.request(
             ...googleForm('edit', { ac: 'unsubscribe', s: 'feed/8' }),
         );
-        expect(await again.text()).toBe('OK');
+        expect(again.status).toBe(404);
+        expect(await again.text()).toBe('Error=NotFound\n');
         expect(fake.unsubscribe).toHaveBeenCalledTimes(1);
     });
 
@@ -871,13 +880,59 @@ describe('Google Reader subscription writes', () => {
         expect(missing.status).toBe(404);
     });
 
+    it('edit moves a feed whose only label is removed to the default folder', async () => {
+        const fake = makeSubscriptionFake();
+        const unrelated = await fake.app.request(
+            ...googleForm('edit', {
+                ac: 'edit',
+                s: 'feed/8',
+                r: 'user/-/label/Elsewhere',
+            }),
+        );
+        expect(await unrelated.text()).toBe('OK');
+        expect(fake.subscriptions.get(8)?.categoryId).toBe(7);
+
+        const removed = await fake.app.request(
+            ...googleForm('edit', {
+                ac: 'edit',
+                s: 'feed/8',
+                r: 'user/-/label/news',
+            }),
+        );
+        expect(await removed.text()).toBe('OK');
+        expect(fake.subscriptions.get(8)?.categoryId).toBe(
+            fake.folderId('Uncategorized'),
+        );
+    });
+
+    it('ignores tags that are not folder labels', async () => {
+        const fake = makeSubscriptionFake();
+        const response = await fake.app.request(
+            ...googleForm('edit', {
+                ac: 'subscribe',
+                s: 'feed/https://news.example/atom.xml',
+                a: 'user/-/state/com.google/reading-list',
+            }),
+        );
+        expect(await response.text()).toBe('OK');
+        expect(fake.subscribeFirstCandidate).toHaveBeenCalledWith(72, {
+            feedUrl: 'https://news.example/atom.xml',
+            categoryName: 'Uncategorized',
+        });
+    });
+
     it('rejects malformed subscription edits', async () => {
         const fake = makeSubscriptionFake();
         const bodies: Record<string, string>[] = [
             { ac: 'subscribe' },
             { ac: 'subscribe', s: 'https://example.test/feed.xml' },
             { ac: 'subscribe', s: 'feed/999' },
-            { ac: 'subscribe', s: 'feed/https://x.test/', a: 'News' },
+            { ac: 'subscribe', s: 'feed/https://x.test/', a: 'user/-/label/' },
+            {
+                ac: 'subscribe',
+                s: 'feed/https://x.test/',
+                t: 'x'.repeat(256),
+            },
             { ac: 'rename', s: 'feed/8' },
         ];
         for (const body of bodies) {

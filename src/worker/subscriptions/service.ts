@@ -27,6 +27,7 @@ import {
     SubscriptionConflict,
     SubscriptionFeedError,
     SubscriptionInvariantError,
+    SubscriptionNotFound,
     SubscriptionValidationError,
 } from './errors';
 import {
@@ -84,6 +85,18 @@ const categoryChoice = (
         });
     }
     return Effect.fail(new SubscriptionValidationError());
+};
+
+/** Normalizes a user-supplied feed URL the same way for lookups and adds. */
+const canonicalFeedUrl = (feedUrl: string): string | null => {
+    const requestedUrl = /^[a-z][a-z\d+.-]*:\/\//iu.test(feedUrl)
+        ? feedUrl
+        : `https://${feedUrl}`;
+    try {
+        return validateFeedUrl(requestedUrl).href;
+    } catch {
+        return null;
+    }
 };
 
 const sameRules = (
@@ -313,19 +326,23 @@ export const makeSubscriptionService = (
             });
         });
 
+    const isSubscribed = (userId: number, feedId: number) =>
+        repository
+            .findSubscriptionSummary(userId, feedId)
+            .pipe(Effect.map((summary) => summary !== null));
+    const alreadySubscribed = (feedId: number) => ({
+        kind: 'subscribed' as const,
+        outcome: { feedId, createdFeed: false, createdSubscription: false },
+    });
+
     const subscribe = (
         userId: number,
         input: CreateSubscriptionInput,
         onMultipleCandidates: 'ask' | 'first',
     ) =>
         Effect.gen(function* () {
-            const requestedUrl = /^[a-z][a-z\d+.-]*:\/\//iu.test(input.feedUrl)
-                ? input.feedUrl
-                : `https://${input.feedUrl}`;
-            let canonicalRequestedUrl: string;
-            try {
-                canonicalRequestedUrl = validateFeedUrl(requestedUrl).href;
-            } catch {
+            const canonicalRequestedUrl = canonicalFeedUrl(input.feedUrl);
+            if (canonicalRequestedUrl === null) {
                 return yield* Effect.fail(
                     new SubscriptionFeedError({ reason: 'invalid_url' }),
                 );
@@ -336,6 +353,11 @@ export const makeSubscriptionService = (
                 canonicalRequestedUrl,
             );
             if (existingFeedId !== null) {
+                // Check before resolving the category, so re-adding a followed
+                // feed never creates an empty category.
+                if (yield* isSubscribed(userId, existingFeedId)) {
+                    return alreadySubscribed(existingFeedId);
+                }
                 const categoryId = yield* resolveCategoryId(userId, choice);
                 return {
                     kind: 'subscribed' as const,
@@ -386,6 +408,16 @@ export const makeSubscriptionService = (
                         reason: 'unsupported_feed',
                     }),
                 );
+            }
+            // The requested URL may redirect to a feed the user already follows.
+            const discoveredFeedId = yield* repository.findFeedByUrl(
+                discovered.finalUrl,
+            );
+            if (
+                discoveredFeedId !== null &&
+                (yield* isSubscribed(userId, discoveredFeedId))
+            ) {
+                return alreadySubscribed(discoveredFeedId);
             }
             const categoryId = yield* resolveCategoryId(userId, choice);
             const outcome = yield* persistDiscovered(
@@ -466,9 +498,34 @@ export const makeSubscriptionService = (
             ),
 
         /**
+         * Finds the user's subscription by feed id, or by feed URL normalized
+         * like {@link createSubscription} does. Null when not followed.
+         */
+        findSubscribedFeed: (
+            userId: number,
+            target: { readonly feedId: number } | { readonly feedUrl: string },
+        ) =>
+            Effect.gen(function* () {
+                if ('feedId' in target) {
+                    return yield* repository.findSubscriptionSummary(
+                        userId,
+                        target.feedId,
+                    );
+                }
+                const canonical = canonicalFeedUrl(target.feedUrl);
+                if (canonical === null) return null;
+                const feedId = yield* repository.findFeedByUrl(canonical);
+                return feedId === null
+                    ? null
+                    : yield* repository.findSubscriptionSummary(userId, feedId);
+            }),
+
+        /**
          * Renames and/or moves a subscription without touching its filters.
-         * `customFeedName: null` clears the custom name; an omitted field is
-         * left unchanged. A named category is created when it does not exist.
+         * `customFeedName: null` clears the custom name, as does a name equal
+         * to the feed's own title, so publisher renames keep showing through.
+         * An omitted field is left unchanged. A named category is created
+         * when it does not exist.
          */
         editSubscription: (
             userId: number,
@@ -479,10 +536,13 @@ export const makeSubscriptionService = (
             },
         ) =>
             Effect.gen(function* () {
-                const current = yield* repository.findSubscription(
+                const current = yield* repository.findSubscriptionSummary(
                     userId,
                     feedId,
                 );
+                if (current === null) {
+                    return yield* Effect.fail(new SubscriptionNotFound());
+                }
                 const categoryId =
                     input.categoryName === undefined
                         ? current.categoryId
@@ -490,10 +550,12 @@ export const makeSubscriptionService = (
                               kind: 'new',
                               categoryName: input.categoryName,
                           });
-                const customFeedName =
+                const requestedName =
                     input.customFeedName === undefined
                         ? current.customFeedName
                         : input.customFeedName?.trim() || null;
+                const customFeedName =
+                    requestedName === current.feedName ? null : requestedName;
                 if (
                     categoryId === current.categoryId &&
                     customFeedName === current.customFeedName
