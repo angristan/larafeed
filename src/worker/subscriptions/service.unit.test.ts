@@ -58,6 +58,7 @@ const repository = (
         listManagement: () =>
             Effect.succeed({ categories: [], subscriptions: [] }),
         findSubscription: () => Effect.succeed(baseSubscription),
+        findSubscriptionSummary: () => Effect.succeed(null),
         createCategory: () => Effect.die('unused'),
         findOrCreateCategory: () => Effect.die('unused'),
         updateCategory: () => Effect.die('unused'),
@@ -836,5 +837,137 @@ describe('favicon scheduling on subscribe', () => {
             createdFeed: true,
         });
         expect(scheduleFavicon).toHaveBeenCalledOnce();
+    });
+});
+
+describe('protocol subscription helpers', () => {
+    const feedResult = (finalUrl: string, title: string) => ({
+        kind: 'updated' as const,
+        finalUrl,
+        etag: null,
+        lastModified: null,
+        httpStatus: 200,
+        feed: {
+            title,
+            description: null,
+            siteUrl: null,
+            faviconUrl: null,
+            sourceUpdatedAt: null,
+        },
+        entries: [],
+    });
+
+    it('subscribes to the first advertised feed instead of asking', async () => {
+        const subscribeDiscovered = vi.fn(() =>
+            Effect.succeed({
+                feedId: 21,
+                createdFeed: true,
+                createdSubscription: true,
+            }),
+        );
+        const findOrCreateCategory = vi.fn(() =>
+            Effect.succeed({
+                id: 12,
+                name: 'Newsletters',
+                subscriptionCount: 0,
+            }),
+        );
+        const service = makeSubscriptionService({
+            repository: repository({
+                findOrCreateCategory,
+                subscribeDiscovered,
+            }),
+            discoverFeeds: () =>
+                Effect.succeed({
+                    kind: 'website' as const,
+                    candidates: [
+                        {
+                            result: feedResult(
+                                'https://example.test/feed.xml',
+                                'Example',
+                            ),
+                            identicalFeedUrls: [],
+                        },
+                        {
+                            result: feedResult(
+                                'https://example.test/comments.xml',
+                                'Comments',
+                            ),
+                            identicalFeedUrls: [],
+                        },
+                    ],
+                }),
+            generateId: () => Effect.succeed(12),
+            now: () => 1_000,
+        });
+
+        await expect(
+            Effect.runPromise(
+                service.subscribeFirstCandidate(7, {
+                    feedUrl: 'https://example.test/',
+                    categoryName: 'Newsletters',
+                }),
+            ),
+        ).resolves.toEqual({
+            feedId: 21,
+            createdFeed: true,
+            createdSubscription: true,
+        });
+        expect(findOrCreateCategory).toHaveBeenCalledWith(
+            12,
+            7,
+            'Newsletters',
+            1_000,
+        );
+        expect(subscribeDiscovered).toHaveBeenCalledWith(
+            expect.objectContaining({
+                feedUrl: 'https://example.test/feed.xml',
+                categoryId: 12,
+            }),
+        );
+    });
+
+    const summary = {
+        feedId: 21,
+        categoryId: 11,
+        categoryName: 'Tech',
+        feedName: 'Feed',
+        customFeedName: null,
+    };
+
+    it('stops before persisting when a redirect lands on a followed feed', async () => {
+        const findOrCreateCategory = vi.fn(() => Effect.die('must not create'));
+        const subscribeDiscovered = vi.fn(() => Effect.die('must not write'));
+        const findFeedByUrl = vi.fn((url: string) =>
+            Effect.succeed(url === 'https://example.test/feed.xml' ? 21 : null),
+        );
+        const service = makeSubscriptionService({
+            repository: repository({
+                findFeedByUrl,
+                findSubscriptionSummary: () => Effect.succeed(summary),
+                findOrCreateCategory,
+                subscribeDiscovered,
+            }),
+            discoverFeeds: discoverDirect(() =>
+                Effect.succeed(
+                    feedResult('https://example.test/feed.xml', 'Feed'),
+                ),
+            ),
+        });
+
+        await expect(
+            Effect.runPromise(
+                service.subscribeFirstCandidate(7, {
+                    feedUrl: 'http://example.test/rss',
+                    categoryName: 'Uncategorized',
+                }),
+            ),
+        ).resolves.toEqual({
+            feedId: 21,
+            createdFeed: false,
+            createdSubscription: false,
+        });
+        expect(findOrCreateCategory).not.toHaveBeenCalled();
+        expect(subscribeDiscovered).not.toHaveBeenCalled();
     });
 });

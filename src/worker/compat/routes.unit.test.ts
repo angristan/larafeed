@@ -5,6 +5,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AuthConfig } from '../auth/config';
 import { AuthenticationFailed } from '../auth/errors';
 import type { AuthService } from '../auth/service';
+import {
+    SubscriptionNotFound,
+    SubscriptionRateLimited,
+} from '../subscriptions/errors';
+import type { SubscriptionService } from '../subscriptions/service';
 import { CompatibilityRateLimited } from './errors';
 import {
     type CompatibilityRepository,
@@ -30,6 +35,7 @@ const authentication = {
 const makeHarness = (overrides: {
     readonly service?: Partial<AuthService>;
     readonly repository?: Partial<CompatibilityRepository>;
+    readonly subscriptions?: Partial<CompatibilityRuntime['subscriptions']>;
     readonly loginRateLimit?: CompatibilityRouteDependencies['loginRateLimit'];
     readonly syncRateLimit?: CompatibilityRouteDependencies['syncRateLimit'];
 }) => {
@@ -138,6 +144,11 @@ const makeHarness = (overrides: {
             } as AuthService,
         },
         repository,
+        subscriptions: {
+            service: {} as SubscriptionService,
+            limitFeedAdd: () => Effect.void,
+            ...overrides.subscriptions,
+        },
         now: () => 1_800_000_000_000,
     };
     const rateKeys: string[] = [];
@@ -604,5 +615,69 @@ describe('compatibility protocol routes', () => {
             {} as Env,
         );
         expect(await denied.json()).toEqual({ api_version: 3, auth: 0 });
+    });
+});
+
+// The Workerd D1 test covers subscription writes end to end. These cases
+// need a failure injected between steps, which a real database cannot
+// produce on demand.
+describe('Google Reader subscription writes', () => {
+    const googleForm = (
+        path: string,
+        body: Record<string, string>,
+    ): [string, RequestInit, Env] => [
+        `/api/reader/reader/api/0/subscription/${path}`,
+        {
+            method: 'POST',
+            headers: {
+                Authorization: 'GoogleLogin auth=opaque-token',
+                'content-type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams(body),
+        },
+        {} as Env,
+    ];
+
+    it('unsubscribe answers OK when a concurrent request removed the feed first', async () => {
+        // The lookup still sees the subscription, but the delete finds nothing.
+        const { app } = makeHarness({
+            subscriptions: {
+                service: {
+                    findSubscribedFeed: () =>
+                        Effect.succeed({
+                            feedId: 8,
+                            categoryId: 7,
+                            categoryName: 'News',
+                            feedName: 'Feed',
+                            customFeedName: null,
+                        }),
+                    unsubscribe: () => Effect.fail(new SubscriptionNotFound()),
+                } as unknown as SubscriptionService,
+            },
+        });
+        const response = await app.request(
+            ...googleForm('edit', { ac: 'unsubscribe', s: 'feed/8' }),
+        );
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe('OK');
+    });
+
+    it('applies the shared feed-add rate limit before subscribing', async () => {
+        const subscribeFirstCandidate = vi.fn();
+        const { app } = makeHarness({
+            subscriptions: {
+                service: {
+                    subscribeFirstCandidate,
+                } as unknown as SubscriptionService,
+                limitFeedAdd: () => Effect.fail(new SubscriptionRateLimited()),
+            },
+        });
+        const response = await app.request(
+            ...googleForm('quickadd', {
+                quickadd: 'https://news.example/atom.xml',
+            }),
+        );
+        expect(response.status).toBe(429);
+        expect(subscribeFirstCandidate).not.toHaveBeenCalled();
     });
 });

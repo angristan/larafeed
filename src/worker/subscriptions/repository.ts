@@ -84,6 +84,13 @@ const FilterCommitStatusRow = Schema.Struct({
     revision_matches: BooleanInt,
 });
 const FeedIdRow = Schema.Struct({ id: SafeId });
+const SubscriptionSummaryRow = Schema.Struct({
+    feed_id: SafeId,
+    category_id: SafeId,
+    category_name: Schema.String,
+    feed_name: Schema.String,
+    custom_feed_name: Schema.NullOr(Schema.String),
+});
 
 export interface DiscoveredFeedInput {
     readonly feedUrl: string;
@@ -101,6 +108,14 @@ export interface DiscoveredFeedInput {
     readonly userId: number;
     readonly now: number;
     readonly nextRefreshAt: number;
+}
+
+export interface SubscriptionSummary {
+    readonly feedId: number;
+    readonly categoryId: number;
+    readonly categoryName: string;
+    readonly feedName: string;
+    readonly customFeedName: string | null;
 }
 
 export interface SubscribeDiscoveredResult {
@@ -174,6 +189,17 @@ export interface SubscriptionRepository {
         | SubscriptionConflict
         | SubscriptionStorageError
         | SubscriptionInvariantError
+    >;
+    /**
+     * A cheap point lookup of a user's subscription (no counts or refresh
+     * history); null when the user does not follow the feed.
+     */
+    readonly findSubscriptionSummary: (
+        userId: number,
+        feedId: number,
+    ) => Effect.Effect<
+        SubscriptionSummary | null,
+        SubscriptionStorageError | SubscriptionInvariantError
     >;
     readonly findFeedByUrl: (
         feedUrl: string,
@@ -646,6 +672,39 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                         new SubscriptionConflict({ reason: 'category_in_use' }),
                     );
                 }
+            }),
+
+        findSubscriptionSummary: (userId, feedId) =>
+            Effect.gen(function* () {
+                const operation = 'subscriptions.findSummary';
+                const row = yield* mapStorage(
+                    operation,
+                    d1.first({
+                        sql: `SELECT fs.feed_id, fs.category_id,
+                                c.name AS category_name, f.name AS feed_name,
+                                fs.custom_feed_name
+                            FROM feed_subscriptions fs
+                            JOIN feeds f ON f.id = fs.feed_id
+                            JOIN subscription_categories c
+                                ON c.user_id = fs.user_id
+                               AND c.id = fs.category_id
+                            WHERE fs.user_id = ? AND fs.feed_id = ?`,
+                        bindings: [userId, feedId],
+                    }),
+                );
+                if (row === null) return null;
+                const decoded = yield* decode(
+                    operation,
+                    SubscriptionSummaryRow,
+                    row,
+                );
+                return {
+                    feedId: decoded.feed_id,
+                    categoryId: decoded.category_id,
+                    categoryName: decoded.category_name,
+                    feedName: decoded.feed_name,
+                    customFeedName: decoded.custom_feed_name,
+                };
             }),
 
         findFeedByUrl: (feedUrl) =>

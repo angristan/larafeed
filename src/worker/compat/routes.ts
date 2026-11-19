@@ -11,6 +11,10 @@ import {
 } from '../http/request-body';
 import { makeD1 } from '../infrastructure/d1';
 import {
+    makeSubscriptionManagement,
+    type SubscriptionRuntime,
+} from '../subscriptions/routes';
+import {
     CompatibilityRateLimited,
     CompatibilityStorageError,
     CompatibilityValidationError,
@@ -40,6 +44,7 @@ type CompatibilityContext = Context<{ Bindings: Env }>;
 export interface CompatibilityRuntime {
     readonly auth: AuthRuntime;
     readonly repository: CompatibilityRepository;
+    readonly subscriptions: Omit<SubscriptionRuntime, 'auth'>;
     readonly now: () => number;
 }
 
@@ -66,6 +71,7 @@ export const defaultCompatibilityRuntimeFactory: CompatibilityRuntimeFactory = (
         Effect.map((auth) => ({
             auth,
             repository: makeCompatibilityRepository(d1),
+            subscriptions: makeSubscriptionManagement(env, d1),
             now: Date.now,
         })),
     );
@@ -123,12 +129,18 @@ const googleFailure = (
         case 'AuthenticationFailed':
             return text(`Error=${authenticationError}\n`, 403);
         case 'CompatibilityValidationError':
+        case 'SubscriptionValidationError':
+        case 'SubscriptionFeedError':
             return text('Error=BadRequest\n', 400);
+        case 'SubscriptionNotFound':
+            return text('Error=NotFound\n', 404);
         case 'CompatibilityRateLimited':
+        case 'SubscriptionRateLimited':
             return text('Error=RateLimited\n', 429);
         case 'AuthStorageError':
         case 'CompatibilityStorageError':
         case 'ReaderStorageError':
+        case 'SubscriptionStorageError':
             return text('Error=ServiceUnavailable\n', 503);
         case 'ReaderNotFound':
             return text('OK');
@@ -279,6 +291,60 @@ const parseBoundedInt = (
         parsed <= maximum &&
         (allowZero ? parsed >= 0 : parsed > 0)
         ? Effect.succeed(parsed)
+        : Effect.fail(new CompatibilityValidationError());
+};
+
+const MAX_FEED_URL_LENGTH = 2_048;
+const MAX_CATEGORY_NAME_LENGTH = 255;
+const DEFAULT_GOOGLE_CATEGORY = 'Uncategorized';
+
+type GoogleFeedStream =
+    | { readonly kind: 'id'; readonly feedId: number }
+    | { readonly kind: 'url'; readonly url: string };
+
+/** Parses `feed/<id>` (as listed by Larafeed) or `feed/<url>` (as sent by clients). */
+const parseGoogleFeedStream = (
+    value: string | null,
+): Effect.Effect<GoogleFeedStream, CompatibilityValidationError> => {
+    if (value === null || !value.startsWith('feed/')) {
+        return Effect.fail(new CompatibilityValidationError());
+    }
+    const target = value.slice('feed/'.length).trim();
+    if (target.length === 0 || target.length > MAX_FEED_URL_LENGTH) {
+        return Effect.fail(new CompatibilityValidationError());
+    }
+    if (/^\d+$/u.test(target)) {
+        const feedId = Number(target);
+        return Number.isSafeInteger(feedId) && feedId > 0
+            ? Effect.succeed({ kind: 'id', feedId })
+            : Effect.fail(new CompatibilityValidationError());
+    }
+    return Effect.succeed({ kind: 'url', url: target });
+};
+
+/**
+ * Parses `user/-/label/<name>` or `user/<id>/label/<name>`. Absent values and
+ * other tags (such as `user/-/state/...`) yield undefined and are ignored.
+ */
+const parseGoogleLabel = (
+    value: string | null,
+): Effect.Effect<string | undefined, CompatibilityValidationError> => {
+    if (value === null) return Effect.succeed(undefined);
+    const match = /^user\/(?:-|\d+)\/label\/(.*)$/u.exec(value);
+    if (match === null) return Effect.succeed(undefined);
+    const name = match[1]?.trim() ?? '';
+    return name.length > 0 && name.length <= MAX_CATEGORY_NAME_LENGTH
+        ? Effect.succeed(name)
+        : Effect.fail(new CompatibilityValidationError());
+};
+
+const parseGoogleTitle = (
+    value: string | null,
+): Effect.Effect<string | undefined, CompatibilityValidationError> => {
+    if (value === null) return Effect.succeed(undefined);
+    const title = value.trim();
+    return title.length <= MAX_CATEGORY_NAME_LENGTH
+        ? Effect.succeed(title)
         : Effect.fail(new CompatibilityValidationError());
 };
 
@@ -435,6 +501,192 @@ export const registerCompatibilityRoutes = (
                     }),
                 ),
             ),
+        ),
+    );
+
+    /** The user's subscription for a stream, or null when not followed. */
+    const findSubscribed = (
+        compat: CompatibilityRuntime,
+        userId: number,
+        stream: GoogleFeedStream,
+    ) =>
+        compat.subscriptions.service.findSubscribedFeed(
+            userId,
+            stream.kind === 'id'
+                ? { feedId: stream.feedId }
+                : { feedUrl: stream.url },
+        );
+
+    /** Subscribes (idempotently) under the feed-add rate limit. */
+    const subscribeGoogle = (
+        compat: CompatibilityRuntime,
+        userId: number,
+        feedUrl: string,
+        categoryName: string | undefined,
+    ) =>
+        Effect.gen(function* () {
+            yield* compat.subscriptions.limitFeedAdd(userId);
+            const outcome =
+                yield* compat.subscriptions.service.subscribeFirstCandidate(
+                    userId,
+                    {
+                        feedUrl,
+                        categoryName: categoryName ?? DEFAULT_GOOGLE_CATEGORY,
+                    },
+                );
+            return outcome.feedId;
+        });
+
+    const notFound = () => text('Error=NotFound\n', 404);
+
+    app.post(`${GOOGLE_ROOT}/subscription/quickadd`, (context) =>
+        protectedGoogle(context, (compat, authentication) =>
+            Effect.gen(function* () {
+                const userId = authentication.user.id;
+                const form = yield* requestParameters(context.req.raw);
+                const query = yield* requiredValue(
+                    form,
+                    'quickadd',
+                    MAX_FEED_URL_LENGTH,
+                );
+                // Some clients send the stream id rather than the bare URL.
+                const feedUrl = query.startsWith('feed/')
+                    ? query.slice('feed/'.length)
+                    : query;
+                const feedId = yield* subscribeGoogle(
+                    compat,
+                    userId,
+                    feedUrl,
+                    undefined,
+                );
+                const subscription =
+                    yield* compat.subscriptions.service.findSubscribedFeed(
+                        userId,
+                        { feedId },
+                    );
+                return json({
+                    numResults: 1,
+                    query,
+                    streamId: `feed/${feedId}`,
+                    ...(subscription === null
+                        ? {}
+                        : {
+                              streamName:
+                                  subscription.customFeedName ??
+                                  subscription.feedName,
+                          }),
+                });
+            }),
+        ),
+    );
+
+    app.post(`${GOOGLE_ROOT}/subscription/edit`, (context) =>
+        protectedGoogle(context, (compat, authentication) =>
+            Effect.gen(function* () {
+                const userId = authentication.user.id;
+                const form = yield* requestParameters(context.req.raw);
+                const action = form.get('ac');
+                const stream = yield* parseGoogleFeedStream(form.get('s'));
+                const title = yield* parseGoogleTitle(form.get('t'));
+                const addLabel = yield* parseGoogleLabel(form.get('a'));
+                const removeLabel = yield* parseGoogleLabel(form.get('r'));
+                const customFeedName =
+                    title === undefined
+                        ? {}
+                        : { customFeedName: title === '' ? null : title };
+
+                switch (action) {
+                    case 'subscribe': {
+                        const existing = yield* findSubscribed(
+                            compat,
+                            userId,
+                            stream,
+                        );
+                        let feedId: number;
+                        if (existing !== null) {
+                            feedId = existing.feedId;
+                        } else if (stream.kind === 'url') {
+                            feedId = yield* subscribeGoogle(
+                                compat,
+                                userId,
+                                stream.url,
+                                addLabel,
+                            );
+                        } else {
+                            return yield* Effect.fail(
+                                new CompatibilityValidationError(),
+                            );
+                        }
+                        // Applies to new and existing subscriptions alike, so
+                        // repeating the call converges on the same state.
+                        yield* compat.subscriptions.service.editSubscription(
+                            userId,
+                            feedId,
+                            {
+                                ...(addLabel === undefined
+                                    ? {}
+                                    : { categoryName: addLabel }),
+                                ...customFeedName,
+                            },
+                        );
+                        return text('OK');
+                    }
+                    case 'unsubscribe': {
+                        const existing = yield* findSubscribed(
+                            compat,
+                            userId,
+                            stream,
+                        );
+                        // Unsubscribing is idempotent: the goal state is "not
+                        // followed", so a feed that is already gone (removed
+                        // in the web app, or by a concurrent request between
+                        // the lookup and the delete) still answers OK. Clients
+                        // then drop their local copy instead of erroring.
+                        if (existing === null) return text('OK');
+                        yield* compat.subscriptions.service
+                            .unsubscribe(userId, existing.feedId)
+                            .pipe(
+                                Effect.catchTag(
+                                    'SubscriptionNotFound',
+                                    () => Effect.void,
+                                ),
+                            );
+                        return text('OK');
+                    }
+                    case 'edit': {
+                        const existing = yield* findSubscribed(
+                            compat,
+                            userId,
+                            stream,
+                        );
+                        if (existing === null) return notFound();
+                        // A feed lives in exactly one category; removing its
+                        // label without adding another moves it to the default.
+                        const categoryName =
+                            addLabel ??
+                            (removeLabel !== undefined &&
+                            removeLabel.toLowerCase() ===
+                                existing.categoryName.toLowerCase()
+                                ? DEFAULT_GOOGLE_CATEGORY
+                                : undefined);
+                        yield* compat.subscriptions.service.editSubscription(
+                            userId,
+                            existing.feedId,
+                            {
+                                ...(categoryName === undefined
+                                    ? {}
+                                    : { categoryName }),
+                                ...customFeedName,
+                            },
+                        );
+                        return text('OK');
+                    }
+                    default:
+                        return yield* Effect.fail(
+                            new CompatibilityValidationError(),
+                        );
+                }
+            }),
         ),
     );
 
