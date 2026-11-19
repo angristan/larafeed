@@ -637,11 +637,20 @@ export const registerCompatibilityRoutes = (
                             userId,
                             stream,
                         );
-                        if (existing === null) return notFound();
-                        yield* compat.subscriptions.service.unsubscribe(
-                            userId,
-                            existing.feedId,
-                        );
+                        // Unsubscribing is idempotent: the goal state is "not
+                        // followed", so a feed that is already gone (removed
+                        // in the web app, or by a concurrent request between
+                        // the lookup and the delete) still answers OK. Clients
+                        // then drop their local copy instead of erroring.
+                        if (existing === null) return text('OK');
+                        yield* compat.subscriptions.service
+                            .unsubscribe(userId, existing.feedId)
+                            .pipe(
+                                Effect.catchTag(
+                                    'SubscriptionNotFound',
+                                    () => Effect.void,
+                                ),
+                            );
                         return text('OK');
                     }
                     case 'edit': {

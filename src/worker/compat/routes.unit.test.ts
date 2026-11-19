@@ -5,7 +5,10 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AuthConfig } from '../auth/config';
 import { AuthenticationFailed } from '../auth/errors';
 import type { AuthService } from '../auth/service';
-import { SubscriptionRateLimited } from '../subscriptions/errors';
+import {
+    SubscriptionNotFound,
+    SubscriptionRateLimited,
+} from '../subscriptions/errors';
 import type { SubscriptionService } from '../subscriptions/service';
 import { CompatibilityRateLimited } from './errors';
 import {
@@ -726,10 +729,14 @@ describe('Google Reader subscription writes', () => {
                     }
                 }),
         );
-        const unsubscribe = vi.fn((_userId: number, feedId: number) =>
-            Effect.sync(() => {
-                subscriptions.delete(feedId);
-            }),
+        const unsubscribe = vi.fn(
+            (
+                _userId: number,
+                feedId: number,
+            ): Effect.Effect<void, SubscriptionNotFound> =>
+                Effect.sync(() => {
+                    subscriptions.delete(feedId);
+                }),
         );
         const limitFeedAdd = vi.fn(
             (): Effect.Effect<void, SubscriptionRateLimited> => Effect.void,
@@ -836,7 +843,7 @@ describe('Google Reader subscription writes', () => {
         });
     });
 
-    it('unsubscribe removes a feed by URL or id and reports unknown feeds', async () => {
+    it('unsubscribe removes a feed by URL or id and accepts unknown feeds', async () => {
         const fake = makeSubscriptionFake();
         const byUrl = await fake.app.request(
             ...googleForm('edit', {
@@ -851,9 +858,22 @@ describe('Google Reader subscription writes', () => {
         const again = await fake.app.request(
             ...googleForm('edit', { ac: 'unsubscribe', s: 'feed/8' }),
         );
-        expect(again.status).toBe(404);
-        expect(await again.text()).toBe('Error=NotFound\n');
+        expect(again.status).toBe(200);
+        expect(await again.text()).toBe('OK');
         expect(fake.unsubscribe).toHaveBeenCalledTimes(1);
+    });
+
+    it('unsubscribe answers OK when a concurrent request removed the feed first', async () => {
+        const fake = makeSubscriptionFake();
+        // The lookup still sees the subscription, but the delete finds nothing.
+        fake.unsubscribe.mockImplementationOnce(() =>
+            Effect.fail(new SubscriptionNotFound()),
+        );
+        const response = await fake.app.request(
+            ...googleForm('edit', { ac: 'unsubscribe', s: 'feed/8' }),
+        );
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe('OK');
     });
 
     it('edit renames and moves an existing subscription', async () => {

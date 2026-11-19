@@ -420,6 +420,7 @@ describe('compatibility routes with Workerd D1', () => {
             ac: 'unsubscribe',
             s: `feed/${newsletterUrl}`,
         });
-        expect(repeated.status).toBe(404);
+        expect(repeated.status).toBe(200);
+        expect(await repeated.text()).toBe('OK');
     });
 });
