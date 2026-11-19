@@ -18,7 +18,9 @@ import {
 import {
     feverItem,
     googleEntry,
+    googleReadingList,
     googleSubscription,
+    googleTags,
     parseCompatibilityItemId,
 } from './protocol';
 import {
@@ -424,6 +426,18 @@ export const registerCompatibilityRoutes = (
         ),
     );
 
+    app.get(`${GOOGLE_ROOT}/tag/list`, (context) =>
+        protectedGoogle(context, (compat, authentication) =>
+            compat.repository.listCategories(authentication.user.id).pipe(
+                Effect.map((categories) =>
+                    json({
+                        tags: googleTags(authentication.user.id, categories),
+                    }),
+                ),
+            ),
+        ),
+    );
+
     app.get(`${GOOGLE_ROOT}/stream/items/ids`, (context) =>
         protectedGoogle(context, (compat, authentication) =>
             Effect.gen(function* () {
@@ -470,6 +484,7 @@ export const registerCompatibilityRoutes = (
                     ids,
                 );
                 return json({
+                    id: googleReadingList(authentication.user.id),
                     items: entries.map((entry) =>
                         googleEntry(authentication.user.id, entry),
                     ),

@@ -23,7 +23,20 @@ For a deployment at `https://reader.example.com`:
 
 `ClientLogin` validates and returns the same token as the opaque `GoogleLogin` credential. It does not create another token.
 
-Supported routes include user info, token echo, subscriptions, item IDs, item contents, and read or star tag edits.
+Supported routes include user info, token echo, tag list, subscriptions, item IDs, item contents, and read or star tag edits.
+
+`tag/list` returns the starred state tag and one `folder` tag per category. Label IDs match the category IDs in `subscription/list`, so clients can map feeds to folders:
+
+```json
+{
+    "tags": [
+        { "id": "user/1/state/com.google/starred" },
+        { "id": "user/1/label/News", "label": "News", "type": "folder" }
+    ]
+}
+```
+
+Item contents carry the article HTML in both `content` and `summary`, since clients differ in which field they read.
 
 ## Fever
 
@@ -53,7 +66,7 @@ Filtered entries are excluded. Every read or saved mutation is ownership-scoped.
 
 ## Limits
 
-- Google content requests accept at most 100 item IDs.
+- Google content requests accept at most 150 item IDs.
 - Item-ID lists contain at most 10,000 IDs.
 - Fever returns at most 50 item bodies per request.
 - Form bodies are limited to 64 KiB.

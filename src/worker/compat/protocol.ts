@@ -1,4 +1,5 @@
 import type {
+    CompatibilityCategory,
     CompatibilityEntry,
     CompatibilitySubscription,
 } from './repository';
@@ -29,11 +30,17 @@ export const parseCompatibilityItemId = (value: string): number | null => {
     return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
+const googleLabel = (userId: number, name: string): string =>
+    `user/${userId}/label/${name}`;
+
+export const googleReadingList = (userId: number): string =>
+    `user/${userId}/state/com.google/reading-list`;
+
 export const googleItemTag = (id: number): string =>
     `${GOOGLE_ITEM_PREFIX}${id.toString(16).padStart(16, '0')}`;
 
 export const googleEntry = (userId: number, entry: CompatibilityEntry) => {
-    const categories = [`user/${userId}/state/com.google/reading-list`];
+    const categories = [googleReadingList(userId)];
     if (entry.read) categories.push(`user/${userId}/state/com.google/read`);
     if (entry.starredAt !== null) {
         categories.push(`user/${userId}/state/com.google/starred`);
@@ -49,6 +56,9 @@ export const googleEntry = (userId: number, entry: CompatibilityEntry) => {
         updated: Math.floor(entry.updatedAt / 1_000),
         alternate: [{ href: entry.url, type: 'text/html' }],
         content: { direction: 'ltr', content: entry.contentHtml },
+        // NetNewsWire and other FreshRSS clients read `summary`; Reeder
+        // and Miniflux-style clients read `content`.
+        summary: { direction: 'ltr', content: entry.contentHtml },
         origin: { streamId: `feed/${entry.feedId}`, title: entry.feedName },
         categories,
         canonical: [{ href: entry.url }],
@@ -66,7 +76,7 @@ export const googleSubscription = (
     title: subscription.title,
     categories: [
         {
-            id: `user/${userId}/label/${subscription.categoryName}`,
+            id: googleLabel(userId, subscription.categoryName),
             label: subscription.categoryName,
             type: 'folder',
         },
@@ -75,6 +85,20 @@ export const googleSubscription = (
     // legacy empty value instead of disclosing the upstream URL.
     iconUrl: '',
 });
+
+// Label IDs must match the subscription category IDs exactly: clients such
+// as NetNewsWire map subscriptions to folders by comparing them.
+export const googleTags = (
+    userId: number,
+    categories: readonly CompatibilityCategory[],
+) => [
+    { id: `user/${userId}/state/com.google/starred` },
+    ...categories.map((category) => ({
+        id: googleLabel(userId, category.name),
+        label: category.name,
+        type: 'folder',
+    })),
+];
 
 export const feverItem = (entry: CompatibilityEntry) => ({
     id: entry.id,

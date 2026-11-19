@@ -5,6 +5,7 @@ import {
     googleEntry,
     googleItemTag,
     googleSubscription,
+    googleTags,
     parseCompatibilityItemId,
 } from './protocol';
 
@@ -45,7 +46,28 @@ describe('compatibility protocol fixtures', () => {
                 'user/72/state/com.google/starred',
             ],
             content: { direction: 'ltr', content: '<p>Safe</p>' },
+            summary: { direction: 'ltr', content: '<p>Safe</p>' },
         });
+    });
+
+    it('emits Google Reader state and folder tags', () => {
+        expect(
+            googleTags(72, [
+                { id: 9, name: 'News' },
+                { id: 10, name: 'Tech & Science' },
+            ]),
+        ).toEqual([
+            { id: 'user/72/state/com.google/starred' },
+            { id: 'user/72/label/News', label: 'News', type: 'folder' },
+            {
+                id: 'user/72/label/Tech & Science',
+                label: 'Tech & Science',
+                type: 'folder',
+            },
+        ]);
+        expect(googleTags(72, [])).toEqual([
+            { id: 'user/72/state/com.google/starred' },
+        ]);
     });
 
     it('does not disclose upstream favicons to Google Reader clients', () => {
