@@ -380,7 +380,8 @@ describe('compatibility routes with Workerd D1', () => {
         const quickadd = await post('quickadd', {
             quickadd: 'https://blog.example.test/feed.xml',
         });
-        expect(await quickadd.json()).toMatchObject({
+        const blog = await quickadd.json<{ streamId: string }>();
+        expect(blog).toMatchObject({
             numResults: 1,
             query: 'https://blog.example.test/feed.xml',
             streamId: expect.stringMatching(/^feed\/\d+$/u),
@@ -405,6 +406,56 @@ describe('compatibility routes with Workerd D1', () => {
         expect(await categoryNames()).toEqual(['Newsletters', 'Uncategorized']);
         expect(await list()).toHaveLength(2);
 
+        // Clients address feeds by stream id, move them with r= and a=, and
+        // take a feed out of its folder by sending only r=.
+        const edit = (body: Record<string, string>) =>
+            post('edit', { ac: 'edit', s: blog.streamId, ...body });
+        const blogState = async () => {
+            const found = (await list()).find(
+                (subscription) => subscription.id === blog.streamId,
+            );
+            return [found?.title, found?.categories[0]?.label];
+        };
+        await edit({
+            r: 'user/-/label/Uncategorized',
+            a: 'user/-/label/Reading',
+            t: 'Blog',
+        });
+        expect(await blogState()).toEqual(['Blog', 'Reading']);
+        await edit({ r: 'user/-/label/reading' });
+        expect(await blogState()).toEqual(['Blog', 'Uncategorized']);
+        await edit({ a: 'user/-/state/com.google/reading-list' });
+        expect(await blogState()).toEqual(['Blog', 'Uncategorized']);
+
+        // A title equal to the feed's own title clears the custom name, so a
+        // later publisher rename still shows.
+        await edit({ t: 'Discovered Feed' });
+        const customName = await Effect.runPromise(
+            d1.first<{ custom_feed_name: string | null }>({
+                sql: `SELECT custom_feed_name FROM feed_subscriptions
+                    WHERE user_id = ? AND feed_id = ?`,
+                bindings: [userId, Number(blog.streamId.slice('feed/'.length))],
+            }),
+        );
+        expect(customName).toEqual({ custom_feed_name: null });
+
+        const malformed: Record<string, string>[] = [
+            { ac: 'subscribe' },
+            { ac: 'subscribe', s: newsletterUrl },
+            { ac: 'subscribe', s: 'feed/999999999' },
+            { ac: 'subscribe', s: `feed/${newsletterUrl}`, a: 'user/-/label/' },
+            { ac: 'edit', s: blog.streamId, t: 'x'.repeat(256) },
+            { ac: 'rename', s: blog.streamId },
+        ];
+        for (const body of malformed) {
+            expect((await post('edit', body)).status).toBe(400);
+        }
+        expect((await post('quickadd', {})).status).toBe(400);
+        expect(
+            (await post('edit', { ac: 'edit', s: 'feed/999999999', t: 'x' }))
+                .status,
+        ).toBe(404);
+
         expect(
             await (
                 await post('edit', {
@@ -422,5 +473,8 @@ describe('compatibility routes with Workerd D1', () => {
         });
         expect(repeated.status).toBe(200);
         expect(await repeated.text()).toBe('OK');
+
+        await post('edit', { ac: 'unsubscribe', s: blog.streamId });
+        expect(await list()).toEqual([]);
     });
 });

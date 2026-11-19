@@ -618,396 +618,66 @@ describe('compatibility protocol routes', () => {
     });
 });
 
+// The Workerd D1 test covers subscription writes end to end. These cases
+// need a failure injected between steps, which a real database cannot
+// produce on demand.
 describe('Google Reader subscription writes', () => {
     const googleForm = (
         path: string,
         body: Record<string, string>,
-        token: string | null = 'opaque-token',
     ): [string, RequestInit, Env] => [
         `/api/reader/reader/api/0/subscription/${path}`,
         {
             method: 'POST',
             headers: {
+                Authorization: 'GoogleLogin auth=opaque-token',
                 'content-type': 'application/x-www-form-urlencoded',
-                ...(token === null
-                    ? {}
-                    : { Authorization: `GoogleLogin auth=${token}` }),
             },
             body: new URLSearchParams(body),
         },
         {} as Env,
     ];
 
-    /** In-memory stand-in for the subscription service and its storage. */
-    const makeSubscriptionFake = () => {
-        const categories = new Map<number, string>([[7, 'News']]);
-        const feeds = new Map<string, number>([
-            ['https://example.test/feed.xml', 8],
-        ]);
-        const subscriptions = new Map<
-            number,
-            { categoryId: number; customFeedName: string | null }
-        >([[8, { categoryId: 7, customFeedName: null }]]);
-        let nextId = 100;
-        const categoryId = (name: string) => {
-            for (const [id, existing] of categories) {
-                if (existing.toLowerCase() === name.toLowerCase()) return id;
-            }
-            const id = nextId++;
-            categories.set(id, name);
-            return id;
-        };
-        const summary = (feedId: number) => {
-            const subscription = subscriptions.get(feedId);
-            return subscription === undefined
-                ? null
-                : {
-                      feedId,
-                      categoryId: subscription.categoryId,
-                      categoryName:
-                          categories.get(subscription.categoryId) ?? '',
-                      feedName: 'Feed',
-                      customFeedName: subscription.customFeedName,
-                  };
-        };
-        const subscribeFirstCandidate = vi.fn(
-            (
-                _userId: number,
-                input: { feedUrl: string; categoryName?: string },
-            ) => {
-                let feedId = feeds.get(input.feedUrl);
-                const createdFeed = feedId === undefined;
-                if (feedId === undefined) {
-                    feedId = nextId++;
-                    feeds.set(input.feedUrl, feedId);
-                }
-                const createdSubscription = !subscriptions.has(feedId);
-                if (createdSubscription) {
-                    subscriptions.set(feedId, {
-                        categoryId: categoryId(input.categoryName ?? ''),
-                        customFeedName: null,
-                    });
-                }
-                return Effect.succeed({
-                    feedId,
-                    createdFeed,
-                    createdSubscription,
-                });
-            },
-        );
-        const findSubscribedFeed = vi.fn(
-            (
-                _userId: number,
-                target: { feedId: number } | { feedUrl: string },
-            ) => {
-                const feedId =
-                    'feedId' in target
-                        ? target.feedId
-                        : feeds.get(target.feedUrl);
-                return Effect.succeed(
-                    feedId === undefined ? null : summary(feedId),
-                );
-            },
-        );
-        const editSubscription = vi.fn(
-            (
-                _userId: number,
-                feedId: number,
-                input: {
-                    customFeedName?: string | null;
-                    categoryName?: string;
-                },
-            ) =>
-                Effect.sync(() => {
-                    const current = subscriptions.get(feedId);
-                    if (current === undefined) throw new Error('missing');
-                    if (input.categoryName !== undefined) {
-                        current.categoryId = categoryId(input.categoryName);
-                    }
-                    if (input.customFeedName !== undefined) {
-                        current.customFeedName = input.customFeedName;
-                    }
-                }),
-        );
-        const unsubscribe = vi.fn(
-            (
-                _userId: number,
-                feedId: number,
-            ): Effect.Effect<void, SubscriptionNotFound> =>
-                Effect.sync(() => {
-                    subscriptions.delete(feedId);
-                }),
-        );
-        const limitFeedAdd = vi.fn(
-            (): Effect.Effect<void, SubscriptionRateLimited> => Effect.void,
-        );
-        const harness = makeHarness({
+    it('unsubscribe answers OK when a concurrent request removed the feed first', async () => {
+        // The lookup still sees the subscription, but the delete finds nothing.
+        const { app } = makeHarness({
             subscriptions: {
                 service: {
-                    subscribeFirstCandidate,
-                    findSubscribedFeed,
-                    editSubscription,
-                    unsubscribe,
+                    findSubscribedFeed: () =>
+                        Effect.succeed({
+                            feedId: 8,
+                            categoryId: 7,
+                            categoryName: 'News',
+                            feedName: 'Feed',
+                            customFeedName: null,
+                        }),
+                    unsubscribe: () => Effect.fail(new SubscriptionNotFound()),
                 } as unknown as SubscriptionService,
-                limitFeedAdd,
             },
         });
-        const folderId = (name: string) =>
-            [...categories].find(([, existing]) => existing === name)?.[0];
-        return {
-            ...harness,
-            categories,
-            subscriptions,
-            folderId,
-            subscribeFirstCandidate,
-            editSubscription,
-            unsubscribe,
-            limitFeedAdd,
-        };
-    };
-
-    it('quickadd subscribes to a feed URL and returns its stream id', async () => {
-        const fake = makeSubscriptionFake();
-        const response = await fake.app.request(
-            ...googleForm('quickadd', {
-                quickadd: 'https://news.example/atom.xml',
-            }),
-        );
-
-        expect(response.status).toBe(200);
-        expect(await response.json()).toEqual({
-            numResults: 1,
-            query: 'https://news.example/atom.xml',
-            streamId: 'feed/100',
-            streamName: 'Feed',
-        });
-        expect(fake.limitFeedAdd).toHaveBeenCalledWith(72);
-        expect(fake.subscribeFirstCandidate).toHaveBeenCalledWith(72, {
-            feedUrl: 'https://news.example/atom.xml',
-            categoryName: 'Uncategorized',
-        });
-        expect(fake.editSubscription).not.toHaveBeenCalled();
-        expect(fake.authenticateAppTokenCredential).toHaveBeenCalledWith({
-            plaintextToken: 'opaque-token',
-            requiredScope: 'google-reader',
-        });
-        expect(response.headers.get('cache-control')).toBe('no-store');
-    });
-
-    it('subscribe files a new feed under a title in a newly created folder', async () => {
-        const fake = makeSubscriptionFake();
-        const response = await fake.app.request(
-            ...googleForm('edit', {
-                ac: 'subscribe',
-                s: 'feed/https://newsletters.example/acme.xml',
-                t: 'Acme Weekly',
-                a: 'user/-/label/Newsletters',
-            }),
-        );
-
-        expect(response.status).toBe(200);
-        expect(await response.text()).toBe('OK');
-        expect(fake.limitFeedAdd).toHaveBeenCalledWith(72);
-        expect(fake.subscribeFirstCandidate).toHaveBeenCalledWith(72, {
-            feedUrl: 'https://newsletters.example/acme.xml',
-            categoryName: 'Newsletters',
-        });
-        expect(fake.folderId('Newsletters')).toBeDefined();
-        expect([...fake.subscriptions.values()]).toContainEqual({
-            categoryId: fake.folderId('Newsletters'),
-            customFeedName: 'Acme Weekly',
-        });
-    });
-
-    it('subscribe is idempotent for a feed URL that is already followed', async () => {
-        const fake = makeSubscriptionFake();
-        const request = () =>
-            fake.app.request(
-                ...googleForm('edit', {
-                    ac: 'subscribe',
-                    s: 'feed/https://example.test/feed.xml',
-                    t: 'Renamed',
-                    a: 'user/-/label/Newsletters',
-                }),
-            );
-
-        expect(await (await request()).text()).toBe('OK');
-        expect(await (await request()).text()).toBe('OK');
-
-        expect(fake.subscribeFirstCandidate).not.toHaveBeenCalled();
-        expect(fake.limitFeedAdd).not.toHaveBeenCalled();
-        expect(fake.subscriptions.size).toBe(1);
-        expect(fake.subscriptions.get(8)).toEqual({
-            categoryId: fake.folderId('Newsletters'),
-            customFeedName: 'Renamed',
-        });
-    });
-
-    it('unsubscribe removes a feed by URL or id and accepts unknown feeds', async () => {
-        const fake = makeSubscriptionFake();
-        const byUrl = await fake.app.request(
-            ...googleForm('edit', {
-                ac: 'unsubscribe',
-                s: 'feed/https://example.test/feed.xml',
-            }),
-        );
-        expect(await byUrl.text()).toBe('OK');
-        expect(fake.unsubscribe).toHaveBeenCalledWith(72, 8);
-        expect(fake.subscriptions.size).toBe(0);
-
-        const again = await fake.app.request(
-            ...googleForm('edit', { ac: 'unsubscribe', s: 'feed/8' }),
-        );
-        expect(again.status).toBe(200);
-        expect(await again.text()).toBe('OK');
-        expect(fake.unsubscribe).toHaveBeenCalledTimes(1);
-    });
-
-    it('unsubscribe answers OK when a concurrent request removed the feed first', async () => {
-        const fake = makeSubscriptionFake();
-        // The lookup still sees the subscription, but the delete finds nothing.
-        fake.unsubscribe.mockImplementationOnce(() =>
-            Effect.fail(new SubscriptionNotFound()),
-        );
-        const response = await fake.app.request(
+        const response = await app.request(
             ...googleForm('edit', { ac: 'unsubscribe', s: 'feed/8' }),
         );
         expect(response.status).toBe(200);
         expect(await response.text()).toBe('OK');
-    });
-
-    it('edit renames and moves an existing subscription', async () => {
-        const fake = makeSubscriptionFake();
-        const response = await fake.app.request(
-            ...googleForm('edit', {
-                ac: 'edit',
-                s: 'feed/8',
-                t: 'Example',
-                a: 'user/72/label/Reading',
-                r: 'user/-/label/News',
-            }),
-        );
-
-        expect(await response.text()).toBe('OK');
-        expect(fake.editSubscription).toHaveBeenCalledWith(72, 8, {
-            categoryName: 'Reading',
-            customFeedName: 'Example',
-        });
-
-        const missing = await fake.app.request(
-            ...googleForm('edit', { ac: 'edit', s: 'feed/999', t: 'x' }),
-        );
-        expect(missing.status).toBe(404);
-    });
-
-    it('edit moves a feed whose only label is removed to the default folder', async () => {
-        const fake = makeSubscriptionFake();
-        const unrelated = await fake.app.request(
-            ...googleForm('edit', {
-                ac: 'edit',
-                s: 'feed/8',
-                r: 'user/-/label/Elsewhere',
-            }),
-        );
-        expect(await unrelated.text()).toBe('OK');
-        expect(fake.subscriptions.get(8)?.categoryId).toBe(7);
-
-        const removed = await fake.app.request(
-            ...googleForm('edit', {
-                ac: 'edit',
-                s: 'feed/8',
-                r: 'user/-/label/news',
-            }),
-        );
-        expect(await removed.text()).toBe('OK');
-        expect(fake.subscriptions.get(8)?.categoryId).toBe(
-            fake.folderId('Uncategorized'),
-        );
-    });
-
-    it('ignores tags that are not folder labels', async () => {
-        const fake = makeSubscriptionFake();
-        const response = await fake.app.request(
-            ...googleForm('edit', {
-                ac: 'subscribe',
-                s: 'feed/https://news.example/atom.xml',
-                a: 'user/-/state/com.google/reading-list',
-            }),
-        );
-        expect(await response.text()).toBe('OK');
-        expect(fake.subscribeFirstCandidate).toHaveBeenCalledWith(72, {
-            feedUrl: 'https://news.example/atom.xml',
-            categoryName: 'Uncategorized',
-        });
-    });
-
-    it('rejects malformed subscription edits', async () => {
-        const fake = makeSubscriptionFake();
-        const bodies: Record<string, string>[] = [
-            { ac: 'subscribe' },
-            { ac: 'subscribe', s: 'https://example.test/feed.xml' },
-            { ac: 'subscribe', s: 'feed/999' },
-            { ac: 'subscribe', s: 'feed/https://x.test/', a: 'user/-/label/' },
-            {
-                ac: 'subscribe',
-                s: 'feed/https://x.test/',
-                t: 'x'.repeat(256),
-            },
-            { ac: 'rename', s: 'feed/8' },
-        ];
-        for (const body of bodies) {
-            const response = await fake.app.request(
-                ...googleForm('edit', body),
-            );
-            expect(response.status).toBe(400);
-        }
-        const empty = await fake.app.request(...googleForm('quickadd', {}));
-        expect(empty.status).toBe(400);
-        expect(fake.subscribeFirstCandidate).not.toHaveBeenCalled();
-    });
-
-    it('rejects subscription writes without a google-reader app token', async () => {
-        const fake = makeSubscriptionFake();
-        const missing = await fake.app.request(
-            ...googleForm(
-                'quickadd',
-                { quickadd: 'https://news.example/atom.xml' },
-                null,
-            ),
-        );
-        expect(missing.status).toBe(401);
-        expect(await missing.text()).toBe('Error=AuthRequired\n');
-
-        const wrongScope = await fake.app.request(
-            ...googleForm(
-                'edit',
-                {
-                    ac: 'subscribe',
-                    s: 'feed/https://news.example/atom.xml',
-                },
-                'bad',
-            ),
-        );
-        expect(wrongScope.status).toBe(403);
-        expect(fake.authenticateAppTokenCredential).toHaveBeenLastCalledWith({
-            plaintextToken: 'bad',
-            requiredScope: 'google-reader',
-        });
-        expect(fake.subscribeFirstCandidate).not.toHaveBeenCalled();
-        expect(fake.limitFeedAdd).not.toHaveBeenCalled();
     });
 
     it('applies the shared feed-add rate limit before subscribing', async () => {
-        const fake = makeSubscriptionFake();
-        fake.limitFeedAdd.mockImplementation(() =>
-            Effect.fail(new SubscriptionRateLimited()),
-        );
-        const response = await fake.app.request(
+        const subscribeFirstCandidate = vi.fn();
+        const { app } = makeHarness({
+            subscriptions: {
+                service: {
+                    subscribeFirstCandidate,
+                } as unknown as SubscriptionService,
+                limitFeedAdd: () => Effect.fail(new SubscriptionRateLimited()),
+            },
+        });
+        const response = await app.request(
             ...googleForm('quickadd', {
                 quickadd: 'https://news.example/atom.xml',
             }),
         );
         expect(response.status).toBe(429);
-        expect(fake.subscribeFirstCandidate).not.toHaveBeenCalled();
+        expect(subscribeFirstCandidate).not.toHaveBeenCalled();
     });
 });
