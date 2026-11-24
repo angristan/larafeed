@@ -16,6 +16,7 @@ import {
     entryKeys,
     entryListInfiniteQueryOptions,
     invalidateReaderAfterInteraction,
+    invalidateReaderAfterReadThrough,
     type ReaderEntryListScope,
     readerKeys,
     reconcileReaderInteraction,
@@ -225,6 +226,39 @@ describe('reader query contracts', () => {
         expect(
             queryClient.getQueryState(categoryKeys.list())?.isInvalidated,
         ).toBe(false);
+        unsubscribe();
+    });
+
+    it('refetches the open entry after a read-through', async () => {
+        const queryClient = new QueryClient({
+            defaultOptions: { queries: { retry: false } },
+        });
+        const queryFn = vi
+            .fn<() => Promise<ReaderEntry>>()
+            .mockResolvedValueOnce(detail)
+            .mockResolvedValueOnce({ ...detail, read: true });
+        const observer = new QueryObserver(queryClient, {
+            queryKey: entryKeys.detail(7),
+            queryFn,
+            staleTime: 5 * 60_000,
+        });
+        const unsubscribe = observer.subscribe(() => undefined);
+        await observer.refetch();
+        // A prefetched neighbour that nothing observes yet.
+        queryClient.setQueryData<ReaderEntry>(entryKeys.detail(8), {
+            ...detail,
+            id: 8,
+        });
+
+        await invalidateReaderAfterReadThrough(queryClient);
+
+        // The read-through marked the entry read on the server. A fresh
+        // cached detail must not keep showing it as unread.
+        expect(queryFn).toHaveBeenCalledTimes(2);
+        expect(observer.getCurrentResult().data?.read).toBe(true);
+        expect(
+            queryClient.getQueryState(entryKeys.detail(8))?.isInvalidated,
+        ).toBe(true);
         unsubscribe();
     });
 

@@ -130,9 +130,11 @@ export function entryDetailQueryOptions(entryId: number) {
                 signal,
                 (decoders) => decoders.decodeReaderEntry,
             ),
-        // An entry's HTML never changes once ingested, and read/starred flags
-        // are patched into this cache by reconcileReaderInteraction. A long
-        // stale time keeps revisits instant instead of refetching each time.
+        // A long stale time keeps revisits and prefetched neighbours instant.
+        // Single-entry interactions patch this cache through
+        // reconcileReaderInteraction, and bulk read-throughs invalidate it.
+        // Content that a feed refresh rewrites shows up once the entry goes
+        // stale, which is acceptable for a reader.
         staleTime: 5 * 60_000,
         retry: false,
     });
@@ -208,6 +210,10 @@ export async function invalidateReaderAfterReadThrough(
 ): Promise<void> {
     await Promise.all([
         queryClient.invalidateQueries({ queryKey: entryKeys.lists() }),
+        // A read-through flips the read flag of many entries at once, and the
+        // response does not list them. Cached details, including prefetched
+        // neighbours, would otherwise show them as unread until they go stale.
+        queryClient.invalidateQueries({ queryKey: entryKeys.details() }),
         queryClient.invalidateQueries({ queryKey: readerKeys.counts() }),
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.lists() }),
     ]);

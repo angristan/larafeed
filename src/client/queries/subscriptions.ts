@@ -55,8 +55,10 @@ export const subscriptionManagementQueryOptions = queryOptions({
     queryFn: ({ signal }) =>
         Effect.runPromise(listManagedSubscriptions(), { signal }),
     // The management payload carries every subscription and its refresh
-    // history and is only read by the library menus, so it does not need the
-    // short stale window the reader lists use.
+    // history, and the entry pane reads it on every open. Subscription
+    // mutations invalidate it through invalidateSubscriptionReadModels, so a
+    // longer stale window only delays background changes such as new refresh
+    // results.
     staleTime: 60_000,
     retry: false,
 });
