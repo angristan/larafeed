@@ -42,9 +42,12 @@ import {
     IconTrash,
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
     type FormEvent,
+    memo,
     type ReactNode,
+    useCallback,
     useEffect,
     useMemo,
     useRef,
@@ -1209,6 +1212,7 @@ export function ReaderSidebar({
     onRetry,
     onNavigate,
 }: ReaderSidebarProps) {
+    const navigate = useNavigate();
     const [search, setSearch] = useState('');
     const [addOpened, { open: openAddModal, close: closeAddModal }] =
         useDisclosure(false);
@@ -1265,6 +1269,102 @@ export function ReaderSidebar({
         [...subscriptionsByCategory.values()].every(
             (items) => items.length === 0,
         );
+
+    // One flat row list keeps the library cheap to render: a selection or a
+    // scroll only touches the rows on screen instead of every feed.
+    const [categoryOpen, setCategoryOpenState] = useState<
+        ReadonlyMap<number, boolean>
+    >(new Map());
+    const setCategoryOpen = useCallback((categoryId: number, open: boolean) => {
+        setCategoryOpenState((current) => {
+            const next = new Map(current);
+            next.set(categoryId, open);
+            return next;
+        });
+    }, []);
+
+    const rows = useMemo(() => {
+        const model: SidebarRow[] = [];
+        for (const category of sortedCategories) {
+            const categorySubscriptions =
+                subscriptionsByCategory.get(category.id) ?? [];
+            if (normalizedSearch !== '' && categorySubscriptions.length === 0) {
+                continue;
+            }
+            const opened =
+                categoryOpen.get(category.id) ??
+                categorySubscriptions.length > 0;
+            model.push({
+                active:
+                    state.categoryId === category.id && state.feedId === null,
+                categoryId: category.id,
+                categoryName: category.name,
+                entriesCount: categorySubscriptions.reduce(
+                    (total, subscription) => total + subscription.totalCount,
+                    0,
+                ),
+                feedCount: categorySubscriptions.length,
+                feedIds: categorySubscriptions.map(
+                    (subscription) => subscription.feedId,
+                ),
+                kind: 'category',
+                opened,
+            });
+            if (!opened) continue;
+            for (const subscription of categorySubscriptions) {
+                model.push({ kind: 'feed', subscription });
+            }
+        }
+        return model;
+    }, [
+        categoryOpen,
+        normalizedSearch,
+        sortedCategories,
+        state.categoryId,
+        state.feedId,
+        subscriptionsByCategory,
+    ]);
+
+    const viewportRef = useRef<HTMLDivElement>(null);
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => setMounted(true), []);
+    const virtualizer = useVirtualizer({
+        count: rows.length,
+        estimateSize: (index) => (rows[index]?.kind === 'category' ? 34 : 38),
+        getItemKey: (index) => {
+            const row = rows[index];
+            if (row === undefined) return index;
+            return row.kind === 'category'
+                ? `category-${row.categoryId}`
+                : `feed-${row.subscription.feedId}`;
+        },
+        getScrollElement: () => viewportRef.current,
+        overscan: 8,
+    });
+    const measureRow = useCallback(
+        (element: HTMLDivElement | null) => {
+            if (element !== null) virtualizer.measureElement(element);
+        },
+        [virtualizer],
+    );
+
+    const virtualItems = virtualizer.getVirtualItems();
+    // Server rendering and tests have no measured viewport: fall back to the
+    // full list so hydration and assertions still see every row.
+    const renderAllRows = !mounted || virtualItems.length === 0;
+    const renderedRows = renderAllRows
+        ? rows.map((row, index) => ({ index, row, start: null }))
+        : virtualItems.map((item) => ({
+              index: item.index,
+              row: rows[item.index],
+              start: item.start,
+          }));
+    const rowsHeight = virtualizer.getTotalSize();
+    const rowIndex = (row: SidebarRow) =>
+        row.kind === 'category'
+            ? `category-${row.categoryId}`
+            : `feed-${row.subscription.feedId}`;
+    const rowKey = (row: SidebarRow) => rowIndex(row);
 
     return (
         <>
@@ -1364,6 +1464,7 @@ export function ReaderSidebar({
                 className={classes.feedListScroll}
                 component={ScrollArea}
                 grow
+                viewportRef={viewportRef}
             >
                 <div className={classes.collections}>
                     {isPending && subscriptions === undefined && (
@@ -1393,37 +1494,260 @@ export function ReaderSidebar({
                             No feeds match your search.
                         </Text>
                     )}
-                    {!noResults &&
-                        sortedCategories.map((category) => {
-                            const categorySubscriptions =
-                                subscriptionsByCategory.get(category.id) ?? [];
-                            if (
-                                normalizedSearch !== '' &&
-                                categorySubscriptions.length === 0
-                            ) {
-                                return null;
+                    {!noResults && (
+                        <div
+                            className={classes.collections}
+                            style={
+                                renderAllRows
+                                    ? undefined
+                                    : {
+                                          height: rowsHeight,
+                                          position: 'relative',
+                                      }
                             }
-                            const active =
-                                state.categoryId === category.id &&
-                                state.feedId === null;
-                            return (
-                                <CategoryGroup
-                                    key={category.id}
-                                    active={active}
-                                    categoryId={category.id}
-                                    categoryName={category.name}
-                                    management={management.data}
-                                    onNavigate={onNavigate}
-                                    state={state}
-                                    subscriptions={categorySubscriptions}
-                                />
-                            );
-                        })}
+                        >
+                            {renderedRows.map(({ row, start }) => (
+                                <div
+                                    data-index={rowIndex(row)}
+                                    key={rowKey(row)}
+                                    ref={renderAllRows ? undefined : measureRow}
+                                    style={
+                                        start === null
+                                            ? undefined
+                                            : {
+                                                  left: 0,
+                                                  position: 'absolute',
+                                                  top: 0,
+                                                  transform: `translateY(${start}px)`,
+                                                  width: '100%',
+                                              }
+                                    }
+                                >
+                                    {row.kind === 'category' ? (
+                                        <CategoryRow
+                                            active={row.active}
+                                            categoryId={row.categoryId}
+                                            categoryName={row.categoryName}
+                                            entriesCount={row.entriesCount}
+                                            feedCount={row.feedCount}
+                                            feedIds={row.feedIds}
+                                            onNavigate={onNavigate}
+                                            onToggle={() => {
+                                                setCategoryOpen(
+                                                    row.categoryId,
+                                                    !row.opened,
+                                                );
+                                            }}
+                                            opened={row.opened}
+                                            state={state}
+                                        />
+                                    ) : (
+                                        <FeedRow
+                                            categories={
+                                                management.data?.categories ??
+                                                []
+                                            }
+                                            managed={management.data?.subscriptions.find(
+                                                (item) =>
+                                                    item.feedId ===
+                                                    row.subscription.feedId,
+                                            )}
+                                            onNavigate={onNavigate}
+                                            onUnsubscribed={(feedActive) => {
+                                                if (feedActive) {
+                                                    void navigate(
+                                                        readerHref(state, {
+                                                            categoryId: null,
+                                                            entryId: null,
+                                                            feedId: null,
+                                                        }),
+                                                    );
+                                                }
+                                            }}
+                                            state={state}
+                                            subscription={row.subscription}
+                                        />
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </AppShell.Section>
         </>
     );
 }
+
+type SidebarRow =
+    | {
+          readonly kind: 'category';
+          readonly categoryId: number;
+          readonly categoryName: string;
+          readonly active: boolean;
+          readonly opened: boolean;
+          readonly entriesCount: number;
+          readonly feedCount: number;
+          readonly feedIds: readonly number[];
+      }
+    | {
+          readonly kind: 'feed';
+          readonly subscription: ReaderSubscriptionList['subscriptions'][number];
+      };
+
+function CategoryRow({
+    active,
+    categoryId,
+    categoryName,
+    entriesCount,
+    feedCount,
+    feedIds,
+    opened,
+    onToggle,
+    state,
+    onNavigate,
+}: {
+    readonly active: boolean;
+    readonly categoryId: number;
+    readonly categoryName: string;
+    readonly entriesCount: number;
+    readonly feedCount: number;
+    readonly feedIds: readonly number[];
+    readonly opened: boolean;
+    readonly onToggle: () => void;
+    readonly state: ReaderState;
+    readonly onNavigate?: () => void;
+}) {
+    const feedsId = `reader-category-${categoryId}-feeds`;
+
+    return (
+        <div
+            className={`${classes.categoryRow} ${
+                active ? classes.activeFeed : ''
+            }`}
+        >
+            <NavLink
+                active={active}
+                className={classes.categoryNavigation}
+                component={Link}
+                label={categoryName}
+                onClick={onNavigate}
+                to={readerHref(state, {
+                    categoryId: active ? null : categoryId,
+                    feedId: null,
+                })}
+            />
+            <CategoryHeader
+                categoryId={categoryId}
+                entriesCount={entriesCount}
+                feedCount={feedCount}
+                feedIds={feedIds}
+                name={categoryName}
+            />
+            <ActionIcon
+                aria-controls={feedsId}
+                aria-expanded={opened}
+                aria-label={`${opened ? 'Collapse' : 'Expand'} ${categoryName} feeds`}
+                className={`${classes.categoryDisclosure} ${
+                    opened ? classes.categoryDisclosureOpened : ''
+                }`}
+                color="gray"
+                onClick={onToggle}
+                size="xs"
+                type="button"
+                variant="subtle"
+            >
+                <IconChevronRight aria-hidden="true" size={15} stroke={1.5} />
+            </ActionIcon>
+        </div>
+    );
+}
+
+const FeedRow = memo(function FeedRow({
+    categories,
+    managed,
+    onNavigate,
+    onUnsubscribed,
+    state,
+    subscription,
+}: {
+    readonly categories: readonly ManagedCategory[];
+    readonly managed: ManagedSubscription | undefined;
+    readonly onNavigate?: () => void;
+    readonly onUnsubscribed: (feedActive: boolean) => void;
+    readonly state: ReaderState;
+    readonly subscription: ReaderSubscriptionList['subscriptions'][number];
+}) {
+    const feedActive = state.feedId === subscription.feedId;
+    const name = subscription.customFeedName ?? subscription.feedName;
+
+    return (
+        <Tooltip
+            label={
+                <Stack gap={2}>
+                    <Text fw={500} size="sm">
+                        {name}
+                    </Text>
+                    <Text c="dimmed" size="xs">
+                        {feedRefreshStatus(managed)}
+                    </Text>
+                </Stack>
+            }
+            multiline
+            openDelay={1000}
+            position="right"
+            withArrow
+        >
+            <div
+                className={`${classes.collectionLink} ${
+                    feedActive ? classes.activeFeed : ''
+                }`}
+            >
+                <div className={classes.feedRow}>
+                    <Link
+                        className={classes.feedNavigationLink}
+                        onClick={onNavigate}
+                        to={readerHref(state, {
+                            feedId: subscription.feedId,
+                            categoryId: null,
+                            filter: 'all',
+                        })}
+                    >
+                        <div className={classes.feedRowLeft}>
+                            {/* Badge the favicon, not the whole row: on a
+                                row-wide wrapper the dot lands in the middle of
+                                long names. */}
+                            <Indicator
+                                className={classes.feedFailureIndicator}
+                                color="orange"
+                                disabled={
+                                    managed === undefined ||
+                                    managed.consecutiveFailures === 0
+                                }
+                                inline
+                                size={8}
+                                withBorder
+                            >
+                                <FeedFavicon
+                                    isDark={subscription.faviconIsDark}
+                                    size={18}
+                                    src={subscription.faviconUrl}
+                                />
+                            </Indicator>
+                            <span className={classes.feedName}>{name}</span>
+                        </div>
+                    </Link>
+                    <FeedActions
+                        categories={categories}
+                        managed={managed}
+                        onUnsubscribed={() => onUnsubscribed(feedActive)}
+                        showCount
+                        subscription={subscription}
+                    />
+                </div>
+            </div>
+        </Tooltip>
+    );
+});
 
 function feedRefreshStatus(
     subscription: ManagedSubscription | undefined,
