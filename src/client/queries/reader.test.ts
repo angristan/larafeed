@@ -193,6 +193,66 @@ describe('reader query contracts', () => {
         });
     });
 
+    it('moves the feed unread badge instead of refetching the library', () => {
+        const queryClient = new QueryClient();
+        queryClient.setQueryData<ReaderEntry>(entryKeys.detail(7), detail);
+        queryClient.setQueryData(subscriptionKeys.list(), {
+            subscriptions: [
+                {
+                    categoryId: 11,
+                    customFeedName: null,
+                    faviconIsDark: false,
+                    faviconUrl: null,
+                    feedId: 3,
+                    feedName: 'Example feed',
+                    totalCount: 12,
+                    unreadCount: 5,
+                },
+            ],
+        });
+
+        reconcileReaderInteraction(queryClient, { ...interaction, read: true });
+
+        expect(queryClient.getQueryData(subscriptionKeys.list())).toMatchObject(
+            {
+                subscriptions: [{ feedId: 3, unreadCount: 4 }],
+            },
+        );
+
+        reconcileReaderInteraction(queryClient, {
+            ...interaction,
+            read: false,
+        });
+
+        expect(queryClient.getQueryData(subscriptionKeys.list())).toMatchObject(
+            {
+                subscriptions: [{ feedId: 3, unreadCount: 5 }],
+            },
+        );
+    });
+
+    it('does not refetch the feed library after an interaction', async () => {
+        const queryClient = new QueryClient();
+        const subscriptionQuery = vi.fn(() =>
+            Promise.resolve({ subscriptions: [] }),
+        );
+        const observer = new QueryObserver(queryClient, {
+            queryKey: subscriptionKeys.list(),
+            queryFn: subscriptionQuery,
+        });
+        const unsubscribe = observer.subscribe(() => undefined);
+        await observer.refetch();
+        expect(subscriptionQuery).toHaveBeenCalledTimes(1);
+
+        await invalidateReaderAfterInteraction(queryClient);
+
+        expect(subscriptionQuery).toHaveBeenCalledTimes(1);
+        expect(
+            queryClient.getQueryState(subscriptionKeys.list())?.isInvalidated,
+        ).toBe(true);
+        unsubscribe();
+    });
+
     it('keeps retained lists stable while invalidating counts', async () => {
         const queryClient = new QueryClient({
             defaultOptions: { queries: { retry: false } },

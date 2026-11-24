@@ -9,6 +9,7 @@ import type {
     ReaderEntryListInput,
     ReaderEntryPage,
     ReaderInteraction,
+    ReaderSubscriptionList,
 } from '../api/reader';
 import {
     fetchReaderJson,
@@ -156,10 +157,54 @@ function patchEntry<A extends ReaderEntryPage['entries'][number]>(
     };
 }
 
+function patchSubscriptionUnread(
+    queryClient: QueryClient,
+    feedId: number,
+    unreadDelta: number,
+): void {
+    if (unreadDelta === 0) {
+        return;
+    }
+
+    queryClient.setQueriesData<ReaderSubscriptionList>(
+        { queryKey: subscriptionKeys.lists() },
+        (current) =>
+            current === undefined
+                ? current
+                : {
+                      ...current,
+                      subscriptions: current.subscriptions.map(
+                          (subscription) =>
+                              subscription.feedId === feedId
+                                  ? {
+                                        ...subscription,
+                                        unreadCount: Math.max(
+                                            0,
+                                            subscription.unreadCount +
+                                                unreadDelta,
+                                        ),
+                                    }
+                                  : subscription,
+                      ),
+                  },
+    );
+}
+
 export function reconcileReaderInteraction(
     queryClient: QueryClient,
     interaction: ReaderInteraction,
 ): void {
+    const previous = queryClient.getQueryData<ReaderEntry>(
+        entryKeys.detail(interaction.entryId),
+    );
+    if (previous !== undefined) {
+        patchSubscriptionUnread(
+            queryClient,
+            previous.feedId,
+            previous.read === interaction.read ? 0 : interaction.read ? -1 : 1,
+        );
+    }
+
     queryClient.setQueryData<ReaderEntry>(
         entryKeys.detail(interaction.entryId),
         (current) =>
@@ -201,7 +246,14 @@ export async function invalidateReaderAfterInteraction(
         // pages. Keeping them fresh avoids removing the selected unread or
         // favorite entry while the user reads through the current page.
         queryClient.invalidateQueries({ queryKey: readerKeys.counts() }),
-        queryClient.invalidateQueries({ queryKey: subscriptionKeys.lists() }),
+        // The feed badge was already patched from the interaction response.
+        // Refetching the whole library here re-rendered every feed row in the
+        // sidebar, which cost more than the click that triggered it; the list
+        // refreshes on the next natural read instead.
+        queryClient.invalidateQueries({
+            queryKey: subscriptionKeys.lists(),
+            refetchType: 'none',
+        }),
     ]);
 }
 
