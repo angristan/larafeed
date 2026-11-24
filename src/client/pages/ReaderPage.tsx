@@ -32,6 +32,7 @@ import {
     isNewerIngestion,
     latestIngestion,
 } from '../entryIngestion';
+import { shouldPrefetchEntryDetails } from '../networkHints';
 import { authSessionQueryOptions } from '../queries/auth';
 import {
     categoryListQueryOptions,
@@ -211,6 +212,10 @@ export function ReaderPage() {
 
     const prefetchEntry = useCallback(
         (entryId: number) => {
+            if (!shouldPrefetchEntryDetails()) {
+                return;
+            }
+
             void queryClient.prefetchQuery(entryDetailQueryOptions(entryId));
         },
         [queryClient],
