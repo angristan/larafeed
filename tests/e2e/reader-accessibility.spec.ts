@@ -200,6 +200,27 @@ test('navigates categories and exposes separate keyboard menus', async ({
     await expect(page).toHaveURL(/(?:\?|&)category=11(?:&|$)/u);
 });
 
+test('stacks virtualized library rows without dead space', async ({ page }) => {
+    await mockReaderApi(page);
+    await page.goto('/feeds?filter=all&order_by=published_at');
+    await expect(page.getByRole('link', { name: 'Example feed' })).toBeVisible();
+
+    // The virtualizer sizes rows from `data-index`. If that attribute does not
+    // carry the numeric index, it keeps the estimated size instead of the
+    // measured one and leaves a gap between rows.
+    const gaps = await page.evaluate(() => {
+        const rows = Array.from(document.querySelectorAll('div[data-index]'));
+        return rows.slice(1).map((row, index) => {
+            const previous = rows[index]?.getBoundingClientRect();
+            if (previous === undefined) return Number.NaN;
+            return Math.round(row.getBoundingClientRect().top - previous.bottom);
+        });
+    });
+
+    expect(gaps.length).toBeGreaterThan(0);
+    expect(gaps).toEqual(gaps.map(() => 0));
+});
+
 test('shows the RSS fallback when a favicon request fails', async ({ page }) => {
     await mockReaderApi(page, {
         faviconUrl: '/api/images/feeds/21/small',

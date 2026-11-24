@@ -1359,11 +1359,10 @@ export function ReaderSidebar({
               start: item.start,
           }));
     const rowsHeight = virtualizer.getTotalSize();
-    const rowIndex = (row: SidebarRow) =>
+    const rowKey = (row: SidebarRow) =>
         row.kind === 'category'
             ? `category-${row.categoryId}`
             : `feed-${row.subscription.feedId}`;
-    const rowKey = (row: SidebarRow) => rowIndex(row);
 
     return (
         <>
@@ -1504,14 +1503,14 @@ export function ReaderSidebar({
                                       }
                             }
                         >
-                            {renderedRows.map(({ row, start }) => (
+                            {renderedRows.map(({ index, row, start }) => (
                                 <div
                                     className={
                                         row.kind === 'feed'
                                             ? classes.virtualFeedRow
                                             : undefined
                                     }
-                                    data-index={rowIndex(row)}
+                                    data-index={index}
                                     key={rowKey(row)}
                                     ref={renderAllRows ? undefined : measureRow}
                                     style={
