@@ -1495,7 +1495,6 @@ export function ReaderSidebar({
                     )}
                     {!noResults && (
                         <div
-                            className={classes.collections}
                             style={
                                 renderAllRows
                                     ? undefined
@@ -1507,6 +1506,11 @@ export function ReaderSidebar({
                         >
                             {renderedRows.map(({ row, start }) => (
                                 <div
+                                    className={
+                                        row.kind === 'feed'
+                                            ? classes.virtualFeedRow
+                                            : undefined
+                                    }
                                     data-index={rowIndex(row)}
                                     key={rowKey(row)}
                                     ref={renderAllRows ? undefined : measureRow}
@@ -1516,9 +1520,9 @@ export function ReaderSidebar({
                                             : {
                                                   left: 0,
                                                   position: 'absolute',
+                                                  right: 0,
                                                   top: 0,
                                                   transform: `translateY(${start}px)`,
-                                                  width: '100%',
                                               }
                                     }
                                 >
