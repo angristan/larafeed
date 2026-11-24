@@ -19,17 +19,20 @@ build -> deployment dry run -> remote D1 migration -> deploy the same build outp
 
 The Vite build selects the environment and writes the flattened deployment configuration. The dry run and final config-less Wrangler command use that generated artifact. Nothing rebuilds between the dry run and deployment.
 
-Cloudflare Workers Builds watches `main` and deploys production automatically. Keep its three fields in step with this repository:
+Cloudflare Workers Builds watches `main` and deploys production automatically. Keep its two fields in step with this repository:
 
 | Field | Value |
 | --- | --- |
-| Build command | `bun install --frozen-lockfile && bunx playwright install --with-deps chromium` |
-| Deploy command | `bun run release:production` |
-| `BUN_VERSION` | `1.3.14` |
+| Build command | `bun run build:production` |
+| Deploy command | `bun run d1:migrate:production && bun run deploy:artifact` |
 
-`bun install --frozen-lockfile` is what makes the build match `bun.lock`. An `npm` install ignores that lockfile, resolves different dependency versions, and produces a bundle whose chunk names match no other build. The Playwright line supplies the Chromium runtime that `bun run test:browser` needs inside `release:production`.
+Workers Builds installs dependencies before running the build command, using the package manager named in `packageManager` (`bun@1.3.14`) and the matching `bun.lock`. Leave `BUN_VERSION` and `NODE_VERSION` unset: they override the pinned toolchain.
 
-The deploy command must be `bun run release:production`, not a dashboard-defined sequence of validation, migration, and deployment commands. That script runs `bun run validate:release`, then the checked production deployment sequence above. Use the same command for an approved manual production release, and `bun run deploy:production` only when validation already passed for the exact checkout.
+Workers Builds reads none of `build.command`, `build.cwd`, or `watch_dir` from `wrangler.jsonc`. The dashboard fields are the whole build configuration there, so a command that works locally proves nothing about the build.
+
+Validation belongs to CI, not to the deploy. `.github/workflows/tests.yml` runs `bun run validate:release` for every pull request, browser tests included. Running it again inside the build added a Chromium download to each production deploy and held the deploy on any browser test failure. The deploy command here runs only the remote migration and the deployment of the artifact the build step produced, in that order, with nothing rebuilding in between.
+
+Local manual releases keep using `bun run release:production`, which validates before it deploys.
 
 Only one deployer may own production. When Workers Builds is enabled, do not run a manual `deploy:production` for a commit that also triggered a build: two deployments racing for the same Worker produced an asset set that did not match the served HTML, and every open tab failed to import its next chunk.
 
