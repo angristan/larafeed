@@ -22,6 +22,7 @@ const entry = {
 
 interface ApiState {
     entryListRequests: number;
+    entryDetailRequests: number[];
     summaryPosts: number;
     readPuts: number;
     unsubscribeDeletes: number;
@@ -52,6 +53,7 @@ async function mockReaderApi(
               }));
     const state: ApiState = {
         entryListRequests: 0,
+        entryDetailRequests: [],
         summaryPosts: 0,
         readPuts: 0,
         unsubscribeDeletes: 0,
@@ -297,6 +299,7 @@ async function mockReaderApi(
             return;
         }
         if (pathname === '/api/entries/41' && request.method() === 'GET') {
+            state.entryDetailRequests.push(41);
             await route.fulfill(
                 json({
                     ...entry,
@@ -308,6 +311,26 @@ async function mockReaderApi(
                 }),
             );
             return;
+        }
+        const entryDetailMatch = /^\/api\/entries\/(\d+)$/u.exec(pathname);
+        if (entryDetailMatch !== null && request.method() === 'GET') {
+            const entryId = Number(entryDetailMatch[1]);
+            const listEntry = listEntries.find(
+                (candidate) => candidate.id === entryId,
+            );
+            if (listEntry !== undefined) {
+                state.entryDetailRequests.push(entryId);
+                await route.fulfill(
+                    json({
+                        ...listEntry,
+                        contentHtml: '<p>Article text for a neighbour.</p>',
+                        readChangedAt: null,
+                        starredAt: null,
+                        archivedAt: null,
+                    }),
+                );
+                return;
+            }
         }
         if (pathname === '/api/entries/41/read') {
             state.readPuts += 1;
@@ -821,6 +844,18 @@ test('keeps virtual rows stacked while scrolling during the enter animation', as
             stacked[i - 1].top + stacked[i - 1].height - 2,
         );
     }
+});
+
+test('prefetches the entries around the open one', async ({ page }) => {
+    const state = await mockReaderApi(page, 'Example feed', 0, 3);
+    await page.goto('/feeds?filter=all&order_by=published_at&entry=42');
+
+    await expect(page.locator('h1')).toHaveText('Entry 2');
+    // Keyboard and touch navigation never hover a row, so the neighbours of
+    // the open entry are fetched ahead of the next J or K press.
+    await expect
+        .poll(() => [...state.entryDetailRequests].sort((a, b) => a - b))
+        .toEqual([41, 42, 43]);
 });
 
 test('keeps a deep-linked entry fully visible below the list header', async ({

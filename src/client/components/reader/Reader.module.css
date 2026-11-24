@@ -548,6 +548,15 @@
     line-height: 1.72;
 }
 
+/* Laying out a whole article on open costs 175ms for a 540KB newsletter.
+   Blocks outside the viewport skip layout and paint; `auto` in the intrinsic
+   size remembers the measured height so the scrollbar settles after the first
+   visit of each block. */
+.articleContent > * {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 115px;
+}
+
 .articleContent :global(img),
 .articleContent :global(video),
 .articleContent :global(canvas),

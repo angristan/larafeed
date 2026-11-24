@@ -209,6 +209,34 @@ export function ReaderPage() {
         null,
     );
 
+    const prefetchEntry = useCallback(
+        (entryId: number) => {
+            void queryClient.prefetchQuery(entryDetailQueryOptions(entryId));
+        },
+        [queryClient],
+    );
+
+    // Hovering or focusing a row prefetches that row only. Keyboard and touch
+    // navigation never hover, so the open entry's neighbours are fetched ahead
+    // of the next J or K press. Cached entries are skipped by staleTime.
+    useEffect(() => {
+        if (state.entryId === null) {
+            return;
+        }
+        const index = listEntries.findIndex(
+            (entry) => entry.id === state.entryId,
+        );
+        if (index === -1) {
+            return;
+        }
+        const neighbours = [listEntries[index - 1], listEntries[index + 1]];
+        for (const neighbour of neighbours) {
+            if (neighbour !== undefined) {
+                prefetchEntry(neighbour.id);
+            }
+        }
+    }, [listEntries, prefetchEntry, state.entryId]);
+
     useEffect(() => {
         const entry = entryDetailQuery.data;
         if (
@@ -418,11 +446,7 @@ export function ReaderPage() {
                                 }
                             }}
                             onShowNewEntries={showNewEntries}
-                            onPrefetchEntry={(entryId) => {
-                                void queryClient.prefetchQuery(
-                                    entryDetailQueryOptions(entryId),
-                                );
-                            }}
+                            onPrefetchEntry={prefetchEntry}
                             onRestoreFocusHandled={() =>
                                 setReturnFocusEntryId(null)
                             }

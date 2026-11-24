@@ -54,7 +54,10 @@ export const subscriptionManagementQueryOptions = queryOptions({
     queryKey: subscriptionManagementKeys.list(),
     queryFn: ({ signal }) =>
         Effect.runPromise(listManagedSubscriptions(), { signal }),
-    staleTime: 15_000,
+    // The management payload carries every subscription and its refresh
+    // history and is only read by the library menus, so it does not need the
+    // short stale window the reader lists use.
+    staleTime: 60_000,
     retry: false,
 });
 

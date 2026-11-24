@@ -17,7 +17,7 @@ import {
     IconStarFilled,
 } from '@tabler/icons-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { type CSSProperties, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, memo, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 
 import type { ReaderEntryPage } from '../../api/reader';
@@ -116,6 +116,78 @@ const estimateEntrySize = (density: FeedListDensity): number => {
             return 65;
     }
 };
+
+interface ReaderEntryRowProps {
+    readonly entry: ReaderEntryPage['entries'][number];
+    readonly href: string;
+    readonly active: boolean;
+    readonly onPrefetchEntry: (entryId: number) => void;
+}
+
+// The virtualizer re-renders the list on every scroll tick and every selection
+// change. Each row lives in a memoized component so only rows whose own props
+// changed are reconciled instead of the whole mounted window.
+const ReaderEntryRow = memo(function ReaderEntryRow({
+    entry,
+    href,
+    active,
+    onPrefetchEntry,
+}: ReaderEntryRowProps) {
+    const feedName = entry.customFeedName ?? entry.feedName;
+
+    return (
+        <Link
+            id={`reader-entry-${entry.id}`}
+            aria-current={active ? 'true' : undefined}
+            className={`${classes.entry} ${
+                active ? classes.activeEntry : ''
+            } ${entry.read ? classes.readEntry : ''}`}
+            data-read={entry.read}
+            onFocus={() => onPrefetchEntry(entry.id)}
+            onMouseEnter={() => onPrefetchEntry(entry.id)}
+            to={href}
+        >
+            <span
+                aria-hidden="true"
+                className={classes.unreadMarker}
+                data-read={entry.read || undefined}
+            >
+                {entry.read && <IconCheck size={11} stroke={2.5} />}
+            </span>
+            <VisuallyHidden>
+                {entry.read ? 'Read entry. ' : 'Unread entry. '}
+            </VisuallyHidden>
+            <span className={classes.entryCopy}>
+                <span className={classes.entryTitle}>
+                    {entry.title || 'Untitled entry'}
+                    {entry.starred && (
+                        <IconStarFilled
+                            aria-label="Favorite"
+                            className={classes.starredIcon}
+                            size={14}
+                        />
+                    )}
+                </span>
+                <span className={classes.entryMeta}>
+                    <span className={classes.feedMeta}>
+                        <FeedFavicon
+                            isDark={entry.faviconIsDark}
+                            size={18}
+                            src={entry.faviconUrl}
+                        />
+                        <span title={feedName}>{feedName}</span>
+                    </span>
+                    <time
+                        dateTime={new Date(entry.publishedAt).toISOString()}
+                        title={absoluteTimeFormatter.format(entry.publishedAt)}
+                    >
+                        {formatRelativeTime(entry.publishedAt)}
+                    </time>
+                </span>
+            </span>
+        </Link>
+    );
+});
 
 export function ReaderEntryList({
     density,
@@ -449,9 +521,6 @@ export function ReaderEntryList({
                                     if (entry === undefined) {
                                         return null;
                                     }
-                                    const active = state.entryId === entry.id;
-                                    const feedName =
-                                        entry.customFeedName ?? entry.feedName;
                                     return (
                                         <li
                                             className={`${classes.entryItem}${animateRows?.has(virtualItem.index) ? ` ${classes.rowEnter}` : ''}`}
@@ -469,110 +538,18 @@ export function ReaderEntryList({
                                                 } as CSSProperties
                                             }
                                         >
-                                            <Link
-                                                id={`reader-entry-${entry.id}`}
-                                                aria-current={
-                                                    active ? 'true' : undefined
+                                            <ReaderEntryRow
+                                                active={
+                                                    state.entryId === entry.id
                                                 }
-                                                className={`${classes.entry} ${
-                                                    active
-                                                        ? classes.activeEntry
-                                                        : ''
-                                                } ${entry.read ? classes.readEntry : ''}`}
-                                                data-read={entry.read}
-                                                onFocus={() =>
-                                                    onPrefetchEntry(entry.id)
-                                                }
-                                                onMouseEnter={() =>
-                                                    onPrefetchEntry(entry.id)
-                                                }
-                                                to={readerHref(state, {
+                                                entry={entry}
+                                                href={readerHref(state, {
                                                     entryId: entry.id,
                                                 })}
-                                            >
-                                                <span
-                                                    aria-hidden="true"
-                                                    className={
-                                                        classes.unreadMarker
-                                                    }
-                                                    data-read={
-                                                        entry.read || undefined
-                                                    }
-                                                >
-                                                    {entry.read && (
-                                                        <IconCheck
-                                                            size={11}
-                                                            stroke={2.5}
-                                                        />
-                                                    )}
-                                                </span>
-                                                <VisuallyHidden>
-                                                    {entry.read
-                                                        ? 'Read entry. '
-                                                        : 'Unread entry. '}
-                                                </VisuallyHidden>
-                                                <span
-                                                    className={
-                                                        classes.entryCopy
-                                                    }
-                                                >
-                                                    <span
-                                                        className={
-                                                            classes.entryTitle
-                                                        }
-                                                    >
-                                                        {entry.title ||
-                                                            'Untitled entry'}
-                                                        {entry.starred && (
-                                                            <IconStarFilled
-                                                                aria-label="Favorite"
-                                                                className={
-                                                                    classes.starredIcon
-                                                                }
-                                                                size={14}
-                                                            />
-                                                        )}
-                                                    </span>
-                                                    <span
-                                                        className={
-                                                            classes.entryMeta
-                                                        }
-                                                    >
-                                                        <span
-                                                            className={
-                                                                classes.feedMeta
-                                                            }
-                                                        >
-                                                            <FeedFavicon
-                                                                isDark={
-                                                                    entry.faviconIsDark
-                                                                }
-                                                                size={18}
-                                                                src={
-                                                                    entry.faviconUrl
-                                                                }
-                                                            />
-                                                            <span
-                                                                title={feedName}
-                                                            >
-                                                                {feedName}
-                                                            </span>
-                                                        </span>
-                                                        <time
-                                                            dateTime={new Date(
-                                                                entry.publishedAt,
-                                                            ).toISOString()}
-                                                            title={absoluteTimeFormatter.format(
-                                                                entry.publishedAt,
-                                                            )}
-                                                        >
-                                                            {formatRelativeTime(
-                                                                entry.publishedAt,
-                                                            )}
-                                                        </time>
-                                                    </span>
-                                                </span>
-                                            </Link>
+                                                onPrefetchEntry={
+                                                    onPrefetchEntry
+                                                }
+                                            />
                                         </li>
                                     );
                                 })}
