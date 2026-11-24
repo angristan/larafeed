@@ -216,6 +216,16 @@ export function ReaderPage() {
         [queryClient],
     );
 
+    // The list already holds the title, feed, and flags of the selected entry,
+    // so the detail pane paints its header before the detail request lands.
+    const previewEntry = useMemo(
+        () =>
+            state.entryId === null
+                ? undefined
+                : listEntries.find((entry) => entry.id === state.entryId),
+        [listEntries, state.entryId],
+    );
+
     // Hovering or focusing a row prefetches that row only. Keyboard and touch
     // navigation never hover, so the open entry's neighbours are fetched ahead
     // of the next J or K press. Cached entries are skipped by staleTime.
@@ -539,6 +549,7 @@ export function ReaderPage() {
                             onSetSummarize={(summarize) =>
                                 void navigate(readerHref(state, { summarize }))
                             }
+                            previewEntry={previewEntry}
                             readPending={entryMutations.read.isPending}
                             selected={state.entryId !== null}
                             starPending={entryMutations.star.isPending}

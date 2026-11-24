@@ -40,6 +40,7 @@ async function mockReaderApi(
     feedName = 'Example feed',
     newEntryCount = 0,
     entryCount = 1,
+    detailDelayMs = 0,
 ): Promise<ApiState> {
     const listEntries =
         entryCount === 1
@@ -320,10 +321,15 @@ async function mockReaderApi(
             );
             if (listEntry !== undefined) {
                 state.entryDetailRequests.push(entryId);
+                if (detailDelayMs > 0) {
+                    await new Promise((resolve) =>
+                        setTimeout(resolve, detailDelayMs),
+                    );
+                }
                 await route.fulfill(
                     json({
                         ...listEntry,
-                        contentHtml: '<p>Article text for a neighbour.</p>',
+                        contentHtml: `<p>Article text for entry ${entryId}.</p>`,
                         readChangedAt: null,
                         starredAt: null,
                         archivedAt: null,
@@ -844,6 +850,20 @@ test('keeps virtual rows stacked while scrolling during the enter animation', as
             stacked[i - 1].top + stacked[i - 1].height - 2,
         );
     }
+});
+
+test('paints the entry header before the article arrives', async ({ page }) => {
+    await mockReaderApi(page, 'Example feed', 0, 3, 1200);
+    await page.goto('/feeds?filter=all&order_by=published_at');
+
+    await page.locator('#reader-entry-42').click();
+    // The list row already carries the title, so the pane paints its header
+    // while the detail request is still in flight.
+    await expect(page.locator('h1')).toHaveText('Entry 2');
+    await expect(page.getByText('Article text for entry 42.')).toHaveCount(0);
+    await expect(page.getByText('Article text for entry 42.')).toBeVisible({
+        timeout: 5_000,
+    });
 });
 
 test('prefetches the entries around the open one', async ({ page }) => {
