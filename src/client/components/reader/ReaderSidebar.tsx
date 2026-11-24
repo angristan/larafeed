@@ -1329,7 +1329,7 @@ export function ReaderSidebar({
     useEffect(() => setMounted(true), []);
     const virtualizer = useVirtualizer({
         count: rows.length,
-        estimateSize: (index) => (rows[index]?.kind === 'category' ? 34 : 38),
+        estimateSize: (index) => (rows[index]?.kind === 'category' ? 32 : 28),
         getItemKey: (index) => {
             const row = rows[index];
             if (row === undefined) return index;
