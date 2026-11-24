@@ -862,38 +862,38 @@ export function ReaderEntryDetail({
                             )}
                         </Text>
 
+                        {entry === undefined && error !== null && (
+                            <Alert
+                                color="red"
+                                role="alert"
+                                title="Entry unavailable"
+                            >
+                                <Stack gap="sm">
+                                    <Text size="sm">{error.message}</Text>
+                                    <Button
+                                        leftSection={
+                                            <IconRefresh
+                                                aria-hidden="true"
+                                                size={15}
+                                            />
+                                        }
+                                        onClick={onRetry}
+                                        size="xs"
+                                        variant="light"
+                                    >
+                                        Retry
+                                    </Button>
+                                </Stack>
+                            </Alert>
+                        )}
+
                         <div hidden={summarize}>
                             {entry === undefined ? (
                                 // The header is already painted from the list
                                 // row; only the article waits for its payload.
                                 error === null ? (
                                     <PaneSkeleton label="Loading entry" />
-                                ) : (
-                                    <Alert
-                                        color="red"
-                                        role="alert"
-                                        title="Entry unavailable"
-                                    >
-                                        <Stack gap="sm">
-                                            <Text size="sm">
-                                                {error.message}
-                                            </Text>
-                                            <Button
-                                                leftSection={
-                                                    <IconRefresh
-                                                        aria-hidden="true"
-                                                        size={15}
-                                                    />
-                                                }
-                                                onClick={onRetry}
-                                                size="xs"
-                                                variant="light"
-                                            >
-                                                Retry
-                                            </Button>
-                                        </Stack>
-                                    </Alert>
-                                )
+                                ) : null
                             ) : fullArticle && entry.url !== null ? (
                                 <ReaderEntryFullContent entryId={entry.id} />
                             ) : entry.contentHtml === null ||

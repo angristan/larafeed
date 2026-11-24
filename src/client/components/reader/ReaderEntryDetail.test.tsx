@@ -61,11 +61,15 @@ interface RenderOptions {
     readonly summarize?: boolean;
     readonly detailEntry?: ReaderEntry | undefined;
     readonly previewEntry?: ReaderEntry;
+    readonly isPending?: boolean;
+    readonly error?: Error | null;
 }
 
 const renderDetail = (options: RenderOptions = {}): string => {
     const { summary, previewEntry } = options;
     const summarize = options.summarize ?? false;
+    const isPending = options.isPending ?? false;
+    const error = options.error ?? null;
     // An explicit `detailEntry: undefined` models the pending detail request.
     const detailEntry = 'detailEntry' in options ? options.detailEntry : entry;
     const queryClient = new QueryClient({
@@ -85,9 +89,9 @@ const renderDetail = (options: RenderOptions = {}): string => {
                 <ReaderEntryDetail
                     archivePending={false}
                     entry={detailEntry}
-                    error={null}
+                    error={error}
                     isFetching={false}
-                    isPending={false}
+                    isPending={isPending}
                     mutationError={null}
                     onBack={() => undefined}
                     onRetry={() => undefined}
@@ -174,8 +178,10 @@ describe('ReaderEntryDetail summaries', () => {
     });
 
     it('paints the header from the list row while the article loads', () => {
+        // A newly opened entry has no data yet, so the query is pending.
         const markup = renderDetail({
             detailEntry: undefined,
+            isPending: true,
             previewEntry: entry,
         });
 
@@ -183,6 +189,23 @@ describe('ReaderEntryDetail summaries', () => {
         expect(markup).toContain('aria-label="Loading entry"');
         expect(markup).not.toContain('Article content.');
         expect(markup).not.toContain('min read');
+    });
+
+    it('keeps the detail error outside the hidden article pane', () => {
+        const markup = renderDetail({
+            detailEntry: undefined,
+            error: new Error('Storage is unavailable.'),
+            previewEntry: entry,
+            summarize: true,
+        });
+
+        // The article pane is hidden while the summary is open, so an alert
+        // rendered inside it would never reach the reader.
+        expect(markup).toContain('Entry unavailable');
+        expect(markup).toContain('Storage is unavailable.');
+        expect(markup.indexOf('Entry unavailable')).toBeLessThan(
+            markup.indexOf('<div hidden'),
+        );
     });
 
     it('offers the full article toggle in the toolbar', () => {
