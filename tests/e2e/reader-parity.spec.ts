@@ -35,12 +35,33 @@ const json = (body: unknown) => ({
     body: JSON.stringify(body),
 });
 
+interface EntryDetailGate {
+    /** Resolves the held detail responses. */
+    release: () => void;
+    /** Pending until the test releases the held responses. */
+    wait: Promise<void>;
+}
+
+/**
+ * Holds entry detail responses so a test can observe the pane while the
+ * request is in flight. A timer would make the assertion a race against the
+ * runner's speed.
+ */
+function entryDetailGate(): EntryDetailGate {
+    let release = () => {};
+    const wait = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+
+    return { release: () => release(), wait };
+}
+
 async function mockReaderApi(
     page: Page,
     feedName = 'Example feed',
     newEntryCount = 0,
     entryCount = 1,
-    detailDelayMs = 0,
+    detailGate?: EntryDetailGate,
 ): Promise<ApiState> {
     const listEntries =
         entryCount === 1
@@ -321,10 +342,8 @@ async function mockReaderApi(
             );
             if (listEntry !== undefined) {
                 state.entryDetailRequests.push(entryId);
-                if (detailDelayMs > 0) {
-                    await new Promise((resolve) =>
-                        setTimeout(resolve, detailDelayMs),
-                    );
+                if (detailGate !== undefined) {
+                    await detailGate.wait;
                 }
                 await route.fulfill(
                     json({
@@ -853,14 +872,22 @@ test('keeps virtual rows stacked while scrolling during the enter animation', as
 });
 
 test('paints the entry header before the article arrives', async ({ page }) => {
-    await mockReaderApi(page, 'Example feed', 0, 3, 1200);
+    const gate = entryDetailGate();
+    await mockReaderApi(page, 'Example feed', 0, 3, gate);
     await page.goto('/feeds?filter=all&order_by=published_at');
 
-    await page.locator('#reader-entry-42').click();
-    // The list row already carries the title, so the pane paints its header
-    // while the detail request is still in flight.
-    await expect(page.locator('h1')).toHaveText('Entry 2');
-    await expect(page.getByText('Article text for entry 42.')).toHaveCount(0);
+    try {
+        await page.locator('#reader-entry-42').click();
+        // The list row already carries the title, so the pane paints its
+        // header while the detail request is still in flight.
+        await expect(page.locator('h1')).toHaveText('Entry 2');
+        await expect(
+            page.getByText('Article text for entry 42.'),
+        ).toHaveCount(0);
+    } finally {
+        gate.release();
+    }
+
     await expect(page.getByText('Article text for entry 42.')).toBeVisible({
         timeout: 5_000,
     });
