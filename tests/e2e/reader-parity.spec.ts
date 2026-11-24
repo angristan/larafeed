@@ -22,6 +22,7 @@ const entry = {
 
 interface ApiState {
     entryListRequests: number;
+    entryDetailRequests: number[];
     summaryPosts: number;
     readPuts: number;
     unsubscribeDeletes: number;
@@ -34,11 +35,33 @@ const json = (body: unknown) => ({
     body: JSON.stringify(body),
 });
 
+interface EntryDetailGate {
+    /** Resolves the held detail responses. */
+    release: () => void;
+    /** Pending until the test releases the held responses. */
+    wait: Promise<void>;
+}
+
+/**
+ * Holds entry detail responses so a test can observe the pane while the
+ * request is in flight. A timer would make the assertion a race against the
+ * runner's speed.
+ */
+function entryDetailGate(): EntryDetailGate {
+    let release = () => {};
+    const wait = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+
+    return { release: () => release(), wait };
+}
+
 async function mockReaderApi(
     page: Page,
     feedName = 'Example feed',
     newEntryCount = 0,
     entryCount = 1,
+    detailGate?: EntryDetailGate,
 ): Promise<ApiState> {
     const listEntries =
         entryCount === 1
@@ -52,6 +75,7 @@ async function mockReaderApi(
               }));
     const state: ApiState = {
         entryListRequests: 0,
+        entryDetailRequests: [],
         summaryPosts: 0,
         readPuts: 0,
         unsubscribeDeletes: 0,
@@ -297,6 +321,7 @@ async function mockReaderApi(
             return;
         }
         if (pathname === '/api/entries/41' && request.method() === 'GET') {
+            state.entryDetailRequests.push(41);
             await route.fulfill(
                 json({
                     ...entry,
@@ -308,6 +333,29 @@ async function mockReaderApi(
                 }),
             );
             return;
+        }
+        const entryDetailMatch = /^\/api\/entries\/(\d+)$/u.exec(pathname);
+        if (entryDetailMatch !== null && request.method() === 'GET') {
+            const entryId = Number(entryDetailMatch[1]);
+            const listEntry = listEntries.find(
+                (candidate) => candidate.id === entryId,
+            );
+            if (listEntry !== undefined) {
+                state.entryDetailRequests.push(entryId);
+                if (detailGate !== undefined) {
+                    await detailGate.wait;
+                }
+                await route.fulfill(
+                    json({
+                        ...listEntry,
+                        contentHtml: `<p>Article text for entry ${entryId}.</p>`,
+                        readChangedAt: null,
+                        starredAt: null,
+                        archivedAt: null,
+                    }),
+                );
+                return;
+            }
         }
         if (pathname === '/api/entries/41/read') {
             state.readPuts += 1;
@@ -821,6 +869,40 @@ test('keeps virtual rows stacked while scrolling during the enter animation', as
             stacked[i - 1].top + stacked[i - 1].height - 2,
         );
     }
+});
+
+test('paints the entry header before the article arrives', async ({ page }) => {
+    const gate = entryDetailGate();
+    await mockReaderApi(page, 'Example feed', 0, 3, gate);
+    await page.goto('/feeds?filter=all&order_by=published_at');
+
+    try {
+        await page.locator('#reader-entry-42').click();
+        // The list row already carries the title, so the pane paints its
+        // header while the detail request is still in flight.
+        await expect(page.locator('h1')).toHaveText('Entry 2');
+        await expect(
+            page.getByText('Article text for entry 42.'),
+        ).toHaveCount(0);
+    } finally {
+        gate.release();
+    }
+
+    await expect(page.getByText('Article text for entry 42.')).toBeVisible({
+        timeout: 5_000,
+    });
+});
+
+test('prefetches the entries around the open one', async ({ page }) => {
+    const state = await mockReaderApi(page, 'Example feed', 0, 3);
+    await page.goto('/feeds?filter=all&order_by=published_at&entry=42');
+
+    await expect(page.locator('h1')).toHaveText('Entry 2');
+    // Keyboard and touch navigation never hover a row, so the neighbours of
+    // the open entry are fetched ahead of the next J or K press.
+    await expect
+        .poll(() => [...state.entryDetailRequests].sort((a, b) => a - b))
+        .toEqual([41, 42, 43]);
 });
 
 test('keeps a deep-linked entry fully visible below the list header', async ({

@@ -56,7 +56,22 @@ const managedSubscription = {
     refreshes: [],
 };
 
-const renderDetail = (summary?: unknown, summarize = false): string => {
+interface RenderOptions {
+    readonly summary?: unknown;
+    readonly summarize?: boolean;
+    readonly detailEntry?: ReaderEntry | undefined;
+    readonly previewEntry?: ReaderEntry;
+    readonly isPending?: boolean;
+    readonly error?: Error | null;
+}
+
+const renderDetail = (options: RenderOptions = {}): string => {
+    const { summary, previewEntry } = options;
+    const summarize = options.summarize ?? false;
+    const isPending = options.isPending ?? false;
+    const error = options.error ?? null;
+    // An explicit `detailEntry: undefined` models the pending detail request.
+    const detailEntry = 'detailEntry' in options ? options.detailEntry : entry;
     const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false } },
     });
@@ -73,10 +88,10 @@ const renderDetail = (summary?: unknown, summarize = false): string => {
             <MantineProvider>
                 <ReaderEntryDetail
                     archivePending={false}
-                    entry={entry}
-                    error={null}
+                    entry={detailEntry}
+                    error={error}
                     isFetching={false}
-                    isPending={false}
+                    isPending={isPending}
                     mutationError={null}
                     onBack={() => undefined}
                     onRetry={() => undefined}
@@ -84,6 +99,7 @@ const renderDetail = (summary?: unknown, summarize = false): string => {
                     onSetRead={() => undefined}
                     onSetStarred={() => undefined}
                     onSetSummarize={() => undefined}
+                    previewEntry={previewEntry}
                     readPending={false}
                     selected
                     starPending={false}
@@ -96,8 +112,9 @@ const renderDetail = (summary?: unknown, summarize = false): string => {
 
 describe('ReaderEntryDetail summaries', () => {
     it('renders cached sanitized summary HTML without regeneration', () => {
-        const markup = renderDetail(
-            {
+        const markup = renderDetail({
+            summarize: true,
+            summary: {
                 summary: {
                     id: 41,
                     entryId: entry.id,
@@ -107,8 +124,7 @@ describe('ReaderEntryDetail summaries', () => {
                     generatedAt: 1_900_000_000_000,
                 },
             },
-            true,
-        );
+        });
         expect(markup).not.toContain('aria-label="Entry view"');
         expect(markup).toContain(
             'aria-label="Open original article in a new tab"',
@@ -128,12 +144,14 @@ describe('ReaderEntryDetail summaries', () => {
     it('does not mount summary content while article mode is active', () => {
         const markup = renderDetail({
             summary: {
-                id: 41,
-                entryId: entry.id,
-                html: '<p>Must stay inactive.</p>',
-                model: 'gemini-2.5-flash',
-                promptVersion: 'entry-summary-v1',
-                generatedAt: 1_900_000_000_000,
+                summary: {
+                    id: 41,
+                    entryId: entry.id,
+                    html: '<p>Must stay inactive.</p>',
+                    model: 'gemini-2.5-flash',
+                    promptVersion: 'entry-summary-v1',
+                    generatedAt: 1_900_000_000_000,
+                },
             },
         });
         expect(markup).toContain('Article content.');
@@ -143,8 +161,11 @@ describe('ReaderEntryDetail summaries', () => {
     });
 
     it('shows a skeleton immediately while loading or starting generation', () => {
-        expect(renderDetail(undefined, true)).toContain('Loading summary');
-        const missing = renderDetail({ summary: null }, true);
+        expect(renderDetail({ summarize: true })).toContain('Loading summary');
+        const missing = renderDetail({
+            summarize: true,
+            summary: { summary: null },
+        });
         expect(missing).toContain('Loading summary');
         expect(missing).not.toContain('Generate summary');
     });
@@ -154,6 +175,37 @@ describe('ReaderEntryDetail summaries', () => {
 
         expect(markup).toContain('aria-label="Back to entry list"');
         expect(markup).toMatch(/<h1[^>]*tabindex="-1"[^>]*>Article<\/h1>/u);
+    });
+
+    it('paints the header from the list row while the article loads', () => {
+        // A newly opened entry has no data yet, so the query is pending.
+        const markup = renderDetail({
+            detailEntry: undefined,
+            isPending: true,
+            previewEntry: entry,
+        });
+
+        expect(markup).toMatch(/<h1[^>]*tabindex="-1"[^>]*>Article<\/h1>/u);
+        expect(markup).toContain('aria-label="Loading entry"');
+        expect(markup).not.toContain('Article content.');
+        expect(markup).not.toContain('min read');
+    });
+
+    it('keeps the detail error outside the hidden article pane', () => {
+        const markup = renderDetail({
+            detailEntry: undefined,
+            error: new Error('Storage is unavailable.'),
+            previewEntry: entry,
+            summarize: true,
+        });
+
+        // The article pane is hidden while the summary is open, so an alert
+        // rendered inside it would never reach the reader.
+        expect(markup).toContain('Entry unavailable');
+        expect(markup).toContain('Storage is unavailable.');
+        expect(markup.indexOf('Entry unavailable')).toBeLessThan(
+            markup.indexOf('<div hidden'),
+        );
     });
 
     it('offers the full article toggle in the toolbar', () => {

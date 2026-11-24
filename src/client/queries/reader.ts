@@ -130,7 +130,10 @@ export function entryDetailQueryOptions(entryId: number) {
                 signal,
                 (decoders) => decoders.decodeReaderEntry,
             ),
-        staleTime: 30_000,
+        // An entry's HTML never changes once ingested, and read/starred flags
+        // are patched into this cache by reconcileReaderInteraction. A long
+        // stale time keeps revisits instant instead of refetching each time.
+        staleTime: 5 * 60_000,
         retry: false,
     });
 }

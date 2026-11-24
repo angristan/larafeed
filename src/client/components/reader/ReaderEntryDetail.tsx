@@ -43,7 +43,7 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { ReaderEntry } from '../../api/reader';
+import type { ReaderEntry, ReaderEntryPage } from '../../api/reader';
 import {
     entryFullContentQueryOptions,
     fetchEntryFullContentMutationOptions,
@@ -67,6 +67,12 @@ import {
 
 interface ReaderEntryDetailProps {
     readonly entry: ReaderEntry | undefined;
+    /**
+     * The same entry as returned by the list query, which already holds the
+     * title, feed, and flags. The pane paints its header from this while the
+     * detail request is in flight, so a click never shows an empty frame.
+     */
+    readonly previewEntry: ReaderEntryPage['entries'][number] | undefined;
     readonly selected: boolean;
     readonly isPending: boolean;
     readonly isFetching: boolean;
@@ -388,6 +394,7 @@ function ReaderEntrySummary({ entryId }: { readonly entryId: number }) {
 
 export function ReaderEntryDetail({
     entry,
+    previewEntry,
     selected,
     isPending,
     isFetching,
@@ -406,8 +413,9 @@ export function ReaderEntryDetail({
 }: ReaderEntryDetailProps) {
     const theme = useMantineTheme();
     const management = useQuery(subscriptionManagementQueryOptions);
+    const shownEntry = entry ?? previewEntry;
     const managedSubscription = management.data?.subscriptions.find(
-        (subscription) => subscription.feedId === entry?.feedId,
+        (subscription) => subscription.feedId === shownEntry?.feedId,
     );
     const detailHeading = useRef<HTMLHeadingElement>(null);
     const focusedEntry = useRef<number | null>(null);
@@ -433,7 +441,7 @@ export function ReaderEntryDetail({
 
     const [fullArticle, setFullArticle] = useState(false);
 
-    const entryId = entry?.id;
+    const entryId = shownEntry?.id;
     useEffect(() => {
         if (entryId === undefined) return;
         setFullArticle(false);
@@ -446,8 +454,8 @@ export function ReaderEntryDetail({
             return;
         }
         if (
-            entry === undefined ||
-            focusedEntry.current === entry.id ||
+            shownEntry === undefined ||
+            focusedEntry.current === shownEntry.id ||
             typeof window === 'undefined' ||
             !window.matchMedia(SINGLE_PANE_MEDIA_QUERY).matches
         ) {
@@ -456,10 +464,10 @@ export function ReaderEntryDetail({
 
         const heading = detailHeading.current;
         if (heading !== null) {
-            focusedEntry.current = entry.id;
+            focusedEntry.current = shownEntry.id;
             heading.focus();
         }
-    }, [entry, selected]);
+    }, [shownEntry, selected]);
 
     if (!selected) {
         return (
@@ -480,7 +488,7 @@ export function ReaderEntryDetail({
         );
     }
 
-    if (isPending && entry === undefined) {
+    if (isPending && shownEntry === undefined) {
         return (
             <section
                 aria-busy="true"
@@ -499,7 +507,7 @@ export function ReaderEntryDetail({
         );
     }
 
-    if (error !== null && entry === undefined) {
+    if (error !== null && shownEntry === undefined) {
         return (
             <section aria-label="Entry error" className={classes.detailPane}>
                 <Alert color="red" m="lg" title="Entry unavailable">
@@ -537,9 +545,9 @@ export function ReaderEntryDetail({
         );
     }
 
-    if (entry === undefined) return null;
+    if (shownEntry === undefined) return null;
 
-    const feedName = entry.customFeedName ?? entry.feedName;
+    const feedName = shownEntry.customFeedName ?? shownEntry.feedName;
 
     return (
         <Flex
@@ -570,9 +578,9 @@ export function ReaderEntryDetail({
                         </Button>
                         <span className={classes.sourceFavicon}>
                             <FeedFavicon
-                                isDark={entry.faviconIsDark}
+                                isDark={shownEntry.faviconIsDark}
                                 size={18}
-                                src={entry.faviconUrl}
+                                src={shownEntry.faviconUrl}
                             />
                         </span>
                         <Text
@@ -590,7 +598,7 @@ export function ReaderEntryDetail({
                         gap={0}
                         wrap="nowrap"
                     >
-                        {entry.url !== null && (
+                        {shownEntry.url !== null && (
                             <>
                                 <Group
                                     className={classes.accessActions}
@@ -637,7 +645,7 @@ export function ReaderEntryDetail({
                                             aria-label="Open original article in a new tab"
                                             color="gray"
                                             component="a"
-                                            href={entry.url}
+                                            href={shownEntry.url}
                                             rel="noopener noreferrer"
                                             size={36}
                                             target="_blank"
@@ -665,25 +673,27 @@ export function ReaderEntryDetail({
                         >
                             <Tooltip
                                 label={
-                                    entry.starred
+                                    shownEntry.starred
                                         ? 'Remove from favorites'
                                         : 'Add to favorites'
                                 }
                             >
                                 <ActionIcon
                                     aria-label={
-                                        entry.starred
+                                        shownEntry.starred
                                             ? 'Remove entry from favorites'
                                             : 'Add entry to favorites'
                                     }
-                                    aria-pressed={entry.starred}
+                                    aria-pressed={shownEntry.starred}
                                     color="gray"
                                     loading={starPending}
-                                    onClick={() => onSetStarred(!entry.starred)}
+                                    onClick={() =>
+                                        onSetStarred(!shownEntry.starred)
+                                    }
                                     size={36}
                                     variant="subtle"
                                 >
-                                    {entry.starred ? (
+                                    {shownEntry.starred ? (
                                         <IconStarFilled
                                             size={16}
                                             stroke={2.5}
@@ -696,27 +706,27 @@ export function ReaderEntryDetail({
 
                             <Tooltip
                                 label={
-                                    entry.read
+                                    shownEntry.read
                                         ? 'Mark as unread'
                                         : 'Mark as read'
                                 }
                             >
                                 <ActionIcon
                                     aria-label={
-                                        entry.read
+                                        shownEntry.read
                                             ? 'Mark entry as unread'
                                             : 'Mark entry as read'
                                     }
-                                    aria-pressed={entry.read}
+                                    aria-pressed={shownEntry.read}
                                     className={classes.readAction}
                                     color="gray"
                                     data-direct-read-action
                                     loading={readPending}
-                                    onClick={() => onSetRead(!entry.read)}
+                                    onClick={() => onSetRead(!shownEntry.read)}
                                     size={36}
                                     variant="subtle"
                                 >
-                                    {entry.read ? (
+                                    {shownEntry.read ? (
                                         <IconCircle size={16} stroke={2.5} />
                                     ) : (
                                         <IconCircleFilled
@@ -754,7 +764,7 @@ export function ReaderEntryDetail({
                                             <Menu.Item
                                                 disabled={readPending}
                                                 leftSection={
-                                                    entry.read ? (
+                                                    shownEntry.read ? (
                                                         <IconCircle size={14} />
                                                     ) : (
                                                         <IconCircleFilled
@@ -763,17 +773,17 @@ export function ReaderEntryDetail({
                                                     )
                                                 }
                                                 onClick={() =>
-                                                    onSetRead(!entry.read)
+                                                    onSetRead(!shownEntry.read)
                                                 }
                                             >
-                                                {entry.read
+                                                {shownEntry.read
                                                     ? 'Mark as unread'
                                                     : 'Mark as read'}
                                             </Menu.Item>
                                             <Menu.Item
                                                 disabled={archivePending}
                                                 leftSection={
-                                                    entry.archived ? (
+                                                    shownEntry.archived ? (
                                                         <IconArchiveOff
                                                             size={14}
                                                         />
@@ -785,11 +795,11 @@ export function ReaderEntryDetail({
                                                 }
                                                 onClick={() =>
                                                     onSetArchived(
-                                                        !entry.archived,
+                                                        !shownEntry.archived,
                                                     )
                                                 }
                                             >
-                                                {entry.archived
+                                                {shownEntry.archived
                                                     ? 'Restore entry'
                                                     : 'Archive entry'}
                                             </Menu.Item>
@@ -799,13 +809,14 @@ export function ReaderEntryDetail({
                                     managed={managedSubscription}
                                     onUnsubscribed={onBack}
                                     subscription={{
-                                        feedId: entry.feedId,
+                                        feedId: shownEntry.feedId,
                                         categoryId:
                                             managedSubscription.categoryId,
-                                        feedName: entry.feedName,
-                                        customFeedName: entry.customFeedName,
-                                        faviconUrl: entry.faviconUrl,
-                                        faviconIsDark: entry.faviconIsDark,
+                                        feedName: shownEntry.feedName,
+                                        customFeedName:
+                                            shownEntry.customFeedName,
+                                        faviconUrl: shownEntry.faviconUrl,
+                                        faviconIsDark: shownEntry.faviconIsDark,
                                         totalCount:
                                             managedSubscription.entryCount,
                                         unreadCount:
@@ -839,11 +850,11 @@ export function ReaderEntryDetail({
                             className={classes.entryTitle}
                             tabIndex={-1}
                         >
-                            {entry.title || 'Untitled entry'}
+                            {shownEntry.title || 'Untitled entry'}
                         </Title>
                         <Text c="dimmed" size="sm">
-                            {entry.author ? `${entry.author} • ` : ''}
-                            {formatRelativeTime(entry.publishedAt)}
+                            {shownEntry.author ? `${shownEntry.author} • ` : ''}
+                            {formatRelativeTime(shownEntry.publishedAt)}
                             {readingTime !== null && (
                                 <span title="Estimated reading time at 300 words per minute">
                                     {` • ${readingTimeLabel(readingTime)}`}
@@ -851,8 +862,39 @@ export function ReaderEntryDetail({
                             )}
                         </Text>
 
+                        {entry === undefined && error !== null && (
+                            <Alert
+                                color="red"
+                                role="alert"
+                                title="Entry unavailable"
+                            >
+                                <Stack gap="sm">
+                                    <Text size="sm">{error.message}</Text>
+                                    <Button
+                                        leftSection={
+                                            <IconRefresh
+                                                aria-hidden="true"
+                                                size={15}
+                                            />
+                                        }
+                                        onClick={onRetry}
+                                        size="xs"
+                                        variant="light"
+                                    >
+                                        Retry
+                                    </Button>
+                                </Stack>
+                            </Alert>
+                        )}
+
                         <div hidden={summarize}>
-                            {fullArticle && entry.url !== null ? (
+                            {entry === undefined ? (
+                                // The header is already painted from the list
+                                // row; only the article waits for its payload.
+                                error === null ? (
+                                    <PaneSkeleton label="Loading entry" />
+                                ) : null
+                            ) : fullArticle && entry.url !== null ? (
                                 <ReaderEntryFullContent entryId={entry.id} />
                             ) : entry.contentHtml === null ||
                               entry.contentHtml.trim().length === 0 ? (
@@ -937,7 +979,9 @@ export function ReaderEntryDetail({
                                 )}
                             </Flex>
                             {summarize &&
-                                (fullArticle && entry.url !== null ? (
+                                (entry === undefined ? (
+                                    <SummarySkeleton />
+                                ) : fullArticle && entry.url !== null ? (
                                     <ReaderEntryFullSummary
                                         entryId={entry.id}
                                     />
