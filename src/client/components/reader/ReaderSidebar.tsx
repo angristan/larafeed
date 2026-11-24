@@ -1359,11 +1359,10 @@ export function ReaderSidebar({
               start: item.start,
           }));
     const rowsHeight = virtualizer.getTotalSize();
-    const rowIndex = (row: SidebarRow) =>
+    const rowKey = (row: SidebarRow) =>
         row.kind === 'category'
             ? `category-${row.categoryId}`
             : `feed-${row.subscription.feedId}`;
-    const rowKey = (row: SidebarRow) => rowIndex(row);
 
     return (
         <>
@@ -1495,7 +1494,6 @@ export function ReaderSidebar({
                     )}
                     {!noResults && (
                         <div
-                            className={classes.collections}
                             style={
                                 renderAllRows
                                     ? undefined
@@ -1505,9 +1503,14 @@ export function ReaderSidebar({
                                       }
                             }
                         >
-                            {renderedRows.map(({ row, start }) => (
+                            {renderedRows.map(({ index, row, start }) => (
                                 <div
-                                    data-index={rowIndex(row)}
+                                    className={
+                                        row.kind === 'feed'
+                                            ? classes.virtualFeedRow
+                                            : undefined
+                                    }
+                                    data-index={index}
                                     key={rowKey(row)}
                                     ref={renderAllRows ? undefined : measureRow}
                                     style={
@@ -1516,9 +1519,9 @@ export function ReaderSidebar({
                                             : {
                                                   left: 0,
                                                   position: 'absolute',
+                                                  right: 0,
                                                   top: 0,
                                                   transform: `translateY(${start}px)`,
-                                                  width: '100%',
                                               }
                                     }
                                 >

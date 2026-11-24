@@ -311,6 +311,18 @@
     border-left: 1px solid color-mix(in srgb, var(--ds-line) 72%, transparent);
 }
 
+/* The virtualized library renders feed rows one by one, so each row carries
+   the indent and guide line the category container used to draw. */
+.virtualFeedRow {
+    padding-left: 8px;
+    margin-left: 11px;
+    border-left: 1px solid color-mix(in srgb, var(--ds-line) 72%, transparent);
+}
+
+.virtualFeedRow .collectionLink {
+    margin-bottom: 1px;
+}
+
 .collections {
     padding-top: 1px;
 }
