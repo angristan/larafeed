@@ -161,8 +161,3 @@ export function useEntryInteractionMutations(entryId: number) {
         archive: useMutation(entryArchiveMutationOptions(queryClient, entryId)),
     };
 }
-
-export function useReadThroughMutation(feedId: number) {
-    const queryClient = useQueryClient();
-    return useMutation(readThroughMutationOptions(queryClient, feedId));
-}

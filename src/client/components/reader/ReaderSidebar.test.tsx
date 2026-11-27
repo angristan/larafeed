@@ -81,6 +81,57 @@ describe('ReaderSidebar', () => {
         expect(markup).not.toContain('Reader app tokens');
     });
 
+    it('renders only a window of a large library on first render', () => {
+        const queryClient = new QueryClient({
+            defaultOptions: { queries: { retry: false } },
+        });
+        const subscriptions = Array.from({ length: 300 }, (_, index) => ({
+            feedId: index + 1,
+            categoryId: 3,
+            feedName: `Feed ${index + 1}`,
+            customFeedName: null,
+            faviconUrl: null,
+            faviconIsDark: false,
+            totalCount: 20,
+            unreadCount: 0,
+        }));
+        const markup = renderToStaticMarkup(
+            <MemoryRouter>
+                <QueryClientProvider client={queryClient}>
+                    <MantineProvider>
+                        <AppShell navbar={{ width: 300, breakpoint: 'sm' }}>
+                            <AppShell.Navbar>
+                                <ReaderSidebar
+                                    categories={[{ id: 3, name: 'Technology' }]}
+                                    counts={undefined}
+                                    error={null}
+                                    isPending={false}
+                                    onRetry={() => undefined}
+                                    state={{
+                                        feedId: null,
+                                        categoryId: null,
+                                        filter: 'unread',
+                                        orderBy: 'published_at',
+                                        entryId: null,
+                                        summarize: false,
+                                    }}
+                                    subscriptions={subscriptions}
+                                />
+                            </AppShell.Navbar>
+                        </AppShell>
+                    </MantineProvider>
+                </QueryClientProvider>
+            </MemoryRouter>,
+        );
+
+        const renderedFeeds =
+            markup.match(/aria-label="Manage Feed \d+"/g)?.length ?? 0;
+        expect(renderedFeeds).toBeGreaterThan(0);
+        expect(renderedFeeds).toBeLessThan(60);
+        expect(markup).toContain('aria-label="Manage Feed 1"');
+        expect(markup).not.toContain('aria-label="Manage Feed 300"');
+    });
+
     it('builds success feedback for feed read-through', () => {
         expect(feedMarkedReadNotification('Cloudflare Blog')).toEqual({
             title: 'Feed marked as read',

@@ -40,13 +40,23 @@ import {
     IconStar,
     IconTrash,
 } from '@tabler/icons-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+    type Mutation,
+    type MutationKey,
+    type MutationOptions,
+    type QueryClient,
+    useIsMutating,
+    useMutation,
+    useQuery,
+    useQueryClient,
+} from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
     type FormEvent,
     memo,
     type ReactNode,
     useCallback,
+    useDeferredValue,
     useEffect,
     useMemo,
     useRef,
@@ -69,7 +79,7 @@ import type {
 import { buildAddFeedBookmarklet } from '../../bookmarklet';
 import {
     categoryReadThroughMutationOptions,
-    useReadThroughMutation,
+    readThroughMutationOptions,
 } from '../../queries/readerMutations';
 import {
     createCategoryMutationOptions,
@@ -595,54 +605,66 @@ export function feedMarkedReadNotification(feedName: string) {
     };
 }
 
-export function FeedActions({
-    subscription,
+// Runs a mutation outside a component's lifetime. The menus that start these
+// actions close, and unmount their items, as soon as an item is clicked, and
+// useMutation drops per-call callbacks once its component unmounts.
+function runMutation<TData, TVariables>(
+    queryClient: QueryClient,
+    options: MutationOptions<TData, Error, TVariables>,
+    variables: TVariables,
+): Promise<TData> {
+    return queryClient
+        .getMutationCache()
+        .build(queryClient, options)
+        .execute(variables);
+}
+
+function hasFeedId(
+    mutation: Mutation<unknown, Error, unknown>,
+    feedId: number,
+) {
+    const variables = mutation.state.variables;
+    return (
+        typeof variables === 'object' &&
+        variables !== null &&
+        'feedId' in variables &&
+        variables.feedId === feedId
+    );
+}
+
+function useFeedMutationPending(
+    mutationKey: MutationKey,
+    feedId: number,
+): boolean {
+    return (
+        useIsMutating({
+            mutationKey,
+            exact: true,
+            predicate: (mutation) => hasFeedId(mutation, feedId),
+        }) > 0
+    );
+}
+
+function FeedEditForm({
     managed,
     categories,
-    onUnsubscribed,
-    showCount = false,
-    entrySection,
-    trigger = 'inline',
+    modalId,
 }: {
-    readonly subscription: ReaderSubscriptionList['subscriptions'][number];
-    readonly managed: ManagedSubscription | undefined;
+    readonly managed: ManagedSubscription;
     readonly categories: readonly ManagedCategory[];
-    readonly onUnsubscribed?: () => void;
-    readonly showCount?: boolean;
-    readonly entrySection?: ReactNode;
-    // 'inline' fits the compact sidebar rows; 'toolbar' matches the
-    // full-size icon buttons in the entry detail toolbar.
-    readonly trigger?: 'inline' | 'toolbar';
+    readonly modalId: string;
 }) {
     const queryClient = useQueryClient();
-    const refresh = useMutation(
-        refreshSubscriptionMutationOptions(queryClient),
-    );
-    const refreshFavicon = useMutation(
-        refreshFaviconMutationOptions(queryClient),
-    );
-    const unsubscribe = useMutation(unsubscribeMutationOptions(queryClient));
     const update = useMutation(updateSubscriptionMutationOptions(queryClient));
-    const markRead = useReadThroughMutation(subscription.feedId);
-    const [editOpened, editModal] = useDisclosure(false);
-    const [customName, setCustomName] = useState('');
-    const [categoryId, setCategoryId] = useState('');
-    const [filterRules, setFilterRules] = useState<SubscriptionFilterRules>({
-        excludeTitle: [],
-        excludeContent: [],
-        excludeAuthor: [],
-    });
-    const openEdit = () => {
-        if (managed === undefined) return;
-        setCustomName(managed.customFeedName ?? '');
-        setCategoryId(String(managed.categoryId));
-        setFilterRules({
+    const [customName, setCustomName] = useState(managed.customFeedName ?? '');
+    const [categoryId, setCategoryId] = useState(String(managed.categoryId));
+    const [filterRules, setFilterRules] = useState<SubscriptionFilterRules>(
+        () => ({
             excludeTitle: [...managed.filterRules.excludeTitle],
             excludeContent: [...managed.filterRules.excludeContent],
             excludeAuthor: [...managed.filterRules.excludeAuthor],
-        });
-        editModal.open();
-    };
+        }),
+    );
     const updateFilter = (
         field: keyof SubscriptionFilterRules,
         index: number,
@@ -674,7 +696,6 @@ export function FeedActions({
     };
     const submitEdit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (managed === undefined) return;
         const nextCategoryId = Number(categoryId);
         if (!Number.isSafeInteger(nextCategoryId)) return;
         const clean = (patterns: readonly string[]) =>
@@ -698,316 +719,557 @@ export function FeedActions({
                         color: 'green',
                         withBorder: true,
                     });
-                    editModal.close();
+                    modals.close(modalId);
                 },
             },
         );
     };
 
     return (
-        <>
-            <Modal
-                onClose={editModal.close}
-                opened={editOpened}
-                title="Update feed"
-            >
-                <Fieldset variant="filled">
-                    <form onSubmit={submitEdit}>
-                        <TextInput
-                            data-autofocus
-                            description="Leave empty to keep the original name"
-                            label="Feed name"
-                            maxLength={255}
-                            onChange={(event) =>
-                                setCustomName(event.currentTarget.value)
-                            }
-                            placeholder={managed?.feedName}
-                            value={customName}
-                        />
-                        <NativeSelect
-                            data={categories.map((category) => ({
-                                value: String(category.id),
-                                label: category.name,
-                            }))}
-                            description="The category where the feed will be moved"
-                            label="Category"
-                            mt="md"
-                            onChange={(event) =>
-                                setCategoryId(event.currentTarget.value)
-                            }
-                            value={categoryId}
-                        />
-                        <Text fw={500} mt="lg" size="sm">
-                            Filter rules
-                        </Text>
-                        <Text c="dimmed" mb="xs" size="xs">
-                            Hide entries matching these patterns (supports
-                            regex)
-                        </Text>
-                        <FilterRuleSection
-                            buttonText="Add title filter"
-                            filters={filterRules.excludeTitle}
-                            label="Exclude by title"
-                            onAdd={() => addFilter('excludeTitle')}
-                            onRemove={(index) =>
-                                removeFilter('excludeTitle', index)
-                            }
-                            onUpdate={(index, value) =>
-                                updateFilter('excludeTitle', index, value)
-                            }
-                            placeholder="e.g. alpha|beta"
-                        />
-                        <FilterRuleSection
-                            buttonText="Add content filter"
-                            filters={filterRules.excludeContent}
-                            label="Exclude by content"
-                            onAdd={() => addFilter('excludeContent')}
-                            onRemove={(index) =>
-                                removeFilter('excludeContent', index)
-                            }
-                            onUpdate={(index, value) =>
-                                updateFilter('excludeContent', index, value)
-                            }
-                            placeholder="e.g. sponsored"
-                        />
-                        <FilterRuleSection
-                            buttonText="Add author filter"
-                            filters={filterRules.excludeAuthor}
-                            label="Exclude by author"
-                            onAdd={() => addFilter('excludeAuthor')}
-                            onRemove={(index) =>
-                                removeFilter('excludeAuthor', index)
-                            }
-                            onUpdate={(index, value) =>
-                                updateFilter('excludeAuthor', index, value)
-                            }
-                            placeholder="e.g. bot"
-                        />
-                        {update.error !== null && (
-                            <Alert color="red" mt="md">
-                                {update.error.message}
-                            </Alert>
-                        )}
-                        <Button
-                            fullWidth
-                            loading={update.isPending}
-                            mt="md"
-                            type="submit"
-                        >
-                            Save changes
-                        </Button>
-                    </form>
-                </Fieldset>
-            </Modal>
-            <div className={classes.managementControl}>
-                {showCount && (
-                    <Badge
-                        aria-hidden="true"
-                        className={`${classes.mainLinkBadge} ${classes.managementCount}`}
-                        size="sm"
-                        variant="default"
-                    >
-                        {subscription.totalCount}
-                    </Badge>
-                )}
-                <Menu
-                    classNames={{
-                        dropdown: classes.managementMenuDropdown,
-                        item: classes.managementMenuItem,
-                        label: classes.managementMenuLabel,
-                    }}
-                    offset={8}
-                    position={
-                        trigger === 'toolbar' ? 'bottom-end' : 'right-start'
+        <Fieldset variant="filled">
+            <form onSubmit={submitEdit}>
+                <TextInput
+                    data-autofocus
+                    description="Leave empty to keep the original name"
+                    label="Feed name"
+                    maxLength={255}
+                    onChange={(event) =>
+                        setCustomName(event.currentTarget.value)
                     }
-                    shadow="md"
-                    width={192}
+                    placeholder={managed.feedName}
+                    value={customName}
+                />
+                <NativeSelect
+                    data={categories.map((category) => ({
+                        value: String(category.id),
+                        label: category.name,
+                    }))}
+                    description="The category where the feed will be moved"
+                    label="Category"
+                    mt="md"
+                    onChange={(event) =>
+                        setCategoryId(event.currentTarget.value)
+                    }
+                    value={categoryId}
+                />
+                <Text fw={500} mt="lg" size="sm">
+                    Filter rules
+                </Text>
+                <Text c="dimmed" mb="xs" size="xs">
+                    Hide entries matching these patterns (supports regex)
+                </Text>
+                <FilterRuleSection
+                    buttonText="Add title filter"
+                    filters={filterRules.excludeTitle}
+                    label="Exclude by title"
+                    onAdd={() => addFilter('excludeTitle')}
+                    onRemove={(index) => removeFilter('excludeTitle', index)}
+                    onUpdate={(index, value) =>
+                        updateFilter('excludeTitle', index, value)
+                    }
+                    placeholder="e.g. alpha|beta"
+                />
+                <FilterRuleSection
+                    buttonText="Add content filter"
+                    filters={filterRules.excludeContent}
+                    label="Exclude by content"
+                    onAdd={() => addFilter('excludeContent')}
+                    onRemove={(index) => removeFilter('excludeContent', index)}
+                    onUpdate={(index, value) =>
+                        updateFilter('excludeContent', index, value)
+                    }
+                    placeholder="e.g. sponsored"
+                />
+                <FilterRuleSection
+                    buttonText="Add author filter"
+                    filters={filterRules.excludeAuthor}
+                    label="Exclude by author"
+                    onAdd={() => addFilter('excludeAuthor')}
+                    onRemove={(index) => removeFilter('excludeAuthor', index)}
+                    onUpdate={(index, value) =>
+                        updateFilter('excludeAuthor', index, value)
+                    }
+                    placeholder="e.g. bot"
+                />
+                {update.error !== null && (
+                    <Alert color="red" mt="md">
+                        {update.error.message}
+                    </Alert>
+                )}
+                <Button
+                    fullWidth
+                    loading={update.isPending}
+                    mt="md"
+                    type="submit"
                 >
-                    <Menu.Target>
-                        <ActionIcon
-                            aria-label={
-                                trigger === 'toolbar'
-                                    ? 'More entry and feed actions'
-                                    : `Manage ${subscription.customFeedName ?? subscription.feedName}`
-                            }
-                            className={
-                                trigger === 'toolbar'
-                                    ? undefined
-                                    : `${classes.feedMenuIcon} ${showCount ? classes.managementMenuTarget : ''}`
-                            }
-                            color="gray"
-                            size={trigger === 'toolbar' ? 36 : 'xs'}
-                            type="button"
-                            variant={
-                                trigger === 'toolbar' ? 'subtle' : undefined
-                            }
-                        >
-                            <IconDots
-                                aria-hidden="true"
-                                size={trigger === 'toolbar' ? 15 : 13}
-                                stroke={trigger === 'toolbar' ? 2 : 1.7}
-                            />
-                        </ActionIcon>
-                    </Menu.Target>
-                    <Menu.Dropdown>
-                        {entrySection}
-                        <Menu.Label>Manage feed</Menu.Label>
-                        <Menu.Item
-                            component="a"
-                            disabled={managed?.siteUrl == null}
-                            href={managed?.siteUrl ?? undefined}
-                            leftSection={<IconExternalLink size={14} />}
-                            rel="noreferrer"
-                            target="_blank"
-                        >
-                            Open website
-                        </Menu.Item>
-                        <Menu.Item
-                            component="a"
-                            disabled={managed === undefined}
-                            href={managed?.feedUrl}
-                            leftSection={<IconRss size={14} />}
-                            rel="noreferrer"
-                            target="_blank"
-                        >
-                            Open feed
-                        </Menu.Item>
-                        <Menu.Divider />
-                        <Menu.Item
-                            disabled={markRead.isPending}
-                            leftSection={<IconCheck size={14} />}
-                            onClick={() =>
-                                markRead.mutate(undefined, {
-                                    onSuccess: () =>
-                                        notifications.show(
-                                            feedMarkedReadNotification(
-                                                subscription.customFeedName ??
-                                                    subscription.feedName,
-                                            ),
-                                        ),
-                                    onError: (error) =>
-                                        notifyActionError(
-                                            'Failed to mark feed as read',
-                                            error,
-                                        ),
-                                })
-                            }
-                        >
-                            Mark as read
-                        </Menu.Item>
-                        <Menu.Item
-                            disabled={refresh.isPending}
-                            leftSection={<IconRefresh size={14} />}
-                            onClick={() =>
-                                refresh.mutate(
-                                    { feedId: subscription.feedId },
-                                    {
-                                        onSuccess: () =>
-                                            notifications.show({
-                                                title: 'Feed refresh requested',
-                                                message:
-                                                    'The feed refresh has been queued',
-                                                color: 'green',
-                                                withBorder: true,
-                                            }),
-                                        onError: (error) =>
-                                            notifyActionError(
-                                                'Failed to refresh feed',
-                                                error,
-                                            ),
-                                    },
-                                )
-                            }
-                        >
-                            Request refresh
-                        </Menu.Item>
-                        <Menu.Item
-                            disabled={refreshFavicon.isPending}
-                            leftSection={<IconPhoto size={14} />}
-                            onClick={() =>
-                                refreshFavicon.mutate(
-                                    { feedId: subscription.feedId },
-                                    {
-                                        onSuccess: () =>
-                                            notifications.show({
-                                                title: 'Favicon refresh queued',
-                                                message:
-                                                    'The feed favicon will refresh in the background',
-                                                color: 'blue',
-                                                withBorder: true,
-                                            }),
-                                        onError: (error) =>
-                                            notifyActionError(
-                                                'Failed to refresh favicon',
-                                                error,
-                                            ),
-                                    },
-                                )
-                            }
-                        >
-                            Refresh favicon
-                        </Menu.Item>
-                        <Menu.Item
-                            disabled={managed === undefined}
-                            leftSection={<IconPencil size={14} />}
-                            onClick={openEdit}
-                        >
-                            Edit feed
-                        </Menu.Item>
-                        <Menu.Divider />
-                        <Menu.Item
-                            color="red"
-                            disabled={unsubscribe.isPending}
-                            leftSection={<IconTrash size={14} />}
-                            onClick={() =>
-                                modals.openConfirmModal({
-                                    title: 'Unsubscribe from feed?',
-                                    children: (
-                                        <Text size="sm">
-                                            Remove{' '}
-                                            <strong>
-                                                {subscription.customFeedName ??
-                                                    subscription.feedName}
-                                            </strong>{' '}
-                                            from Larafeed? Existing entries from
-                                            the feed will no longer appear in
-                                            your reader.
-                                        </Text>
+                    Save changes
+                </Button>
+            </form>
+        </Fieldset>
+    );
+}
+
+// Mounted only while the feed menu is open, so a closed menu in each sidebar
+// row costs no mutation observers.
+function FeedActionsMenuItems({
+    subscription,
+    managed,
+    categories,
+    onUnsubscribed,
+}: {
+    readonly subscription: ReaderSubscriptionList['subscriptions'][number];
+    readonly managed: ManagedSubscription | undefined;
+    readonly categories: readonly ManagedCategory[];
+    readonly onUnsubscribed?: () => void;
+}) {
+    const queryClient = useQueryClient();
+    const { feedId } = subscription;
+    const feedName = subscription.customFeedName ?? subscription.feedName;
+    const refreshOptions = refreshSubscriptionMutationOptions(queryClient);
+    const refreshFaviconOptions = refreshFaviconMutationOptions(queryClient);
+    const unsubscribeOptions = unsubscribeMutationOptions(queryClient);
+    const markReadOptions = readThroughMutationOptions(queryClient, feedId);
+    const refreshPending = useFeedMutationPending(
+        refreshOptions.mutationKey,
+        feedId,
+    );
+    const refreshFaviconPending = useFeedMutationPending(
+        refreshFaviconOptions.mutationKey,
+        feedId,
+    );
+    const unsubscribePending = useFeedMutationPending(
+        unsubscribeOptions.mutationKey,
+        feedId,
+    );
+    const markReadPending =
+        useIsMutating({
+            mutationKey: markReadOptions.mutationKey,
+            exact: true,
+        }) > 0;
+
+    const openEdit = () => {
+        if (managed === undefined) return;
+        const modalId = `feed-edit-${managed.feedId}`;
+        modals.open({
+            modalId,
+            title: 'Update feed',
+            children: (
+                <FeedEditForm
+                    categories={categories}
+                    managed={managed}
+                    modalId={modalId}
+                />
+            ),
+        });
+    };
+
+    return (
+        <>
+            <Menu.Label>Manage feed</Menu.Label>
+            <Menu.Item
+                component="a"
+                disabled={managed?.siteUrl == null}
+                href={managed?.siteUrl ?? undefined}
+                leftSection={<IconExternalLink size={14} />}
+                rel="noreferrer"
+                target="_blank"
+            >
+                Open website
+            </Menu.Item>
+            <Menu.Item
+                component="a"
+                disabled={managed === undefined}
+                href={managed?.feedUrl}
+                leftSection={<IconRss size={14} />}
+                rel="noreferrer"
+                target="_blank"
+            >
+                Open feed
+            </Menu.Item>
+            <Menu.Divider />
+            <Menu.Item
+                disabled={markReadPending}
+                leftSection={<IconCheck size={14} />}
+                onClick={() =>
+                    runMutation(queryClient, markReadOptions, undefined).then(
+                        () =>
+                            notifications.show(
+                                feedMarkedReadNotification(feedName),
+                            ),
+                        (error: Error) =>
+                            notifyActionError(
+                                'Failed to mark feed as read',
+                                error,
+                            ),
+                    )
+                }
+            >
+                Mark as read
+            </Menu.Item>
+            <Menu.Item
+                disabled={refreshPending}
+                leftSection={<IconRefresh size={14} />}
+                onClick={() =>
+                    runMutation(queryClient, refreshOptions, { feedId }).then(
+                        () =>
+                            notifications.show({
+                                title: 'Feed refresh requested',
+                                message: 'The feed refresh has been queued',
+                                color: 'green',
+                                withBorder: true,
+                            }),
+                        (error: Error) =>
+                            notifyActionError('Failed to refresh feed', error),
+                    )
+                }
+            >
+                Request refresh
+            </Menu.Item>
+            <Menu.Item
+                disabled={refreshFaviconPending}
+                leftSection={<IconPhoto size={14} />}
+                onClick={() =>
+                    runMutation(queryClient, refreshFaviconOptions, {
+                        feedId,
+                    }).then(
+                        () =>
+                            notifications.show({
+                                title: 'Favicon refresh queued',
+                                message:
+                                    'The feed favicon will refresh in the background',
+                                color: 'blue',
+                                withBorder: true,
+                            }),
+                        (error: Error) =>
+                            notifyActionError(
+                                'Failed to refresh favicon',
+                                error,
+                            ),
+                    )
+                }
+            >
+                Refresh favicon
+            </Menu.Item>
+            <Menu.Item
+                disabled={managed === undefined}
+                leftSection={<IconPencil size={14} />}
+                onClick={openEdit}
+            >
+                Edit feed
+            </Menu.Item>
+            <Menu.Divider />
+            <Menu.Item
+                color="red"
+                disabled={unsubscribePending}
+                leftSection={<IconTrash size={14} />}
+                onClick={() =>
+                    modals.openConfirmModal({
+                        title: 'Unsubscribe from feed?',
+                        children: (
+                            <Text size="sm">
+                                Remove <strong>{feedName}</strong> from
+                                Larafeed? Existing entries from the feed will no
+                                longer appear in your reader.
+                            </Text>
+                        ),
+                        labels: {
+                            confirm: 'Unsubscribe',
+                            cancel: 'Cancel',
+                        },
+                        confirmProps: { color: 'red' },
+                        onConfirm: () =>
+                            runMutation(queryClient, unsubscribeOptions, {
+                                feedId,
+                            }).then(
+                                () => {
+                                    notifications.show({
+                                        title: 'Unsubscribed',
+                                        message:
+                                            'The feed subscription was removed',
+                                        color: 'green',
+                                        withBorder: true,
+                                    });
+                                    onUnsubscribed?.();
+                                },
+                                (error: Error) =>
+                                    notifyActionError(
+                                        'Failed to unsubscribe',
+                                        error,
                                     ),
-                                    labels: {
-                                        confirm: 'Unsubscribe',
-                                        cancel: 'Cancel',
-                                    },
-                                    confirmProps: { color: 'red' },
-                                    onConfirm: () =>
-                                        unsubscribe.mutate(
-                                            { feedId: subscription.feedId },
-                                            {
-                                                onSuccess: () => {
-                                                    notifications.show({
-                                                        title: 'Unsubscribed',
-                                                        message:
-                                                            'The feed subscription was removed',
-                                                        color: 'green',
-                                                        withBorder: true,
-                                                    });
-                                                    onUnsubscribed?.();
-                                                },
-                                                onError: (error) =>
-                                                    notifyActionError(
-                                                        'Failed to unsubscribe',
-                                                        error,
-                                                    ),
-                                            },
-                                        ),
-                                })
-                            }
-                        >
-                            Unsubscribe
-                        </Menu.Item>
-                    </Menu.Dropdown>
-                </Menu>
-            </div>
+                            ),
+                    })
+                }
+            >
+                Unsubscribe
+            </Menu.Item>
+        </>
+    );
+}
+
+export function FeedActions({
+    subscription,
+    managed,
+    categories,
+    onUnsubscribed,
+    showCount = false,
+    entrySection,
+    trigger = 'inline',
+}: {
+    readonly subscription: ReaderSubscriptionList['subscriptions'][number];
+    readonly managed: ManagedSubscription | undefined;
+    readonly categories: readonly ManagedCategory[];
+    readonly onUnsubscribed?: () => void;
+    readonly showCount?: boolean;
+    readonly entrySection?: ReactNode;
+    // 'inline' fits the compact sidebar rows; 'toolbar' matches the
+    // full-size icon buttons in the entry detail toolbar.
+    readonly trigger?: 'inline' | 'toolbar';
+}) {
+    return (
+        <div className={classes.managementControl}>
+            {showCount && (
+                <Badge
+                    aria-hidden="true"
+                    className={`${classes.mainLinkBadge} ${classes.managementCount}`}
+                    size="sm"
+                    variant="default"
+                >
+                    {subscription.totalCount}
+                </Badge>
+            )}
+            <Menu
+                classNames={{
+                    dropdown: classes.managementMenuDropdown,
+                    item: classes.managementMenuItem,
+                    label: classes.managementMenuLabel,
+                }}
+                offset={8}
+                position={trigger === 'toolbar' ? 'bottom-end' : 'right-start'}
+                shadow="md"
+                width={192}
+            >
+                <Menu.Target>
+                    <ActionIcon
+                        aria-label={
+                            trigger === 'toolbar'
+                                ? 'More entry and feed actions'
+                                : `Manage ${subscription.customFeedName ?? subscription.feedName}`
+                        }
+                        className={
+                            trigger === 'toolbar'
+                                ? undefined
+                                : `${classes.feedMenuIcon} ${showCount ? classes.managementMenuTarget : ''}`
+                        }
+                        color="gray"
+                        size={trigger === 'toolbar' ? 36 : 'xs'}
+                        type="button"
+                        variant={trigger === 'toolbar' ? 'subtle' : undefined}
+                    >
+                        <IconDots
+                            aria-hidden="true"
+                            size={trigger === 'toolbar' ? 15 : 13}
+                            stroke={trigger === 'toolbar' ? 2 : 1.7}
+                        />
+                    </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown>
+                    {entrySection}
+                    <FeedActionsMenuItems
+                        categories={categories}
+                        managed={managed}
+                        onUnsubscribed={onUnsubscribed}
+                        subscription={subscription}
+                    />
+                </Menu.Dropdown>
+            </Menu>
+        </div>
+    );
+}
+
+function CategoryRenameForm({
+    categoryId,
+    name,
+    modalId,
+}: {
+    readonly categoryId: number;
+    readonly name: string;
+    readonly modalId: string;
+}) {
+    const queryClient = useQueryClient();
+    const update = useMutation(updateCategoryMutationOptions(queryClient));
+    const [nextName, setNextName] = useState(name);
+
+    return (
+        <form
+            onSubmit={(event) => {
+                event.preventDefault();
+                const normalized = nextName.trim();
+                if (normalized === '') return;
+                update.mutate(
+                    { categoryId, name: normalized },
+                    {
+                        onSuccess: () => {
+                            modals.close(modalId);
+                            notifications.show({
+                                title: 'Category updated',
+                                message: `The category is now named ${normalized}`,
+                                color: 'green',
+                                withBorder: true,
+                            });
+                        },
+                    },
+                );
+            }}
+        >
+            <TextInput
+                autoFocus
+                error={update.error?.message}
+                label="Category name"
+                maxLength={255}
+                onChange={(event) => setNextName(event.currentTarget.value)}
+                required
+                value={nextName}
+            />
+            <Group justify="flex-end" mt="md">
+                <Button onClick={() => modals.close(modalId)} variant="default">
+                    Cancel
+                </Button>
+                <Button
+                    disabled={nextName.trim() === ''}
+                    loading={update.isPending}
+                    type="submit"
+                >
+                    Save
+                </Button>
+            </Group>
+        </form>
+    );
+}
+
+function hasCategoryId(
+    mutation: Mutation<unknown, Error, unknown>,
+    categoryId: number,
+) {
+    const variables = mutation.state.variables;
+    return (
+        typeof variables === 'object' &&
+        variables !== null &&
+        'categoryId' in variables &&
+        variables.categoryId === categoryId
+    );
+}
+
+// Mounted only while the category menu is open.
+function CategoryActionsMenuItems({
+    categoryId,
+    name,
+    feedCount,
+    feedIds,
+}: {
+    readonly categoryId: number;
+    readonly name: string;
+    readonly feedCount: number;
+    readonly feedIds: readonly number[];
+}) {
+    const queryClient = useQueryClient();
+    const markReadOptions = categoryReadThroughMutationOptions(
+        queryClient,
+        categoryId,
+    );
+    const updateKey = updateCategoryMutationOptions(queryClient).mutationKey;
+    const removeOptions = deleteCategoryMutationOptions(queryClient);
+    const markReadPending =
+        useIsMutating({
+            mutationKey: markReadOptions.mutationKey,
+            exact: true,
+        }) > 0;
+    const updatePending =
+        useIsMutating({
+            mutationKey: updateKey,
+            exact: true,
+            predicate: (mutation) => hasCategoryId(mutation, categoryId),
+        }) > 0;
+    const removePending =
+        useIsMutating({
+            mutationKey: removeOptions.mutationKey,
+            exact: true,
+            predicate: (mutation) => hasCategoryId(mutation, categoryId),
+        }) > 0;
+
+    return (
+        <>
+            <Menu.Label>Manage category</Menu.Label>
+            <Menu.Item
+                disabled={markReadPending || feedIds.length === 0}
+                leftSection={<IconCheck size={14} />}
+                onClick={() =>
+                    runMutation(queryClient, markReadOptions, undefined).then(
+                        () =>
+                            notifications.show({
+                                title: 'Category marked as read',
+                                message: `${name} feeds were marked as read`,
+                                color: 'green',
+                                withBorder: true,
+                            }),
+                        (actionError: Error) =>
+                            notifyActionError(
+                                'Failed to mark category as read',
+                                actionError,
+                            ),
+                    )
+                }
+            >
+                Mark feeds as read
+            </Menu.Item>
+            <Menu.Item
+                disabled={updatePending}
+                leftSection={<IconPencil size={14} />}
+                onClick={() => {
+                    const modalId = `category-rename-${categoryId}`;
+                    modals.open({
+                        modalId,
+                        centered: true,
+                        title: 'Edit category name',
+                        children: (
+                            <CategoryRenameForm
+                                categoryId={categoryId}
+                                modalId={modalId}
+                                name={name}
+                            />
+                        ),
+                    });
+                }}
+            >
+                Edit category name
+            </Menu.Item>
+            <Menu.Divider />
+            <Menu.Item
+                color="red"
+                disabled={feedCount > 0 || removePending}
+                leftSection={<IconTrash size={14} />}
+                onClick={() =>
+                    runMutation(queryClient, removeOptions, {
+                        categoryId,
+                    }).then(
+                        () =>
+                            notifications.show({
+                                title: 'Category deleted',
+                                message: `The category ${name} has been deleted`,
+                                color: 'green',
+                                withBorder: true,
+                            }),
+                        (actionError: Error) =>
+                            notifyActionError(
+                                `Failed to delete category ${name}`,
+                                actionError,
+                            ),
+                    )
+                }
+            >
+                {feedCount > 0
+                    ? 'Delete (needs to be empty)'
+                    : 'Delete category'}
+            </Menu.Item>
         </>
     );
 }
@@ -1025,174 +1287,48 @@ function CategoryHeader({
     readonly feedCount: number;
     readonly feedIds: readonly number[];
 }) {
-    const queryClient = useQueryClient();
-    const markRead = useMutation(
-        categoryReadThroughMutationOptions(queryClient, categoryId),
-    );
-    const update = useMutation(updateCategoryMutationOptions(queryClient));
-    const remove = useMutation(deleteCategoryMutationOptions(queryClient));
-    const [renameOpened, rename] = useDisclosure(false);
-    const [nextName, setNextName] = useState(name);
-
     return (
-        <>
-            <Modal
-                centered
-                onClose={rename.close}
-                opened={renameOpened}
-                title="Edit category name"
+        <div className={classes.managementControl}>
+            <Badge
+                aria-hidden="true"
+                className={`${classes.mainLinkBadge} ${classes.managementCount}`}
+                size="sm"
+                variant="default"
             >
-                <form
-                    onSubmit={(event) => {
-                        event.preventDefault();
-                        const normalized = nextName.trim();
-                        if (normalized === '') return;
-                        update.mutate(
-                            { categoryId, name: normalized },
-                            {
-                                onSuccess: () => {
-                                    rename.close();
-                                    notifications.show({
-                                        title: 'Category updated',
-                                        message: `The category is now named ${normalized}`,
-                                        color: 'green',
-                                        withBorder: true,
-                                    });
-                                },
-                            },
-                        );
-                    }}
-                >
-                    <TextInput
-                        autoFocus
-                        error={update.error?.message}
-                        label="Category name"
-                        maxLength={255}
-                        onChange={(event) =>
-                            setNextName(event.currentTarget.value)
-                        }
-                        required
-                        value={nextName}
+                {entriesCount}
+            </Badge>
+            <Menu
+                classNames={{
+                    dropdown: classes.managementMenuDropdown,
+                    item: classes.managementMenuItem,
+                    label: classes.managementMenuLabel,
+                }}
+                offset={8}
+                position="right-start"
+                shadow="md"
+                width={192}
+            >
+                <Menu.Target>
+                    <ActionIcon
+                        aria-label={`Manage ${name} category`}
+                        className={`${classes.feedMenuIcon} ${classes.managementMenuTarget}`}
+                        color="gray"
+                        size="xs"
+                        type="button"
+                    >
+                        <IconDots aria-hidden="true" size={13} stroke={1.7} />
+                    </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown>
+                    <CategoryActionsMenuItems
+                        categoryId={categoryId}
+                        feedCount={feedCount}
+                        feedIds={feedIds}
+                        name={name}
                     />
-                    <Group justify="flex-end" mt="md">
-                        <Button onClick={rename.close} variant="default">
-                            Cancel
-                        </Button>
-                        <Button
-                            disabled={nextName.trim() === ''}
-                            loading={update.isPending}
-                            type="submit"
-                        >
-                            Save
-                        </Button>
-                    </Group>
-                </form>
-            </Modal>
-            <div className={classes.managementControl}>
-                <Badge
-                    aria-hidden="true"
-                    className={`${classes.mainLinkBadge} ${classes.managementCount}`}
-                    size="sm"
-                    variant="default"
-                >
-                    {entriesCount}
-                </Badge>
-                <Menu
-                    classNames={{
-                        dropdown: classes.managementMenuDropdown,
-                        item: classes.managementMenuItem,
-                        label: classes.managementMenuLabel,
-                    }}
-                    offset={8}
-                    position="right-start"
-                    shadow="md"
-                    width={192}
-                >
-                    <Menu.Target>
-                        <ActionIcon
-                            aria-label={`Manage ${name} category`}
-                            className={`${classes.feedMenuIcon} ${classes.managementMenuTarget}`}
-                            color="gray"
-                            size="xs"
-                            type="button"
-                        >
-                            <IconDots
-                                aria-hidden="true"
-                                size={13}
-                                stroke={1.7}
-                            />
-                        </ActionIcon>
-                    </Menu.Target>
-                    <Menu.Dropdown>
-                        <Menu.Label>Manage category</Menu.Label>
-                        <Menu.Item
-                            disabled={
-                                markRead.isPending || feedIds.length === 0
-                            }
-                            leftSection={<IconCheck size={14} />}
-                            onClick={() =>
-                                markRead.mutate(undefined, {
-                                    onSuccess: () =>
-                                        notifications.show({
-                                            title: 'Category marked as read',
-                                            message: `${name} feeds were marked as read`,
-                                            color: 'green',
-                                            withBorder: true,
-                                        }),
-                                    onError: (actionError) =>
-                                        notifyActionError(
-                                            'Failed to mark category as read',
-                                            actionError,
-                                        ),
-                                })
-                            }
-                        >
-                            Mark feeds as read
-                        </Menu.Item>
-                        <Menu.Item
-                            disabled={update.isPending}
-                            leftSection={<IconPencil size={14} />}
-                            onClick={() => {
-                                setNextName(name);
-                                update.reset();
-                                rename.open();
-                            }}
-                        >
-                            Edit category name
-                        </Menu.Item>
-                        <Menu.Divider />
-                        <Menu.Item
-                            color="red"
-                            disabled={feedCount > 0 || remove.isPending}
-                            leftSection={<IconTrash size={14} />}
-                            onClick={() =>
-                                remove.mutate(
-                                    { categoryId },
-                                    {
-                                        onSuccess: () =>
-                                            notifications.show({
-                                                title: 'Category deleted',
-                                                message: `The category ${name} has been deleted`,
-                                                color: 'green',
-                                                withBorder: true,
-                                            }),
-                                        onError: (actionError) =>
-                                            notifyActionError(
-                                                `Failed to delete category ${name}`,
-                                                actionError,
-                                            ),
-                                    },
-                                )
-                            }
-                        >
-                            {feedCount > 0
-                                ? 'Delete (needs to be empty)'
-                                : 'Delete category'}
-                        </Menu.Item>
-                    </Menu.Dropdown>
-                </Menu>
-            </div>
-        </>
+                </Menu.Dropdown>
+            </Menu>
+        </div>
     );
 }
 
@@ -1215,9 +1351,23 @@ export function ReaderSidebar({
     const [handledBookmarkletUrl, setHandledBookmarkletUrl] = useState<
         string | null
     >(null);
-    const normalizedSearch = search.trim().toLocaleLowerCase();
+    // Typing stays responsive: the library list filters against a deferred
+    // copy of the search, which React renders at a lower priority.
+    const deferredSearch = useDeferredValue(search);
+    const normalizedSearch = deferredSearch.trim().toLocaleLowerCase();
     const management = useQuery(subscriptionManagementQueryOptions);
     const displayedError = error ?? management.error;
+    const managedCategories = management.data?.categories ?? noCategories;
+    const managedByFeedId = useMemo(
+        () =>
+            new Map(
+                (management.data?.subscriptions ?? []).map((subscription) => [
+                    subscription.feedId,
+                    subscription,
+                ]),
+            ),
+        [management.data?.subscriptions],
+    );
 
     useEffect(() => {
         if (
@@ -1232,7 +1382,7 @@ export function ReaderSidebar({
     const subscriptionsByCategory = useMemo(() => {
         const grouped = new Map<
             number,
-            ReaderSubscriptionList['subscriptions']
+            ReaderSubscriptionList['subscriptions'][number][]
         >();
         for (const subscription of subscriptions ?? []) {
             const name = subscription.customFeedName ?? subscription.feedName;
@@ -1242,10 +1392,12 @@ export function ReaderSidebar({
             ) {
                 continue;
             }
-            grouped.set(subscription.categoryId, [
-                ...(grouped.get(subscription.categoryId) ?? []),
-                subscription,
-            ]);
+            const group = grouped.get(subscription.categoryId);
+            if (group === undefined) {
+                grouped.set(subscription.categoryId, [subscription]);
+            } else {
+                group.push(subscription);
+            }
         }
         return grouped;
     }, [normalizedSearch, subscriptions]);
@@ -1289,8 +1441,6 @@ export function ReaderSidebar({
                 categoryOpen.get(category.id) ??
                 categorySubscriptions.length > 0;
             model.push({
-                active:
-                    state.categoryId === category.id && state.feedId === null,
                 categoryId: category.id,
                 categoryName: category.name,
                 entriesCount: categorySubscriptions.reduce(
@@ -1314,26 +1464,30 @@ export function ReaderSidebar({
         categoryOpen,
         normalizedSearch,
         sortedCategories,
-        state.categoryId,
-        state.feedId,
         subscriptionsByCategory,
     ]);
 
     const viewportRef = useRef<HTMLDivElement>(null);
-    const [mounted, setMounted] = useState(false);
-    useEffect(() => setMounted(true), []);
+    const estimateRowSize = useCallback(
+        (index: number) => (rows[index]?.kind === 'category' ? 32 : 28),
+        [rows],
+    );
+    const getRowKey = useCallback(
+        (index: number) => {
+            const row = rows[index];
+            return row === undefined ? index : rowKey(row);
+        },
+        [rows],
+    );
     const virtualizer = useVirtualizer({
         count: rows.length,
-        estimateSize: (index) => (rows[index]?.kind === 'category' ? 32 : 28),
-        getItemKey: (index) => {
-            const row = rows[index];
-            if (row === undefined) return index;
-            return row.kind === 'category'
-                ? `category-${row.categoryId}`
-                : `feed-${row.subscription.feedId}`;
-        },
+        estimateSize: estimateRowSize,
+        getItemKey: getRowKey,
         getScrollElement: () => viewportRef.current,
         overscan: 8,
+        // Gives the first render a window of rows instead of the whole
+        // library; the real viewport rect replaces it once it mounts.
+        initialRect: { width: 364, height: 800 },
     });
     const measureRow = useCallback(
         (element: HTMLDivElement | null) => {
@@ -1342,22 +1496,14 @@ export function ReaderSidebar({
         [virtualizer],
     );
 
-    const virtualItems = virtualizer.getVirtualItems();
-    // Server rendering and tests have no measured viewport: fall back to the
-    // full list so hydration and assertions still see every row.
-    const renderAllRows = !mounted || virtualItems.length === 0;
-    const renderedRows = renderAllRows
-        ? rows.map((row, index) => ({ index, row, start: null }))
-        : virtualItems.map((item) => ({
-              index: item.index,
-              row: rows[item.index],
-              start: item.start,
-          }));
-    const rowsHeight = virtualizer.getTotalSize();
-    const rowKey = (row: SidebarRow) =>
-        row.kind === 'category'
-            ? `category-${row.categoryId}`
-            : `feed-${row.subscription.feedId}`;
+    const leaveFeedHref = readerHref(state, {
+        categoryId: null,
+        entryId: null,
+        feedId: null,
+    });
+    const leaveFeed = useCallback(() => {
+        void navigate(leaveFeedHref);
+    }, [leaveFeedHref, navigate]);
 
     return (
         <>
@@ -1489,84 +1635,81 @@ export function ReaderSidebar({
                     )}
                     {!noResults && (
                         <div
-                            style={
-                                renderAllRows
-                                    ? undefined
-                                    : {
-                                          height: rowsHeight,
-                                          position: 'relative',
-                                      }
-                            }
+                            style={{
+                                height: virtualizer.getTotalSize(),
+                                position: 'relative',
+                            }}
                         >
-                            {renderedRows.map(({ index, row, start }) => (
-                                <div
-                                    className={
-                                        row.kind === 'feed'
-                                            ? classes.virtualFeedRow
-                                            : undefined
-                                    }
-                                    data-index={index}
-                                    key={rowKey(row)}
-                                    ref={renderAllRows ? undefined : measureRow}
-                                    style={
-                                        start === null
-                                            ? undefined
-                                            : {
-                                                  left: 0,
-                                                  position: 'absolute',
-                                                  right: 0,
-                                                  top: 0,
-                                                  transform: `translateY(${start}px)`,
-                                              }
-                                    }
-                                >
-                                    {row.kind === 'category' ? (
-                                        <CategoryRow
-                                            active={row.active}
-                                            categoryId={row.categoryId}
-                                            categoryName={row.categoryName}
-                                            entriesCount={row.entriesCount}
-                                            feedCount={row.feedCount}
-                                            feedIds={row.feedIds}
-                                            onNavigate={onNavigate}
-                                            onToggle={() => {
-                                                setCategoryOpen(
-                                                    row.categoryId,
-                                                    !row.opened,
-                                                );
-                                            }}
-                                            opened={row.opened}
-                                            state={state}
-                                        />
-                                    ) : (
-                                        <FeedRow
-                                            categories={
-                                                management.data?.categories ??
-                                                []
-                                            }
-                                            managed={management.data?.subscriptions.find(
-                                                (item) =>
-                                                    item.feedId ===
-                                                    row.subscription.feedId,
-                                            )}
-                                            onNavigate={onNavigate}
-                                            onUnsubscribed={(feedActive) => {
-                                                if (feedActive) {
-                                                    void navigate(
-                                                        readerHref(state, {
-                                                            categoryId: null,
-                                                            entryId: null,
-                                                            feedId: null,
-                                                        }),
-                                                    );
+                            {virtualizer.getVirtualItems().map((item) => {
+                                const row = rows[item.index];
+                                if (row === undefined) return null;
+                                return (
+                                    <div
+                                        className={
+                                            row.kind === 'feed'
+                                                ? classes.virtualFeedRow
+                                                : undefined
+                                        }
+                                        data-index={item.index}
+                                        key={item.key}
+                                        ref={measureRow}
+                                        style={{
+                                            left: 0,
+                                            position: 'absolute',
+                                            right: 0,
+                                            top: 0,
+                                            transform: `translateY(${item.start}px)`,
+                                        }}
+                                    >
+                                        {row.kind === 'category' ? (
+                                            <CategoryRow
+                                                active={
+                                                    state.categoryId ===
+                                                        row.categoryId &&
+                                                    state.feedId === null
                                                 }
-                                            }}
-                                            state={state}
-                                            subscription={row.subscription}
-                                        />
-                                    )}
-                                </div>
-                            ))}
+                                                categoryId={row.categoryId}
+                                                categoryName={row.categoryName}
+                                                entriesCount={row.entriesCount}
+                                                feedCount={row.feedCount}
+                                                feedIds={row.feedIds}
+                                                href={readerHref(state, {
+                                                    categoryId:
+                                                        state.categoryId ===
+                                                            row.categoryId &&
+                                                        state.feedId === null
+                                                            ? null
+                                                            : row.categoryId,
+                                                    feedId: null,
+                                                })}
+                                                onNavigate={onNavigate}
+                                                onToggle={setCategoryOpen}
+                                                opened={row.opened}
+                                            />
+                                        ) : (
+                                            <FeedRow
+                                                active={
+                                                    state.feedId ===
+                                                    row.subscription.feedId
+                                                }
+                                                categories={managedCategories}
+                                                href={readerHref(state, {
+                                                    feedId: row.subscription
+                                                        .feedId,
+                                                    categoryId: null,
+                                                    filter: 'all',
+                                                })}
+                                                managed={managedByFeedId.get(
+                                                    row.subscription.feedId,
+                                                )}
+                                                onLeaveFeed={leaveFeed}
+                                                onNavigate={onNavigate}
+                                                subscription={row.subscription}
+                                            />
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                 </div>
@@ -1580,7 +1723,6 @@ type SidebarRow =
           readonly kind: 'category';
           readonly categoryId: number;
           readonly categoryName: string;
-          readonly active: boolean;
           readonly opened: boolean;
           readonly entriesCount: number;
           readonly feedCount: number;
@@ -1591,29 +1733,57 @@ type SidebarRow =
           readonly subscription: ReaderSubscriptionList['subscriptions'][number];
       };
 
-function CategoryRow({
-    active,
-    categoryId,
-    categoryName,
-    entriesCount,
-    feedCount,
-    feedIds,
-    opened,
-    onToggle,
-    state,
-    onNavigate,
-}: {
+const noCategories: readonly ManagedCategory[] = [];
+
+function rowKey(row: SidebarRow): string {
+    return row.kind === 'category'
+        ? `category-${row.categoryId}`
+        : `feed-${row.subscription.feedId}`;
+}
+
+interface CategoryRowProps {
     readonly active: boolean;
     readonly categoryId: number;
     readonly categoryName: string;
     readonly entriesCount: number;
     readonly feedCount: number;
     readonly feedIds: readonly number[];
+    readonly href: string;
     readonly opened: boolean;
-    readonly onToggle: () => void;
-    readonly state: ReaderState;
+    readonly onToggle: (categoryId: number, opened: boolean) => void;
     readonly onNavigate?: () => void;
-}) {
+}
+
+// The row model is rebuilt whenever the library changes, which gives every
+// category a new feedIds array with the same contents.
+function sameCategoryRowProps(
+    previous: CategoryRowProps,
+    next: CategoryRowProps,
+): boolean {
+    for (const key of Object.keys(next) as (keyof CategoryRowProps)[]) {
+        if (key === 'feedIds') continue;
+        if (!Object.is(previous[key], next[key])) return false;
+    }
+    return (
+        previous.feedIds.length === next.feedIds.length &&
+        previous.feedIds.every(
+            (feedId, index) => feedId === next.feedIds[index],
+        )
+    );
+}
+
+const CategoryRow = memo(function CategoryRow({
+    active,
+    categoryId,
+    categoryName,
+    entriesCount,
+    feedCount,
+    feedIds,
+    href,
+    opened,
+    onToggle,
+    onNavigate,
+}: CategoryRowProps) {
     const feedsId = `reader-category-${categoryId}-feeds`;
 
     return (
@@ -1628,10 +1798,7 @@ function CategoryRow({
                 component={Link}
                 label={categoryName}
                 onClick={onNavigate}
-                to={readerHref(state, {
-                    categoryId: active ? null : categoryId,
-                    feedId: null,
-                })}
+                to={href}
             />
             <CategoryHeader
                 categoryId={categoryId}
@@ -1648,7 +1815,7 @@ function CategoryRow({
                     opened ? classes.categoryDisclosureOpened : ''
                 }`}
                 color="gray"
-                onClick={onToggle}
+                onClick={() => onToggle(categoryId, !opened)}
                 size="xs"
                 type="button"
                 variant="subtle"
@@ -1657,38 +1824,53 @@ function CategoryRow({
             </ActionIcon>
         </div>
     );
+}, sameCategoryRowProps);
+
+// Rendered only while the tooltip is open, so rows do not format refresh
+// dates on every render.
+function FeedTooltipLabel({
+    name,
+    managed,
+}: {
+    readonly name: string;
+    readonly managed: ManagedSubscription | undefined;
+}) {
+    return (
+        <Stack gap={2}>
+            <Text fw={500} size="sm">
+                {name}
+            </Text>
+            <Text c="dimmed" size="xs">
+                {feedRefreshStatus(managed)}
+            </Text>
+        </Stack>
+    );
 }
 
+// Every prop is a primitive or a reference that only changes with this
+// feed's own data, so selecting another feed re-renders two rows at most.
 const FeedRow = memo(function FeedRow({
+    active,
     categories,
+    href,
     managed,
+    onLeaveFeed,
     onNavigate,
-    onUnsubscribed,
-    state,
     subscription,
 }: {
+    readonly active: boolean;
     readonly categories: readonly ManagedCategory[];
+    readonly href: string;
     readonly managed: ManagedSubscription | undefined;
+    readonly onLeaveFeed: () => void;
     readonly onNavigate?: () => void;
-    readonly onUnsubscribed: (feedActive: boolean) => void;
-    readonly state: ReaderState;
     readonly subscription: ReaderSubscriptionList['subscriptions'][number];
 }) {
-    const feedActive = state.feedId === subscription.feedId;
     const name = subscription.customFeedName ?? subscription.feedName;
 
     return (
         <Tooltip
-            label={
-                <Stack gap={2}>
-                    <Text fw={500} size="sm">
-                        {name}
-                    </Text>
-                    <Text c="dimmed" size="xs">
-                        {feedRefreshStatus(managed)}
-                    </Text>
-                </Stack>
-            }
+            label={<FeedTooltipLabel managed={managed} name={name} />}
             multiline
             openDelay={1000}
             position="right"
@@ -1696,18 +1878,14 @@ const FeedRow = memo(function FeedRow({
         >
             <div
                 className={`${classes.collectionLink} ${
-                    feedActive ? classes.activeFeed : ''
+                    active ? classes.activeFeed : ''
                 }`}
             >
                 <div className={classes.feedRow}>
                     <Link
                         className={classes.feedNavigationLink}
                         onClick={onNavigate}
-                        to={readerHref(state, {
-                            feedId: subscription.feedId,
-                            categoryId: null,
-                            filter: 'all',
-                        })}
+                        to={href}
                     >
                         <div className={classes.feedRowLeft}>
                             {/* Badge the favicon, not the whole row: on a
@@ -1736,7 +1914,7 @@ const FeedRow = memo(function FeedRow({
                     <FeedActions
                         categories={categories}
                         managed={managed}
-                        onUnsubscribed={() => onUnsubscribed(feedActive)}
+                        onUnsubscribed={active ? onLeaveFeed : undefined}
                         showCount
                         subscription={subscription}
                     />
@@ -1746,16 +1924,20 @@ const FeedRow = memo(function FeedRow({
     );
 });
 
+const refreshTimeFormatter = new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+});
+
 function feedRefreshStatus(
     subscription: ManagedSubscription | undefined,
 ): string {
     if (subscription?.lastAttemptAt === null || subscription === undefined) {
         return 'Never refreshed';
     }
-    const timestamp = new Intl.DateTimeFormat(undefined, {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    }).format(new Date(subscription.lastAttemptAt));
+    const timestamp = refreshTimeFormatter.format(
+        new Date(subscription.lastAttemptAt),
+    );
     if (subscription.movedToUrl !== null) {
         return 'Feed moved. Switch to the new URL in Subscriptions.';
     }
