@@ -34,7 +34,7 @@ createRoot(rootElement).render(
             <MantineProvider
                 colorSchemeManager={colorSchemeManager}
                 cssVariablesResolver={cssVariablesResolver}
-                defaultColorScheme="light"
+                defaultColorScheme="auto"
                 theme={theme}
             >
                 <ModalsProvider>

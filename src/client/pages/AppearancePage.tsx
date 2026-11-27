@@ -1,4 +1,12 @@
-import { Divider, SegmentedControl, Stack, Text, Title } from '@mantine/core';
+import {
+    Divider,
+    type MantineColorScheme,
+    SegmentedControl,
+    Stack,
+    Text,
+    Title,
+    useMantineColorScheme,
+} from '@mantine/core';
 
 import {
     ApplicationPage,
@@ -9,6 +17,37 @@ import { FeedFavicon } from '../components/reader/FeedFavicon';
 import readerClasses from '../components/reader/Reader.module.css';
 import { type FeedListDensity, useFeedListDensity } from '../readerPreferences';
 import classes from './AppearancePage.module.css';
+
+const colorSchemeOptions: Array<{
+    readonly label: string;
+    readonly value: MantineColorScheme;
+}> = [
+    { label: 'Light', value: 'light' },
+    { label: 'Dark', value: 'dark' },
+    { label: 'System', value: 'auto' },
+];
+
+export function ColorSchemeSection() {
+    const { colorScheme, setColorScheme } = useMantineColorScheme();
+
+    return (
+        <Stack component="section" gap="sm" maw={600}>
+            <Stack gap={3}>
+                <Title order={2}>Color scheme</Title>
+                <Text c="dimmed" size="sm">
+                    System follows your device setting. Saved on this device.
+                </Text>
+            </Stack>
+            <SegmentedControl<MantineColorScheme>
+                aria-label="Color scheme"
+                data={colorSchemeOptions}
+                fullWidth
+                onChange={setColorScheme}
+                value={colorScheme}
+            />
+        </Stack>
+    );
+}
 
 const densityOptions: Array<{
     readonly label: string;
@@ -136,6 +175,9 @@ export function AppearancePage() {
             settingsNavigation
         >
             <ApplicationSettingsContent title="Appearance">
+                <ApplicationWorkSurface>
+                    <ColorSchemeSection />
+                </ApplicationWorkSurface>
                 <ApplicationWorkSurface>
                     <FeedListSection />
                 </ApplicationWorkSurface>

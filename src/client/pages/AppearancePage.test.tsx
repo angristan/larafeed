@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
 import { authKeys } from '../queries/auth';
-import { AppearancePage } from './AppearancePage';
+import { AppearancePage, ColorSchemeSection } from './AppearancePage';
 
 describe('AppearancePage', () => {
     it('offers three feed list densities with the current default selected', () => {
@@ -43,5 +43,19 @@ describe('AppearancePage', () => {
         expect(markup).toContain('Preview');
         expect(markup).toContain('data-density-preview="comfortable"');
         expect(markup).toContain('Building a tiny server for the weekend');
+    });
+
+    it('offers light, dark and system color schemes', () => {
+        const markup = renderToStaticMarkup(
+            <MantineProvider defaultColorScheme="auto">
+                <ColorSchemeSection />
+            </MantineProvider>,
+        );
+
+        expect(markup).toContain('aria-label="Color scheme"');
+        expect(markup).toContain('Light');
+        expect(markup).toContain('Dark');
+        expect(markup).toContain('System');
+        expect(markup).toContain('checked="" value="auto"');
     });
 });
