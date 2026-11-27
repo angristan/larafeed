@@ -16,9 +16,8 @@ import { recordCronResult } from '../observability';
  *   delete old index rows → insert new rows → stamp search_indexed_at
  *
  * Feed refreshes bump `entries.updated_at` when the title, author, or content
- * changes, so stale entries show up in the same pending query. Deleted
- * entries leave index rows behind; searches join `entries` so those never
- * appear, and each run removes a bounded number of them.
+ * changes, so stale entries show up in the same pending query. Deleting an
+ * entry removes its index row through the `entries_delete_search` trigger.
  */
 
 // About 200 entries of typical feed HTML is under 2 MB of text work and a
@@ -26,7 +25,6 @@ import { recordCronResult } from '../observability';
 const BATCH_SIZE = 200;
 // The index stores the first 100,000 characters of each article body.
 const MAX_BODY_CHARS = 100_000;
-const MAX_ORPHANS_PER_RUN = 500;
 // D1 allows at most 100 bound parameters per statement.
 const INSERT_ROWS_PER_STATEMENT = 25; // 4 parameters per row
 const STAMP_ROWS_PER_STATEMENT = 50; // 2 parameters per row
@@ -66,8 +64,12 @@ export const indexStatements = (
         bindings: chunk.map((row) => row.id),
     })),
     ...chunks(rows, INSERT_ROWS_PER_STATEMENT).map((chunk) => ({
+        // An entry deleted after the pending read has already lost its row
+        // to the delete trigger. Skip it instead of indexing it again.
         sql: `INSERT INTO entry_search (rowid, title, author, body)
-              VALUES ${placeholders(chunk.length, '(?, ?, ?, ?)')}`,
+              SELECT v.column1, v.column2, v.column3, v.column4
+              FROM (VALUES ${placeholders(chunk.length, '(?, ?, ?, ?)')}) v
+              WHERE EXISTS (SELECT 1 FROM entries e WHERE e.id = v.column1)`,
         bindings: chunk.flatMap((row) => [
             row.id,
             row.title,
@@ -86,7 +88,6 @@ export const indexStatements = (
 
 export interface SearchIndexRun {
     readonly indexed: number;
-    readonly orphansRemoved: number;
     /** True when the run filled a whole batch, so more may be pending. */
     readonly backlog: boolean;
 }
@@ -124,19 +125,8 @@ export const runSearchIndexer = (d1: D1) =>
             yield* d1.batch(indexStatements(rows));
         }
 
-        const orphans = yield* d1.run({
-            sql: `DELETE FROM entry_search WHERE rowid IN (
-                    SELECT s.rowid FROM entry_search s
-                    LEFT JOIN entries e ON e.id = s.rowid
-                    WHERE e.id IS NULL
-                    LIMIT ?
-                  )`,
-            bindings: [MAX_ORPHANS_PER_RUN],
-        });
-
         return {
             indexed: rows.length,
-            orphansRemoved: orphans.meta.changes ?? 0,
             backlog: pending.results.length === BATCH_SIZE,
         } satisfies SearchIndexRun;
     });
@@ -148,7 +138,6 @@ export const handleSearchIndexCron = (d1: D1): Promise<SearchIndexRun> =>
                 Effect.sync(() =>
                     recordCronResult('search', {
                         'app.search.indexed': run.indexed,
-                        'app.search.orphans_removed': run.orphansRemoved,
                         'app.search.backlog': run.backlog,
                     }),
                 ),
