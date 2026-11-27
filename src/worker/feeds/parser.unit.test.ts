@@ -180,6 +180,36 @@ describe('feed parser', () => {
         );
     });
 
+    it('keeps Atom text literal and XHTML entities escaped', async () => {
+        const feed = await parse(`<feed xmlns="http://www.w3.org/2005/Atom">
+            <title>Content types</title>
+            <entry>
+              <id>text</id>
+              <title>Text</title>
+              <updated>2026-07-18T11:00:00Z</updated>
+              <content type="text">Use &lt;b&gt; for bold &amp;amp; more</content>
+            </entry>
+            <entry>
+              <id>xhtml</id>
+              <title>XHTML</title>
+              <updated>2026-07-18T10:00:00Z</updated>
+              <summary type="xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><p>Type &lt;script&gt; &amp; <b>bold</b><![CDATA[ <i>raw</i>]]></p></div></summary>
+            </entry>
+        </feed>`);
+
+        expect(
+            Object.fromEntries(
+                feed.entries.map((entry) => [
+                    entry.sourceId,
+                    entry.contentHtml,
+                ]),
+            ),
+        ).toEqual({
+            text: 'Use &lt;b> for bold &amp;amp; more',
+            xhtml: '<div><p>Type &lt;script> &amp; <b>bold</b> &lt;i>raw&lt;/i></p></div>',
+        });
+    });
+
     it('decodes documents with the declared character encoding', async () => {
         // "Café ’" in windows-1252, where 0x92 is a right single quote.
         const latin = (text: string) =>

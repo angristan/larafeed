@@ -494,9 +494,43 @@ const itemLink = (
         ? atomLink(item.link, finalUrl, 'alternate')
         : resolveHttpUrl(firstText(item, 'link'), finalUrl);
 
-const contentForItem = (item: XmlRecord): string | undefined => {
+const xhtmlMarkup = (value: string): string =>
+    // CDATA inside XHTML is text, but an HTML parser drops it as a comment.
+    value.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gu, (_match, text: string) =>
+        escaped(text),
+    );
+
+/**
+ * Atom content declares its type. `text` is plain text, so markup characters
+ * stay literal. `xhtml` is already markup, so its entity references are left
+ * for the HTML parser to decode once. `html` and a missing type are escaped
+ * HTML. RFC 4287 reads a missing type as text, but many feeds omit it for
+ * HTML.
+ */
+const atomHtml = (value: unknown): string | undefined => {
+    if (Array.isArray(value)) {
+        const html = value.map(atomHtml).filter(Boolean).join('');
+        return html === '' ? undefined : html;
+    }
+    const node = record(value);
+    const type = scalarText(node?.['@_type'])?.toLowerCase();
+    const text = node?.['#text'];
+    if (type === 'xhtml' || type === 'application/xhtml+xml') {
+        return typeof text === 'string' ? xhtmlMarkup(text) : undefined;
+    }
+    if (type === 'text' || type === 'text/plain') {
+        return typeof text === 'string' ? escaped(rawHtml(text)) : undefined;
+    }
+    return htmlFromValue(value);
+};
+
+const contentForItem = (
+    kind: FeedKind,
+    item: XmlRecord,
+): string | undefined => {
     for (const key of ['encoded', 'content', 'description', 'summary']) {
-        const content = htmlFromValue(item[key]);
+        const content =
+            kind === 'atom' ? atomHtml(item[key]) : htmlFromValue(item[key]);
         if (content !== undefined && content.trim() !== '') {
             return content;
         }
@@ -705,7 +739,7 @@ const candidateFromItem = (
     const url = itemLink(kind, item, finalUrl);
     const rawTitle = plainTextTitle(firstText(item, 'title'), 2_000);
     const title = rawTitle ?? 'Untitled';
-    const rawContent = contentForItem(item);
+    const rawContent = contentForItem(kind, item);
     const contentProvided = [
         'encoded',
         'content',
