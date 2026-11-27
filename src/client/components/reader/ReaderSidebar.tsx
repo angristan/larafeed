@@ -816,6 +816,13 @@ function FeedEditForm({
     );
 }
 
+// The feed menu only needs these fields, so the entry toolbar can show it
+// before the subscription list or management data has loaded.
+type FeedActionSubscription = Pick<
+    ReaderSubscriptionList['subscriptions'][number],
+    'feedId' | 'feedName' | 'customFeedName' | 'unreadCount'
+>;
+
 // Mounted only while the feed menu is open, so a closed menu in each sidebar
 // row costs no mutation observers.
 function FeedActionsMenuItems({
@@ -824,7 +831,7 @@ function FeedActionsMenuItems({
     categories,
     onUnsubscribed,
 }: {
-    readonly subscription: ReaderSubscriptionList['subscriptions'][number];
+    readonly subscription: FeedActionSubscription;
     readonly managed: ManagedSubscription | undefined;
     readonly categories: readonly ManagedCategory[];
     readonly onUnsubscribed?: () => void;
@@ -1006,7 +1013,7 @@ export function FeedActions({
     entrySection,
     trigger = 'inline',
 }: {
-    readonly subscription: ReaderSubscriptionList['subscriptions'][number];
+    readonly subscription: FeedActionSubscription;
     readonly managed: ManagedSubscription | undefined;
     readonly categories: readonly ManagedCategory[];
     readonly onUnsubscribed?: () => void;

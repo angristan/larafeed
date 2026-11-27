@@ -787,10 +787,6 @@
     .entryActions :global(.mantine-ActionIcon-root) {
         --ai-size: 40px !important;
     }
-
-    .readAction {
-        display: none;
-    }
 }
 
 @container detail-pane (max-width: 22rem) {

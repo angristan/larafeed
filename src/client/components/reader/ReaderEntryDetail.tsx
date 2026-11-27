@@ -713,7 +713,6 @@ export const ReaderEntryDetail = memo(function ReaderEntryDetail({
                                             ? 'Mark entry as unread'
                                             : 'Mark entry as read'
                                     }
-                                    className={classes.readAction}
                                     color="gray"
                                     data-direct-read-action
                                     loading={readPending}
@@ -732,94 +731,82 @@ export const ReaderEntryDetail = memo(function ReaderEntryDetail({
                                 </ActionIcon>
                             </Tooltip>
 
-                            {managedSubscription !== undefined && (
-                                <FeedActions
-                                    categories={
-                                        management.data?.categories ?? []
-                                    }
-                                    entrySection={
-                                        <>
-                                            <Menu.Label>Entry</Menu.Label>
-                                            <Menu.Item
-                                                leftSection={
-                                                    summarize ? (
-                                                        <IconBook size={14} />
-                                                    ) : (
-                                                        <IconRobot size={14} />
-                                                    )
-                                                }
-                                                onClick={() =>
-                                                    onSetSummarize(!summarize)
-                                                }
-                                            >
-                                                {summarize
-                                                    ? 'Show article'
-                                                    : 'Show AI summary'}
-                                            </Menu.Item>
-                                            <Menu.Item
-                                                disabled={readPending}
-                                                leftSection={
-                                                    shownEntry.read ? (
-                                                        <IconCircle size={14} />
-                                                    ) : (
-                                                        <IconCircleFilled
-                                                            size={14}
-                                                        />
-                                                    )
-                                                }
-                                                onClick={() =>
-                                                    onSetRead(!shownEntry.read)
-                                                }
-                                            >
-                                                {shownEntry.read
-                                                    ? 'Mark as unread'
-                                                    : 'Mark as read'}
-                                            </Menu.Item>
-                                            <Menu.Item
-                                                disabled={archivePending}
-                                                leftSection={
-                                                    shownEntry.archived ? (
-                                                        <IconArchiveOff
-                                                            size={14}
-                                                        />
-                                                    ) : (
-                                                        <IconArchive
-                                                            size={14}
-                                                        />
-                                                    )
-                                                }
-                                                onClick={() =>
-                                                    onSetArchived(
-                                                        !shownEntry.archived,
-                                                    )
-                                                }
-                                            >
-                                                {shownEntry.archived
-                                                    ? 'Restore entry'
-                                                    : 'Archive entry'}
-                                            </Menu.Item>
-                                            <Menu.Divider />
-                                        </>
-                                    }
-                                    managed={managedSubscription}
-                                    onUnsubscribed={onBack}
-                                    subscription={{
-                                        feedId: shownEntry.feedId,
-                                        categoryId:
-                                            managedSubscription.categoryId,
-                                        feedName: shownEntry.feedName,
-                                        customFeedName:
-                                            shownEntry.customFeedName,
-                                        faviconUrl: shownEntry.faviconUrl,
-                                        faviconIsDark: shownEntry.faviconIsDark,
-                                        totalCount:
-                                            managedSubscription.entryCount,
-                                        unreadCount:
-                                            managedSubscription.unreadCount,
-                                    }}
-                                    trigger="toolbar"
-                                />
-                            )}
+                            {/* Entry actions do not depend on the feed
+                                management data; FeedActions disables the
+                                feed items that need it until it loads. */}
+                            <FeedActions
+                                categories={management.data?.categories ?? []}
+                                entrySection={
+                                    <>
+                                        <Menu.Label>Entry</Menu.Label>
+                                        <Menu.Item
+                                            leftSection={
+                                                summarize ? (
+                                                    <IconBook size={14} />
+                                                ) : (
+                                                    <IconRobot size={14} />
+                                                )
+                                            }
+                                            onClick={() =>
+                                                onSetSummarize(!summarize)
+                                            }
+                                        >
+                                            {summarize
+                                                ? 'Show article'
+                                                : 'Show AI summary'}
+                                        </Menu.Item>
+                                        <Menu.Item
+                                            disabled={readPending}
+                                            leftSection={
+                                                shownEntry.read ? (
+                                                    <IconCircle size={14} />
+                                                ) : (
+                                                    <IconCircleFilled
+                                                        size={14}
+                                                    />
+                                                )
+                                            }
+                                            onClick={() =>
+                                                onSetRead(!shownEntry.read)
+                                            }
+                                        >
+                                            {shownEntry.read
+                                                ? 'Mark as unread'
+                                                : 'Mark as read'}
+                                        </Menu.Item>
+                                        <Menu.Item
+                                            disabled={archivePending}
+                                            leftSection={
+                                                shownEntry.archived ? (
+                                                    <IconArchiveOff size={14} />
+                                                ) : (
+                                                    <IconArchive size={14} />
+                                                )
+                                            }
+                                            onClick={() =>
+                                                onSetArchived(
+                                                    !shownEntry.archived,
+                                                )
+                                            }
+                                        >
+                                            {shownEntry.archived
+                                                ? 'Restore entry'
+                                                : 'Archive entry'}
+                                        </Menu.Item>
+                                        <Menu.Divider />
+                                    </>
+                                }
+                                managed={managedSubscription}
+                                onUnsubscribed={onBack}
+                                subscription={{
+                                    feedId: shownEntry.feedId,
+                                    feedName: shownEntry.feedName,
+                                    customFeedName: shownEntry.customFeedName,
+                                    unreadCount:
+                                        managedSubscription?.unreadCount ?? 0,
+                                }}
+                                trigger="toolbar"
+                            />
                         </Group>
                     </Group>
                 </div>

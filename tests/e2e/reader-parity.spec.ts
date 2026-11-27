@@ -798,7 +798,7 @@ test('uses a single list or detail pane on mobile with working back navigation',
     expect(
         Math.max(...mobileGroupCenters) - Math.min(...mobileGroupCenters),
     ).toBeLessThan(2);
-    await expect(page.locator('[data-direct-read-action]')).toBeHidden();
+    await expect(page.locator('[data-direct-read-action]')).toBeVisible();
     const moreActions = page.getByRole('button', {
         name: 'More entry and feed actions',
     });

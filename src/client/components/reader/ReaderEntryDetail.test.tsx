@@ -64,6 +64,7 @@ interface RenderOptions {
     readonly previewEntry?: ReaderEntry;
     readonly isPending?: boolean;
     readonly error?: Error | null;
+    readonly management?: boolean;
 }
 
 const renderDetail = (options: RenderOptions = {}): string => {
@@ -79,10 +80,12 @@ const renderDetail = (options: RenderOptions = {}): string => {
     if (summary !== undefined) {
         queryClient.setQueryData(summaryKeys.detail(entry.id), summary);
     }
-    queryClient.setQueryData(subscriptionManagementKeys.list(), {
-        categories: [{ id: 1, name: 'Technology', subscriptionCount: 1 }],
-        subscriptions: [managedSubscription],
-    });
+    if (options.management ?? true) {
+        queryClient.setQueryData(subscriptionManagementKeys.list(), {
+            categories: [{ id: 1, name: 'Technology', subscriptionCount: 1 }],
+            subscriptions: [managedSubscription],
+        });
+    }
 
     return renderToStaticMarkup(
         <QueryClientProvider client={queryClient}>
@@ -216,6 +219,13 @@ describe('ReaderEntryDetail summaries', () => {
         expect(markup).toContain('aria-label="Mark entry as unread"');
         expect(markup).toContain('aria-label="Add entry to favorites"');
         expect(markup).not.toContain('aria-pressed');
+    });
+
+    it('keeps entry actions while feed management data loads', () => {
+        const markup = renderDetail({ management: false });
+
+        expect(markup).toContain('aria-label="More entry and feed actions"');
+        expect(markup).toContain('aria-label="Mark entry as unread"');
     });
 
     it('offers the full article toggle in the toolbar', () => {
