@@ -1614,11 +1614,21 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
         }
 
         if (input.entries.length > 0) {
+            // The mapping drives each join and unhex() restores the stored
+            // blob, so every key is one (feed_id, deduplication_key) index
+            // lookup. hex() on the column would read the feed's whole history.
             const refreshedEntryIds = `SELECT e.id
-                FROM entries e
-                JOIN json_each(?) mapping
-                  ON hex(e.deduplication_key) = json_extract(mapping.value, '$.deduplicationKey')
-                WHERE e.feed_id = ?`;
+                FROM json_each(?) mapping
+                CROSS JOIN entries e
+                  ON e.feed_id = ?
+                 AND e.deduplication_key = unhex(json_extract(mapping.value, '$.deduplicationKey'))`;
+            // Repeats the snapshot users as a plain list, so the primary key
+            // (user_id, entry_id) finds the rows. Without it, the feed_id and
+            // entry_id filters match no index and every interaction is read.
+            const snapshotUsers = `user_id IN (
+                SELECT CAST(json_extract(value, '$.userId') AS INTEGER)
+                FROM json_each(?)
+            )`;
             const currentFilterRevision = `EXISTS (
                 SELECT 1 FROM json_each(?) snapshot
                 JOIN feed_subscriptions fs
@@ -1635,6 +1645,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     WHERE feed_id = ? AND filtered_at IS NOT NULL
                       AND read_override IS NULL AND starred_at IS NULL
                       AND archived_at IS NULL
+                      AND ${snapshotUsers}
                       AND entry_id IN (${refreshedEntryIds})
                       AND ${currentFilterRevision}
                       AND EXISTS (
@@ -1642,6 +1653,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                       )`,
                 bindings: [
                     input.claim.feedId,
+                    filterRevisionMappings,
                     filterMappings,
                     input.claim.feedId,
                     filterRevisionMappings,
@@ -1653,6 +1665,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 sql: `UPDATE entry_interactions
                     SET filtered_at = NULL, updated_at = ?
                     WHERE feed_id = ? AND filtered_at IS NOT NULL
+                      AND ${snapshotUsers}
                       AND entry_id IN (${refreshedEntryIds})
                       AND ${currentFilterRevision}
                       AND EXISTS (
@@ -1661,6 +1674,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 bindings: [
                     input.completedAt,
                     input.claim.feedId,
+                    filterRevisionMappings,
                     filterMappings,
                     input.claim.feedId,
                     filterRevisionMappings,
@@ -1677,9 +1691,9 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     SELECT CAST(users.value AS INTEGER), ?, e.id,
                         NULL, NULL, NULL, NULL, ?, ?, ?
                     FROM json_each(?) mapping
-                    JOIN entries e
+                    CROSS JOIN entries e
                       ON e.feed_id = ?
-                     AND hex(e.deduplication_key) = json_extract(mapping.value, '$.deduplicationKey')
+                     AND e.deduplication_key = unhex(json_extract(mapping.value, '$.deduplicationKey'))
                     JOIN json_each(mapping.value, '$.filteredUserIds') users
                     JOIN json_each(?) snapshot
                       ON CAST(json_extract(snapshot.value, '$.userId') AS INTEGER)
@@ -1717,18 +1731,19 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     entries_created, entries_updated, duration_ms, created_at
                 )
                 SELECT ?, ?, j.id, ?, 1, ?, ?, ?,
-                    (SELECT COUNT(*) FROM entries refreshed
-                     JOIN json_each(?) mapping
-                       ON hex(refreshed.deduplication_key) =
-                          json_extract(mapping.value, '$.deduplicationKey')
-                     WHERE refreshed.feed_id = ? AND refreshed.created_at = ?
+                    (SELECT COUNT(*) FROM json_each(?) mapping
+                     CROSS JOIN entries refreshed
+                       ON refreshed.feed_id = ?
+                      AND refreshed.deduplication_key =
+                          unhex(json_extract(mapping.value, '$.deduplicationKey'))
+                     WHERE refreshed.created_at = ?
                        AND refreshed.updated_at = ?),
-                    (SELECT COUNT(*) FROM entries refreshed
-                     JOIN json_each(?) mapping
-                       ON hex(refreshed.deduplication_key) =
-                          json_extract(mapping.value, '$.deduplicationKey')
-                     WHERE refreshed.feed_id = ?
-                       AND refreshed.created_at IS NOT ?
+                    (SELECT COUNT(*) FROM json_each(?) mapping
+                     CROSS JOIN entries refreshed
+                       ON refreshed.feed_id = ?
+                      AND refreshed.deduplication_key =
+                          unhex(json_extract(mapping.value, '$.deduplicationKey'))
+                     WHERE refreshed.created_at IS NOT ?
                        AND refreshed.updated_at = ?),
                     ?, ?
                 FROM jobs j WHERE ${commitPredicate}`,

@@ -253,7 +253,7 @@ describe('reader query contracts', () => {
         unsubscribe();
     });
 
-    it('keeps retained lists stable while invalidating counts', async () => {
+    it('keeps retained lists and counts without refetching', async () => {
         const queryClient = new QueryClient({
             defaultOptions: { queries: { retry: false } },
         });
@@ -279,7 +279,7 @@ describe('reader query contracts', () => {
         ).toBe(false);
         expect(
             queryClient.getQueryState(readerKeys.counts())?.isInvalidated,
-        ).toBe(true);
+        ).toBe(false);
         expect(
             queryClient.getQueryState(subscriptionKeys.list())?.isInvalidated,
         ).toBe(true);
@@ -287,6 +287,50 @@ describe('reader query contracts', () => {
             queryClient.getQueryState(categoryKeys.list())?.isInvalidated,
         ).toBe(false);
         unsubscribe();
+    });
+
+    it('moves the reader counts by the change instead of refetching', () => {
+        const queryClient = new QueryClient();
+        const counts = { total: 12, unread: 5, read: 7, starred: 2 };
+        queryClient.setQueryData(readerKeys.counts(), counts);
+        // Only a list row is cached: the action came before the detail.
+        queryClient.setQueryData<InfiniteData<ReaderEntryPage>>(
+            entryKeys.list(listScope),
+            infinitePage,
+        );
+
+        reconcileReaderInteraction(queryClient, interaction);
+
+        expect(queryClient.getQueryData(readerKeys.counts())).toEqual({
+            total: 12,
+            unread: 4,
+            read: 8,
+            starred: 3,
+        });
+        expect(
+            queryClient.getQueryState(readerKeys.counts())?.isInvalidated,
+        ).toBe(false);
+
+        reconcileReaderInteraction(queryClient, {
+            ...interaction,
+            read: false,
+            starred: false,
+        });
+
+        expect(queryClient.getQueryData(readerKeys.counts())).toEqual(counts);
+    });
+
+    it('refetches the reader counts when the entry state is unknown', () => {
+        const queryClient = new QueryClient();
+        const counts = { total: 12, unread: 5, read: 7, starred: 2 };
+        queryClient.setQueryData(readerKeys.counts(), counts);
+
+        reconcileReaderInteraction(queryClient, interaction);
+
+        expect(queryClient.getQueryData(readerKeys.counts())).toEqual(counts);
+        expect(
+            queryClient.getQueryState(readerKeys.counts())?.isInvalidated,
+        ).toBe(true);
     });
 
     it('refetches the open entry after a read-through', async () => {

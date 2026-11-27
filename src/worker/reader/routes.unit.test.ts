@@ -125,7 +125,7 @@ const makeReaderService = (
             }),
         getCounts: () =>
             Effect.succeed({ total: 1, unread: 1, read: 0, starred: 0 }),
-        listEntries: () =>
+        listEntryPage: () =>
             Effect.succeed({
                 entries: [entry],
                 total: 1,
@@ -215,25 +215,40 @@ describe('reader routes', () => {
     });
 
     it('parses complete entry queries and rejects ambiguous or unbounded input', async () => {
-        const listEntries = vi.fn((_userId: number, _query: ReaderEntryQuery) =>
-            Effect.succeed({
-                entries: [entry],
-                total: 1,
-                nextCursor: null,
-            }),
+        const listEntryPage = vi.fn(
+            (_userId: number, _query: ReaderEntryQuery) =>
+                Effect.succeed({
+                    entries: [entry],
+                    total: null,
+                    nextCursor: null,
+                }),
         );
-        const app = makeApp(makeReaderService({ listEntries }));
+        const app = makeApp(makeReaderService({ listEntryPage }));
         const response = await app.request(
             '/api/entries?category_id=11&filter=favorites&order_by=created_at&cursor=1900000000000%3A44&page_size=50',
             get,
         );
         expect(response.status).toBe(200);
-        expect(listEntries).toHaveBeenCalledWith(session.user.id, {
+        expect(listEntryPage).toHaveBeenCalledWith(session.user.id, {
             scope: { type: 'category', id: 11 },
             filter: 'favorites',
             orderBy: 'created_at',
             cursor: { orderValue: 1_900_000_000_000, id: 44 },
             pageSize: 50,
+        });
+
+        const probe = await app.request(
+            '/api/entries?order_by=created_at&page_size=1&created_from=1900000000001',
+            get,
+        );
+        expect(probe.status).toBe(200);
+        expect(listEntryPage).toHaveBeenLastCalledWith(session.user.id, {
+            scope: { type: 'all' },
+            filter: 'all',
+            orderBy: 'created_at',
+            cursor: null,
+            pageSize: 1,
+            range: { from: 1_900_000_000_001 },
         });
 
         for (const query of [
@@ -247,6 +262,10 @@ describe('reader routes', () => {
             'page_size=101',
             'feed_id=1&feed_id=2',
             'unexpected=true',
+            // The bound applies to the order column, so it needs created_at.
+            'created_from=1900000000000',
+            'order_by=created_at&created_from=0',
+            'order_by=created_at&created_from=abc',
         ]) {
             const invalid = await app.request(`/api/entries?${query}`, get);
             expect(invalid.status).toBe(400);
@@ -257,7 +276,7 @@ describe('reader routes', () => {
                 error: { code: 'validation_error' },
             });
         }
-        expect(listEntries).toHaveBeenCalledTimes(1);
+        expect(listEntryPage).toHaveBeenCalledTimes(2);
     });
 
     it('passes desired states through authenticated CSRF-protected PUT routes', async () => {

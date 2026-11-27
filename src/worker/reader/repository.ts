@@ -171,6 +171,14 @@ export interface ReaderRepository {
         ReaderEntryPage,
         ReaderStorageError | ReaderInvariantError
     >;
+    /** Like `listEntries`, without the scope total and the scan it costs. */
+    readonly listEntriesUncounted: (
+        userId: number,
+        query: ReaderEntryQuery,
+    ) => Effect.Effect<
+        Omit<ReaderEntryPage, 'total'>,
+        ReaderStorageError | ReaderInvariantError
+    >;
     readonly searchEntries: (
         userId: number,
         query: ReaderSearchQuery,
@@ -400,6 +408,77 @@ const orderSql = (orderBy: ReaderOrder): string =>
         ? 'e.created_at DESC, e.id DESC'
         : 'e.published_at DESC, e.id DESC';
 
+/**
+ * Builds the scope total and the page query for an entry list. The total
+ * reads every matching entry, so callers skip it when they already have it.
+ */
+const entryListStatements = (
+    userId: number,
+    query: ReaderEntryQuery,
+): { readonly count: D1Statement; readonly page: D1Statement } => {
+    const scope = scopeSql(query.scope, userId);
+    const orderColumn =
+        query.orderBy === 'created_at' ? 'e.created_at' : 'e.published_at';
+    const range = rangeSql(orderColumn, query.range);
+    const fromWhere = `FROM entries e
+            JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id
+            JOIN feeds f ON f.id = e.feed_id
+            LEFT JOIN entry_interactions ei ON ei.user_id = fs.user_id AND ei.entry_id = e.id
+            WHERE ${scope.clause} AND ei.filtered_at IS NULL AND ${filterSql(query.filter)}${range.clause}`;
+    const whereBindings = [...scope.bindings, ...range.bindings];
+    // Keyset pagination: an OFFSET shifts when reads or new arrivals
+    // change the filtered set, skipping or repeating entries.
+    const cursorClause =
+        query.cursor === null
+            ? ''
+            : ` AND (${orderColumn} < ? OR (${orderColumn} = ? AND e.id < ?))`;
+    const cursorBindings =
+        query.cursor === null
+            ? []
+            : [
+                  query.cursor.orderValue,
+                  query.cursor.orderValue,
+                  query.cursor.id,
+              ];
+    return {
+        count: {
+            sql: `SELECT COUNT(*) AS total ${fromWhere}`,
+            bindings: whereBindings,
+        },
+        page: {
+            sql: `SELECT ${entryColumns} ${fromWhere}${cursorClause}
+                    ORDER BY ${orderSql(query.orderBy)} LIMIT ?`,
+            bindings: [...whereBindings, ...cursorBindings, query.pageSize + 1],
+        },
+    };
+};
+
+const entryPageFromRows = (
+    operation: string,
+    query: ReaderEntryQuery,
+    rawRows: readonly unknown[],
+) =>
+    Effect.gen(function* () {
+        const rows = yield* decodeRows(operation, EntryRow, rawRows);
+        const hasMore = rows.length > query.pageSize;
+        const pageRows = hasMore ? rows.slice(0, query.pageSize) : rows;
+        const entries = pageRows.map(entryFromRow);
+        const lastEntry = entries.at(-1);
+        return {
+            entries,
+            nextCursor:
+                hasMore && lastEntry !== undefined
+                    ? {
+                          orderValue:
+                              query.orderBy === 'created_at'
+                                  ? lastEntry.createdAt
+                                  : lastEntry.publishedAt,
+                          id: lastEntry.id,
+                      }
+                    : null,
+        };
+    });
+
 const ownedEntry = `
     FROM entries e
     JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id AND fs.user_id = ?
@@ -519,49 +598,10 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
     listEntries: (userId, query) =>
         Effect.gen(function* () {
             const operation = 'reader.entries.list';
-            const scope = scopeSql(query.scope, userId);
-            const orderColumn =
-                query.orderBy === 'created_at'
-                    ? 'e.created_at'
-                    : 'e.published_at';
-            const range = rangeSql(orderColumn, query.range);
-            const fromWhere = `FROM entries e
-            JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id
-            JOIN feeds f ON f.id = e.feed_id
-            LEFT JOIN entry_interactions ei ON ei.user_id = fs.user_id AND ei.entry_id = e.id
-            WHERE ${scope.clause} AND ei.filtered_at IS NULL AND ${filterSql(query.filter)}${range.clause}`;
-            const whereBindings = [...scope.bindings, ...range.bindings];
-            // Keyset pagination: an OFFSET shifts when reads or new arrivals
-            // change the filtered set, skipping or repeating entries.
-            const cursorClause =
-                query.cursor === null
-                    ? ''
-                    : ` AND (${orderColumn} < ? OR (${orderColumn} = ? AND e.id < ?))`;
-            const cursorBindings =
-                query.cursor === null
-                    ? []
-                    : [
-                          query.cursor.orderValue,
-                          query.cursor.orderValue,
-                          query.cursor.id,
-                      ];
+            const { count, page } = entryListStatements(userId, query);
             const results = yield* withStorageError(
                 operation,
-                d1.batch([
-                    {
-                        sql: `SELECT COUNT(*) AS total ${fromWhere}`,
-                        bindings: whereBindings,
-                    },
-                    {
-                        sql: `SELECT ${entryColumns} ${fromWhere}${cursorClause}
-                    ORDER BY ${orderSql(query.orderBy)} LIMIT ?`,
-                        bindings: [
-                            ...whereBindings,
-                            ...cursorBindings,
-                            query.pageSize + 1,
-                        ],
-                    },
-                ]),
+                d1.batch([count, page]),
             );
             if (results.length !== 2)
                 return yield* Effect.fail(invariantError(operation));
@@ -569,29 +609,22 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
             if (totalRows.length !== 1)
                 return yield* Effect.fail(invariantError(operation));
             const total = yield* decode(operation, TotalRow, totalRows[0]);
-            const rows = yield* decodeRows(
-                operation,
-                EntryRow,
-                results[1]?.results ?? [],
-            );
-            const hasMore = rows.length > query.pageSize;
-            const pageRows = hasMore ? rows.slice(0, query.pageSize) : rows;
-            const entries = pageRows.map(entryFromRow);
-            const lastEntry = entries.at(-1);
             return {
                 total: total.total,
-                entries,
-                nextCursor:
-                    hasMore && lastEntry !== undefined
-                        ? {
-                              orderValue:
-                                  query.orderBy === 'created_at'
-                                      ? lastEntry.createdAt
-                                      : lastEntry.publishedAt,
-                              id: lastEntry.id,
-                          }
-                        : null,
+                ...(yield* entryPageFromRows(
+                    operation,
+                    query,
+                    results[1]?.results ?? [],
+                )),
             };
+        }),
+
+    listEntriesUncounted: (userId, query) =>
+        Effect.gen(function* () {
+            const operation = 'reader.entries.page';
+            const { page } = entryListStatements(userId, query);
+            const result = yield* withStorageError(operation, d1.all(page));
+            return yield* entryPageFromRows(operation, query, result.results);
         }),
 
     searchEntries: (userId, query) =>

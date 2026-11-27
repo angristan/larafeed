@@ -3,7 +3,7 @@ import { Effect } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import { makeD1 } from '../infrastructure/d1';
-import { runSearchIndexer } from './indexer';
+import { indexStatements, runSearchIndexer } from './indexer';
 import { toFtsQuery } from './query';
 
 const d1 = makeD1(env.DB);
@@ -91,10 +91,30 @@ describe('search indexer with Workerd D1', () => {
         expect(await matches('basil')).toEqual([]);
         expect(await matches('peppers')).toEqual([7_820_002]);
 
+        // Deleting an entry removes its row at once, without an indexer run.
         await env.DB.prepare('DELETE FROM entries WHERE id = ?')
             .bind(7_820_001)
             .run();
-        expect(await run()).toMatchObject({ indexed: 0 });
+        expect(await matches('reykjavik')).toEqual([]);
+
+        // Deleting the feed cascades to its entries and their rows.
+        await env.DB.prepare('DELETE FROM feeds WHERE id = ?').bind(FEED).run();
+        expect(await matches('peppers')).toEqual([]);
+
+        // An entry deleted between the pending read and the write is skipped.
+        await Effect.runPromise(
+            d1.batch(
+                indexStatements([
+                    {
+                        id: 7_820_001,
+                        title: 'Volcanoes of Iceland',
+                        author: 'Ana',
+                        body: 'Lava fields near Reykjavik',
+                        updatedAt: now,
+                    },
+                ]),
+            ),
+        );
         expect(await matches('reykjavik')).toEqual([]);
     });
 });
