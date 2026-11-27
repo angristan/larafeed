@@ -8,11 +8,17 @@ import {
     subscriptionKeys,
 } from './reader';
 import {
+    createCategoryMutationOptions,
     createSubscriptionMutationOptions,
+    deleteCategoryMutationOptions,
+    dismissMovedFeedMutationOptions,
     moveSubscriptionMutationOptions,
+    refreshFaviconMutationOptions,
+    refreshSubscriptionMutationOptions,
     subscriptionManagementKeys,
     subscriptionManagementQueryOptions,
     unsubscribeMutationOptions,
+    updateCategoryMutationOptions,
 } from './subscriptions';
 
 const subscription = {
@@ -42,6 +48,36 @@ const subscription = {
     },
     refreshes: [],
 };
+
+const readModelKeys = {
+    management: subscriptionManagementKeys.list(),
+    categories: categoryKeys.list(),
+    subscriptions: subscriptionKeys.list(),
+    counts: readerKeys.counts(),
+    entries: entryKeys.list({
+        feedId: null,
+        categoryId: null,
+        filter: 'all',
+        orderBy: 'published_at',
+        pageSize: 50,
+    }),
+} as const;
+
+type ReadModel = keyof typeof readModelKeys;
+
+function seedReadModels(queryClient: QueryClient): void {
+    for (const key of Object.values(readModelKeys)) {
+        queryClient.setQueryData(key, { seeded: true });
+    }
+}
+
+function invalidatedReadModels(queryClient: QueryClient): ReadModel[] {
+    return (Object.keys(readModelKeys) as ReadModel[]).filter(
+        (name) =>
+            queryClient.getQueryState(readModelKeys[name])?.isInvalidated ===
+            true,
+    );
+}
 
 function makeQueryClient(): QueryClient {
     return new QueryClient({
@@ -218,6 +254,124 @@ describe('subscription management query contracts', () => {
         });
         expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
         expect(queryClient.getQueryData(entryKeys.detail(99))).toBeUndefined();
+    });
+
+    it.each([
+        {
+            name: 'feed refresh',
+            response: { jobId: 1, operationId: 'op-1', state: 'queued' },
+            run: (queryClient: QueryClient) =>
+                queryClient
+                    .getMutationCache()
+                    .build(
+                        queryClient,
+                        refreshSubscriptionMutationOptions(queryClient),
+                    )
+                    .execute({ feedId: 7 }),
+            invalidated: ['management'],
+        },
+        {
+            name: 'favicon refresh',
+            response: { feedId: 7, faviconUrl: null },
+            run: (queryClient: QueryClient) =>
+                queryClient
+                    .getMutationCache()
+                    .build(
+                        queryClient,
+                        refreshFaviconMutationOptions(queryClient),
+                    )
+                    .execute({ feedId: 7 }),
+            invalidated: ['management'],
+        },
+        {
+            name: 'moved-feed dismissal',
+            response: { subscription },
+            run: (queryClient: QueryClient) =>
+                queryClient
+                    .getMutationCache()
+                    .build(
+                        queryClient,
+                        dismissMovedFeedMutationOptions(queryClient),
+                    )
+                    .execute({
+                        feedId: 7,
+                        movedToUrl: 'https://example.com/new.xml',
+                    }),
+            invalidated: ['management'],
+        },
+        {
+            name: 'category creation',
+            response: {
+                category: { id: 4, name: 'News', subscriptionCount: 0 },
+            },
+            run: (queryClient: QueryClient) =>
+                queryClient
+                    .getMutationCache()
+                    .build(
+                        queryClient,
+                        createCategoryMutationOptions(queryClient),
+                    )
+                    .execute({ name: 'News' }),
+            invalidated: ['management', 'categories'],
+        },
+        {
+            name: 'category rename',
+            response: {
+                category: { id: 3, name: 'Tech', subscriptionCount: 1 },
+            },
+            run: (queryClient: QueryClient) =>
+                queryClient
+                    .getMutationCache()
+                    .build(
+                        queryClient,
+                        updateCategoryMutationOptions(queryClient),
+                    )
+                    .execute({ categoryId: 3, name: 'Tech' }),
+            invalidated: ['management', 'categories'],
+        },
+        {
+            name: 'category deletion',
+            response: { deleted: true },
+            run: (queryClient: QueryClient) =>
+                queryClient
+                    .getMutationCache()
+                    .build(
+                        queryClient,
+                        deleteCategoryMutationOptions(queryClient),
+                    )
+                    .execute({ categoryId: 4 }),
+            invalidated: ['management', 'categories'],
+        },
+        {
+            name: 'unsubscribe',
+            response: { deleted: true },
+            run: (queryClient: QueryClient) =>
+                queryClient
+                    .getMutationCache()
+                    .build(queryClient, unsubscribeMutationOptions(queryClient))
+                    .execute({ feedId: 7 }),
+            invalidated: [
+                'management',
+                'categories',
+                'subscriptions',
+                'counts',
+                'entries',
+            ],
+        },
+    ])('invalidates only the data a $name changes', async (testCase) => {
+        vi.stubGlobal('document', { cookie: 'larafeed-csrf=csrf-token' });
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(() => Promise.resolve(Response.json(testCase.response))),
+        );
+        const queryClient = makeQueryClient();
+        seedReadModels(queryClient);
+
+        await testCase.run(queryClient);
+
+        expect(invalidatedReadModels(queryClient)).toEqual(
+            testCase.invalidated,
+        );
     });
 
     it('fails locally when the CSRF cookie is missing', async () => {

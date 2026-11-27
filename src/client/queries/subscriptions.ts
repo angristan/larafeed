@@ -57,9 +57,8 @@ export const subscriptionManagementQueryOptions = queryOptions({
     queryFn: ({ signal }) =>
         Effect.runPromise(listManagedSubscriptions(), { signal }),
     // The management payload carries every subscription and its refresh
-    // history, and the entry pane reads it on every open. Subscription
-    // mutations invalidate it through invalidateSubscriptionReadModels, so a
-    // longer stale window only delays background changes such as new refresh
+    // history, and the entry pane reads it on every open. Every subscription
+    // and category mutation invalidates it, so a longer stale window only delays background changes such as new refresh
     // results.
     staleTime: 60_000,
     // This is the largest payload the reader loads. Refetching it on every
@@ -96,6 +95,29 @@ export async function invalidateSubscriptionReadModels(
     ]);
 }
 
+// Refresh requests only queue a job and a moved-feed dismissal only changes
+// management fields, so the reader lists and loaded entry pages stay valid.
+async function invalidateSubscriptionManagement(
+    queryClient: QueryClient,
+): Promise<void> {
+    await queryClient.invalidateQueries({
+        queryKey: subscriptionManagementKeys.lists(),
+    });
+}
+
+// Only empty categories can be deleted, and no reader list or entry page
+// shows category names, so category changes leave those caches valid.
+async function invalidateCategoryReadModels(
+    queryClient: QueryClient,
+): Promise<void> {
+    await Promise.all([
+        queryClient.invalidateQueries({
+            queryKey: subscriptionManagementKeys.lists(),
+        }),
+        queryClient.invalidateQueries({ queryKey: categoryKeys.lists() }),
+    ]);
+}
+
 export interface CreateCategoryVariables {
     readonly name: string;
 }
@@ -111,7 +133,7 @@ export function createCategoryMutationOptions(queryClient: QueryClient) {
                     csrfToken: requireCsrfToken(),
                 }),
             ),
-        onSuccess: async () => invalidateSubscriptionReadModels(queryClient),
+        onSuccess: async () => invalidateCategoryReadModels(queryClient),
     });
 }
 
@@ -131,7 +153,7 @@ export function updateCategoryMutationOptions(queryClient: QueryClient) {
                     csrfToken: requireCsrfToken(),
                 }),
             ),
-        onSuccess: async () => invalidateSubscriptionReadModels(queryClient),
+        onSuccess: async () => invalidateCategoryReadModels(queryClient),
     });
 }
 
@@ -150,7 +172,7 @@ export function deleteCategoryMutationOptions(queryClient: QueryClient) {
                     csrfToken: requireCsrfToken(),
                 }),
             ),
-        onSuccess: async () => invalidateSubscriptionReadModels(queryClient),
+        onSuccess: async () => invalidateCategoryReadModels(queryClient),
     });
 }
 
@@ -273,7 +295,7 @@ export function dismissMovedFeedMutationOptions(queryClient: QueryClient) {
                     csrfToken: requireCsrfToken(),
                 }),
             ),
-        onSuccess: async () => invalidateSubscriptionReadModels(queryClient),
+        onSuccess: async () => invalidateSubscriptionManagement(queryClient),
     });
 }
 
@@ -288,7 +310,7 @@ export function refreshSubscriptionMutationOptions(queryClient: QueryClient) {
                     csrfToken: requireCsrfToken(),
                 }),
             ),
-        onSuccess: async () => invalidateSubscriptionReadModels(queryClient),
+        onSuccess: async () => invalidateSubscriptionManagement(queryClient),
     });
 }
 
@@ -306,6 +328,6 @@ export function refreshFaviconMutationOptions(queryClient: QueryClient) {
                     csrfToken: requireCsrfToken(),
                 }),
             ),
-        onSuccess: async () => invalidateSubscriptionReadModels(queryClient),
+        onSuccess: async () => invalidateSubscriptionManagement(queryClient),
     });
 }
