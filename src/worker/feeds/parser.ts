@@ -585,7 +585,11 @@ const candidateFromJsonItem = (
         return undefined;
     }
 
-    const sourceId = jsonText(item.id);
+    // JSON Feed requires readers to coerce numeric IDs to strings.
+    const sourceId =
+        typeof item.id === 'number' && Number.isFinite(item.id)
+            ? String(item.id)
+            : jsonText(item.id);
     if (sourceId === undefined || sourceId.length > 4_096) {
         return undefined;
     }

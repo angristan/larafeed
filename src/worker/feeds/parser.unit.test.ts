@@ -344,6 +344,37 @@ describe('feed parser', () => {
         });
     });
 
+    it('accepts numeric JSON Feed item IDs as strings', async () => {
+        const feed = await parse(
+            JSON.stringify({
+                version: 'https://jsonfeed.org/version/1.1',
+                title: 'Numeric IDs',
+                items: [
+                    {
+                        id: 42,
+                        content_text: 'Numeric',
+                        date_published: '2026-07-18T08:00:00Z',
+                    },
+                    {
+                        id: '43',
+                        content_text: 'String',
+                        date_published: '2026-07-18T09:00:00Z',
+                    },
+                ],
+            }),
+        );
+
+        expect(
+            feed.entries.map(({ sourceId, sourceIdentity }) => ({
+                sourceId,
+                sourceIdentity,
+            })),
+        ).toEqual([
+            { sourceId: '42', sourceIdentity: 'id:42' },
+            { sourceId: '43', sourceIdentity: 'id:43' },
+        ]);
+    });
+
     it('decodes JSON titles once and skips future entries', async () => {
         const feed = await parse(
             JSON.stringify({
