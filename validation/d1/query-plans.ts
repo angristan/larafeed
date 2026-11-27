@@ -133,6 +133,16 @@ export const queryPlanSpecs = (
             ],
         },
         {
+            // Moving a subscription matches old and new entries by link.
+            name: 'move.link_match',
+            sql: `SELECT n.id, o.id FROM entries n
+                JOIN entries o ON o.feed_id = ?
+                    AND o.url IS NOT NULL AND o.url = n.url
+                WHERE n.feed_id = ? AND n.url IS NOT NULL`,
+            bindings: [primaryFeedId, primaryFeedId + 1],
+            required: ['entries_feed_url (feed_id=? AND url=?)'],
+        },
+        {
             // Refresh commits clear filter state for the snapshot users only.
             name: 'refresh.filter_cleanup',
             sql: `SELECT entry_id FROM entry_interactions

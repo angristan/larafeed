@@ -371,10 +371,21 @@ WHERE ${where}
 GROUP BY fs.user_id, fs.feed_id`;
 
 // An old and a new entry are the same article when they share a source
-// identity (GUID, else URL) or a link.
-const sameArticle = (oldEntry: string, newEntry: string) =>
-    `(${oldEntry}.deduplication_key = ${newEntry}.deduplication_key
-        OR (${newEntry}.url IS NOT NULL AND ${oldEntry}.url = ${newEntry}.url))`;
+// identity (GUID, else URL) or a link. Each condition is matched on its
+// own, so each uses an index: UNIQUE(feed_id, deduplication_key) and
+// entries_feed_url. One OR condition read every old entry per new entry.
+const sameArticleExists = (
+    entries: string,
+    feedId: string,
+    entry: string,
+) => `(EXISTS (
+        SELECT 1 FROM entries ${entries}
+        WHERE ${entries}.feed_id = ${feedId}
+          AND ${entries}.deduplication_key = ${entry}.deduplication_key)
+    OR (${entry}.url IS NOT NULL AND EXISTS (
+        SELECT 1 FROM entries ${entries}
+        WHERE ${entries}.feed_id = ${feedId} AND ${entries}.url IS NOT NULL
+          AND ${entries}.url = ${entry}.url)))`;
 
 /**
  * Statements that move a subscription's state to another feed, run in one
@@ -402,7 +413,7 @@ const moveSubscriptionStatements = (input: MoveSubscriptionStateInput) => {
                         THEN COALESCE(moved.read_changed_at, ?) END,
                     moved.starred_at, moved.archived_at, ?, ?
                 FROM (
-                    SELECT n.id AS entry_id,
+                    SELECT pairs.new_id AS entry_id,
                         MAX(CASE
                             WHEN oi.read_override IS NOT NULL THEN oi.read_override
                             WHEN ofs.read_through_entry_id IS NOT NULL
@@ -411,15 +422,25 @@ const moveSubscriptionStatements = (input: MoveSubscriptionStateInput) => {
                         MAX(oi.read_changed_at) AS read_changed_at,
                         MAX(oi.starred_at) AS starred_at,
                         MAX(oi.archived_at) AS archived_at
-                    FROM entries n
+                    FROM (
+                        SELECT n.id AS new_id, o.id AS old_id
+                        FROM entries n
+                        JOIN entries o ON o.feed_id = ?
+                            AND o.deduplication_key = n.deduplication_key
+                        WHERE n.feed_id = ?
+                        UNION
+                        SELECT n.id, o.id
+                        FROM entries n
+                        JOIN entries o ON o.feed_id = ?
+                            AND o.url IS NOT NULL AND o.url = n.url
+                        WHERE n.feed_id = ? AND n.url IS NOT NULL
+                    ) pairs
+                    JOIN entries o ON o.id = pairs.old_id
                     JOIN feed_subscriptions ofs
-                        ON ofs.user_id = ? AND ofs.feed_id = ?
-                    JOIN entries o
-                        ON o.feed_id = ofs.feed_id AND ${sameArticle('o', 'n')}
+                        ON ofs.user_id = ? AND ofs.feed_id = o.feed_id
                     LEFT JOIN entry_interactions oi
                         ON oi.user_id = ofs.user_id AND oi.entry_id = o.id
-                    WHERE n.feed_id = ?
-                    GROUP BY n.id
+                    GROUP BY pairs.new_id
                 ) moved
                 WHERE moved.was_read = 1
                     OR moved.starred_at IS NOT NULL
@@ -443,9 +464,11 @@ const moveSubscriptionStatements = (input: MoveSubscriptionStateInput) => {
                 now,
                 now,
                 now,
-                userId,
                 oldFeedId,
                 newFeedId,
+                oldFeedId,
+                newFeedId,
+                userId,
             ],
         },
     ];
@@ -457,10 +480,7 @@ const moveSubscriptionStatements = (input: MoveSubscriptionStateInput) => {
                 SELECT ?, n.feed_id, n.id, 1, ?, ?, ?
                 FROM entries n
                 WHERE n.feed_id = ? AND n.published_at <= ?
-                    AND NOT EXISTS (
-                        SELECT 1 FROM entries o
-                        WHERE o.feed_id = ? AND ${sameArticle('o', 'n')}
-                    )
+                    AND NOT ${sameArticleExists('o', '?', 'n')}
                 ON CONFLICT (user_id, entry_id) DO NOTHING`,
             bindings: [
                 userId,
@@ -469,6 +489,7 @@ const moveSubscriptionStatements = (input: MoveSubscriptionStateInput) => {
                 now,
                 newFeedId,
                 input.readUnmatchedPublishedThrough,
+                oldFeedId,
                 oldFeedId,
             ],
         });
@@ -481,12 +502,16 @@ const moveSubscriptionStatements = (input: MoveSubscriptionStateInput) => {
                     JOIN entries o ON o.id = oi.entry_id
                     WHERE oi.user_id = ? AND oi.feed_id = ?
                         AND oi.starred_at IS NOT NULL
-                        AND NOT EXISTS (
-                            SELECT 1 FROM entries n
-                            WHERE n.feed_id = ? AND ${sameArticle('o', 'n')}
-                        )
+                        AND NOT ${sameArticleExists('n', '?', 'o')}
                 )`,
-            bindings: [userId, oldFeedId, userId, oldFeedId, newFeedId],
+            bindings: [
+                userId,
+                oldFeedId,
+                userId,
+                oldFeedId,
+                newFeedId,
+                newFeedId,
+            ],
         },
         {
             sql: `DELETE FROM feeds
