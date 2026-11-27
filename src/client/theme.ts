@@ -141,6 +141,7 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
         '--ds-motion-standard': '180ms',
         '--ds-motion-slow': '240ms',
         '--ds-motion-easing': 'cubic-bezier(0.2, 0, 0, 1)',
+        '--ds-font-size-metric': '1.5rem',
         '--ds-prose-width': '760px',
         '--ds-content-width': '1000px',
         '--ds-shell-width': '1460px',
@@ -284,17 +285,29 @@ export const theme = createTheme({
     },
     fontFamily: sans,
     fontFamilyMonospace: mono,
+    // One short type scale for the app chrome: 12px (xs) is the floor for
+    // labels, badges and meta text, 14px (sm) is body and control text,
+    // 16px (md) is a section heading, 20px (xl) is a page heading and
+    // --ds-font-size-metric is a headline number. Article text in the
+    // reader keeps its own reading sizes.
+    fontSizes: {
+        xs: '0.75rem',
+        sm: '0.875rem',
+        md: '1rem',
+        lg: '1.125rem',
+        xl: '1.25rem',
+    },
     headings: {
         fontFamily: sans,
         fontWeight: '650',
         textWrap: 'balance',
         sizes: {
-            h1: {
-                fontSize: 'clamp(1.75rem, 3vw, 2.35rem)',
-                lineHeight: '1.12',
-            },
-            h2: { fontSize: '1.25rem', lineHeight: '1.25' },
-            h3: { fontSize: '1.05rem', lineHeight: '1.3' },
+            h1: { fontSize: '1.25rem', lineHeight: '1.3' },
+            h2: { fontSize: '1rem', lineHeight: '1.35' },
+            h3: { fontSize: '0.875rem', lineHeight: '1.4' },
+            h4: { fontSize: '0.875rem', lineHeight: '1.4' },
+            h5: { fontSize: '0.75rem', lineHeight: '1.4' },
+            h6: { fontSize: '0.75rem', lineHeight: '1.4' },
         },
     },
     defaultRadius: 'md',

@@ -228,9 +228,7 @@ function ImportHistory({
         <Stack gap="xl">
             {currentImports.length > 0 && (
                 <Stack component="section" gap="sm">
-                    <Title order={2} size="h3">
-                        Current imports
-                    </Title>
+                    <Title order={2}>Current imports</Title>
                     {currentImports.map((opmlImport) => (
                         <ImportCard
                             key={opmlImport.id}
@@ -242,9 +240,7 @@ function ImportHistory({
 
             {recentImports.length > 0 && (
                 <Stack component="section" gap="sm">
-                    <Title order={2} size="h3">
-                        Recent imports
-                    </Title>
+                    <Title order={2}>Recent imports</Title>
                     {recentImports.map((opmlImport) => (
                         <ImportCard
                             key={opmlImport.id}
@@ -439,7 +435,7 @@ export function OpmlPage() {
                             aria-labelledby="history-heading"
                         >
                             <Group justify="space-between" align="center">
-                                <Title id="history-heading" order={2} size="h2">
+                                <Title id="history-heading" order={2}>
                                     Import progress
                                 </Title>
                                 {importsQuery.isFetching &&

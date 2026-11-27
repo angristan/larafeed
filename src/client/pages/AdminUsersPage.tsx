@@ -111,9 +111,7 @@ function EnrollmentForm() {
             <form onSubmit={submit}>
                 <Stack gap="md">
                     <Stack gap={3}>
-                        <Title order={2} size="h3">
-                            Invite a user
-                        </Title>
+                        <Title order={2}>Invite a user</Title>
                         <Text c="dimmed" size="sm">
                             Create a short-lived, one-time passkey enrollment
                             link. Send it through a trusted channel.
@@ -366,9 +364,7 @@ export function AdminUsersPage() {
                         >
                             <Stack gap="md">
                                 <Stack gap={3}>
-                                    <Title order={2} size="h3">
-                                        Users
-                                    </Title>
+                                    <Title order={2}>Users</Title>
                                     <Text c="dimmed" size="sm">
                                         Disabling an account revokes its
                                         sessions and outstanding links. The
@@ -413,9 +409,7 @@ export function AdminUsersPage() {
                         >
                             <Stack gap="md">
                                 <Stack gap={3}>
-                                    <Title order={2} size="h3">
-                                        Access links
-                                    </Title>
+                                    <Title order={2}>Access links</Title>
                                     <Text c="dimmed" size="sm">
                                         Recent enrollment and recovery link
                                         metadata. Secret link tokens are only
@@ -531,7 +525,7 @@ export function AdminUsersPage() {
                         >
                             <Stack gap="md">
                                 <Stack gap={3}>
-                                    <Title order={2} size="h3">
+                                    <Title order={2}>
                                         Recent security events
                                     </Title>
                                     <Text c="dimmed" size="sm">

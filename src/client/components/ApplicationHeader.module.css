@@ -75,7 +75,7 @@
     border: 1px solid color-mix(in srgb, var(--ds-sage) 50%, var(--ds-line));
     color: var(--ds-sage);
     background: var(--ds-sage-surface);
-    font-size: 0.75rem;
+    font-size: var(--mantine-font-size-xs);
     font-weight: 750;
 }
 
@@ -118,7 +118,7 @@
     border: 1px solid transparent;
     border-radius: var(--ds-radius-md);
     color: var(--ds-muted);
-    font-size: 0.625rem;
+    font-size: var(--mantine-font-size-xs);
     font-weight: 650;
     line-height: 1;
     text-decoration: none;

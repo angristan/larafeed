@@ -27,12 +27,6 @@
     padding: var(--ds-space-3) var(--ds-space-4) 0;
 }
 
-.overviewHeader h2,
-.toolbarHeader h2 {
-    font-size: 0.875rem;
-    font-weight: 700;
-}
-
 .metricGrid {
     display: grid;
     overflow: hidden;
@@ -49,7 +43,7 @@
 
 .metricValue {
     margin-top: var(--ds-space-1);
-    font-size: 1.75rem;
+    font-size: var(--ds-font-size-metric);
     font-variant-numeric: tabular-nums;
     font-weight: 700;
     line-height: 1;
@@ -98,7 +92,7 @@
     border-bottom-color: var(--ds-line-strong);
     color: var(--ds-muted);
     background: var(--ds-surface-work-header);
-    font-size: 0.6875rem;
+    font-size: var(--mantine-font-size-xs);
     font-weight: 700;
     white-space: nowrap;
 }

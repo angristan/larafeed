@@ -332,11 +332,7 @@ export function McpPage() {
                                     component="section"
                                     gap="sm"
                                 >
-                                    <Title
-                                        id="mcp-connect-heading"
-                                        order={2}
-                                        size="h3"
-                                    >
+                                    <Title id="mcp-connect-heading" order={2}>
                                         Connect an app
                                     </Title>
                                     <Text c="dimmed" size="sm">
@@ -399,11 +395,7 @@ export function McpPage() {
                                     component="section"
                                     gap="xs"
                                 >
-                                    <Title
-                                        id="mcp-clients-heading"
-                                        order={2}
-                                        size="h3"
-                                    >
+                                    <Title id="mcp-clients-heading" order={2}>
                                         Connected apps
                                     </Title>
                                     {settings.clients.length === 0 ? (

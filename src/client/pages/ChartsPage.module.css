@@ -60,16 +60,9 @@
     border-right: 1px solid var(--ds-line);
 }
 
-.topbarHeader h1 {
-    font-size: 1rem;
-    letter-spacing: -0.02em;
-}
-
 .surfaceHeader h2,
 .surfaceHeader h3 {
-    font-size: 0.875rem;
     font-weight: 700;
-    letter-spacing: -0.01em;
 }
 
 .filterBody {
@@ -120,7 +113,7 @@
     border-bottom: 1px solid var(--ds-work-line);
     color: var(--ds-muted);
     background: var(--ds-surface-work-header);
-    font-size: 0.625rem;
+    font-size: var(--mantine-font-size-xs);
     font-weight: 750;
     letter-spacing: 0.06em;
     line-height: 1;
@@ -153,7 +146,7 @@
 .metricLabel {
     overflow: hidden;
     color: var(--ds-muted);
-    font-size: 0.6875rem;
+    font-size: var(--mantine-font-size-xs);
     font-weight: 650;
     line-height: 1.25;
     text-overflow: ellipsis;
@@ -162,7 +155,7 @@
 
 .metricValue {
     color: var(--ds-ink);
-    font-size: clamp(1.15rem, 2.5vw, 1.5rem);
+    font-size: var(--ds-font-size-metric);
     font-variant-numeric: tabular-nums;
     font-weight: 700;
     line-height: 1.15;
@@ -211,7 +204,7 @@
     border-bottom: 1px solid transparent;
     background: var(--ds-surface-work-header);
     cursor: pointer;
-    font-size: 0.875rem;
+    font-size: var(--mantine-font-size-sm);
     font-weight: 700;
 }
 

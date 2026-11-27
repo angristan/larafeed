@@ -668,7 +668,7 @@ function DangerSection({
             </Modal>
             <Stack gap="md">
                 <Stack gap={3}>
-                    <Title c="red" order={2} size="h3">
+                    <Title c="red" order={2}>
                         Danger zone
                     </Title>
                     <Text c="dimmed" size="sm">

@@ -184,13 +184,13 @@
 
 .alertTitle {
     color: var(--ds-ink);
-    font-size: 0.75rem;
+    font-size: var(--mantine-font-size-sm);
     font-weight: 700;
 }
 
 .alertMessage {
     color: var(--ds-muted);
-    font-size: 0.8125rem;
+    font-size: var(--mantine-font-size-sm);
     line-height: 1.5;
 }
 
@@ -202,7 +202,7 @@
 }
 
 .badgeLabel {
-    font-size: 0.625rem;
+    font-size: var(--mantine-font-size-xs);
     font-weight: 700;
     letter-spacing: 0.01em;
     text-transform: none;
@@ -211,7 +211,7 @@
 .inputLabel {
     margin-bottom: 7px;
     color: var(--ds-muted);
-    font-size: 0.6875rem;
+    font-size: var(--mantine-font-size-sm);
     font-weight: 650;
 }
 
@@ -219,7 +219,7 @@
     margin-top: -3px;
     margin-bottom: 7px;
     color: var(--ds-subtle);
-    font-size: 0.6875rem;
+    font-size: var(--mantine-font-size-xs);
 }
 
 .input {
@@ -263,7 +263,7 @@
 .menuItem {
     border-radius: var(--ds-radius-sm);
     color: var(--ds-ink);
-    font-size: 0.75rem;
+    font-size: var(--mantine-font-size-sm);
 }
 
 .option:hover,
@@ -294,7 +294,7 @@
 
 .overlayTitle {
     color: var(--ds-ink);
-    font-size: 1.25rem;
+    font-size: var(--mantine-font-size-xl);
     font-weight: 650;
     letter-spacing: -0.02em;
 }
@@ -339,7 +339,7 @@
 
 .navLinkDescription {
     color: var(--ds-subtle);
-    font-size: 0.6875rem;
+    font-size: var(--mantine-font-size-xs);
 }
 
 .navLinkSection {

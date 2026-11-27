@@ -346,7 +346,6 @@ export function AppTokensPage() {
                                     <Title
                                         id="connection-details-heading"
                                         order={2}
-                                        size="h3"
                                     >
                                         Connect a reader app
                                     </Title>
@@ -487,7 +486,6 @@ export function AppTokensPage() {
                                             <Title
                                                 id="create-token-heading"
                                                 order={2}
-                                                size="h3"
                                             >
                                                 Create an app token
                                             </Title>
@@ -601,11 +599,7 @@ export function AppTokensPage() {
                             aria-labelledby="active-tokens-heading"
                         >
                             <Group justify="space-between" align="center">
-                                <Title
-                                    id="active-tokens-heading"
-                                    order={2}
-                                    size="h2"
-                                >
+                                <Title id="active-tokens-heading" order={2}>
                                     Active tokens
                                 </Title>
                                 {tokensQuery.isFetching &&

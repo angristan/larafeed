@@ -525,6 +525,13 @@
 }
 
 .articleTypography {
+    /* Article headings keep reading sizes; the app chrome scale tops out
+       at 20px, which is too flat for long-form text. */
+    --mantine-h2-font-size: 1.25rem;
+    --mantine-h3-font-size: 1.05rem;
+    --mantine-h4-font-size: 1rem;
+    --mantine-h5-font-size: 0.9375rem;
+    --mantine-h6-font-size: 0.875rem;
     width: min(100%, var(--ds-prose-width));
     padding: var(--ds-space-5) var(--ds-space-2) var(--ds-space-7);
     margin-inline: auto;
