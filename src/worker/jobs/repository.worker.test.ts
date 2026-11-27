@@ -13,6 +13,7 @@ import { makeJobRepository } from './repository';
 import {
     DEFAULT_REFRESH_INTERVAL_MS,
     DEFAULT_REFRESH_REDRIVE_AGE_MS,
+    GONE_AFTER_NOT_FOUND_REFRESHES,
     MAX_OUTBOX_ATTEMPTS,
     type RefreshJobClaim,
 } from './types';
@@ -179,7 +180,7 @@ describe('durable feed refresh jobs', () => {
         ).resolves.toBe(1);
     });
 
-    it('enforces manual cooldown while allowing gone-feed recovery', async () => {
+    it('enforces manual cooldown and keeps scheduling gone feeds', async () => {
         const now = 2_100_000_350_000;
         const feedId = 313_001;
         await insertFeed(feedId, now);
@@ -212,7 +213,10 @@ describe('durable feed refresh jobs', () => {
                 operationId: 'gone-scheduled-refresh',
                 trigger: 'scheduled',
             }),
-        ).resolves.toEqual({ type: 'gone' });
+        ).resolves.toMatchObject({
+            type: 'created',
+            job: { operationId: 'gone-scheduled-refresh' },
+        });
         await expect(
             repository.createRefreshJob({
                 jobId: 313_301,
@@ -225,8 +229,9 @@ describe('durable feed refresh jobs', () => {
                 manualCooldownMs: 5 * 60_000,
             }),
         ).resolves.toMatchObject({
-            type: 'created',
-            job: { operationId: 'gone-manual-recovery' },
+            // A manual request joins the scheduled refresh already running.
+            type: 'active',
+            job: { operationId: 'gone-scheduled-refresh' },
         });
     });
 
@@ -835,16 +840,12 @@ describe('durable feed refresh jobs', () => {
         }
 
         const failedClaim = await claim('operation-324002', now, 'failed-job');
-        await repository.recordRefreshFailure({
+        await repository.releaseRefreshJobLease({
             claim: failedClaim,
-            historyId: 324_100,
-            failedAt: now + 1,
-            retryable: true,
-            errorClass: 'temporary',
+            now: now + 1,
+            availableAt: now + 2,
+            errorClass: 'orchestration_error',
             errorMessage: 'Try later',
-            httpStatus: 503,
-            durationMs: 1,
-            retryAt: now + 2,
         });
         const reconciledAt = now + DEFAULT_REFRESH_REDRIVE_AGE_MS + 1;
         await expect(
@@ -2224,84 +2225,66 @@ describe('durable feed refresh jobs', () => {
         });
     });
 
-    it('requires repeated missing responses and permits manual recovery', async () => {
+    it('labels a feed gone after repeated missing refreshes but keeps refreshing it', async () => {
         const now = 2_100_005_750_000;
         const feedId = 368_001;
-        const operationId = 'operation-368101';
         await insertFeed(feedId, now);
-        await createJob(feedId, 368_101, now, {
-            operationId,
-            maxAttempts: 3,
-            trigger: 'scheduled',
-        });
 
         let attemptAt = now;
-        for (let attempt = 1; attempt <= 3; attempt += 1) {
-            const jobClaim = await claim(
+        for (
+            let refresh = 1;
+            refresh <= GONE_AFTER_NOT_FOUND_REFRESHES;
+            refresh += 1
+        ) {
+            const operationId = `missing-refresh-${refresh}`;
+            await createJob(feedId, 368_100 + refresh * 10, attemptAt, {
                 operationId,
-                attemptAt,
-                `missing-attempt-${attempt}`,
-            );
-            const failedAt = attemptAt + 1;
-            const retryAt = failedAt + 1;
-            await expect(
-                repository.recordRefreshFailure({
-                    claim: jobClaim,
-                    historyId: 368_200 + attempt,
-                    failedAt,
-                    retryable: true,
-                    markGone: true,
-                    errorClass: 'FeedHttpError',
-                    errorMessage: 'Feed returned HTTP 410',
-                    httpStatus: 410,
-                    durationMs: 1,
-                    retryAt,
-                }),
-            ).resolves.toEqual(
-                attempt === 3
-                    ? { terminal: true, availableAt: null }
-                    : { terminal: false, availableAt: retryAt },
-            );
-            await expect(
-                first<{
-                    is_gone: number;
-                    consecutive_not_found_failures: number;
-                }>(
-                    `SELECT is_gone, consecutive_not_found_failures
-                     FROM feeds WHERE id = ?`,
-                    [feedId],
-                ),
-            ).resolves.toEqual({
-                is_gone: attempt === 3 ? 1 : 0,
-                consecutive_not_found_failures: attempt,
+                trigger: 'scheduled',
             });
-            attemptAt = retryAt;
+            await repository.recordRefreshFailure({
+                claim: await claim(operationId, attemptAt),
+                historyId: 368_101 + refresh * 10,
+                failedAt: attemptAt + 1,
+                markGone: true,
+                errorClass: 'FeedHttpError',
+                errorMessage: 'Feed returned HTTP 410',
+                httpStatus: 410,
+                durationMs: 1,
+                retryAfterAt: null,
+            });
+            const feed = await first<{
+                is_gone: number;
+                consecutive_not_found_failures: number;
+                next_refresh_at: number;
+            }>(
+                `SELECT is_gone, consecutive_not_found_failures, next_refresh_at
+                 FROM feeds WHERE id = ?`,
+                [feedId],
+            );
+            expect(feed).toMatchObject({
+                is_gone: refresh === GONE_AFTER_NOT_FOUND_REFRESHES ? 1 : 0,
+                consecutive_not_found_failures: refresh,
+            });
+            attemptAt = feed?.next_refresh_at ?? Number.NaN;
         }
 
+        // A gone feed stays on the daily schedule.
         await expect(
-            repository.listDueFeeds(
-                attemptAt + DEFAULT_REFRESH_INTERVAL_MS,
-                100,
-            ),
-        ).resolves.not.toContainEqual(expect.objectContaining({ id: feedId }));
-
-        await createJob(feedId, 368_301, attemptAt + 1, {
+            repository.listDueFeeds(attemptAt, 100),
+        ).resolves.toContainEqual({ id: feedId, nextRefreshAt: attemptAt });
+        await createJob(feedId, 368_301, attemptAt, {
             operationId: 'operation-368301',
-            trigger: 'manual',
+            trigger: 'scheduled',
         });
-        const recoveryClaim = await claim(
-            'operation-368301',
-            attemptAt + 1,
-            'manual-recovery',
-        );
+        const recoveryClaim = await claim('operation-368301', attemptAt);
         await expect(
-            repository.loadFeedInput(recoveryClaim, attemptAt + 1),
-        ).resolves.toMatchObject({ feedId, trigger: 'manual' });
+            repository.loadFeedInput(recoveryClaim, attemptAt),
+        ).resolves.toMatchObject({ feedId, trigger: 'scheduled' });
         await repository.commitRefresh({
             claim: recoveryClaim,
             subscriptionFilterRevisions: [],
             historyId: 368_303,
-            completedAt: attemptAt + 2,
+            completedAt: attemptAt + 1,
             etag: null,
             lastModified: null,
             nextRefreshAt: attemptAt + DEFAULT_REFRESH_INTERVAL_MS,
@@ -2314,65 +2297,39 @@ describe('durable feed refresh jobs', () => {
             first<{
                 is_gone: number;
                 consecutive_not_found_failures: number;
+                consecutive_failures: number;
             }>(
-                `SELECT is_gone, consecutive_not_found_failures
+                `SELECT is_gone, consecutive_not_found_failures,
+                    consecutive_failures
                  FROM feeds WHERE id = ?`,
                 [feedId],
             ),
         ).resolves.toEqual({
             is_gone: 0,
             consecutive_not_found_failures: 0,
+            consecutive_failures: 0,
         });
     });
 
-    it('records bounded retry backoff then terminates at max attempts', async () => {
+    it('ends the job on the first failure and records it once', async () => {
         const now = 2_100_006_000_000;
         const feedId = 370_001;
+        const failedAt = now + 1;
         await insertFeed(feedId, now);
-        await createJob(feedId, 371_001, now, { maxAttempts: 2 });
-        const firstClaim = await claim('operation-371001', now);
-        const retryAt = now + 30_000;
+        await createJob(feedId, 371_001, now, { maxAttempts: 8 });
 
-        await expect(
-            repository.recordRefreshFailure({
-                claim: firstClaim,
-                historyId: 372_001,
-                failedAt: now + 1,
-                retryable: true,
-                errorClass: 'x'.repeat(100),
-                errorMessage: 'm'.repeat(1_000),
-                httpStatus: 503,
-                durationMs: 50,
-                retryAt,
-            }),
-        ).resolves.toEqual({ terminal: false, availableAt: retryAt });
-        const early = await repository.claimRefreshJob({
-            operationId: 'operation-371001',
-            owner: 'too-early',
-            now: retryAt - 1,
-            leaseMs: 1_000,
+        await repository.recordRefreshFailure({
+            claim: await claim('operation-371001', now),
+            historyId: 372_001,
+            failedAt,
+            markGone: true,
+            errorClass: 'x'.repeat(100),
+            errorMessage: 'm'.repeat(1_000),
+            httpStatus: 404,
+            durationMs: 50,
+            retryAfterAt: null,
         });
-        expect(early).toEqual({ type: 'unavailable', retryAt });
 
-        const secondClaim = await claim(
-            'operation-371001',
-            retryAt,
-            'second-attempt',
-        );
-        await expect(
-            repository.recordRefreshFailure({
-                claim: secondClaim,
-                historyId: 372_002,
-                failedAt: retryAt + 1,
-                retryable: true,
-                markGone: true,
-                errorClass: 'still_unavailable',
-                errorMessage: 'Second failure',
-                httpStatus: 503,
-                durationMs: 50,
-                retryAt: retryAt + 60_000,
-            }),
-        ).resolves.toEqual({ terminal: true, availableAt: null });
         await expect(
             first<{
                 state: string;
@@ -2381,11 +2338,14 @@ describe('durable feed refresh jobs', () => {
                 message_length: number;
                 is_gone: number;
                 last_failed_refresh_at: number;
+                history: number;
             }>(
                 `SELECT j.state, o.state AS outbox_state,
                     length(j.last_error_class) AS class_length,
                     length(j.last_error_message) AS message_length,
-                    f.is_gone, f.last_failed_refresh_at
+                    f.is_gone, f.last_failed_refresh_at,
+                    (SELECT COUNT(*) FROM feed_refreshes r
+                     WHERE r.feed_id = f.id AND r.was_successful = 0) AS history
                  FROM jobs j
                  JOIN outbox_messages o ON o.job_id = j.id
                  JOIN feeds f ON f.id = json_extract(j.payload_json, '$.feedId')
@@ -2395,80 +2355,75 @@ describe('durable feed refresh jobs', () => {
         ).resolves.toEqual({
             state: 'dead_lettered',
             outbox_state: 'dead_lettered',
-            class_length: 17,
-            message_length: 14,
+            class_length: 64,
+            message_length: 512,
             is_gone: 0,
-            last_failed_refresh_at: retryAt + 1,
+            last_failed_refresh_at: failedAt,
+            history: 1,
         });
+        await expect(
+            repository.claimRefreshJob({
+                operationId: 'operation-371001',
+                owner: 'late-retry',
+                now: failedAt + 1,
+                leaseMs: 1_000,
+            }),
+        ).resolves.toMatchObject({ type: 'dead' });
     });
 
-    it('defers a terminal non-gone feed until the normal refresh interval', async () => {
+    it('backs off failing feeds up to one refresh a day', async () => {
         const now = 2_100_006_500_000;
-        const failedAt = now + 1;
         const feedId = 375_001;
         await insertFeed(feedId, now);
-        await createJob(feedId, 375_101, now);
-        const jobClaim = await claim('operation-375101', now);
+        const hour = 60 * 60_000;
 
-        await expect(
-            repository.recordRefreshFailure({
-                claim: jobClaim,
-                historyId: 375_102,
-                failedAt,
-                retryable: false,
-                errorClass: 'FeedParseError',
-                errorMessage: 'Unsupported feed',
-                httpStatus: 200,
+        const fail = async (
+            refresh: number,
+            at: number,
+            retryAfterAt: number | null = null,
+        ) => {
+            const operationId = `failing-refresh-${refresh}`;
+            await createJob(feedId, 375_100 + refresh * 10, at, {
+                operationId,
+            });
+            await repository.recordRefreshFailure({
+                claim: await claim(operationId, at),
+                historyId: 375_101 + refresh * 10,
+                failedAt: at,
+                errorClass: 'FeedHttpError',
+                errorMessage: 'Feed returned HTTP 503',
+                httpStatus: 503,
                 durationMs: 5,
-                retryAt: failedAt + 30_000,
-            }),
-        ).resolves.toEqual({ terminal: true, availableAt: null });
+                retryAfterAt,
+            });
+            return (
+                (
+                    await first<{ next_refresh_at: number }>(
+                        'SELECT next_refresh_at FROM feeds WHERE id = ?',
+                        [feedId],
+                    )
+                )?.next_refresh_at ?? Number.NaN
+            );
+        };
 
-        const nextRefreshAt = failedAt + DEFAULT_REFRESH_INTERVAL_MS;
+        const waits: number[] = [];
+        let at = now;
+        for (let refresh = 1; refresh <= 6; refresh += 1) {
+            const next = await fail(refresh, at);
+            waits.push((next - at) / hour);
+            at = next;
+        }
+        expect(waits).toEqual([1, 3, 6, 12, 24, 24]);
+
+        // A longer Retry-After wins over the backoff.
+        await expect(fail(7, at, at + 30 * hour)).resolves.toBe(at + 30 * hour);
         await expect(
-            first<{ is_gone: number; next_refresh_at: number }>(
-                'SELECT is_gone, next_refresh_at FROM feeds WHERE id = ?',
+            first<{ consecutive_failures: number }>(
+                'SELECT consecutive_failures FROM feeds WHERE id = ?',
                 [feedId],
             ),
-        ).resolves.toEqual({ is_gone: 0, next_refresh_at: nextRefreshAt });
-        await expect(
-            repository.listDueFeeds(failedAt + 30_000, 100),
-        ).resolves.not.toContainEqual({ id: feedId, nextRefreshAt });
-        await expect(
-            repository.listDueFeeds(nextRefreshAt, 100),
-        ).resolves.toContainEqual({ id: feedId, nextRefreshAt });
-
-        await createJob(feedId, 375_201, nextRefreshAt);
-        const secondClaim = await claim('operation-375201', nextRefreshAt);
-        const secondFailedAt = nextRefreshAt + 1;
-        await expect(
-            repository.recordRefreshFailure({
-                claim: secondClaim,
-                historyId: 375_202,
-                failedAt: secondFailedAt,
-                retryable: false,
-                errorClass: 'FeedParseError',
-                errorMessage: 'Still unsupported',
-                httpStatus: 200,
-                durationMs: 5,
-                retryAt: secondFailedAt + 30_000,
-            }),
-        ).resolves.toEqual({ terminal: true, availableAt: null });
-
-        const secondNextRefreshAt =
-            secondFailedAt + DEFAULT_REFRESH_INTERVAL_MS * 2;
-        await expect(
-            first<{ consecutive_failures: number; next_refresh_at: number }>(
-                `SELECT consecutive_failures, next_refresh_at
-                 FROM feeds WHERE id = ?`,
-                [feedId],
-            ),
-        ).resolves.toEqual({
-            consecutive_failures: 2,
-            next_refresh_at: secondNextRefreshAt,
-        });
+        ).resolves.toEqual({ consecutive_failures: 7 });
     });
-
     it('deletes bounded old terminal jobs without deleting protected work', async () => {
         const now = 2_100_006_750_000;
         const old = now - 100 * 24 * 60 * 60_000;

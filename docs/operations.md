@@ -81,7 +81,7 @@ These are application bounds, not Cloudflare platform limits.
 
 | Area | Important bounds |
 | --- | --- |
-| Feed refresh | 15-second deadline, 5 redirects, 10 MiB response, newest 20 valid entries, 15-minute to 24-hour adaptive interval, 8 processing attempts, 10 outbox attempts, 5-minute manual cooldown. The 20-entry window keeps the worst-case D1 commit below the 50-query Free-plan invocation limit. |
+| Feed refresh | 15-second deadline, 5 redirects, 10 MiB response, newest 20 valid entries, 15-minute to 24-hour adaptive interval, 8 processing attempts for infrastructure errors, 10 outbox attempts, 5-minute manual cooldown. A failed refresh is not retried in the same job; the feed waits 1, 3, 6 and 12 hours after successive failures, then retries once a day, or later when `Retry-After` asks. No error stops refreshes. Ten 404 or 410 responses in a row (about a week) only label the feed as gone. The 20-entry window keeps the worst-case D1 commit below the 50-query Free-plan invocation limit. |
 | OPML | 2 MB, 500 unique feeds, 50 outline levels, one concurrent discovery consumer. |
 | Favicons | 1 MiB site HTML head, 256 KiB manifest or inline image, 2 MiB remote image, 3 redirects, bounded ICO decoding, fixed 32×32 PNG or strictly sanitized SVG, 64 KiB stored output, 30-day refresh interval. |
 | Article images | At most 100 sources per entry, 2 MiB source, fixed 1600 px scale-down, ownership required. |

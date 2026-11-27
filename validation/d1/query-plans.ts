@@ -140,7 +140,7 @@ export const queryPlanSpecs = (
         {
             name: 'refresh.due',
             sql: `SELECT id, next_refresh_at FROM feeds
-                WHERE is_gone = 0 AND next_refresh_at <= ?
+                WHERE next_refresh_at <= ?
                 ORDER BY next_refresh_at, id LIMIT 10`,
             bindings: [fixture.generatedAt],
             required: ['feeds_due_refresh'],

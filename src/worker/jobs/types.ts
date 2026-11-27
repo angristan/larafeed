@@ -22,6 +22,19 @@ export const UNCHANGED_REFRESH_INTERVALS_MS = [
 export const DEFAULT_REFRESH_REDRIVE_AGE_MS = 15 * 60_000;
 export const MANUAL_REFRESH_COOLDOWN_MS = 5 * 60_000;
 export const MAX_BACKOFF_MS = 6 * 60 * 60_000;
+// Wait after the 1st, 2nd, ... failed refresh in a row. A failing feed is
+// never dropped: after the last step it is retried once a day.
+export const FAILED_REFRESH_BACKOFF_MS = [
+    60 * 60_000,
+    3 * 60 * 60_000,
+    6 * 60 * 60_000,
+    12 * 60 * 60_000,
+    24 * 60 * 60_000,
+] as const;
+export const MAX_FAILED_REFRESH_BACKOFF_MS = 24 * 60 * 60_000;
+// About a week of 404 or 410 responses with the backoff above. The flag only
+// labels the feed; it is still refreshed once a day.
+export const GONE_AFTER_NOT_FOUND_REFRESHES = 10;
 export const FEED_REFRESH_RETENTION_MS = 90 * 24 * 60 * 60_000;
 export const TERMINAL_JOB_RETENTION_MS = 7 * 24 * 60 * 60_000;
 export const MAX_HISTORY_CLEANUP = 500;
@@ -70,8 +83,7 @@ export type CreateRefreshJobResult =
           readonly job: RefreshJob;
       }
     | { readonly type: 'active'; readonly job: RefreshJob }
-    | { readonly type: 'cooldown'; readonly retryAt: number }
-    | { readonly type: 'gone' };
+    | { readonly type: 'cooldown'; readonly retryAt: number };
 
 export interface DueFeed {
     readonly id: number;
@@ -233,18 +245,13 @@ export interface RecordRefreshFailureInput {
     readonly claim: RefreshJobClaim;
     readonly historyId: number;
     readonly failedAt: number;
-    readonly retryable: boolean;
     readonly markGone?: boolean;
     readonly errorClass: string;
     readonly errorMessage: string;
     readonly httpStatus: number | null;
     readonly durationMs: number | null;
-    readonly retryAt: number;
-}
-
-export interface RefreshFailureRecord {
-    readonly terminal: boolean;
-    readonly availableAt: number | null;
+    /** Earliest next attempt the publisher asked for with Retry-After. */
+    readonly retryAfterAt: number | null;
 }
 
 export type QueueDecision =

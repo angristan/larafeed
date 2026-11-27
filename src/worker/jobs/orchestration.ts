@@ -7,7 +7,6 @@ import {
     spanNames,
 } from '../observability';
 import {
-    JobInvariantError,
     ManualRefreshCooldownError,
     RefreshAlreadyActiveError,
 } from './errors';
@@ -21,6 +20,7 @@ import {
     MANUAL_REFRESH_COOLDOWN_MS,
     MAX_BACKOFF_MS,
     MAX_DUE_FEEDS,
+    MAX_FAILED_REFRESH_BACKOFF_MS,
     MAX_HISTORY_CLEANUP,
     MAX_OUTBOX_MESSAGES,
     MAX_TERMINAL_JOB_CLEANUP,
@@ -213,12 +213,6 @@ export const makeJobOrchestrator = (
         if (result.type === 'active' && strict) {
             throw new RefreshAlreadyActiveError(feedId);
         }
-        if (result.type === 'gone') {
-            throw new JobInvariantError(
-                'manualRefresh',
-                'manual admission rejected a gone feed',
-            );
-        }
         const job = result.job;
         return {
             operationId: job.operationId,
@@ -253,7 +247,7 @@ export const makeJobOrchestrator = (
                 'scheduled',
                 currentTime,
             );
-            if (result.type === 'gone' || result.type === 'cooldown') {
+            if (result.type === 'cooldown') {
                 continue;
             }
             if (result.type === 'created') reserved += 1;
@@ -413,34 +407,26 @@ export const makeJobOrchestrator = (
                             : { httpStatus: result.httpStatus }),
                     },
                 );
-                const retryAt =
-                    completedAt +
-                    Math.min(
-                        MAX_BACKOFF_MS,
-                        Math.max(
-                            retryBackoffMs(claimed.claim.attemptCount),
-                            result.retryAfterMs ?? 0,
-                        ),
-                    );
-                const failure = await repository.recordRefreshFailure({
+                await repository.recordRefreshFailure({
                     claim: claimed.claim,
                     historyId,
                     failedAt: completedAt,
-                    retryable: result.retryable,
                     markGone: result.markGone,
                     errorClass: result.errorClass,
                     errorMessage: result.errorMessage,
                     httpStatus: result.httpStatus ?? null,
                     durationMs: result.durationMs ?? null,
-                    retryAt,
+                    retryAfterAt:
+                        result.retryAfterMs === undefined
+                            ? null
+                            : completedAt +
+                              Math.min(
+                                  MAX_FAILED_REFRESH_BACKOFF_MS,
+                                  result.retryAfterMs,
+                              ),
                 });
-                return failure.terminal
-                    ? { action: 'dead', reason: 'terminal_failure' }
-                    : retryDecision(
-                          'retryable_failure',
-                          completedAt,
-                          failure.availableAt ?? retryAt,
-                      );
+                // The feed schedule retries the feed later.
+                return { action: 'dead', reason: 'terminal_failure' };
             }
 
             const entries = result.type === 'success' ? result.entries : [];

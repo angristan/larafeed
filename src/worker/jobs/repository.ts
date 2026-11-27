@@ -16,12 +16,13 @@ import {
     type CreateRefreshJobResult,
     DEFAULT_REFRESH_INTERVAL_MS,
     type DueFeed,
+    FAILED_REFRESH_BACKOFF_MS,
     FEED_REFRESH_JOB_KIND,
     FEED_REFRESH_TOPIC,
     type FeedRefreshInput,
+    GONE_AFTER_NOT_FOUND_REFRESHES,
     type JobState,
     type LeasedOutboxMessage,
-    MAX_BACKOFF_MS,
     MAX_CONTENT_BYTES,
     MAX_DUE_FEEDS,
     MAX_ERROR_CLASS_LENGTH,
@@ -31,7 +32,6 @@ import {
     MAX_OUTBOX_MESSAGES,
     MAX_TERMINAL_JOB_CLEANUP,
     type RecordRefreshFailureInput,
-    type RefreshFailureRecord,
     type RefreshJob,
     type RefreshJobClaim,
     type RefreshRedriveResult,
@@ -56,7 +56,6 @@ interface DueFeedRow {
 }
 
 interface FeedAdmissionRow {
-    readonly is_gone: number;
     readonly last_successful_refresh_at: number | null;
 }
 
@@ -150,7 +149,7 @@ export interface JobRepository {
     readonly commitRefresh: (input: CommitRefreshInput) => Promise<void>;
     readonly recordRefreshFailure: (
         input: RecordRefreshFailureInput,
-    ) => Promise<RefreshFailureRecord>;
+    ) => Promise<void>;
 }
 
 const run = async <A>(operation: string, effect: Effect.Effect<A, unknown>) => {
@@ -363,7 +362,6 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         )
                         SELECT ?, ?, ?, 'pending', ?, ?, ?, ?, ?
                         FROM feeds f WHERE f.id = ?
-                          AND (? = 'manual' OR f.is_gone = 0)
                           AND (
                             ? = 0 OR f.last_successful_refresh_at IS NULL
                             OR f.last_successful_refresh_at <= ?
@@ -386,7 +384,6 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         input.now,
                         input.now,
                         input.feedId,
-                        input.trigger,
                         cooldownMs,
                         Math.max(0, input.now - cooldownMs),
                     ],
@@ -433,7 +430,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     bindings: [input.feedId],
                 },
                 {
-                    sql: `SELECT is_gone, last_successful_refresh_at
+                    sql: `SELECT last_successful_refresh_at
                         FROM feeds WHERE id = ?`,
                     bindings: [input.feedId],
                 },
@@ -491,9 +488,6 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 job,
             };
         }
-        if (input.trigger === 'scheduled' && feedRow.is_gone === 1) {
-            return { type: 'gone' };
-        }
         if (
             cooldownMs > 0 &&
             feedRow.last_successful_refresh_at !== null &&
@@ -516,7 +510,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             operation,
             d1.all<DueFeedRow>({
                 sql: `SELECT id, next_refresh_at FROM feeds
-                    WHERE is_gone = 0 AND next_refresh_at <= ?
+                    WHERE next_refresh_at <= ?
                     ORDER BY next_refresh_at, id LIMIT ?`,
                 bindings: [now, boundedLimit(limit, MAX_DUE_FEEDS)],
             }),
@@ -907,11 +901,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     ), '[]') AS subscription_filters_json
                     FROM jobs j
                     JOIN feeds f ON f.id = json_extract(j.payload_json, '$.feedId')
-                    WHERE ${leasePredicate} AND f.id = ?
-                      AND (
-                        f.is_gone = 0
-                        OR json_extract(j.payload_json, '$.trigger') = 'manual'
-                      )`,
+                    WHERE ${leasePredicate} AND f.id = ?`,
                 bindings: [
                     claim.operationId,
                     claim.leaseOwner,
@@ -1856,19 +1846,20 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
     },
 
     async recordRefreshFailure(input) {
+        // A failed refresh ends its job. The feed schedule retries it with a
+        // growing backoff instead of quick retries inside the job.
         const operation = 'recordRefreshFailure';
-        const terminal =
-            !input.retryable ||
-            input.claim.attemptCount >= input.claim.maxAttempts;
-        const state = terminal ? 'dead_lettered' : 'failed';
-        const nextRefreshAt = Math.max(input.failedAt, input.retryAt);
         const klass = errorClass(input.errorClass);
         const message = errorMessage(input.errorMessage);
+        const markGone = input.markGone === true ? 1 : 0;
         const conditionBindings = [
             input.claim.operationId,
             input.claim.leaseOwner,
             input.failedAt,
         ] as const;
+        const backoff = FAILED_REFRESH_BACKOFF_MS.slice(0, -1)
+            .map((_, index) => `WHEN consecutive_failures = ${index} THEN ?`)
+            .join(' ');
         const statements: D1Statement[] = [
             {
                 sql: `UPDATE feeds
@@ -1877,40 +1868,24 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                             WHEN ? = 1 THEN consecutive_not_found_failures + 1
                             ELSE 0 END,
                         is_gone = CASE
-                            WHEN ? = 1 AND ? = 1
-                              AND consecutive_not_found_failures + 1 >= 3
-                            THEN 1 ELSE is_gone END,
+                            WHEN ? = 1 AND consecutive_not_found_failures + 1 >= ?
+                            THEN 1 ELSE 0 END,
                         last_attempt_at = ?, last_failed_refresh_at = ?,
-                        next_refresh_at = CASE WHEN ? = 1 THEN
-                            MAX(?, ? + CASE
-                                WHEN consecutive_failures <= 0 THEN ?
-                                WHEN consecutive_failures = 1 THEN ?
-                                WHEN consecutive_failures = 2 THEN ?
-                                WHEN consecutive_failures = 3 THEN ?
-                                WHEN consecutive_failures = 4 THEN ?
-                                ELSE ? END)
-                            ELSE ? END,
+                        next_refresh_at = MAX(?, ? + CASE ${backoff} ELSE ? END),
                         last_error_class = ?, last_error_message = ?,
                         updated_at = ?
                     WHERE id = ? AND EXISTS (
                         SELECT 1 FROM jobs j WHERE ${leasePredicate}
                     )`,
                 bindings: [
-                    input.markGone === true ? 1 : 0,
-                    input.markGone === true ? 1 : 0,
-                    terminal ? 1 : 0,
+                    markGone,
+                    markGone,
+                    GONE_AFTER_NOT_FOUND_REFRESHES,
                     input.failedAt,
                     input.failedAt,
-                    terminal ? 1 : 0,
-                    input.retryAt,
+                    input.retryAfterAt ?? input.failedAt,
                     input.failedAt,
-                    DEFAULT_REFRESH_INTERVAL_MS,
-                    DEFAULT_REFRESH_INTERVAL_MS * 2,
-                    DEFAULT_REFRESH_INTERVAL_MS * 4,
-                    DEFAULT_REFRESH_INTERVAL_MS * 8,
-                    DEFAULT_REFRESH_INTERVAL_MS * 16,
-                    MAX_BACKOFF_MS,
-                    nextRefreshAt,
+                    ...FAILED_REFRESH_BACKOFF_MS,
                     klass,
                     message,
                     input.failedAt,
@@ -1918,9 +1893,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     ...conditionBindings,
                 ],
             },
-        ];
-        if (terminal) {
-            statements.push({
+            {
                 sql: `INSERT INTO feed_refreshes (
                         id, feed_id, job_id, refreshed_at, was_successful,
                         was_not_modified, http_status, duration_ms,
@@ -1939,9 +1912,9 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     input.failedAt,
                     ...conditionBindings,
                 ],
-            });
-            statements.push(dailyRefreshAggregate(input.historyId, false));
-            statements.push({
+            },
+            dailyRefreshAggregate(input.historyId, false),
+            {
                 sql: `UPDATE outbox_messages
                     SET state = 'dead_lettered', sent_at = NULL,
                         lease_owner = NULL, lease_expires_at = NULL,
@@ -1962,45 +1935,33 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     FEED_REFRESH_TOPIC,
                     ...conditionBindings,
                 ],
-            });
-        }
-        statements.push({
-            sql: `UPDATE jobs
-                SET state = ?, available_at = ?, lease_owner = NULL,
-                    lease_expires_at = NULL, completed_at = ?,
-                    last_error_class = ?, last_error_message = ?, updated_at = ?
-                WHERE ${directLeasePredicate}`,
-            bindings: [
-                state,
-                terminal ? input.failedAt : nextRefreshAt,
-                terminal ? input.failedAt : null,
-                klass,
-                message,
-                input.failedAt,
-                ...conditionBindings,
-            ],
-        });
+            },
+            {
+                sql: `UPDATE jobs
+                    SET state = 'dead_lettered', available_at = ?,
+                        lease_owner = NULL, lease_expires_at = NULL,
+                        completed_at = ?, last_error_class = ?,
+                        last_error_message = ?, updated_at = ?
+                    WHERE ${directLeasePredicate}`,
+                bindings: [
+                    input.failedAt,
+                    input.failedAt,
+                    klass,
+                    message,
+                    input.failedAt,
+                    ...conditionBindings,
+                ],
+            },
+        ];
         const results = await run(operation, d1.batch(statements));
-        if (changeCount(operation, results[0]) !== 1) {
-            throw new RefreshLeaseLostError(input.claim.operationId);
-        }
-        const jobIndex = statements.length - 1;
         if (
-            terminal &&
-            (changeCount(operation, results[1]) !== 1 ||
-                changeCount(operation, results[2]) !== 1 ||
-                changeCount(operation, results[3]) !== 1)
+            changeCount(operation, results[0]) !== 1 ||
+            changeCount(operation, results[1]) !== 1 ||
+            changeCount(operation, results[2]) !== 1 ||
+            changeCount(operation, results[3]) !== 1 ||
+            changeCount(operation, results[4]) !== 1
         ) {
             throw new RefreshLeaseLostError(input.claim.operationId);
         }
-        if (changeCount(operation, results[jobIndex]) !== 1) {
-            throw new RefreshLeaseLostError(input.claim.operationId);
-        }
-        return {
-            terminal,
-            availableAt: terminal
-                ? null
-                : Math.max(input.failedAt, input.retryAt),
-        };
     },
 });
