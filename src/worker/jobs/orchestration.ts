@@ -412,6 +412,9 @@ export const makeJobOrchestrator = (
                     historyId,
                     failedAt: completedAt,
                     markGone: result.markGone,
+                    ...(result.movedToUrl === undefined
+                        ? {}
+                        : { movedToUrl: result.movedToUrl }),
                     errorClass: result.errorClass,
                     errorMessage: result.errorMessage,
                     httpStatus: result.httpStatus ?? null,

@@ -27,6 +27,7 @@ const subscription = {
     entryCount: 0,
     unreadCount: 0,
     isGone: false,
+    movedToUrl: null,
     consecutiveFailures: 0,
     lastAttemptAt: null,
     lastSuccessfulRefreshAt: null,

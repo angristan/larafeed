@@ -28,6 +28,7 @@ const subscription: ManagedSubscription = {
     entryCount: 12,
     unreadCount: 2,
     isGone: false,
+    movedToUrl: null,
     consecutiveFailures: 0,
     lastAttemptAt: 1_900_000_000_000,
     lastSuccessfulRefreshAt: 1_900_000_000_000,
@@ -158,6 +159,7 @@ describe('SubscriptionsPage', () => {
                         feedId: 9,
                         customFeedName: 'Gone feed',
                         isGone: true,
+                        movedToUrl: null,
                     },
                     {
                         ...subscription,

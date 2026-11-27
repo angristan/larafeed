@@ -1209,7 +1209,7 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                         THEN NULL ELSE favicon_updated_at END,
                     feed_favicon_url = COALESCE(?, feed_favicon_url),
                     etag = ?, last_modified = ?, is_gone = 0,
-                    consecutive_failures = 0,
+                    moved_to_url = NULL, consecutive_failures = 0,
                     last_attempt_at = ?, last_successful_refresh_at = ?,
                     latest_entry_at = ?, next_refresh_at = ?,
                     publisher_refresh_interval_ms = ?,

@@ -865,6 +865,7 @@ export const makeMcpServer = (
                                   ? 'failing'
                                   : 'ok',
                             consecutiveFailures: feed.consecutiveFailures,
+                            movedToUrl: feed.movedToUrl,
                             lastError:
                                 feed.lastErrorMessage ?? feed.lastErrorClass,
                             lastAttemptAt: feed.lastAttemptAt,
@@ -885,7 +886,7 @@ export const makeMcpServer = (
                                 `${feeds.length} feeds · ${failing} failing · ${gone} gone`,
                                 ...shown.map(
                                     (feed) =>
-                                        `${feed.feedId} · ${feed.name} · ${feed.status}${feed.consecutiveFailures > 0 ? ` (${feed.consecutiveFailures} failures)` : ''} · last success ${shortDate(feed.lastSuccessAt)}${feed.lastError === null ? '' : ` · ${feed.lastError}`}`,
+                                        `${feed.feedId} · ${feed.name} · ${feed.status}${feed.consecutiveFailures > 0 ? ` (${feed.consecutiveFailures} failures)` : ''} · last success ${shortDate(feed.lastSuccessAt)}${feed.lastError === null ? '' : ` · ${feed.lastError}`}${feed.movedToUrl === null ? '' : ` · moved to ${feed.movedToUrl}`}`,
                                 ),
                             ),
                             {

@@ -1431,6 +1431,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         WHEN ? = 1 THEN ? ELSE publisher_refresh_interval_ms END,
                     consecutive_failures = 0,
                     consecutive_not_found_failures = 0, is_gone = 0,
+                    moved_to_url = NULL,
                     last_attempt_at = ?, last_successful_refresh_at = ?,
                     latest_entry_at = CASE
                         WHEN ? IS NULL THEN latest_entry_at
@@ -1870,6 +1871,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                         is_gone = CASE
                             WHEN ? = 1 AND consecutive_not_found_failures + 1 >= ?
                             THEN 1 ELSE 0 END,
+                        moved_to_url = CASE WHEN ? = 1 THEN ? ELSE moved_to_url END,
                         last_attempt_at = ?, last_failed_refresh_at = ?,
                         next_refresh_at = MAX(?, ? + CASE ${backoff} ELSE ? END),
                         last_error_class = ?, last_error_message = ?,
@@ -1881,6 +1883,8 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     markGone,
                     markGone,
                     GONE_AFTER_NOT_FOUND_REFRESHES,
+                    input.movedToUrl === undefined ? 0 : 1,
+                    input.movedToUrl ?? null,
                     input.failedAt,
                     input.failedAt,
                     input.retryAfterAt ?? input.failedAt,

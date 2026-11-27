@@ -65,6 +65,7 @@ const subscription = {
     entryCount: 4,
     unreadCount: 2,
     isGone: false,
+    movedToUrl: null,
     consecutiveFailures: 0,
     lastAttemptAt: null,
     lastSuccessfulRefreshAt: null,

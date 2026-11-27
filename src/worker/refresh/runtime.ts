@@ -119,6 +119,14 @@ const classifiedFailure = (
     };
 };
 
+const sameFeedUrl = (left: string, right: string): boolean => {
+    try {
+        return validateFeedUrl(left).href === validateFeedUrl(right).href;
+    } catch {
+        return left === right;
+    }
+};
+
 export const makeRefreshProcessor = (
     options: RefreshRuntimeOptions,
 ): RefreshProcessor => {
@@ -127,6 +135,32 @@ export const makeRefreshProcessor = (
         ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
         now,
     });
+
+    /**
+     * A feed URL that answers 404 or 410 has often moved. Look for the feeds
+     * its site advertises, or serves at common paths, and return the first
+     * one that is a different feed.
+     */
+    const findMovedFeed = async (input: {
+        readonly feedUrl: string;
+        readonly siteUrl: string | null;
+    }): Promise<string | null> => {
+        let siteUrl: string;
+        try {
+            siteUrl = input.siteUrl ?? new URL(input.feedUrl).origin;
+        } catch {
+            return null;
+        }
+        const discovery = await Effect.runPromise(
+            feedService
+                .discoverCandidates(siteUrl)
+                .pipe(Effect.orElseSucceed(() => null)),
+        );
+        const candidate = discovery?.candidates.find(
+            ({ result }) => !sameFeedUrl(result.finalUrl, input.feedUrl),
+        );
+        return candidate?.result.finalUrl ?? null;
+    };
 
     return async (input) => {
         const startedAt = now();
@@ -188,7 +222,13 @@ export const makeRefreshProcessor = (
                 ),
             };
         } catch (cause) {
-            return classifiedFailure(cause, Math.max(0, now() - startedAt));
+            const failure = classifiedFailure(
+                cause,
+                Math.max(0, now() - startedAt),
+            );
+            return failure.markGone === true
+                ? { ...failure, movedToUrl: await findMovedFeed(input) }
+                : failure;
         }
     };
 };

@@ -156,7 +156,81 @@ describe('refresh runtime adapter', () => {
             errorMessage: 'Feed returned HTTP 410',
             httpStatus: 410,
             durationMs: 0,
+            movedToUrl: null,
         });
+    });
+
+    it('finds the new feed a site advertises after the old URL returns 404', async () => {
+        const requested: string[] = [];
+        const processor = makeRefreshProcessor({
+            now: () => 1_900_000_000_000,
+            fetch: async (request) => {
+                const url = new Request(request).url;
+                requested.push(url);
+                if (url === 'https://stored.example.test/path') {
+                    return new Response(
+                        `<html><head>
+                        <link rel="alternate" type="application/rss+xml" href="/rss.xml">
+                        <link rel="alternate" type="application/rss+xml" href="https://stored.example.test/feed.xml">
+                        </head></html>`,
+                        { headers: { 'content-type': 'text/html' } },
+                    );
+                }
+                if (url === 'https://stored.example.test/feed.xml') {
+                    return new Response(
+                        '<rss><channel><title>Moved</title><item><guid>1</guid><title>One</title></item></channel></rss>',
+                        { headers: { 'content-type': 'application/rss+xml' } },
+                    );
+                }
+                return new Response('missing', { status: 404 });
+            },
+        });
+
+        await expect(processor(input)).resolves.toMatchObject({
+            type: 'failure',
+            markGone: true,
+            httpStatus: 404,
+            movedToUrl: 'https://stored.example.test/feed.xml',
+        });
+        expect(requested[0]).toBe(input.feedUrl);
+    });
+
+    it('does not offer the same feed URL as the move target', async () => {
+        const processor = makeRefreshProcessor({
+            now: () => 1_900_000_000_000,
+            fetch: async (request) => {
+                const url = new Request(request).url;
+                if (url === 'https://stored.example.test/path') {
+                    return new Response(
+                        `<html><head><link rel="alternate" type="application/rss+xml" href="${input.feedUrl}"></head></html>`,
+                        { headers: { 'content-type': 'text/html' } },
+                    );
+                }
+                return new Response('missing', { status: 404 });
+            },
+        });
+
+        await expect(processor(input)).resolves.toMatchObject({
+            markGone: true,
+            movedToUrl: null,
+        });
+    });
+
+    it('does not look for a moved feed after other errors', async () => {
+        let requests = 0;
+        const processor = makeRefreshProcessor({
+            now: () => 1_900_000_000_000,
+            fetch: async () => {
+                requests += 1;
+                return new Response('busy', { status: 503 });
+            },
+        });
+
+        const result = await processor(input);
+
+        expect(result).toMatchObject({ type: 'failure', httpStatus: 503 });
+        expect(result).not.toHaveProperty('movedToUrl');
+        expect(requests).toBe(1);
     });
 
     it('parses strict rollout controls', () => {

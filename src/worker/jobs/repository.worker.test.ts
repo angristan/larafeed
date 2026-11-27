@@ -2371,6 +2371,72 @@ describe('durable feed refresh jobs', () => {
         ).resolves.toMatchObject({ type: 'dead' });
     });
 
+    it('stores the moved feed URL until a refresh succeeds', async () => {
+        const now = 2_100_006_250_000;
+        const feedId = 373_001;
+        await insertFeed(feedId, now);
+        const movedTo = async () =>
+            (
+                await first<{ moved_to_url: string | null }>(
+                    'SELECT moved_to_url FROM feeds WHERE id = ?',
+                    [feedId],
+                )
+            )?.moved_to_url;
+        const fail = async (
+            refresh: number,
+            at: number,
+            movedToUrl: string | null | undefined,
+        ) => {
+            const operationId = `moved-refresh-${refresh}`;
+            await createJob(feedId, 373_100 + refresh * 10, at, {
+                operationId,
+            });
+            await repository.recordRefreshFailure({
+                claim: await claim(operationId, at),
+                historyId: 373_101 + refresh * 10,
+                failedAt: at,
+                markGone: true,
+                ...(movedToUrl === undefined ? {} : { movedToUrl }),
+                errorClass: 'FeedHttpError',
+                errorMessage: 'Feed returned HTTP 404',
+                httpStatus: 404,
+                durationMs: 1,
+                retryAfterAt: null,
+            });
+        };
+
+        await fail(1, now, 'https://jobs-373001.example.test/rss.xml');
+        await expect(movedTo()).resolves.toBe(
+            'https://jobs-373001.example.test/rss.xml',
+        );
+        // A failure without a check keeps the stored URL.
+        await fail(2, now + 1, undefined);
+        await expect(movedTo()).resolves.toBe(
+            'https://jobs-373001.example.test/rss.xml',
+        );
+        await fail(3, now + 2, null);
+        await expect(movedTo()).resolves.toBeNull();
+
+        await fail(4, now + 3, 'https://jobs-373001.example.test/atom.xml');
+        await createJob(feedId, 373_501, now + 4, {
+            operationId: 'moved-refresh-success',
+        });
+        await repository.commitRefresh({
+            claim: await claim('moved-refresh-success', now + 4),
+            subscriptionFilterRevisions: [],
+            historyId: 373_503,
+            completedAt: now + 5,
+            etag: null,
+            lastModified: null,
+            nextRefreshAt: now + DEFAULT_REFRESH_INTERVAL_MS,
+            httpStatus: 304,
+            durationMs: 1,
+            notModified: true,
+            entries: [],
+        });
+        await expect(movedTo()).resolves.toBeNull();
+    });
+
     it('backs off failing feeds up to one refresh a day', async () => {
         const now = 2_100_006_500_000;
         const feedId = 375_001;

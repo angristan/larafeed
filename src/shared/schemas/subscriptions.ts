@@ -63,6 +63,8 @@ export class ManagedSubscription extends Schema.Class<ManagedSubscription>(
     entryCount: Count,
     unreadCount: Count,
     isGone: Schema.Boolean,
+    /** Another feed found on the site while this one answers 404 or 410. */
+    movedToUrl: Schema.NullOr(Schema.String),
     consecutiveFailures: Count,
     lastAttemptAt: Schema.NullOr(Timestamp),
     lastSuccessfulRefreshAt: Schema.NullOr(Timestamp),

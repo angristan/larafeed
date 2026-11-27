@@ -205,6 +205,11 @@ export interface RefreshFailure {
     readonly type: 'failure';
     readonly retryable: boolean;
     readonly markGone?: boolean;
+    /**
+     * Another feed found on the site after a 404 or 410. Undefined when no
+     * check ran, null when the check found nothing.
+     */
+    readonly movedToUrl?: string | null;
     readonly retryAfterMs?: number;
     readonly errorClass: string;
     readonly errorMessage: string;
@@ -246,6 +251,8 @@ export interface RecordRefreshFailureInput {
     readonly historyId: number;
     readonly failedAt: number;
     readonly markGone?: boolean;
+    /** Undefined keeps the stored value; null clears it. */
+    readonly movedToUrl?: string | null;
     readonly errorClass: string;
     readonly errorMessage: string;
     readonly httpStatus: number | null;
