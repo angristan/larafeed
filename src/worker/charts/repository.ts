@@ -2,6 +2,7 @@ import type { ChartScope } from '@shared/schemas/charts';
 import { Effect, Schema } from 'effect';
 
 import type { D1, D1OperationError } from '../infrastructure/d1';
+import { subscriptionCountsSql } from '../reader/counts';
 import {
     ChartInvariantError,
     ChartNotFound,
@@ -184,13 +185,8 @@ export const makeChartRepository = (d1: D1): ChartRepository => ({
                         bindings: cohortBindings,
                     },
                     {
-                        sql: `SELECT COUNT(*) AS current_unread
-                        FROM entries e
-                        JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id
-                        LEFT JOIN entry_interactions ei
-                          ON ei.user_id = fs.user_id AND ei.entry_id = e.id
-                        WHERE ${scoped.clause} AND ei.filtered_at IS NULL
-                          AND ${effectiveRead} = 0`,
+                        sql: `SELECT COALESCE(SUM(unread_count), 0) AS current_unread
+                        FROM (${subscriptionCountsSql(scoped.clause)})`,
                         bindings: scoped.bindings,
                     },
                     {

@@ -100,4 +100,85 @@ describe('D1 migration upgrades', () => {
             database.close();
         }
     });
+
+    it('backfills the entry counters of existing feeds and subscriptions', async () => {
+        const database = new DatabaseSync(':memory:');
+        try {
+            database.exec('PRAGMA foreign_keys = ON');
+            const migrations = (await readdir(migrationsDirectory))
+                .filter((name) => /^\d{4}_.+\.sql$/u.test(name))
+                .toSorted();
+            const apply = async (name: string) =>
+                database.exec(
+                    await readFile(
+                        new URL(`../../migrations/${name}`, import.meta.url),
+                        'utf8',
+                    ),
+                );
+            for (const migration of migrations.filter(
+                (name) => name < '0029_entry_counters.sql',
+            )) {
+                await apply(migration);
+            }
+
+            database.exec(`
+                INSERT INTO users (
+                    id, webauthn_user_handle, username, email, display_name,
+                    created_at, updated_at
+                ) VALUES (1, randomblob(32), 'u', 'u@example.test', 'U', 0, 0);
+                INSERT INTO subscription_categories (id, user_id, name, created_at, updated_at)
+                VALUES (1, 1, 'News', 0, 0);
+                INSERT INTO feeds (id, name, feed_url, next_refresh_at, created_at, updated_at)
+                VALUES (1, 'One', 'https://one.example.test/', 0, 0, 0),
+                       (2, 'Two', 'https://two.example.test/', 0, 0, 0);
+                INSERT INTO entries (
+                    id, feed_id, deduplication_key, title, published_at,
+                    content_status, created_at, updated_at
+                ) VALUES
+                    (10, 1, randomblob(32), 'a', 0, 'empty', 0, 0),
+                    (11, 1, randomblob(32), 'b', 0, 'empty', 0, 0),
+                    (12, 1, randomblob(32), 'c', 0, 'empty', 0, 0),
+                    (13, 2, randomblob(32), 'd', 0, 'empty', 0, 0);
+                INSERT INTO feed_subscriptions (
+                    user_id, feed_id, category_id, read_through_entry_id,
+                    created_at, updated_at
+                ) VALUES (1, 1, 1, 11, 0, 0), (1, 2, 1, NULL, 0, 0);
+            `);
+
+            for (const migration of migrations.filter(
+                (name) => name >= '0029_entry_counters.sql',
+            )) {
+                await apply(migration);
+            }
+
+            expect(
+                database
+                    .prepare('SELECT id, entry_count FROM feeds ORDER BY id')
+                    .all()
+                    .map((row) => [
+                        field(row, 'id'),
+                        field(row, 'entry_count'),
+                    ]),
+            ).toEqual([
+                [1, 3],
+                [2, 1],
+            ]);
+            expect(
+                database
+                    .prepare(
+                        'SELECT feed_id, read_through_count FROM feed_subscriptions ORDER BY feed_id',
+                    )
+                    .all()
+                    .map((row) => [
+                        field(row, 'feed_id'),
+                        field(row, 'read_through_count'),
+                    ]),
+            ).toEqual([
+                [1, 2],
+                [2, 0],
+            ]);
+        } finally {
+            database.close();
+        }
+    });
 });

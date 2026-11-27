@@ -10,6 +10,11 @@ import { feedFaviconUrl } from '../favicons/assets';
 import type { D1, D1OperationError, D1Statement } from '../infrastructure/d1';
 import { MAX_CONTENT_BYTES, type ProcessedRefreshEntry } from '../jobs';
 import {
+    countInteractionsJoin,
+    subscriptionTotalCount,
+    subscriptionUnreadCount,
+} from '../reader/counts';
+import {
     SubscriptionConflict,
     SubscriptionInvariantError,
     SubscriptionNotFound,
@@ -326,20 +331,14 @@ export interface SubscriptionRepository {
     >;
 }
 
-const effectiveRead = `CASE
-    WHEN ei.read_override IS NOT NULL THEN ei.read_override
-    WHEN fs.read_through_entry_id IS NOT NULL AND e.id <= fs.read_through_entry_id THEN 1
-    ELSE 0 END`;
-// One pass over each feed's entries computes both counts. Two scalar
-// subqueries read every entry twice.
+// The counts come from stored counters and the sparse interaction rows;
+// see reader/counts.ts.
 const subscriptionSelect = (where: string) => `SELECT
     fs.feed_id, fs.category_id, c.name AS category_name,
     f.name AS feed_name, fs.custom_feed_name, f.feed_url, f.site_url,
     f.favicon_url, f.favicon_asset_hash, f.favicon_is_dark,
-    COALESCE(SUM(CASE WHEN e.id IS NOT NULL AND ei.filtered_at IS NULL
-        THEN 1 ELSE 0 END), 0) AS entry_count,
-    COALESCE(SUM(CASE WHEN e.id IS NOT NULL AND ei.filtered_at IS NULL
-        AND ${effectiveRead} = 0 THEN 1 ELSE 0 END), 0) AS unread_count,
+    ${subscriptionTotalCount} AS entry_count,
+    ${subscriptionUnreadCount} AS unread_count,
     f.is_gone,
     CASE WHEN f.moved_to_url IS NOT fs.dismissed_moved_url
         THEN f.moved_to_url END AS moved_to_url,
@@ -367,9 +366,7 @@ FROM feed_subscriptions fs
 JOIN feeds f ON f.id = fs.feed_id
 JOIN subscription_categories c
     ON c.user_id = fs.user_id AND c.id = fs.category_id
-LEFT JOIN entries e ON e.feed_id = fs.feed_id
-LEFT JOIN entry_interactions ei
-    ON ei.user_id = fs.user_id AND ei.entry_id = e.id
+${countInteractionsJoin}
 WHERE ${where}
 GROUP BY fs.user_id, fs.feed_id`;
 
@@ -1031,7 +1028,7 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                 ];
                 const initialMutationKinds: {
                     readonly index: number;
-                    readonly kind: 'exactlyOne' | 'oneOrTwo';
+                    readonly kind: 'exactlyOne' | 'entryInsert';
                 }[] = [];
 
                 for (const entry of input.entries) {
@@ -1069,7 +1066,7 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                     });
                     initialMutationKinds.push({
                         index: statements.length - 1,
-                        kind: 'oneOrTwo',
+                        kind: 'entryInsert',
                     });
 
                     if (entry.content.type === 'stored') {
@@ -1207,10 +1204,13 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                         operation,
                         results[mutation.index],
                     );
+                    // D1 counts rows changed by triggers too: an entry
+                    // insert also advances the ID sequence and the feed's
+                    // entry count.
                     const valid = createdFeed
                         ? mutation.kind === 'exactlyOne'
                             ? changes === 1
-                            : changes === 1 || changes === 2
+                            : changes >= 1 && changes <= 3
                         : changes === 0;
                     if (!valid) {
                         return yield* Effect.fail(invariant(operation));

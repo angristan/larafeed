@@ -14,6 +14,12 @@ import { Effect, Schema } from 'effect';
 import { feedFaviconUrl } from '../favicons/assets';
 import type { D1, D1OperationError, D1Statement } from '../infrastructure/d1';
 import {
+    countInteractionsJoin,
+    subscriptionCountsSql,
+    subscriptionTotalCount,
+    subscriptionUnreadCount,
+} from './counts';
+import {
     ReaderInvariantError,
     ReaderNotFound,
     ReaderStorageError,
@@ -242,12 +248,22 @@ export interface ReaderRepository {
         ReaderReadThroughResponse,
         ReaderNotFound | ReaderStorageError | ReaderInvariantError
     >;
+    /** Marks every subscription of a category, or all of them, as read. */
+    readonly advanceReadThroughScope: (
+        userId: number,
+        scope: ReaderEntryScope,
+        now: number,
+    ) => Effect.Effect<
+        readonly ReaderReadThroughResponse[],
+        ReaderStorageError | ReaderInvariantError
+    >;
 }
 
-const effectiveRead = `CASE
-    WHEN ei.read_override IS NOT NULL THEN ei.read_override
-    WHEN fs.read_through_entry_id IS NOT NULL AND e.id <= fs.read_through_entry_id THEN 1
+const effectiveReadOf = (entry: string, interaction: string) => `CASE
+    WHEN ${interaction}.read_override IS NOT NULL THEN ${interaction}.read_override
+    WHEN fs.read_through_entry_id IS NOT NULL AND ${entry}.id <= fs.read_through_entry_id THEN 1
     ELSE 0 END`;
+const effectiveRead = effectiveReadOf('e', 'ei');
 const naturalRead = `CASE
     WHEN fs.read_through_entry_id IS NOT NULL AND e.id <= fs.read_through_entry_id THEN 1
     ELSE 0 END`;
@@ -389,14 +405,18 @@ const scopeSql = (
             return { clause: 'fs.user_id = ?', bindings: [userId] };
     }
 };
-const filterSql = (filter: ReaderFilter): string => {
+const filterSql = (
+    filter: ReaderFilter,
+    entry = 'e',
+    interaction = 'ei',
+): string => {
     switch (filter) {
         case 'unread':
-            return `${effectiveRead} = 0`;
+            return `${effectiveReadOf(entry, interaction)} = 0`;
         case 'read':
-            return `${effectiveRead} = 1`;
+            return `${effectiveReadOf(entry, interaction)} = 1`;
         case 'favorites':
-            return 'ei.starred_at IS NOT NULL';
+            return `${interaction}.starred_at IS NOT NULL`;
         case 'all':
             return '1 = 1';
     }
@@ -417,53 +437,226 @@ const rangeSql = (
     }
     return { clause: clauses.join(''), bindings };
 };
-const orderSql = (orderBy: ReaderOrder): string =>
+const orderSql = (orderBy: ReaderOrder, entry = 'e'): string =>
     orderBy === 'created_at'
-        ? 'e.created_at DESC, e.id DESC'
-        : 'e.published_at DESC, e.id DESC';
+        ? `${entry}.created_at DESC, ${entry}.id DESC`
+        : `${entry}.published_at DESC, ${entry}.id DESC`;
+
+/** The same scope as `scopeSql`, over `fs` only. */
+const subscriptionScopeSql = (
+    scope: ReaderEntryScope,
+    userId: number,
+): { readonly clause: string; readonly bindings: readonly number[] } =>
+    scope.type === 'feed'
+        ? {
+              clause: 'fs.user_id = ? AND fs.feed_id = ?',
+              bindings: [userId, scope.id],
+          }
+        : scopeSql(scope, userId);
 
 /**
- * Builds the scope total and the page query for an entry list. The total
- * reads every matching entry, so callers skip it when they already have it.
+ * How a page of entries is read. Each plan returns the same rows; they
+ * differ in which index drives the query, so a page reads close to one
+ * page of entries instead of every entry in the scope.
+ *
+ * - `feed`: one feed's ordering index.
+ * - `starred`: the user's starred interactions, which are few.
+ * - `global`: the global ordering index, in order, stopping after one page.
+ * - `perFeed`: each feed's ordering index, at most one page per feed, then
+ *   a sort. A scope with few feeds would otherwise walk the global index
+ *   past every other feed's entries.
  */
-const entryListStatements = (
+type EntryListPlan = 'feed' | 'starred' | 'global' | 'perFeed';
+
+// Scopes with at most this many subscriptions use the `perFeed` plan.
+const PER_FEED_PLAN_MAX_FEEDS = 16;
+
+const scopeFeedCountStatement = (
+    userId: number,
+    scope: ReaderEntryScope,
+): D1Statement => ({
+    sql: `SELECT COUNT(*) AS total FROM (
+            SELECT 1 FROM feed_subscriptions
+            WHERE user_id = ?${scope.type === 'category' ? ' AND category_id = ?' : ''}
+            LIMIT ?)`,
+    bindings: [
+        userId,
+        ...(scope.type === 'category' ? [scope.id] : []),
+        PER_FEED_PLAN_MAX_FEEDS + 1,
+    ],
+});
+
+const entryListPlan = (
+    d1: D1,
+    operation: string,
     userId: number,
     query: ReaderEntryQuery,
-): { readonly count: D1Statement; readonly page: D1Statement } => {
-    const scope = scopeSql(query.scope, userId);
-    const orderColumn =
-        query.orderBy === 'created_at' ? 'e.created_at' : 'e.published_at';
-    const range = rangeSql(orderColumn, query.range);
-    const fromWhere = `FROM entries e
-            JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id
-            JOIN feeds f ON f.id = e.feed_id
-            LEFT JOIN entry_interactions ei ON ei.user_id = fs.user_id AND ei.entry_id = e.id
-            WHERE ${scope.clause} AND ei.filtered_at IS NULL AND ${filterSql(query.filter)}${range.clause}`;
-    const whereBindings = [...scope.bindings, ...range.bindings];
+): Effect.Effect<EntryListPlan, ReaderStorageError | ReaderInvariantError> =>
+    Effect.gen(function* () {
+        if (query.filter === 'favorites') return 'starred';
+        if (query.scope.type === 'feed') return 'feed';
+        const row = yield* withStorageError(
+            operation,
+            d1.first(scopeFeedCountStatement(userId, query.scope)),
+        );
+        const { total } = yield* decode(operation, TotalRow, row);
+        return total > PER_FEED_PLAN_MAX_FEEDS ? 'global' : 'perFeed';
+    });
+
+const cursorSql = (
+    orderColumn: string,
+    entry: string,
+    cursor: ReaderEntryCursor | null,
+): { readonly clause: string; readonly bindings: readonly number[] } =>
     // Keyset pagination: an OFFSET shifts when reads or new arrivals
     // change the filtered set, skipping or repeating entries.
-    const cursorClause =
-        query.cursor === null
-            ? ''
-            : ` AND (${orderColumn} < ? OR (${orderColumn} = ? AND e.id < ?))`;
-    const cursorBindings =
-        query.cursor === null
-            ? []
-            : [
-                  query.cursor.orderValue,
-                  query.cursor.orderValue,
-                  query.cursor.id,
-              ];
+    cursor === null
+        ? { clause: '', bindings: [] }
+        : {
+              clause: ` AND (${orderColumn} < ? OR (${orderColumn} = ? AND ${entry}.id < ?))`,
+              bindings: [cursor.orderValue, cursor.orderValue, cursor.id],
+          };
+
+const orderColumnOf = (orderBy: ReaderOrder, entry = 'e'): string =>
+    orderBy === 'created_at' ? `${entry}.created_at` : `${entry}.published_at`;
+
+/** The page query of an entry list: one row more than the page size. */
+const entryPageStatement = (
+    userId: number,
+    query: ReaderEntryQuery,
+    plan: EntryListPlan,
+): D1Statement => {
+    const scope = scopeSql(query.scope, userId);
+    const range = rangeSql(orderColumnOf(query.orderBy), query.range);
+    const cursor = cursorSql(orderColumnOf(query.orderBy), 'e', query.cursor);
+    const order = orderSql(query.orderBy);
+    const limit = query.pageSize + 1;
+    const filtered = `ei.filtered_at IS NULL AND ${filterSql(query.filter)}${range.clause}${cursor.clause}`;
+    const filteredBindings = [...range.bindings, ...cursor.bindings];
+    switch (plan) {
+        case 'feed':
+            return {
+                sql: `SELECT ${entryColumns}
+                    FROM entries e
+                    JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id
+                    JOIN feeds f ON f.id = e.feed_id
+                    LEFT JOIN entry_interactions ei ON ei.user_id = fs.user_id AND ei.entry_id = e.id
+                    WHERE ${scope.clause} AND ${filtered}
+                    ORDER BY ${order} LIMIT ?`,
+                bindings: [...scope.bindings, ...filteredBindings, limit],
+            };
+        case 'global':
+            // CROSS JOIN keeps entries as the outer loop, so SQLite reads
+            // the global ordering index in order and stops after one page.
+            return {
+                sql: `SELECT ${entryColumns}
+                    FROM entries e
+                    CROSS JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id
+                    JOIN feeds f ON f.id = e.feed_id
+                    LEFT JOIN entry_interactions ei ON ei.user_id = fs.user_id AND ei.entry_id = e.id
+                    WHERE ${scope.clause} AND ${filtered}
+                    ORDER BY ${order} LIMIT ?`,
+                bindings: [...scope.bindings, ...filteredBindings, limit],
+            };
+        case 'starred':
+            return {
+                sql: `SELECT ${entryColumns}
+                    FROM entry_interactions ei
+                    CROSS JOIN entries e ON e.id = ei.entry_id
+                    CROSS JOIN feed_subscriptions fs
+                      ON fs.user_id = ei.user_id AND fs.feed_id = ei.feed_id
+                    JOIN feeds f ON f.id = e.feed_id
+                    WHERE ei.user_id = ? AND ei.starred_at IS NOT NULL
+                      AND ${scope.clause} AND ${filtered}
+                    ORDER BY ${order} LIMIT ?`,
+                bindings: [
+                    userId,
+                    ...scope.bindings,
+                    ...filteredBindings,
+                    limit,
+                ],
+            };
+        case 'perFeed': {
+            const feedRange = rangeSql(
+                orderColumnOf(query.orderBy, 'pe'),
+                query.range,
+            );
+            const feedCursor = cursorSql(
+                orderColumnOf(query.orderBy, 'pe'),
+                'pe',
+                query.cursor,
+            );
+            return {
+                sql: `SELECT ${entryColumns}
+                    FROM feed_subscriptions fs
+                    JOIN entries e ON e.id IN (
+                        SELECT pe.id FROM entries pe
+                        LEFT JOIN entry_interactions pei
+                          ON pei.user_id = fs.user_id AND pei.entry_id = pe.id
+                        WHERE pe.feed_id = fs.feed_id AND pei.filtered_at IS NULL
+                          AND ${filterSql(query.filter, 'pe', 'pei')}${feedRange.clause}${feedCursor.clause}
+                        ORDER BY ${orderSql(query.orderBy, 'pe')} LIMIT ?)
+                    JOIN feeds f ON f.id = e.feed_id
+                    LEFT JOIN entry_interactions ei ON ei.user_id = fs.user_id AND ei.entry_id = e.id
+                    WHERE ${scope.clause}
+                    ORDER BY ${order} LIMIT ?`,
+                bindings: [
+                    ...feedRange.bindings,
+                    ...feedCursor.bindings,
+                    limit,
+                    ...scope.bindings,
+                    limit,
+                ],
+            };
+        }
+    }
+};
+
+/**
+ * The number of entries in the scope, for the first page. Without a range
+ * it adds up the stored per-subscription counts, or counts the starred
+ * interactions, instead of reading every entry.
+ */
+const entryTotalStatement = (
+    userId: number,
+    query: ReaderEntryQuery,
+): D1Statement => {
+    if (query.range !== undefined) {
+        // The reader asks for a range to count recent arrivals, which the
+        // ingestion-time indexes find directly.
+        const scope = scopeSql(query.scope, userId);
+        const range = rangeSql(orderColumnOf(query.orderBy), query.range);
+        return {
+            sql: `SELECT COUNT(*) AS total
+                FROM entries e
+                JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id
+                LEFT JOIN entry_interactions ei ON ei.user_id = fs.user_id AND ei.entry_id = e.id
+                WHERE ${scope.clause} AND ei.filtered_at IS NULL AND ${filterSql(query.filter)}${range.clause}`,
+            bindings: [...scope.bindings, ...range.bindings],
+        };
+    }
+    const scope = subscriptionScopeSql(query.scope, userId);
+    if (query.filter === 'favorites') {
+        return {
+            sql: `SELECT COUNT(*) AS total
+                FROM entry_interactions ei
+                CROSS JOIN feed_subscriptions fs
+                  ON fs.user_id = ei.user_id AND fs.feed_id = ei.feed_id
+                WHERE ei.user_id = ? AND ei.starred_at IS NOT NULL
+                  AND ei.filtered_at IS NULL AND ${scope.clause}`,
+            bindings: [userId, ...scope.bindings],
+        };
+    }
+    const column =
+        query.filter === 'unread'
+            ? 'unread_count'
+            : query.filter === 'read'
+              ? 'total_count - unread_count'
+              : 'total_count';
     return {
-        count: {
-            sql: `SELECT COUNT(*) AS total ${fromWhere}`,
-            bindings: whereBindings,
-        },
-        page: {
-            sql: `SELECT ${entryColumns} ${fromWhere}${cursorClause}
-                    ORDER BY ${orderSql(query.orderBy)} LIMIT ?`,
-            bindings: [...whereBindings, ...cursorBindings, query.pageSize + 1],
-        },
+        sql: `SELECT COALESCE(SUM(${column}), 0) AS total
+            FROM (${subscriptionCountsSql(scope.clause)})`,
+        bindings: scope.bindings,
     };
 };
 
@@ -716,16 +909,13 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
                     sql: `SELECT fs.feed_id, fs.category_id, f.name AS feed_name,
                     fs.custom_feed_name, f.favicon_url, f.favicon_asset_hash,
                     f.favicon_is_dark,
-                    COALESCE(SUM(CASE WHEN ei.filtered_at IS NULL AND e.id IS NOT NULL THEN 1 ELSE 0 END), 0) AS total_count,
-                    COALESCE(SUM(CASE WHEN ei.filtered_at IS NULL AND e.id IS NOT NULL AND ${effectiveRead} = 0 THEN 1 ELSE 0 END), 0) AS unread_count
+                    ${subscriptionTotalCount} AS total_count,
+                    ${subscriptionUnreadCount} AS unread_count
                 FROM feed_subscriptions fs
                 JOIN feeds f ON f.id = fs.feed_id
-                LEFT JOIN entries e ON e.feed_id = fs.feed_id
-                LEFT JOIN entry_interactions ei ON ei.user_id = fs.user_id AND ei.entry_id = e.id
+                ${countInteractionsJoin}
                 WHERE fs.user_id = ?
-                GROUP BY fs.user_id, fs.feed_id, fs.category_id, f.name,
-                    fs.custom_feed_name, f.favicon_url, f.favicon_asset_hash,
-                    f.favicon_is_dark
+                GROUP BY fs.user_id, fs.feed_id
                 ORDER BY COALESCE(fs.custom_feed_name, f.name) COLLATE NOCASE, fs.feed_id`,
                     bindings: [userId],
                 }),
@@ -743,15 +933,14 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
             const value = yield* withStorageError(
                 operation,
                 d1.first({
-                    sql: `SELECT COALESCE(SUM(1), 0) AS total,
-                    COALESCE(SUM(CASE WHEN ${effectiveRead} = 0 THEN 1 ELSE 0 END), 0) AS unread,
-                    COALESCE(SUM(CASE WHEN ${effectiveRead} = 1 THEN 1 ELSE 0 END), 0) AS read,
-                    COALESCE(SUM(CASE WHEN ei.starred_at IS NOT NULL THEN 1 ELSE 0 END), 0) AS starred
-                FROM entries e
-                JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id AND fs.user_id = ?
-                LEFT JOIN entry_interactions ei ON ei.user_id = fs.user_id AND ei.entry_id = e.id
-                WHERE ei.filtered_at IS NULL`,
-                    bindings: [userId],
+                    sql: `SELECT COALESCE(SUM(total_count), 0) AS total,
+                    COALESCE(SUM(unread_count), 0) AS unread,
+                    COALESCE(SUM(total_count - unread_count), 0) AS read,
+                    (SELECT COUNT(*) FROM entry_interactions
+                        WHERE user_id = ? AND starred_at IS NOT NULL
+                          AND filtered_at IS NULL) AS starred
+                FROM (${subscriptionCountsSql('fs.user_id = ?')})`,
+                    bindings: [userId, userId],
                 }),
             );
             if (value === null)
@@ -762,10 +951,13 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
     listEntries: (userId, query) =>
         Effect.gen(function* () {
             const operation = 'reader.entries.list';
-            const { count, page } = entryListStatements(userId, query);
+            const plan = yield* entryListPlan(d1, operation, userId, query);
             const results = yield* withStorageError(
                 operation,
-                d1.batch([count, page]),
+                d1.batch([
+                    entryTotalStatement(userId, query),
+                    entryPageStatement(userId, query, plan),
+                ]),
             );
             if (results.length !== 2)
                 return yield* Effect.fail(invariantError(operation));
@@ -786,8 +978,11 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
     listEntriesUncounted: (userId, query) =>
         Effect.gen(function* () {
             const operation = 'reader.entries.page';
-            const { page } = entryListStatements(userId, query);
-            const result = yield* withStorageError(operation, d1.all(page));
+            const plan = yield* entryListPlan(d1, operation, userId, query);
+            const result = yield* withStorageError(
+                operation,
+                d1.all(entryPageStatement(userId, query, plan)),
+            );
             return yield* entryPageFromRows(operation, query, result.results);
         }),
 
@@ -916,75 +1111,139 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
     advanceReadThrough: (userId, feedId, now) =>
         Effect.gen(function* () {
             const operation = 'reader.subscription.readThrough.advance';
-            const dayStart = utcDayStart(now);
-            const results = yield* withStorageError(
+            const { results, rows } = yield* readThroughScope(
+                d1,
                 operation,
-                d1.batch([
-                    {
-                        sql: `INSERT INTO chart_daily_activity (
+                userId,
+                { type: 'feed', id: feedId },
+                now,
+            );
+            const activityChanges = yield* changes(operation, results[0]);
+            const subscriptionChanges = yield* changes(operation, results[1]);
+            if (activityChanges > 1 || subscriptionChanges > 1)
+                return yield* Effect.fail(invariantError(operation));
+            const row = rows[0];
+            if (row === undefined)
+                return yield* Effect.fail(new ReaderNotFound());
+            if (rows.length !== 1)
+                return yield* Effect.fail(invariantError(operation));
+            return row;
+        }),
+
+    advanceReadThroughScope: (userId, scope, now) =>
+        readThroughScope(
+            d1,
+            'reader.subscriptions.readThrough.advance',
+            userId,
+            scope,
+            now,
+        ).pipe(Effect.map(({ rows }) => rows)),
+});
+
+/**
+ * Marks every entry of the scope's subscriptions as read: each watermark
+ * moves to its feed's newest entry, and read overrides at or below it are
+ * dropped. One batch of set-based statements covers the whole scope.
+ */
+const readThroughScope = (
+    d1: D1,
+    operation: string,
+    userId: number,
+    scope: ReaderEntryScope,
+    now: number,
+): Effect.Effect<
+    {
+        readonly results: D1Result<unknown>[];
+        readonly rows: readonly ReaderReadThroughResponse[];
+    },
+    ReaderStorageError | ReaderInvariantError
+> =>
+    Effect.gen(function* () {
+        const owned = subscriptionScopeSql(scope, userId);
+        const newestEntry =
+            '(SELECT MAX(id) FROM entries WHERE feed_id = fs.feed_id)';
+        const watermarkOf = `(SELECT fs.read_through_entry_id
+            FROM feed_subscriptions fs
+            WHERE fs.user_id = entry_interactions.user_id
+              AND fs.feed_id = entry_interactions.feed_id)`;
+        const scopedInteractions = `user_id = ? AND feed_id IN (
+            SELECT fs.feed_id FROM feed_subscriptions fs WHERE ${owned.clause})
+            AND read_override IS NOT NULL AND entry_id <= ${watermarkOf}`;
+        const results = yield* withStorageError(
+            operation,
+            d1.batch([
+                {
+                    // Every unread entry is about to be marked read.
+                    sql: `INSERT INTO chart_daily_activity (
                             user_id, feed_id, day_start, marked_read_count,
                             marked_unread_count, saved_count, unsaved_count,
                             created_at, updated_at
                         )
-                        SELECT ?, fs.feed_id, ?, COUNT(*), 0, 0, 0, ?, ?
-                        FROM entries e
-                        JOIN feed_subscriptions fs
-                          ON fs.feed_id = e.feed_id AND fs.user_id = ?
-                        LEFT JOIN entry_interactions ei
-                          ON ei.user_id = fs.user_id AND ei.entry_id = e.id
-                        WHERE fs.feed_id = ? AND ei.filtered_at IS NULL
-                          AND ${effectiveRead} = 0
-                        HAVING COUNT(*) > 0
+                        SELECT ?, counts.feed_id, ?, counts.unread_count, 0, 0, 0, ?, ?
+                        FROM (${subscriptionCountsSql(owned.clause)}) counts
+                        WHERE counts.unread_count > 0
                         ON CONFLICT(user_id, feed_id, day_start) DO UPDATE SET
                             marked_read_count = marked_read_count + excluded.marked_read_count,
                             updated_at = excluded.updated_at`,
-                        bindings: [userId, dayStart, now, now, userId, feedId],
-                    },
-                    {
-                        sql: `UPDATE feed_subscriptions
-                    SET read_through_entry_id = (SELECT MAX(id) FROM entries WHERE feed_id = ?), updated_at = ?
-                    WHERE user_id = ? AND feed_id = ?
-                        AND (SELECT MAX(id) FROM entries WHERE feed_id = ?) IS NOT NULL
-                        AND (read_through_entry_id IS NULL OR read_through_entry_id < (SELECT MAX(id) FROM entries WHERE feed_id = ?))`,
-                        bindings: [feedId, now, userId, feedId, feedId, feedId],
-                    },
-                    {
-                        sql: `DELETE FROM entry_interactions
-                    WHERE user_id = ? AND feed_id = ? AND read_override IS NOT NULL
-                        AND starred_at IS NULL AND archived_at IS NULL AND filtered_at IS NULL
-                        AND entry_id <= COALESCE((SELECT read_through_entry_id FROM feed_subscriptions WHERE user_id = ? AND feed_id = ?), 0)`,
-                        bindings: [userId, feedId, userId, feedId],
-                    },
-                    {
-                        sql: `UPDATE entry_interactions SET read_override = NULL, read_changed_at = NULL, updated_at = ?
-                    WHERE user_id = ? AND feed_id = ? AND read_override IS NOT NULL
-                        AND entry_id <= COALESCE((SELECT read_through_entry_id FROM feed_subscriptions WHERE user_id = ? AND feed_id = ?), 0)`,
-                        bindings: [now, userId, feedId, userId, feedId],
-                    },
-                    {
-                        sql: `SELECT feed_id, read_through_entry_id FROM feed_subscriptions WHERE user_id = ? AND feed_id = ?`,
-                        bindings: [userId, feedId],
-                    },
-                ]),
-            );
-            const activityChanges = yield* changes(operation, results[0]);
-            const mutationChanges = yield* Effect.forEach([1, 2, 3], (index) =>
-                changes(operation, results[index]),
-            );
-            if (activityChanges > 1 || mutationChanges[0] > 1)
-                return yield* Effect.fail(invariantError(operation));
-            const rows = results[4]?.results ?? [];
-            if (rows.length === 0)
-                return yield* Effect.fail(new ReaderNotFound());
-            if (rows.length !== 1)
-                return yield* Effect.fail(invariantError(operation));
-            const row = yield* decode(operation, ReadThroughRow, rows[0]);
-            return {
+                    bindings: [
+                        userId,
+                        utcDayStart(now),
+                        now,
+                        now,
+                        ...owned.bindings,
+                    ],
+                },
+                {
+                    // Every entry is at or below the newest one, so the
+                    // feed's entry count is the new read_through_count.
+                    sql: `UPDATE feed_subscriptions AS fs
+                        SET read_through_entry_id = ${newestEntry},
+                            read_through_count = (
+                                SELECT entry_count FROM feeds WHERE id = fs.feed_id),
+                            updated_at = ?
+                        WHERE ${owned.clause}
+                            AND ${newestEntry} IS NOT NULL
+                            AND (fs.read_through_entry_id IS NULL
+                                OR fs.read_through_entry_id < ${newestEntry})`,
+                    bindings: [now, ...owned.bindings],
+                },
+                {
+                    sql: `DELETE FROM entry_interactions
+                        WHERE ${scopedInteractions}
+                            AND starred_at IS NULL AND archived_at IS NULL
+                            AND filtered_at IS NULL`,
+                    bindings: [userId, ...owned.bindings],
+                },
+                {
+                    sql: `UPDATE entry_interactions
+                        SET read_override = NULL, read_changed_at = NULL, updated_at = ?
+                        WHERE ${scopedInteractions}`,
+                    bindings: [now, userId, ...owned.bindings],
+                },
+                {
+                    sql: `SELECT fs.feed_id, fs.read_through_entry_id
+                        FROM feed_subscriptions fs
+                        WHERE ${owned.clause}
+                        ORDER BY fs.feed_id`,
+                    bindings: owned.bindings,
+                },
+            ]),
+        );
+        if (results.length !== 5)
+            return yield* Effect.fail(invariantError(operation));
+        const rows = yield* decodeRows(
+            operation,
+            ReadThroughRow,
+            results[4]?.results ?? [],
+        );
+        return {
+            results,
+            rows: rows.map((row) => ({
                 feedId: row.feed_id,
                 readThroughEntryId: row.read_through_entry_id,
-            };
-        }),
-});
+            })),
+        };
+    });
 
 interface TimestampStateInput {
     readonly operation: string;

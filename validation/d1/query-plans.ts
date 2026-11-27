@@ -17,18 +17,30 @@ export const queryPlanSpecs = (
         fixture.semantics;
     return [
         {
+            // Libraries with many feeds walk the global index in order.
             name: 'reader.global',
-            sql: `SELECT e.id FROM entries e
-                JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id
+            sql: `SELECT e.id, e.title FROM entries e
+                CROSS JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id
                 LEFT JOIN entry_interactions ei
                     ON ei.user_id = fs.user_id AND ei.entry_id = e.id
                 WHERE fs.user_id = ? AND ei.filtered_at IS NULL
                 ORDER BY e.published_at DESC, e.id DESC LIMIT 20`,
             bindings: [primaryUserId],
-            required: [
-                'feed_subscriptions_user_category',
-                'entries_feed_published',
-            ],
+            required: ['entries_published_global'],
+        },
+        {
+            // Unread badges read the stored counters and sparse rows only.
+            name: 'reader.subscription_counts',
+            sql: `SELECT fs.feed_id, f.entry_count - fs.read_through_count
+                    + COALESCE(SUM(ci.read_override), 0) AS unread_count
+                FROM feed_subscriptions fs
+                JOIN feeds f ON f.id = fs.feed_id
+                LEFT JOIN entry_interactions ci
+                    ON ci.user_id = fs.user_id AND ci.feed_id = fs.feed_id
+                WHERE fs.user_id = ?
+                GROUP BY fs.user_id, fs.feed_id`,
+            bindings: [primaryUserId],
+            required: ['entry_interactions_subscription'],
         },
         {
             name: 'reader.feed',

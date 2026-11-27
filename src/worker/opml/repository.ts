@@ -1348,7 +1348,9 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
         }
         for (const index of initialMutationIndices) {
             const count = changes(operation, results[index]);
-            if (bootstrapped ? count !== 1 && count !== 2 : count !== 0) {
+            // D1 counts rows changed by triggers too: an inserted entry
+            // also advances the ID sequence and the feed's entry count.
+            if (bootstrapped ? count < 1 || count > 3 : count !== 0) {
                 throw new OpmlInvariantError(
                     operation,
                     'invalid initial entry mutation',

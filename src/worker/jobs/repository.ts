@@ -1381,7 +1381,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
             | 'exactlyOne'
             | 'oneOrTwo'
             | 'atMostOne'
-            | 'atMostTwo'
+            | 'entryUpsert'
             | 'any'
         )[] = [];
         const latestEntryAt = input.entries.reduce<number | null>(
@@ -1550,7 +1550,7 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                     ...contentDifferenceBindings,
                 ],
             });
-            mutationKinds.push('atMostTwo');
+            mutationKinds.push('entryUpsert');
 
             if (entry.updateMask.content && entry.content.type === 'stored') {
                 const encodedSize = new TextEncoder().encode(
@@ -1839,7 +1839,9 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                 (kind === 'exactlyOne' && changes !== 1) ||
                 (kind === 'oneOrTwo' && (changes < 1 || changes > 2)) ||
                 (kind === 'atMostOne' && changes > 1) ||
-                (kind === 'atMostTwo' && changes > 2)
+                // D1 counts rows changed by triggers too: an inserted entry
+                // also advances the ID sequence and the feed's entry count.
+                (kind === 'entryUpsert' && changes > 3)
             ) {
                 throw new RefreshLeaseLostError(input.claim.operationId);
             }
