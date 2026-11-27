@@ -55,15 +55,11 @@ import {
     entrySummaryQueryOptions,
     generateEntrySummaryMutationOptions,
 } from '../../queries/summaries';
-import { externalizeArticleLinks } from './articleHtml';
+import { externalizeArticleLinks, prepareArticleHtml } from './articleHtml';
 import { FeedFavicon } from './FeedFavicon';
 import classes from './Reader.module.css';
 import { FeedActions } from './ReaderSidebar';
-import {
-    estimateReadingTime,
-    readingTimeLabel,
-    textFromSanitizedHtml,
-} from './readingTime';
+import { estimateReadingTime, readingTimeLabel } from './readingTime';
 
 interface ReaderEntryDetailProps {
     readonly entry: ReaderEntry | undefined;
@@ -420,23 +416,24 @@ export function ReaderEntryDetail({
     const detailHeading = useRef<HTMLHeadingElement>(null);
     const focusedEntry = useRef<number | null>(null);
     const viewport = useRef<HTMLDivElement>(null);
-    const readingTime = useMemo(
+    // One parse per article gives both the rendered HTML and the reading
+    // time. Marking the entry read replaces the entry object but keeps
+    // contentHtml, so this does not run again.
+    const article = useMemo(
         () =>
             entry?.contentHtml == null
                 ? null
-                : estimateReadingTime(textFromSanitizedHtml(entry.contentHtml)),
+                : prepareArticleHtml(entry.contentHtml),
         [entry?.contentHtml],
     );
+    const readingTime = useMemo(
+        () => (article === null ? null : estimateReadingTime(article.text)),
+        [article],
+    );
+    const articleHtml = article?.html ?? null;
     const scrollToTop = useCallback(
         () => viewport.current?.scrollTo({ top: 0, behavior: 'instant' }),
         [],
-    );
-    const articleHtml = useMemo(
-        () =>
-            entry?.contentHtml == null
-                ? null
-                : externalizeArticleLinks(entry.contentHtml),
-        [entry?.contentHtml],
     );
 
     const [fullArticle, setFullArticle] = useState(false);
