@@ -794,6 +794,20 @@ describe('OPML D1 repository', () => {
                 imports: 0,
                 jobs: attempt === MAX_OUTBOX_ATTEMPTS ? 0 : 1,
             });
+            if (attempt < MAX_OUTBOX_ATTEMPTS) {
+                await expect(
+                    first(
+                        `SELECT i.state, i.error_class, j.state AS job_state
+                         FROM opml_import_items i JOIN jobs j ON j.id = i.job_id
+                         WHERE i.operation_id = ?`,
+                        [operationId],
+                    ),
+                ).resolves.toEqual({
+                    state: 'pending',
+                    error_class: 'queue_delivery_lost',
+                    job_state: 'pending',
+                });
+            }
         }
 
         await expect(

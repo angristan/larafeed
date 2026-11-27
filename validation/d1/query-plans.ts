@@ -199,6 +199,32 @@ export const queryPlanSpecs = (
             ],
         },
         {
+            // OPML recovery finds the jobs it just dead-lettered.
+            name: 'recovery.redrive_exhausted_jobs',
+            sql: `SELECT j.id
+                FROM outbox_messages o JOIN jobs j ON j.id = o.job_id
+                WHERE o.topic = 'opml_import_feed' AND o.state = 'dead_lettered'
+                    AND o.updated_at = ?
+                    AND o.last_error_class = 'queue_redrive_exhausted'
+                    AND j.kind = 'opml_import_feed' AND j.state = 'dead_lettered'
+                    AND j.updated_at = ?
+                    AND j.last_error_class = 'queue_redrive_exhausted'`,
+            bindings: [fixture.generatedAt, fixture.generatedAt],
+            required: [
+                'outbox_messages_dead_lettered (topic=? AND updated_at=?)',
+            ],
+        },
+        {
+            // OPML recovery finds the outbox messages it just re-queued.
+            name: 'recovery.delivery_lost_outbox',
+            sql: `SELECT o.job_id FROM outbox_messages o
+                WHERE o.state = 'pending' AND o.available_at = ?
+                    AND o.topic = 'opml_import_feed' AND o.updated_at = ?
+                    AND o.last_error_class = 'queue_delivery_lost'`,
+            bindings: [fixture.generatedAt, fixture.generatedAt],
+            required: ['outbox_messages_pending (available_at=?)'],
+        },
+        {
             name: 'history.cleanup',
             sql: `SELECT old.id FROM feed_refreshes old
                 WHERE old.refreshed_at < ?

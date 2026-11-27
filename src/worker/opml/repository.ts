@@ -1542,6 +1542,21 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
     async recoverActiveImports(now, staleBefore, requestedLimit) {
         const operation = 'opml.recoverActiveImports';
         const limit = boundedLimit(requestedLimit, MAX_RECOVERY_BATCH);
+        // Jobs dead-lettered by this run. The lookup starts from the outbox
+        // rows dead-lettered just before, through
+        // outbox_messages_dead_lettered, instead of reading every job.
+        const redriveExhaustedJobs = `SELECT j.id
+            FROM outbox_messages o JOIN jobs j ON j.id = o.job_id
+            WHERE o.topic = ? AND o.state = 'dead_lettered' AND o.updated_at = ?
+                AND o.last_error_class = 'queue_redrive_exhausted'
+                AND j.kind = ? AND j.state = 'dead_lettered' AND j.updated_at = ?
+                AND j.last_error_class = 'queue_redrive_exhausted'`;
+        const redriveExhaustedBindings = [
+            OPML_IMPORT_TOPIC,
+            now,
+            OPML_IMPORT_JOB_KIND,
+            now,
+        ];
         const results = await run(
             operation,
             d1.batch([
@@ -1602,11 +1617,8 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                     sql: `UPDATE opml_import_items SET state = 'failed', completed_at = ?,
                         error_class = 'queue_redrive_exhausted',
                         error_message = 'Queue delivery was not completed', updated_at = ?
-                    WHERE completed_at IS NULL AND job_id IN (
-                        SELECT id FROM jobs WHERE kind = ? AND state = 'dead_lettered'
-                            AND updated_at = ? AND last_error_class = 'queue_redrive_exhausted'
-                    )`,
-                    bindings: [now, now, OPML_IMPORT_JOB_KIND, now],
+                    WHERE completed_at IS NULL AND job_id IN (${redriveExhaustedJobs})`,
+                    bindings: [now, now, ...redriveExhaustedBindings],
                 },
                 {
                     sql: `UPDATE opml_imports SET
@@ -1617,36 +1629,49 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                         completed_at = CASE WHEN total_items = (SELECT COUNT(*) FROM opml_import_items WHERE import_id = opml_imports.id AND completed_at IS NOT NULL) THEN ? ELSE completed_at END,
                         updated_at = ?
                     WHERE id IN (SELECT DISTINCT i.import_id FROM opml_import_items i
-                        JOIN jobs j ON j.id = i.job_id
-                        WHERE j.kind = ? AND j.state = 'dead_lettered'
-                            AND j.updated_at = ? AND j.last_error_class = 'queue_redrive_exhausted')
+                        WHERE i.job_id IN (${redriveExhaustedJobs}))
                         AND state IN ('pending', 'processing')`,
-                    bindings: [now, now, OPML_IMPORT_JOB_KIND, now],
+                    bindings: [now, now, ...redriveExhaustedBindings],
                 },
                 {
                     sql: `UPDATE jobs SET state = 'pending', available_at = ?, completed_at = NULL,
                         last_error_class = 'queue_delivery_lost',
                         last_error_message = 'Queue delivery was not completed', updated_at = ?
-                    WHERE kind = ? AND state IN ('pending', 'queued', 'failed')
-                        AND EXISTS (SELECT 1 FROM outbox_messages o WHERE o.job_id = jobs.id
-                            AND o.topic = ? AND o.state = 'pending' AND o.updated_at = ?
-                            AND o.last_error_class = 'queue_delivery_lost')`,
+                    WHERE id IN (SELECT o.job_id FROM outbox_messages o
+                            WHERE o.state = 'pending' AND o.available_at = ?
+                                AND o.topic = ? AND o.updated_at = ?
+                                AND o.last_error_class = 'queue_delivery_lost')
+                        AND kind = ? AND state IN ('pending', 'queued', 'failed')`,
+                    // The outbox rows re-queued above got available_at = now,
+                    // which drives this through outbox_messages_pending.
                     bindings: [
                         now,
                         now,
-                        OPML_IMPORT_JOB_KIND,
+                        now,
                         OPML_IMPORT_TOPIC,
                         now,
+                        OPML_IMPORT_JOB_KIND,
                     ],
                 },
                 {
                     sql: `UPDATE opml_import_items SET state = 'pending', completed_at = NULL,
                         error_class = 'queue_delivery_lost',
                         error_message = 'Queue delivery was not completed', updated_at = ?
-                    WHERE completed_at IS NULL AND job_id IN (SELECT id FROM jobs
-                        WHERE kind = ? AND state = 'pending' AND updated_at = ?
-                            AND last_error_class = 'queue_delivery_lost')`,
-                    bindings: [now, OPML_IMPORT_JOB_KIND, now],
+                    WHERE completed_at IS NULL AND job_id IN (SELECT j.id
+                        FROM outbox_messages o JOIN jobs j ON j.id = o.job_id
+                        WHERE o.state = 'pending' AND o.available_at = ?
+                            AND o.topic = ? AND o.updated_at = ?
+                            AND o.last_error_class = 'queue_delivery_lost'
+                            AND j.kind = ? AND j.state = 'pending' AND j.updated_at = ?
+                            AND j.last_error_class = 'queue_delivery_lost')`,
+                    bindings: [
+                        now,
+                        now,
+                        OPML_IMPORT_TOPIC,
+                        now,
+                        OPML_IMPORT_JOB_KIND,
+                        now,
+                    ],
                 },
             ]),
         );
