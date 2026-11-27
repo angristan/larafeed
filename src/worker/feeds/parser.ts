@@ -83,12 +83,21 @@ interface EntryCandidate {
     readonly publishedAt: number;
     readonly sourceUpdatedAt: number | null;
     readonly sortTimestamp: number | null;
-    readonly contentHtml: string | null;
-    readonly contentEncodedSize: number;
-    readonly contentStatus: ContentStatus;
+    /**
+     * Sanitizes the item body on demand. A feed can carry hundreds of
+     * items, but only the newest MAX_FEED_ENTRIES are kept, so the parser
+     * selects first and sanitizes only the kept entries. Undefined drops
+     * the candidate.
+     */
+    readonly content: () => EntryContent | undefined;
     readonly updateMask: EntryUpdateMask;
     readonly sourceIndex: number;
 }
+
+type EntryContent = Pick<
+    NormalizedFeedEntry,
+    'contentHtml' | 'contentEncodedSize' | 'contentStatus'
+>;
 
 const parser = new XMLParser({
     allowBooleanAttributes: false,
@@ -541,10 +550,7 @@ const contentForItem = (
 const normalizedContent = (
     source: string | undefined,
     finalUrl: URL,
-): Pick<
-    EntryCandidate,
-    'contentHtml' | 'contentEncodedSize' | 'contentStatus'
-> => {
+): EntryContent => {
     if (source === undefined) {
         return {
             contentHtml: null,
@@ -638,11 +644,12 @@ const candidateFromJsonItem = (
     if (contentHtml === undefined && contentText === undefined) {
         return undefined;
     }
-    const content = normalizedContent(
-        contentHtml ??
-            (contentText === undefined ? undefined : escaped(contentText)),
-        finalUrl,
-    );
+    const content = () =>
+        normalizedContent(
+            contentHtml ??
+                (contentText === undefined ? undefined : escaped(contentText)),
+            finalUrl,
+        );
     const rawTitle = plainTextTitle(jsonText(item.title), 2_000);
     const itemAuthor = jsonAuthor(item);
     const rawPublished = jsonText(item.date_published);
@@ -665,7 +672,7 @@ const candidateFromJsonItem = (
         publishedAt: published ?? sourceUpdatedAt ?? fetchedAt,
         sourceUpdatedAt,
         sortTimestamp: published ?? sourceUpdatedAt,
-        ...content,
+        content,
         updateMask: {
             title: rawTitle !== undefined,
             url: url !== null,
@@ -751,7 +758,7 @@ const candidateFromItem = (
         'description',
         'summary',
     ].some((key) => Object.hasOwn(item, key));
-    const content = normalizedContent(rawContent, finalUrl);
+    const content = () => normalizedContent(rawContent, finalUrl);
     const rawPublished = firstText(item, 'pubdate', 'published', 'date');
     const rawUpdated = firstText(item, 'updated', 'modified');
     const dates = entryDateSelection(rawPublished, rawUpdated, fetchedAt);
@@ -764,9 +771,11 @@ const candidateFromItem = (
         sourceId === null &&
         url === null &&
         title === 'Untitled' &&
-        content.contentStatus === 'empty' &&
         rawPublished === undefined &&
-        rawUpdated === undefined
+        rawUpdated === undefined &&
+        // Only items with nothing else to identify them need their body
+        // sanitized here; the rest wait until they make the cut.
+        content().contentStatus === 'empty'
     ) {
         return undefined;
     }
@@ -800,7 +809,15 @@ const candidateFromItem = (
         publishedAt: published ?? sourceUpdatedAt ?? fetchedAt,
         sourceUpdatedAt,
         sortTimestamp: published ?? sourceUpdatedAt,
-        ...content,
+        content: () => {
+            try {
+                return content();
+            } catch {
+                // An item that fails to sanitize is skipped, as it was when
+                // every item was sanitized up front.
+                return undefined;
+            }
+        },
         updateMask: {
             title: rawTitle !== undefined,
             url: url !== null,
@@ -857,11 +874,21 @@ const entriesFromCandidates = async (
         if (seen.has(key)) {
             continue;
         }
+        const content = candidate.content();
+        if (content === undefined) {
+            continue;
+        }
         seen.add(key);
 
-        const { sortTimestamp: _, sourceIndex: __, ...entry } = candidate;
+        const {
+            sortTimestamp: _,
+            sourceIndex: __,
+            content: ___,
+            ...entry
+        } = candidate;
         entries.push({
             ...entry,
+            ...content,
             deduplicationKey,
         });
     }
