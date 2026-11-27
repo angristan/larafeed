@@ -279,6 +279,15 @@ async function mockReaderApi(
                 url.searchParams.get('order_by') === 'created_at' &&
                 url.searchParams.get('page_size') === '1';
             if (isNewEntryProbe) {
+                // Like the server: count only entries ingested at or after
+                // created_from. The new entries were all ingested at `now`.
+                const createdFrom = Number(
+                    url.searchParams.get('created_from') ?? '0',
+                );
+                const newer =
+                    listEntries.filter(
+                        (listEntry) => listEntry.createdAt >= createdFrom,
+                    ).length + (now >= createdFrom ? newEntryCount : 0);
                 await route.fulfill(
                     json({
                         entries:
@@ -292,7 +301,7 @@ async function mockReaderApi(
                                       },
                                   ]
                                 : listEntries.slice(0, 1),
-                        total: listEntries.length + newEntryCount,
+                        total: newer,
                         nextCursor: null,
                     }),
                 );
