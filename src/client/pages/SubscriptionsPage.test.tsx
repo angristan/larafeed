@@ -9,6 +9,7 @@ import { subscriptionManagementKeys } from '../queries/subscriptions';
 import {
     buildAddFeedBookmarklet,
     getSubscriptionStatus,
+    MoveFeedSection,
     nextSubscriptionSortDirection,
     SubscriptionOverviewPage,
     SubscriptionsPage,
@@ -239,5 +240,48 @@ describe('SubscriptionsPage', () => {
         expect(getSubscriptionStatus({ ...subscription, isGone: true })).toBe(
             'gone',
         );
+    });
+    it('points a moved feed to its new URL', () => {
+        const moved = {
+            ...subscription,
+            consecutiveFailures: 3,
+            lastErrorMessage: 'Feed returned HTTP 404',
+            movedToUrl: 'https://example.com/new-feed.xml',
+        };
+        const markup = renderPage(
+            {
+                categories: [
+                    { id: 3, name: 'Technology', subscriptionCount: 1 },
+                ],
+                subscriptions: [moved],
+            },
+            '/settings/subscriptions',
+        );
+        expect(markup).toContain(
+            'Feed moved. Open details to switch to the new URL.',
+        );
+        expect(markup).not.toContain('Feed returned HTTP 404');
+
+        const section = (value: ManagedSubscription) =>
+            renderToStaticMarkup(
+                <QueryClientProvider client={new QueryClient()}>
+                    <MantineProvider>
+                        <MoveFeedSection
+                            onMoved={() => undefined}
+                            subscription={value}
+                        />
+                    </MantineProvider>
+                </QueryClientProvider>,
+            );
+        const alert = section(moved);
+        expect(alert).toContain('This feed has moved');
+        expect(alert).toContain('href="https://example.com/new-feed.xml"');
+        expect(alert).toContain('Switch to new feed');
+        expect(alert).toContain('Dismiss');
+        expect(alert).toContain('Change feed URL');
+
+        const healthy = section(subscription);
+        expect(healthy).not.toContain('This feed has moved');
+        expect(healthy).toContain('Change feed URL');
     });
 });

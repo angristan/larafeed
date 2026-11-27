@@ -1761,6 +1761,9 @@ function feedRefreshStatus(
         dateStyle: 'medium',
         timeStyle: 'short',
     }).format(new Date(subscription.lastAttemptAt));
+    if (subscription.movedToUrl !== null) {
+        return 'Feed moved. Switch to the new URL in Subscriptions.';
+    }
     return subscription.consecutiveFailures > 0
         ? `Last refresh failed ${timestamp}`
         : `Last refreshed ${timestamp}`;

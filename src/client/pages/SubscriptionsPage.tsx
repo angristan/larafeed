@@ -18,19 +18,22 @@ import {
     Title,
     Tooltip,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import {
     IconArrowNarrowDown,
     IconArrowNarrowUp,
+    IconArrowsExchange,
     IconListDetails,
     IconRefresh,
     IconSearch,
     IconTable,
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { type FormEvent, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 
 import type {
+    FeedDiscoveryCandidate,
     ManagedCategory,
     ManagedSubscription,
 } from '../api/subscriptions';
@@ -40,8 +43,11 @@ import {
     ApplicationSidebarHeader,
     ApplicationSidebarNavigation,
 } from '../components/ApplicationPage';
+import { FeedCandidateSelector } from '../components/reader/FeedCandidateSelector';
 import { FeedFavicon } from '../components/reader/FeedFavicon';
 import {
+    dismissMovedFeedMutationOptions,
+    moveSubscriptionMutationOptions,
     refreshSubscriptionMutationOptions,
     subscriptionManagementQueryOptions,
 } from '../queries/subscriptions';
@@ -356,12 +362,188 @@ function SubscriptionOverview({
     );
 }
 
+/**
+ * Offers the feed URL that refresh found after the old one stopped working,
+ * and lets the user switch to any other URL. A switch keeps read and starred
+ * state, so it replaces "unsubscribe and add again".
+ */
+export function MoveFeedSection({
+    subscription,
+    onMoved,
+}: {
+    readonly subscription: ManagedSubscription;
+    readonly onMoved: (feedId: number) => void;
+}) {
+    const queryClient = useQueryClient();
+    const move = useMutation(moveSubscriptionMutationOptions(queryClient));
+    const dismiss = useMutation(dismissMovedFeedMutationOptions(queryClient));
+    const [editing, setEditing] = useState(false);
+    const [feedUrl, setFeedUrl] = useState('');
+    const [candidates, setCandidates] = useState<
+        readonly FeedDiscoveryCandidate[] | null
+    >(null);
+
+    const switchTo = (url: string) =>
+        move.mutate(
+            { feedId: subscription.feedId, feedUrl: url },
+            {
+                onSuccess: (result) => {
+                    if (result.kind === 'selection_required') {
+                        setEditing(true);
+                        setCandidates(result.candidates);
+                        return;
+                    }
+                    notifications.show({
+                        title: 'Feed switched',
+                        message: result.keptOldSubscription
+                            ? 'Some starred articles are only in the old feed, so the old subscription was kept.'
+                            : 'Read and starred articles were carried over.',
+                        color: 'green',
+                        withBorder: true,
+                    });
+                    onMoved(result.subscription.feedId);
+                },
+            },
+        );
+    const submitUrl = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        const trimmed = feedUrl.trim();
+        if (trimmed !== '') switchTo(trimmed);
+    };
+    const closeEditor = () => {
+        setEditing(false);
+        setCandidates(null);
+        setFeedUrl('');
+        move.reset();
+    };
+
+    return (
+        <>
+            {subscription.movedToUrl !== null && (
+                <Alert
+                    color="blue"
+                    icon={<IconArrowsExchange size={18} />}
+                    title="This feed has moved"
+                    variant="light"
+                >
+                    <Stack gap="sm">
+                        <Text size="sm">
+                            The feed URL stopped working, and the site now lists
+                            this feed:{' '}
+                            <Anchor
+                                href={subscription.movedToUrl}
+                                rel="noreferrer"
+                                size="sm"
+                                target="_blank"
+                            >
+                                {subscription.movedToUrl}
+                            </Anchor>
+                        </Text>
+                        {!editing && move.error !== null && (
+                            <Text c="red" size="sm">
+                                {move.error.message}
+                            </Text>
+                        )}
+                        <Group gap="xs">
+                            <Button
+                                loading={move.isPending && !editing}
+                                onClick={() => {
+                                    if (subscription.movedToUrl !== null) {
+                                        switchTo(subscription.movedToUrl);
+                                    }
+                                }}
+                                size="xs"
+                            >
+                                Switch to new feed
+                            </Button>
+                            <Button
+                                loading={dismiss.isPending}
+                                onClick={() => {
+                                    if (subscription.movedToUrl !== null) {
+                                        dismiss.mutate({
+                                            feedId: subscription.feedId,
+                                            movedToUrl: subscription.movedToUrl,
+                                        });
+                                    }
+                                }}
+                                size="xs"
+                                variant="subtle"
+                            >
+                                Dismiss
+                            </Button>
+                        </Group>
+                    </Stack>
+                </Alert>
+            )}
+
+            {!editing ? (
+                <Group>
+                    <Button
+                        leftSection={<IconArrowsExchange size={14} />}
+                        onClick={() => setEditing(true)}
+                        size="xs"
+                        variant="subtle"
+                    >
+                        Change feed URL
+                    </Button>
+                </Group>
+            ) : candidates !== null ? (
+                <FeedCandidateSelector
+                    candidates={candidates}
+                    error={move.error}
+                    isPending={move.isPending}
+                    onBack={() => {
+                        setCandidates(null);
+                        move.reset();
+                    }}
+                    onSubmit={switchTo}
+                />
+            ) : (
+                <form onSubmit={submitUrl}>
+                    <Stack gap="xs">
+                        <TextInput
+                            data-autofocus
+                            description="Read and starred articles carry over to the new feed."
+                            error={move.error?.message}
+                            label="New feed or website URL"
+                            onChange={(event) =>
+                                setFeedUrl(event.currentTarget.value)
+                            }
+                            placeholder="https://example.com/feed.xml"
+                            value={feedUrl}
+                        />
+                        <Group gap="xs" justify="flex-end">
+                            <Button
+                                onClick={closeEditor}
+                                size="xs"
+                                variant="default"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                disabled={feedUrl.trim() === ''}
+                                loading={move.isPending}
+                                size="xs"
+                                type="submit"
+                            >
+                                Switch feed
+                            </Button>
+                        </Group>
+                    </Stack>
+                </form>
+            )}
+        </>
+    );
+}
+
 function SubscriptionDrawer({
     subscription,
     onClose,
+    onMoved,
 }: {
     readonly subscription: ManagedSubscription | null;
     readonly onClose: () => void;
+    readonly onMoved: (feedId: number) => void;
 }) {
     const queryClient = useQueryClient();
     const refresh = useMutation(
@@ -432,6 +614,13 @@ function SubscriptionDrawer({
                             {subscription.feedUrl}
                         </Anchor>
                     </Stack>
+
+                    <MoveFeedSection
+                        // A different subscription starts with a closed form.
+                        key={subscription.feedId}
+                        onMoved={onMoved}
+                        subscription={subscription}
+                    />
 
                     {subscription.lastErrorMessage !== null && (
                         <Stack gap={4}>
@@ -642,6 +831,7 @@ function SubscriptionWorkspace({
         <ApplicationPage activePage="subscriptions" sidebar={sidebar}>
             <SubscriptionDrawer
                 onClose={() => setSelectedFeedId(null)}
+                onMoved={setSelectedFeedId}
                 subscription={selected}
             />
             <ApplicationContent
@@ -945,17 +1135,20 @@ function SubscriptionWorkspace({
                                                         subscription,
                                                     );
                                                 const issue =
-                                                    subscriptionStatus ===
-                                                        'failing' ||
-                                                    subscriptionStatus ===
-                                                        'gone'
-                                                        ? (subscription.lastErrorMessage ??
-                                                          subscription.lastErrorClass ??
-                                                          (subscriptionStatus ===
-                                                          'gone'
-                                                              ? 'Feed is no longer available.'
-                                                              : `${subscription.consecutiveFailures.toLocaleString()} consecutive refresh failures`))
-                                                        : null;
+                                                    subscription.movedToUrl !==
+                                                    null
+                                                        ? 'Feed moved. Open details to switch to the new URL.'
+                                                        : subscriptionStatus ===
+                                                                'failing' ||
+                                                            subscriptionStatus ===
+                                                                'gone'
+                                                          ? (subscription.lastErrorMessage ??
+                                                            subscription.lastErrorClass ??
+                                                            (subscriptionStatus ===
+                                                            'gone'
+                                                                ? 'Feed is no longer available.'
+                                                                : `${subscription.consecutiveFailures.toLocaleString()} consecutive refresh failures`))
+                                                          : null;
                                                 return (
                                                     <Table.Tr
                                                         key={
