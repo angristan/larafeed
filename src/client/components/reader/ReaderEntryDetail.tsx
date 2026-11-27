@@ -73,7 +73,6 @@ interface ReaderEntryDetailProps {
     readonly isPending: boolean;
     readonly isFetching: boolean;
     readonly error: Error | null;
-    readonly mutationError: Error | null;
     readonly readPending: boolean;
     readonly starPending: boolean;
     readonly archivePending: boolean;
@@ -395,7 +394,6 @@ export const ReaderEntryDetail = memo(function ReaderEntryDetail({
     isPending,
     isFetching,
     error,
-    mutationError,
     readPending,
     starPending,
     archivePending,
@@ -836,11 +834,6 @@ export const ReaderEntryDetail = memo(function ReaderEntryDetail({
                 viewportRef={viewport}
             >
                 <Box className={classes.articleScrollContent} pl={20} pr={20}>
-                    {mutationError !== null && (
-                        <Alert color="red" mb="sm" role="alert">
-                            {mutationError.message}
-                        </Alert>
-                    )}
                     <Typography className={classes.articleTypography}>
                         <Title
                             ref={detailHeading}

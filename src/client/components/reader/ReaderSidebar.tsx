@@ -304,12 +304,9 @@ export function AddFeedModal({
             setFeedCandidates(result.candidates);
             return;
         }
-        notifications.show({
-            title: 'Feed added',
-            message: 'The feed has been added',
-            color: 'green',
-            withBorder: true,
-        });
+        notifyDone(
+            `Added ${result.subscription.customFeedName ?? result.subscription.feedName}`,
+        );
         closeAndReset();
         void navigate(
             `/feeds?feed=${result.subscription.feedId}&filter=all&order_by=published_at`,
@@ -351,12 +348,7 @@ export function AddFeedModal({
             { name },
             {
                 onSuccess: () => {
-                    notifications.show({
-                        title: 'Category added',
-                        message: 'The category has been added',
-                        color: 'green',
-                        withBorder: true,
-                    });
+                    notifyDone(`Added the ${name} category`);
                     setCategoryName('');
                     closeAndReset();
                 },
@@ -597,7 +589,18 @@ export function FilterRuleSection({
     );
 }
 
-const notifyActionError = (title: string, error: Error) => {
+/**
+ * Confirms an action whose result is not visible where the user clicked.
+ * One line: a title that repeats the message adds nothing.
+ */
+export const notifyDone = (message: string) => {
+    notifications.show({ message, color: 'green', withBorder: true });
+};
+
+export const feedRefreshQueuedMessage = (feedName: string) =>
+    `Refresh queued for ${feedName}`;
+
+export const notifyActionError = (title: string, error: Error) => {
     notifications.show({
         title,
         message: error.message,
@@ -608,8 +611,7 @@ const notifyActionError = (title: string, error: Error) => {
 
 export function feedMarkedReadNotification(feedName: string) {
     return {
-        title: 'Feed marked as read',
-        message: `${feedName} was marked as read`,
+        message: `Marked ${feedName} as read`,
         color: 'green' as const,
         withBorder: true,
     };
@@ -723,12 +725,7 @@ function FeedEditForm({
             },
             {
                 onSuccess: () => {
-                    notifications.show({
-                        title: 'Feed updated',
-                        message: 'The feed has been updated',
-                        color: 'green',
-                        withBorder: true,
-                    });
+                    notifyDone('Feed settings saved');
                     modals.close(modalId);
                 },
             },
@@ -908,7 +905,7 @@ function FeedActionsMenuItems({
                             ),
                         (error: Error) =>
                             notifyActionError(
-                                'Failed to mark feed as read',
+                                'Could not mark the feed as read',
                                 error,
                             ),
                     )
@@ -921,15 +918,12 @@ function FeedActionsMenuItems({
                 leftSection={<IconRefresh size={14} />}
                 onClick={() =>
                     runMutation(queryClient, refreshOptions, { feedId }).then(
-                        () =>
-                            notifications.show({
-                                title: 'Feed refresh requested',
-                                message: 'The feed refresh has been queued',
-                                color: 'green',
-                                withBorder: true,
-                            }),
+                        () => notifyDone(feedRefreshQueuedMessage(feedName)),
                         (error: Error) =>
-                            notifyActionError('Failed to refresh feed', error),
+                            notifyActionError(
+                                'Could not refresh the feed',
+                                error,
+                            ),
                     )
                 }
             >
@@ -942,17 +936,10 @@ function FeedActionsMenuItems({
                     runMutation(queryClient, refreshFaviconOptions, {
                         feedId,
                     }).then(
-                        () =>
-                            notifications.show({
-                                title: 'Favicon refresh queued',
-                                message:
-                                    'The feed favicon will refresh in the background',
-                                color: 'blue',
-                                withBorder: true,
-                            }),
+                        () => notifyDone('Favicon refresh queued'),
                         (error: Error) =>
                             notifyActionError(
-                                'Failed to refresh favicon',
+                                'Could not refresh the favicon',
                                 error,
                             ),
                     )
@@ -992,18 +979,12 @@ function FeedActionsMenuItems({
                                 feedId,
                             }).then(
                                 () => {
-                                    notifications.show({
-                                        title: 'Unsubscribed',
-                                        message:
-                                            'The feed subscription was removed',
-                                        color: 'green',
-                                        withBorder: true,
-                                    });
+                                    notifyDone(`Unsubscribed from ${feedName}`);
                                     onUnsubscribed?.();
                                 },
                                 (error: Error) =>
                                     notifyActionError(
-                                        'Failed to unsubscribe',
+                                        'Could not unsubscribe',
                                         error,
                                     ),
                             ),
@@ -1120,12 +1101,7 @@ function CategoryRenameForm({
                     {
                         onSuccess: () => {
                             modals.close(modalId);
-                            notifications.show({
-                                title: 'Category updated',
-                                message: `The category is now named ${normalized}`,
-                                color: 'green',
-                                withBorder: true,
-                            });
+                            notifyDone(`Renamed the category to ${normalized}`);
                         },
                     },
                 );
@@ -1214,16 +1190,10 @@ function CategoryActionsMenuItems({
                 leftSection={<IconCheck size={14} />}
                 onClick={() =>
                     runMutation(queryClient, markReadOptions, undefined).then(
-                        () =>
-                            notifications.show({
-                                title: 'Category marked as read',
-                                message: `${name} feeds were marked as read`,
-                                color: 'green',
-                                withBorder: true,
-                            }),
+                        () => notifyDone(`Marked ${name} as read`),
                         (actionError: Error) =>
                             notifyActionError(
-                                'Failed to mark category as read',
+                                'Could not mark the category as read',
                                 actionError,
                             ),
                     )
@@ -1261,16 +1231,10 @@ function CategoryActionsMenuItems({
                     runMutation(queryClient, removeOptions, {
                         categoryId,
                     }).then(
-                        () =>
-                            notifications.show({
-                                title: 'Category deleted',
-                                message: `The category ${name} has been deleted`,
-                                color: 'green',
-                                withBorder: true,
-                            }),
+                        () => notifyDone(`Deleted the ${name} category`),
                         (actionError: Error) =>
                             notifyActionError(
-                                `Failed to delete category ${name}`,
+                                `Could not delete the ${name} category`,
                                 actionError,
                             ),
                     )

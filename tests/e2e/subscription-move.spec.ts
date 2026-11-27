@@ -129,3 +129,66 @@ test('switches a moved feed to its new URL from the details drawer', async ({
         drawer.getByRole('link', { name: 'https://example.test/feed.xml' }),
     ).toBeVisible();
 });
+
+test('confirms a refresh started from the details drawer', async ({ page }) => {
+    let refreshRequests = 0;
+
+    await page.addInitScript(() => {
+        document.cookie =
+            'larafeed-test-csrf=refresh-csrf; path=/; SameSite=Lax';
+    });
+    await page.route('**/api/**', async (route) => {
+        const request = route.request();
+        const { pathname } = new URL(request.url());
+        if (pathname === '/api/auth/session') {
+            await route.fulfill(
+                json({
+                    authenticated: true,
+                    user,
+                    expiresAt: now + 86_400_000,
+                }),
+            );
+            return;
+        }
+        if (pathname === '/api/subscriptions/manage') {
+            await route.fulfill(
+                json({
+                    categories: [category],
+                    subscriptions: [newSubscription],
+                }),
+            );
+            return;
+        }
+        if (pathname === '/api/feeds/8/refresh') {
+            refreshRequests += 1;
+            await route.fulfill(
+                json({ jobId: 1, operationId: 'refresh-8', state: 'queued' }),
+            );
+            return;
+        }
+        await route.fulfill({
+            status: 404,
+            contentType: 'application/json; charset=UTF-8',
+            body: JSON.stringify({
+                error: {
+                    code: 'not_found',
+                    message: `Unmocked ${request.method()} ${pathname}`,
+                },
+            }),
+        });
+    });
+
+    await page.goto('/settings/subscriptions');
+    await page
+        .getByRole('button', { name: 'View details for Example blog' })
+        .click();
+    await page
+        .getByRole('dialog')
+        .getByRole('button', { name: 'Refresh feed' })
+        .click();
+
+    await expect(
+        page.getByText('Refresh queued for Example blog'),
+    ).toBeVisible();
+    expect(refreshRequests).toBe(1);
+});

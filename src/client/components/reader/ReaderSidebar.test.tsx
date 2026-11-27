@@ -283,8 +283,7 @@ describe('ReaderSidebar', () => {
 
     it('builds success feedback for feed read-through', () => {
         expect(feedMarkedReadNotification('Cloudflare Blog')).toEqual({
-            title: 'Feed marked as read',
-            message: 'Cloudflare Blog was marked as read',
+            message: 'Marked Cloudflare Blog as read',
             color: 'green',
             withBorder: true,
         });

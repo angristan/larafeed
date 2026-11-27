@@ -93,7 +93,6 @@ const renderDetail = (options: RenderOptions = {}): string => {
                     error={error}
                     isFetching={false}
                     isPending={isPending}
-                    mutationError={null}
                     onBack={() => undefined}
                     onRetry={() => undefined}
                     onSetArchived={() => undefined}

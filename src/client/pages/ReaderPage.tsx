@@ -7,7 +7,6 @@ import {
     useMantineTheme,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { notifications } from '@mantine/notifications';
 import {
     useInfiniteQuery,
     useQuery,
@@ -32,7 +31,11 @@ import { ApplicationHeader } from '../components/ApplicationHeader';
 import classes from '../components/reader/Reader.module.css';
 import { ReaderEntryDetail } from '../components/reader/ReaderEntryDetail';
 import { ReaderEntryList } from '../components/reader/ReaderEntryList';
-import { ReaderSidebar } from '../components/reader/ReaderSidebar';
+import {
+    notifyActionError,
+    notifyDone,
+    ReaderSidebar,
+} from '../components/reader/ReaderSidebar';
 import { useDocumentTitle } from '../documentTitle';
 import { latestIngestion } from '../entryIngestion';
 import { shouldPrefetchEntryDetails } from '../networkHints';
@@ -272,12 +275,10 @@ export function ReaderPage() {
         openedReadAttempt.current = entry.id;
         markEntryRead(true, {
             onError: (mutationError) =>
-                notifications.show({
-                    title: 'Failed to mark entry as read',
-                    message: mutationError.message,
-                    color: 'red',
-                    withBorder: true,
-                }),
+                notifyActionError(
+                    'Could not mark the entry as read',
+                    mutationError,
+                ),
         });
     }, [entryDetailQuery.data, markEntryRead, state.entryId]);
 
@@ -386,51 +387,32 @@ export function ReaderPage() {
         (summarize: boolean) => void navigate(readerHref(state, { summarize })),
         [navigate, state],
     );
+    // Read and favorite changes show in the toolbar and list, so only
+    // failures get a toast. Archive has no visible marker, so it is
+    // confirmed.
     const setRead = useCallback(
         (read: boolean) =>
             markEntryRead(read, {
-                onSuccess: () =>
-                    notifications.show({
-                        title: read ? 'Marked as read' : 'Marked as unread',
-                        message: read
-                            ? 'Entry marked as read'
-                            : 'Entry marked as unread',
-                        color: 'blue',
-                        withBorder: true,
-                    }),
                 onError: (mutationError) =>
-                    notifications.show({
-                        title: read
-                            ? 'Failed to mark entry as read'
-                            : 'Failed to mark entry as unread',
-                        message: mutationError.message,
-                        color: 'red',
-                        withBorder: true,
-                    }),
+                    notifyActionError(
+                        read
+                            ? 'Could not mark the entry as read'
+                            : 'Could not mark the entry as unread',
+                        mutationError,
+                    ),
             }),
         [markEntryRead],
     );
     const setStarred = useCallback(
         (starred: boolean) =>
             markEntryStarred(starred, {
-                onSuccess: () =>
-                    notifications.show({
-                        title: starred
-                            ? 'Added to favorites'
-                            : 'Removed from favorites',
-                        message: starred
-                            ? 'The entry is now in Favorites.'
-                            : 'The entry was removed from Favorites.',
-                        color: 'blue',
-                        withBorder: true,
-                    }),
                 onError: (mutationError) =>
-                    notifications.show({
-                        title: 'Failed to star entry',
-                        message: mutationError.message,
-                        color: 'red',
-                        withBorder: true,
-                    }),
+                    notifyActionError(
+                        starred
+                            ? 'Could not add the entry to favorites'
+                            : 'Could not remove the entry from favorites',
+                        mutationError,
+                    ),
             }),
         [markEntryStarred],
     );
@@ -438,21 +420,14 @@ export function ReaderPage() {
         (archived: boolean) =>
             markEntryArchived(archived, {
                 onSuccess: () =>
-                    notifications.show({
-                        title: archived ? 'Entry archived' : 'Entry restored',
-                        message: archived ? 'Entry archived' : 'Entry restored',
-                        color: 'blue',
-                        withBorder: true,
-                    }),
+                    notifyDone(archived ? 'Entry archived' : 'Entry restored'),
                 onError: (mutationError) =>
-                    notifications.show({
-                        title: archived
-                            ? 'Failed to archive entry'
-                            : 'Failed to restore entry',
-                        message: mutationError.message,
-                        color: 'red',
-                        withBorder: true,
-                    }),
+                    notifyActionError(
+                        archived
+                            ? 'Could not archive the entry'
+                            : 'Could not restore the entry',
+                        mutationError,
+                    ),
             }),
         [markEntryArchived],
     );
@@ -466,11 +441,6 @@ export function ReaderPage() {
         categoriesQuery.error,
         subscriptionsQuery.error,
         countsQuery.error,
-    );
-    const mutationError = firstError(
-        entryMutations.read.error,
-        entryMutations.star.error,
-        entryMutations.archive.error,
     );
     const selectedSubscription = subscriptions?.find(
         (subscription) => subscription.feedId === state.feedId,
@@ -578,7 +548,6 @@ export function ReaderPage() {
                             error={entryDetailQuery.error}
                             isFetching={entryDetailQuery.isFetching}
                             isPending={entryDetailQuery.isPending}
-                            mutationError={mutationError}
                             onBack={backToList}
                             onRetry={retryEntryDetail}
                             onSetArchived={setArchived}

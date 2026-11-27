@@ -52,6 +52,11 @@ import {
 import { FeedCandidateSelector } from '../components/reader/FeedCandidateSelector';
 import { FeedFavicon } from '../components/reader/FeedFavicon';
 import {
+    feedRefreshQueuedMessage,
+    notifyActionError,
+    notifyDone,
+} from '../components/reader/ReaderSidebar';
+import {
     dismissMovedFeedMutationOptions,
     moveSubscriptionMutationOptions,
     refreshSubscriptionMutationOptions,
@@ -580,7 +585,23 @@ function SubscriptionDrawer({
                             leftSection={<IconRefresh size={14} />}
                             loading={refresh.isPending}
                             onClick={() =>
-                                refresh.mutate({ feedId: subscription.feedId })
+                                refresh.mutate(
+                                    { feedId: subscription.feedId },
+                                    {
+                                        onSuccess: () =>
+                                            notifyDone(
+                                                feedRefreshQueuedMessage(
+                                                    subscription.customFeedName ??
+                                                        subscription.feedName,
+                                                ),
+                                            ),
+                                        onError: (error) =>
+                                            notifyActionError(
+                                                'Could not refresh the feed',
+                                                error,
+                                            ),
+                                    },
+                                )
                             }
                             size="xs"
                             variant="light"
