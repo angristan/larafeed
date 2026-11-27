@@ -109,16 +109,10 @@ const semanticVariables = (
         '--ds-panel-text': palette.panelText,
         '--ds-focus': palette.focus,
         '--ds-shadow-color': palette.shadow,
-        '--ds-glass': `color-mix(in srgb, ${palette.paper} ${dark ? 54 : 44}%, transparent)`,
-        '--ds-glass-strong': `color-mix(in srgb, ${palette.paper} ${dark ? 70 : 64}%, transparent)`,
         '--ds-glass-overlay': `color-mix(in srgb, ${palette.paper} ${dark ? 88 : 86}%, transparent)`,
         '--ds-glass-line': dark
             ? `color-mix(in srgb, ${palette.ink} 20%, transparent)`
             : `color-mix(in srgb, ${palette.lineStrong} 56%, transparent)`,
-        '--ds-glass-highlight': dark
-            ? `color-mix(in srgb, ${palette.ink} 18%, transparent)`
-            : `color-mix(in srgb, ${palette.paper} 94%, transparent)`,
-        '--ds-glass-refraction': `color-mix(in srgb, ${palette.sage} ${dark ? 19 : 16}%, transparent)`,
     };
 };
 
@@ -148,10 +142,6 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
         '--ds-on-accent': '#21140f',
         '--ds-glass-blur': '26px',
         '--ds-glass-saturate': '1.28',
-        '--ds-glass-brightness': '1.04',
-        '--ds-glass-contrast': '1.02',
-        '--ds-glass-sheen':
-            'linear-gradient(135deg, color-mix(in srgb, var(--ds-glass-highlight) 66%, transparent) 0%, transparent 36%, transparent 72%, color-mix(in srgb, var(--ds-glass-refraction) 40%, transparent) 100%)',
         '--ds-surface-inset': 'var(--ds-paper-muted)',
         '--ds-surface-work': 'var(--ds-paper)',
         '--ds-surface-work-header':
@@ -159,9 +149,9 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
         '--ds-work-line':
             'color-mix(in srgb, var(--ds-line-strong) 72%, var(--ds-line))',
         '--ds-shadow-inset':
-            'inset 0 1px 2px color-mix(in srgb, var(--ds-ink) 9%, transparent), inset 0 -1px 0 color-mix(in srgb, var(--ds-glass-highlight) 72%, transparent)',
+            'inset 0 1px 2px color-mix(in srgb, var(--ds-ink) 9%, transparent)',
         '--ds-shadow-work':
-            '0 1px 0 color-mix(in srgb, var(--ds-line-strong) 44%, transparent), 0 10px 22px -20px color-mix(in srgb, var(--ds-ink) 38%, transparent), inset 0 1px 0 color-mix(in srgb, var(--ds-glass-highlight) 78%, transparent)',
+            '0 1px 2px color-mix(in srgb, var(--ds-ink) 8%, transparent)',
         '--ds-shadow-control':
             '0 8px 18px -14px color-mix(in srgb, var(--ds-ink) 50%, transparent)',
         '--ds-shadow-control-hover':
@@ -176,7 +166,7 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
         '--ds-shadow-xl':
             '0 30px 72px -34px color-mix(in srgb, var(--ds-ink) 58%, transparent)',
         '--ds-shadow-float':
-            '0 30px 68px -34px color-mix(in srgb, var(--ds-ink) 62%, transparent), 0 12px 26px -20px color-mix(in srgb, var(--ds-sage) 26%, transparent), inset 0 1px 0 var(--ds-glass-highlight), inset 0 -1px 0 var(--ds-glass-refraction)',
+            '0 24px 56px -28px color-mix(in srgb, var(--ds-ink) 58%, transparent)',
     },
     light: semanticVariables(colors.light, 'light'),
     dark: semanticVariables(colors.dark, 'dark'),

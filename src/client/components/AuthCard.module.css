@@ -1,14 +1,7 @@
 .canvas {
     min-height: 100dvh;
     color: var(--ds-ink);
-    background:
-        linear-gradient(
-            155deg,
-            color-mix(in srgb, var(--ds-accent) 7%, var(--ds-canvas)),
-            var(--ds-canvas) 46%,
-            color-mix(in srgb, var(--ds-sage) 6%, var(--ds-canvas))
-        ),
-        var(--ds-canvas);
+    background: var(--ds-canvas);
 }
 
 .brand {
@@ -17,12 +10,6 @@
     gap: var(--ds-space-3);
     color: var(--ds-ink);
     letter-spacing: -0.025em;
-}
-
-.brand svg {
-    filter: drop-shadow(
-        0 5px 12px color-mix(in srgb, var(--ds-ink) 18%, transparent)
-    );
 }
 
 .panel {

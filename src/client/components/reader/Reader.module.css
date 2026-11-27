@@ -94,12 +94,11 @@
     overflow: hidden;
     isolation: isolate;
     border-bottom: 1px solid var(--ds-glass-line);
-    background: var(--ds-glass-sheen), var(--ds-glass) !important;
+    background: var(--ds-glass-overlay) !important;
     box-shadow: 0 12px 24px -20px
         color-mix(in srgb, var(--ds-ink) 36%, transparent);
     backdrop-filter: blur(var(--ds-glass-blur))
-        saturate(var(--ds-glass-saturate)) brightness(var(--ds-glass-brightness))
-        contrast(var(--ds-glass-contrast));
+        saturate(var(--ds-glass-saturate));
 }
 
 /* 55px content + the 1px border on .detailToolbar totals 56px, matching
@@ -255,7 +254,7 @@
     position: absolute;
     z-index: 0;
     inset: 0;
-    background: var(--ds-glass-sheen), var(--ds-glass);
+    background: var(--ds-glass-overlay);
     backdrop-filter: blur(16px) saturate(var(--ds-glass-saturate));
     content: '';
     pointer-events: none;

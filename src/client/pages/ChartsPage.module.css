@@ -32,33 +32,10 @@
     border: 1px solid var(--ds-glass-line);
     border-radius: var(--ds-radius-lg);
     color: var(--ds-ink);
-    background: var(--ds-glass-sheen), var(--ds-glass-overlay);
+    background: var(--ds-glass-overlay);
     box-shadow: var(--ds-shadow-float);
     backdrop-filter: blur(var(--ds-glass-blur))
-        saturate(var(--ds-glass-saturate)) brightness(var(--ds-glass-brightness))
-        contrast(var(--ds-glass-contrast));
-}
-
-.filterTopbar::after {
-    position: absolute;
-    z-index: 0;
-    right: 10%;
-    bottom: -1px;
-    left: 10%;
-    height: 1px;
-    background: var(--ds-glass-refraction);
-    content: '';
-    pointer-events: none;
-}
-
-.filterTopbar > * {
-    position: relative;
-    z-index: 1;
-}
-
-.filterTopbar :global(.mantine-SegmentedControl-root),
-.filterTopbar :global(.mantine-Button-root) {
-    backdrop-filter: none;
+        saturate(var(--ds-glass-saturate));
 }
 
 .surfaceHeader,
@@ -80,9 +57,7 @@
     justify-content: space-between;
     gap: var(--ds-space-2);
     padding: var(--ds-space-3) var(--ds-space-4);
-    border-right: 1px solid
-        color-mix(in srgb, var(--ds-glass-line) 80%, transparent);
-    background: color-mix(in srgb, var(--ds-glass-strong) 36%, transparent);
+    border-right: 1px solid var(--ds-line);
 }
 
 .topbarHeader h1 {
@@ -211,14 +186,11 @@
 }
 
 .chartSurface :global(.mantine-ChartTooltip-tooltip) {
-    border: 1px solid var(--ds-glass-line);
+    border: 1px solid var(--ds-line);
     border-radius: var(--ds-radius-lg);
     color: var(--ds-ink);
-    background: var(--ds-glass-sheen), var(--ds-glass-overlay);
+    background: var(--ds-paper);
     box-shadow: var(--ds-shadow-float);
-    backdrop-filter: blur(var(--ds-glass-blur))
-        saturate(var(--ds-glass-saturate)) brightness(var(--ds-glass-brightness))
-        contrast(var(--ds-glass-contrast));
 }
 
 .emptyState {
@@ -265,8 +237,7 @@
     .topbarHeader {
         min-height: 3.5rem;
         border-right: 0;
-        border-bottom: 1px solid
-            color-mix(in srgb, var(--ds-glass-line) 80%, transparent);
+        border-bottom: 1px solid var(--ds-line);
     }
 
     .filterBody,
@@ -349,15 +320,13 @@
 }
 
 @supports not (backdrop-filter: blur(1px)) {
-    .filterTopbar,
-    .chartSurface :global(.mantine-ChartTooltip-tooltip) {
+    .filterTopbar {
         background: var(--ds-paper);
     }
 }
 
 @media (prefers-reduced-transparency: reduce) {
-    .filterTopbar,
-    .chartSurface :global(.mantine-ChartTooltip-tooltip) {
+    .filterTopbar {
         background: var(--ds-paper);
         backdrop-filter: none;
     }

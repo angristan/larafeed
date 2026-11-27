@@ -29,14 +29,7 @@ body,
 
 body {
     color: var(--ds-ink);
-    background:
-        linear-gradient(
-            180deg,
-            color-mix(in srgb, var(--ds-accent) 5%, var(--ds-canvas)),
-            var(--ds-canvas) 42%,
-            color-mix(in srgb, var(--ds-sage) 3%, var(--ds-canvas))
-        ),
-        var(--ds-canvas);
+    background: var(--ds-canvas);
     overscroll-behavior: none;
 }
 
@@ -132,13 +125,10 @@ a {
     position: relative;
     overflow: hidden;
     isolation: isolate;
-    border: 1px solid var(--ds-glass-line);
+    border: 1px solid var(--ds-line);
     color: var(--ds-ink);
-    background: var(--ds-glass-sheen), var(--ds-glass-overlay);
+    background: var(--ds-paper);
     box-shadow: var(--ds-shadow-float);
-    backdrop-filter: blur(var(--ds-glass-blur))
-        saturate(var(--ds-glass-saturate)) brightness(var(--ds-glass-brightness))
-        contrast(var(--ds-glass-contrast));
 }
 
 
@@ -160,10 +150,7 @@ a {
 .mantine-Pagination-control {
     border-color: var(--ds-line-strong);
     color: var(--ds-ink);
-    background: var(--ds-glass-strong);
-    box-shadow:
-        inset 0 1px 0 var(--ds-glass-highlight),
-        inset 0 -1px 0 var(--ds-glass-refraction);
+    background: var(--ds-paper);
 }
 
 .mantine-Pagination-control[data-active] {
@@ -198,19 +185,6 @@ a {
 * {
     scrollbar-color: var(--ds-line-strong) transparent;
     scrollbar-width: thin;
-}
-
-@supports not (backdrop-filter: blur(1px)) {
-    .mantine-Notification-root {
-        background: var(--ds-paper);
-    }
-}
-
-@media (prefers-reduced-transparency: reduce) {
-    .mantine-Notification-root {
-        background: var(--ds-paper);
-        backdrop-filter: none;
-    }
 }
 
 @media (max-width: 43.74em) {

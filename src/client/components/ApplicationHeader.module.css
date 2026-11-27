@@ -2,12 +2,10 @@
     display: flex;
     flex-direction: row;
     overflow: hidden;
-    isolation: isolate;
-    border: 1px solid var(--ds-glass-line);
+    border: 1px solid var(--ds-line);
     border-radius: var(--ds-radius-lg);
     color: var(--ds-ink);
-    background: var(--ds-glass-sheen), var(--ds-glass-overlay);
-    box-shadow: var(--ds-shadow-float);
+    background: var(--ds-paper-muted);
 }
 
 .desktopRail {
@@ -39,11 +37,10 @@
     border: 1px solid var(--ds-glass-line);
     border-radius: var(--ds-radius-lg);
     color: var(--ds-ink);
-    background: var(--ds-glass-sheen), var(--ds-glass);
+    background: var(--ds-glass-overlay);
     box-shadow: var(--ds-shadow-float);
     backdrop-filter: blur(var(--ds-glass-blur))
-        saturate(var(--ds-glass-saturate)) brightness(var(--ds-glass-brightness))
-        contrast(var(--ds-glass-contrast));
+        saturate(var(--ds-glass-saturate));
 }
 
 .mobileHeaderInner {
@@ -60,12 +57,6 @@
     text-decoration: none;
 }
 
-.mobileBrand svg {
-    filter: drop-shadow(
-        0 3px 7px color-mix(in srgb, var(--ds-ink) 24%, transparent)
-    );
-}
-
 .mobileBrand:focus-visible {
     outline: 2px solid var(--ds-focus);
     outline-offset: 3px;
@@ -74,9 +65,8 @@
 
 .mobileUtilities :global(.mantine-ActionIcon-root) {
     border-color: transparent;
-    background: color-mix(in srgb, var(--ds-glass-strong) 66%, transparent);
-    box-shadow: inset 0 1px 0 var(--ds-glass-highlight);
-    backdrop-filter: none;
+    background: transparent;
+    box-shadow: none;
 }
 
 .user {
@@ -84,9 +74,7 @@
     height: 36px;
     border: 1px solid color-mix(in srgb, var(--ds-sage) 50%, var(--ds-line));
     color: var(--ds-sage);
-    background: color-mix(in srgb, var(--ds-sage-surface) 76%, transparent);
-    box-shadow:
-        var(--ds-shadow-control), inset 0 1px 0 var(--ds-glass-highlight);
+    background: var(--ds-sage-surface);
     font-size: 0.75rem;
     font-weight: 750;
 }
@@ -111,11 +99,10 @@
     border: 1px solid var(--ds-glass-line);
     border-radius: var(--ds-radius-lg);
     color: var(--ds-ink);
-    background: var(--ds-glass-sheen), var(--ds-glass);
+    background: var(--ds-glass-overlay);
     box-shadow: var(--ds-shadow-float);
     backdrop-filter: blur(var(--ds-glass-blur))
-        saturate(var(--ds-glass-saturate)) brightness(var(--ds-glass-brightness))
-        contrast(var(--ds-glass-contrast));
+        saturate(var(--ds-glass-saturate));
 }
 
 .mobileNavigationLink {
@@ -145,10 +132,7 @@
 
 .mobileNavigationLink[data-active] {
     color: var(--ds-sage);
-    background: color-mix(in srgb, var(--ds-sage-surface) 74%, transparent);
-    box-shadow:
-        inset 0 1px 0 var(--ds-glass-highlight),
-        inset 0 -1px 0 var(--ds-glass-refraction);
+    background: var(--ds-sage-surface);
 }
 
 .mobileNavigationLink:focus-visible {
@@ -168,23 +152,14 @@
         border: 0;
         border-radius: 0;
         background: transparent;
-        box-shadow: none;
-        backdrop-filter: none;
     }
 
     .contextPane {
         overflow: hidden;
-        isolation: isolate;
-        border: 1px solid var(--ds-glass-line);
+        border: 1px solid var(--ds-line);
         border-radius: var(--ds-radius-lg);
-        background: var(--ds-glass-sheen), var(--ds-glass-overlay);
+        background: var(--ds-paper);
         box-shadow: var(--ds-shadow-float);
-        backdrop-filter: blur(16px) saturate(var(--ds-glass-saturate));
-    }
-
-    .contextPane > * {
-        position: relative;
-        z-index: 1;
     }
 }
 
@@ -201,18 +176,6 @@
         width: calc(var(--app-shell-navbar-width) - 24px);
         height: auto;
         border-radius: var(--ds-radius-xl);
-        background: transparent;
-    }
-
-    .workspaceNavbar::before {
-        position: absolute;
-        z-index: 0;
-        inset: 0;
-        border-radius: inherit;
-        background: var(--ds-glass-sheen), var(--ds-glass);
-        backdrop-filter: blur(16px) saturate(var(--ds-glass-saturate));
-        content: '';
-        pointer-events: none;
     }
 
     .desktopRail {
@@ -225,22 +188,8 @@
         flex-direction: column;
         align-items: center;
         padding: var(--ds-space-3) 8px;
-        border-right: 1px solid var(--ds-glass-line);
+        border-right: 1px solid var(--ds-line);
         color: var(--ds-ink);
-        background:
-            linear-gradient(
-                180deg,
-                color-mix(in srgb, var(--ds-glass-highlight) 34%, transparent),
-                transparent 24%
-            ),
-            linear-gradient(
-                90deg,
-                color-mix(in srgb, var(--ds-paper) 18%, transparent),
-                transparent 78%
-            );
-        box-shadow:
-            inset 1px 0 0 color-mix(in srgb, var(--ds-glass-highlight) 52%, transparent),
-            inset -1px 0 0 var(--ds-glass-refraction);
     }
 
     .railBrand {
@@ -261,17 +210,7 @@
     }
 
     .railBrand:hover {
-        border-color: var(--ds-glass-line);
-        background: color-mix(in srgb, var(--ds-glass-strong) 68%, transparent);
-        box-shadow:
-            0 9px 18px -17px color-mix(in srgb, var(--ds-ink) 58%, transparent),
-            inset 0 1px 0 var(--ds-glass-highlight);
-    }
-
-    .railBrand svg {
-        filter: drop-shadow(
-            0 4px 9px color-mix(in srgb, var(--ds-ink) 26%, transparent)
-        );
+        background: color-mix(in srgb, var(--ds-paper-strong) 58%, transparent);
     }
 
     .railBrand:focus-visible,
@@ -308,29 +247,14 @@
     }
 
     .railLink:hover {
-        border-color: var(--ds-glass-line);
         color: var(--ds-ink);
-        background: color-mix(in srgb, var(--ds-glass-strong) 76%, transparent);
-        box-shadow:
-            0 9px 18px -17px
-            color-mix(in srgb, var(--ds-ink) 58%, transparent),
-            inset 0 1px 0 var(--ds-glass-highlight);
+        background: color-mix(in srgb, var(--ds-paper-strong) 58%, transparent);
     }
 
     .railLink[data-active] {
-        border-color: color-mix(in srgb, var(--ds-sage) 34%, var(--ds-glass-line));
+        border-color: color-mix(in srgb, var(--ds-sage) 34%, var(--ds-line));
         color: var(--ds-sage);
-        background:
-            radial-gradient(
-                ellipse 78% 96% at 18% 0%,
-                color-mix(in srgb, var(--ds-glass-highlight) 58%, transparent),
-                transparent 70%
-            ),
-            color-mix(in srgb, var(--ds-sage-surface) 76%, transparent);
-        box-shadow:
-            0 10px 20px -17px color-mix(in srgb, var(--ds-sage) 42%, transparent),
-            inset 0 1px 0 var(--ds-glass-highlight),
-            inset 0 -1px 0 var(--ds-glass-refraction);
+        background: var(--ds-sage-surface);
     }
 
 
@@ -348,12 +272,7 @@
         width: 28px;
         height: 1px;
         margin-bottom: var(--ds-space-1);
-        background: linear-gradient(
-            90deg,
-            transparent,
-            var(--ds-glass-line),
-            transparent
-        );
+        background: var(--ds-line);
         content: '';
     }
 
@@ -362,24 +281,20 @@
         color: var(--ds-muted);
         background: transparent;
         box-shadow: none;
-        backdrop-filter: none;
     }
 
     .railUtilities :global(.mantine-ActionIcon-root):hover {
-        border-color: var(--ds-glass-line);
+        border-color: transparent;
         color: var(--ds-ink);
-        background: color-mix(in srgb, var(--ds-glass-strong) 76%, transparent);
-        box-shadow:
-            0 9px 18px -17px
-            color-mix(in srgb, var(--ds-ink) 58%, transparent),
-            inset 0 1px 0 var(--ds-glass-highlight);
+        background: color-mix(in srgb, var(--ds-paper-strong) 58%, transparent);
+        box-shadow: none;
     }
 
     .railUtilities .user {
         margin-top: var(--ds-space-2);
         border-color: color-mix(in srgb, var(--ds-sage) 48%, transparent);
         color: var(--ds-sage);
-        background: color-mix(in srgb, var(--ds-sage-surface) 72%, transparent);
+        background: var(--ds-sage-surface);
     }
 
     .workspaceNavbar:not(:has(.contextPane)) .desktopRail {
@@ -398,8 +313,6 @@
 }
 
 @supports not (backdrop-filter: blur(1px)) {
-    .workspaceNavbar,
-    .workspaceNavbar::before,
     .mobileHeader,
     .mobileNavigation {
         background: var(--ds-paper);
@@ -407,8 +320,6 @@
 }
 
 @media (prefers-reduced-transparency: reduce) {
-    .workspaceNavbar,
-    .workspaceNavbar::before,
     .mobileHeader,
     .mobileNavigation {
         background: var(--ds-paper);

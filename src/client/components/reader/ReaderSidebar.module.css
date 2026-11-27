@@ -12,17 +12,6 @@
 .addFeedAction {
     width: 34px;
     height: 34px;
-    border-color: var(--ds-glass-line) !important;
-    background: color-mix(in srgb, var(--ds-glass-strong) 58%, transparent) !important;
-    box-shadow: inset 0 1px 0 var(--ds-glass-highlight) !important;
-    backdrop-filter: none !important;
-}
-
-.addFeedAction:hover {
-    background: color-mix(in srgb, var(--ds-glass-overlay) 72%, transparent) !important;
-    box-shadow:
-        0 8px 16px -15px color-mix(in srgb, var(--ds-ink) 54%, transparent),
-        inset 0 1px 0 var(--ds-glass-highlight) !important;
 }
 
 .sectionLabel {
@@ -74,12 +63,8 @@
 }
 
 .mainLink:hover {
-    border-color: var(--ds-glass-line);
     color: var(--ds-ink);
-    background: color-mix(in srgb, var(--ds-glass-strong) 72%, transparent);
-    box-shadow:
-        0 9px 18px -17px color-mix(in srgb, var(--ds-ink) 58%, transparent),
-        inset 0 1px 0 var(--ds-glass-highlight);
+    background: color-mix(in srgb, var(--ds-paper-strong) 58%, transparent);
 }
 
 .mainLink:focus-visible,
@@ -193,25 +178,14 @@
 
 .managementMenuTarget:hover,
 .managementControl:hover .managementMenuTarget {
-    border-color: color-mix(in srgb, var(--ds-sage) 52%, var(--ds-glass-line)) !important;
+    border-color: color-mix(in srgb, var(--ds-sage) 52%, var(--ds-line)) !important;
     color: var(--ds-sage) !important;
-    background:
-        radial-gradient(
-            ellipse 82% 92% at 20% 0%,
-            color-mix(in srgb, var(--ds-glass-highlight) 78%, transparent),
-            transparent 70%
-        ),
-        color-mix(in srgb, var(--ds-sage-surface) 92%, var(--ds-glass-strong)) !important;
-    box-shadow:
-        0 7px 14px -9px color-mix(in srgb, var(--ds-sage) 68%, transparent),
-        inset 0 1px 0 var(--ds-glass-highlight),
-        inset 0 -1px 0 var(--ds-glass-refraction) !important;
+    background: var(--ds-sage-surface) !important;
 }
 
 .managementMenuTarget:focus-visible {
     color: var(--ds-sage) !important;
     background: color-mix(in srgb, var(--ds-sage-surface) 54%, transparent) !important;
-    box-shadow: inset 0 1px 0 var(--ds-glass-highlight) !important;
 }
 
 .managementMenuTarget[data-expanded],
@@ -219,9 +193,6 @@
     border-color: color-mix(in srgb, var(--ds-sage) 24%, transparent) !important;
     color: var(--ds-sage) !important;
     background: color-mix(in srgb, var(--ds-sage-surface) 68%, transparent) !important;
-    box-shadow:
-        inset 0 1px 0 var(--ds-glass-highlight),
-        inset 0 -1px 0 var(--ds-glass-refraction) !important;
 }
 
 .feedRow:hover .managementCount,
@@ -249,11 +220,8 @@
 }
 
 .categoryRow:hover {
-    border-color: color-mix(in srgb, var(--ds-glass-line) 76%, transparent);
     color: var(--ds-ink);
-    background: color-mix(in srgb, var(--ds-glass-strong) 54%, transparent);
-    box-shadow: inset 0 1px 0
-        color-mix(in srgb, var(--ds-glass-highlight) 62%, transparent);
+    background: color-mix(in srgb, var(--ds-paper-strong) 58%, transparent);
 }
 
 .categoryNavigation,
@@ -289,9 +257,7 @@
 
 .categoryDisclosure:hover,
 .categoryDisclosure:focus-visible {
-    background: color-mix(in srgb, var(--ds-glass-highlight) 30%, transparent) !important;
-    box-shadow: inset 0 1px 0
-        color-mix(in srgb, var(--ds-glass-highlight) 70%, transparent) !important;
+    background: color-mix(in srgb, var(--ds-paper-strong) 58%, transparent) !important;
     transform: none;
 }
 
@@ -351,11 +317,8 @@
 }
 
 .collectionLink:hover {
-    border-color: color-mix(in srgb, var(--ds-line) 88%, transparent);
     color: var(--ds-ink);
-    background: color-mix(in srgb, var(--ds-ink) 4%, transparent);
-    box-shadow: inset 0 1px 0
-        color-mix(in srgb, var(--ds-glass-highlight) 56%, transparent);
+    background: color-mix(in srgb, var(--ds-paper-strong) 58%, transparent);
 }
 
 .activeFeed {
@@ -369,8 +332,6 @@
     border-color: transparent;
     color: var(--ds-sage);
     background: color-mix(in srgb, var(--ds-sage-surface) 72%, transparent);
-    box-shadow: inset 0 1px 0
-        color-mix(in srgb, var(--ds-glass-highlight) 56%, transparent);
 }
 
 .feedRow {
@@ -436,16 +397,12 @@
 .managementMenuItem[data-hovered] {
     color: var(--ds-ink);
     background: color-mix(in srgb, var(--ds-sage-surface) 58%, transparent);
-    box-shadow: inset 0 1px 0
-        color-mix(in srgb, var(--ds-glass-highlight) 58%, transparent);
 }
 
 .managementMenuItem[data-color='red']:hover,
 .managementMenuItem[data-color='red'][data-hovered] {
     color: var(--ds-rust);
     background: var(--ds-rust-surface);
-    box-shadow: inset 0 1px 0
-        color-mix(in srgb, var(--ds-glass-highlight) 48%, transparent);
 }
 
 .managementMenuLabel {
