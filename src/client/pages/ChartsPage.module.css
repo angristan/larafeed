@@ -200,11 +200,6 @@
     outline-offset: -3px;
 }
 
-.dataDisclosure :global(.mantine-Table-scrollContainer) {
-    border: 0;
-    border-radius: 0;
-}
-
 @media (max-width: 68.74em) {
     .filterTopbar {
         grid-template-columns: minmax(0, 1fr);

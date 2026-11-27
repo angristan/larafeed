@@ -79,13 +79,11 @@ a {
     box-shadow: var(--ds-shadow-inset);
 }
 
+/* Tables always sit inside a bordered surface, so the scroll container
+   adds no frame of its own. */
 .mantine-Table-scrollContainer {
     overflow-x: auto;
     overflow-y: hidden;
-    border: 1px solid var(--ds-work-line);
-    border-radius: var(--ds-radius-lg);
-    background: var(--ds-surface-work);
-    box-shadow: none;
 }
 
 .mantine-Table-table {

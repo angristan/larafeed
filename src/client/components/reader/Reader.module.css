@@ -653,12 +653,6 @@
     border-top: 1px solid var(--ds-line);
 }
 
-.entrySummary {
-    border-color: var(--ds-line);
-    background: var(--ds-surface-inset);
-    box-shadow: var(--ds-shadow-inset);
-}
-
 .summaryReturn {
     margin-left: auto;
 }

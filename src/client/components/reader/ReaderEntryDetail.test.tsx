@@ -135,7 +135,7 @@ describe('ReaderEntryDetail summaries', () => {
         expect(markup).not.toContain('Original');
         expect(markup).toContain('aria-label="More entry and feed actions"');
         expect(markup).toContain('Back to article');
-        expect(markup).toContain('AI Summary');
+        expect(markup).toContain('AI summary');
         expect(markup).toContain('less than a minute read');
         expect(markup).toContain(
             'Estimated reading time at 300 words per minute',

@@ -1,14 +1,12 @@
 import {
     ActionIcon,
     Alert,
-    Badge,
     Box,
     Button,
     Center,
     Flex,
     Group,
     Menu,
-    Paper,
     ScrollArea,
     Skeleton,
     Space,
@@ -17,7 +15,6 @@ import {
     Title,
     Tooltip,
     Typography,
-    useMantineTheme,
 } from '@mantine/core';
 import {
     IconArchive,
@@ -405,7 +402,6 @@ export const ReaderEntryDetail = memo(function ReaderEntryDetail({
     onSetStarred,
     onSetArchived,
 }: ReaderEntryDetailProps) {
-    const theme = useMantineTheme();
     const management = useQuery(subscriptionManagementQueryOptions);
     const shownEntry = entry ?? previewEntry;
     const managedSubscription = management.data?.subscriptions.find(
@@ -910,34 +906,11 @@ export const ReaderEntryDetail = memo(function ReaderEntryDetail({
                                 />
                             )}
                         </div>
-                        <Paper
-                            className={classes.entrySummary}
-                            hidden={!summarize}
-                            pb={0}
-                            style={{
-                                display: summarize ? undefined : 'none',
-                            }}
-                            p="md"
-                            shadow="xs"
-                            withBorder
-                        >
+                        <section aria-label="AI summary" hidden={!summarize}>
                             <Flex align="center" gap="xs" mb="sm">
-                                <IconRobot
-                                    color={theme.colors.blue[5]}
-                                    size={16}
-                                />
-                                <Tooltip
-                                    label="Generated with Workers AI"
-                                    position="right"
-                                >
-                                    <Badge
-                                        color="blue"
-                                        size="sm"
-                                        variant="light"
-                                    >
-                                        AI Summary
-                                    </Badge>
-                                </Tooltip>
+                                <Text c="dimmed" fw={600} size="sm">
+                                    AI summary
+                                </Text>
                                 {summarize && (
                                     <Button
                                         className={classes.summaryReturn}
@@ -965,7 +938,7 @@ export const ReaderEntryDetail = memo(function ReaderEntryDetail({
                                 ) : (
                                     <ReaderEntrySummary entryId={entry.id} />
                                 ))}
-                        </Paper>
+                        </section>
                     </Typography>
                 </Box>
             </ScrollArea>
