@@ -302,30 +302,28 @@ const loadErrors = async (d1: D1, operation: string, importId: number) => {
     return result.results;
 };
 
-// Repeated placeholders need explicit bindings, so authoritative progress updates
-// are generated in one place instead of incrementing counters optimistically.
+// Progress is recounted from the items instead of incremented, so replays
+// stay exact. One aggregate pass over the import's items gives every count;
+// separate subqueries read the item range up to five times per completion.
 const recountImport = (importId: number, now: number): D1Statement => ({
     sql: `UPDATE opml_imports
-        SET succeeded_items = (SELECT COUNT(*) FROM opml_import_items WHERE import_id = ? AND state = 'succeeded' AND completed_at IS NOT NULL),
-            failed_items = (SELECT COUNT(*) FROM opml_import_items WHERE import_id = ? AND state = 'failed' AND completed_at IS NOT NULL),
-            skipped_items = (SELECT COUNT(*) FROM opml_import_items WHERE import_id = ? AND state = 'skipped' AND completed_at IS NOT NULL),
-            state = CASE WHEN total_items = (SELECT COUNT(*) FROM opml_import_items WHERE import_id = ? AND completed_at IS NOT NULL)
+        SET succeeded_items = progress.succeeded,
+            failed_items = progress.failed,
+            skipped_items = progress.skipped,
+            state = CASE WHEN total_items = progress.completed
                 THEN 'completed' ELSE 'processing' END,
-            completed_at = CASE WHEN total_items = (SELECT COUNT(*) FROM opml_import_items WHERE import_id = ? AND completed_at IS NOT NULL)
+            completed_at = CASE WHEN total_items = progress.completed
                 THEN ? ELSE NULL END,
             started_at = COALESCE(started_at, ?), updated_at = ?
-        WHERE id = ? AND state IN ('pending', 'processing')`,
-    bindings: [
-        importId,
-        importId,
-        importId,
-        importId,
-        importId,
-        now,
-        now,
-        now,
-        importId,
-    ],
+        FROM (SELECT
+                COUNT(*) AS completed,
+                COUNT(CASE WHEN state = 'succeeded' THEN 1 END) AS succeeded,
+                COUNT(CASE WHEN state = 'failed' THEN 1 END) AS failed,
+                COUNT(CASE WHEN state = 'skipped' THEN 1 END) AS skipped
+            FROM opml_import_items
+            WHERE import_id = ? AND completed_at IS NOT NULL) AS progress
+        WHERE opml_imports.id = ? AND state IN ('pending', 'processing')`,
+    bindings: [now, now, now, importId, importId],
 });
 
 export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
