@@ -40,7 +40,8 @@ interface ApplicationPageProps {
 
 interface ApplicationContentProps {
     readonly children: ReactNode;
-    readonly description: string;
+    /** Only for a rule or limit the title does not already say. */
+    readonly description?: string;
     readonly gap?: StackProps['gap'];
     readonly title: string;
 }
@@ -61,9 +62,11 @@ function ApplicationContentLayout({
         >
             <header className={classes.contentHeader}>
                 <Title order={1}>{title}</Title>
-                <Text c="dimmed" size="sm">
-                    {description}
-                </Text>
+                {description !== undefined && (
+                    <Text c="dimmed" size="sm">
+                        {description}
+                    </Text>
+                )}
             </header>
             {children}
         </Stack>
@@ -98,7 +101,7 @@ export function ApplicationSidebarHeader({
 }: {
     readonly action?: ReactNode;
     readonly children?: ReactNode;
-    readonly description: string;
+    readonly description?: ReactNode;
     readonly title: string;
 }) {
     return (
@@ -106,9 +109,11 @@ export function ApplicationSidebarHeader({
             <Group justify="space-between" wrap="nowrap">
                 <Stack gap={2}>
                     <Text className={classes.sidebarTitle}>{title}</Text>
-                    <Text className={classes.sidebarDescription}>
-                        {description}
-                    </Text>
+                    {description !== undefined && (
+                        <Text className={classes.sidebarDescription}>
+                            {description}
+                        </Text>
+                    )}
                 </Stack>
                 {action}
             </Group>
@@ -149,7 +154,6 @@ function SettingsNavigation({
                 location.pathname === '/settings/security' &&
                 location.hash !== '#security',
             label: 'Profile',
-            description: 'Account details and data',
             icon: IconUserCircle,
         },
         {
@@ -158,35 +162,30 @@ function SettingsNavigation({
                 location.pathname === '/settings/security' &&
                 location.hash === '#security',
             label: 'Security',
-            description: 'Passkeys and account recovery',
             icon: IconShieldLock,
         },
         {
             to: '/settings/appearance',
             active: location.pathname === '/settings/appearance',
             label: 'Appearance',
-            description: 'Feed list and display',
             icon: IconAdjustmentsHorizontal,
         },
         {
             to: '/settings/app-tokens',
             active: location.pathname === '/settings/app-tokens',
             label: 'App tokens',
-            description: 'Reader client credentials',
             icon: IconKey,
         },
         {
             to: '/settings/mcp',
             active: location.pathname === '/settings/mcp',
             label: 'MCP',
-            description: 'AI assistant access',
             icon: IconPlugConnected,
         },
         {
             to: '/settings/opml',
             active: location.pathname === '/settings/opml',
             label: 'Import & export',
-            description: 'OPML and data tools',
             icon: IconFileImport,
         },
         ...(isAdmin
@@ -195,7 +194,6 @@ function SettingsNavigation({
                       to: '/admin/users',
                       active: location.pathname === '/admin/users',
                       label: 'Administration',
-                      description: 'Users and access',
                       icon: IconUsers,
                   },
               ]
@@ -204,10 +202,7 @@ function SettingsNavigation({
 
     return (
         <>
-            <ApplicationSidebarHeader
-                description="Account and reader configuration"
-                title="Settings"
-            />
+            <ApplicationSidebarHeader title="Settings" />
             <ApplicationSidebarNavigation>
                 {items.map((item) => {
                     const Icon = item.icon;
@@ -216,7 +211,6 @@ function SettingsNavigation({
                             key={item.to}
                             active={item.active}
                             component={Link}
-                            description={item.description}
                             label={item.label}
                             leftSection={
                                 <Icon

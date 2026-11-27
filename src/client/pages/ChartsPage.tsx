@@ -133,7 +133,6 @@ function InstrumentStrip({
             component="section"
             p={0}
         >
-            <Text className={classes.instrumentGroupLabel}>{label}</Text>
             <div className={classes.instrumentMetrics}>
                 {metrics.map((metric) => (
                     <SummaryMetric key={metric.label} {...metric} />
@@ -854,37 +853,30 @@ function ChartReportWorkspace({ view }: { readonly view: ChartReportView }) {
             view: 'overview',
             to: '/charts',
             label: 'Overview',
-            description: 'Important signals',
             icon: IconListDetails,
         },
         {
             view: 'reading',
             to: '/charts/reading',
             label: 'Reading activity',
-            description: 'Entries, reads, saves',
             icon: IconActivity,
         },
         {
             view: 'refresh',
             to: '/charts/refresh',
             label: 'Refresh health',
-            description: 'Attempts and failures',
             icon: IconRefresh,
         },
         {
             view: 'backlog',
             to: '/charts/backlog',
             label: 'Backlog trends',
-            description: 'Unread and read-through',
             icon: IconChartHistogram,
         },
     ] as const;
     const sidebar = (
         <>
-            <ApplicationSidebarHeader
-                description="Reader reports and feed health"
-                title="Charts"
-            />
+            <ApplicationSidebarHeader title="Charts" />
             <ApplicationSidebarNavigation>
                 {reportRoutes.map((report) => {
                     const Icon = report.icon;
@@ -893,7 +885,6 @@ function ChartReportWorkspace({ view }: { readonly view: ChartReportView }) {
                             key={report.to}
                             active={view === report.view}
                             component={Link}
-                            description={report.description}
                             label={report.label}
                             leftSection={<Icon size={16} stroke={1.5} />}
                             to={`${report.to}${location.search}`}
@@ -904,26 +895,11 @@ function ChartReportWorkspace({ view }: { readonly view: ChartReportView }) {
         </>
     );
 
-    const presentation = {
-        overview: {
-            title: 'Charts overview',
-            description:
-                'See the most important reading and refresh signals at a glance.',
-        },
-        reading: {
-            title: 'Reading activity',
-            description: 'Compare feed arrivals with reads and saved entries.',
-        },
-        refresh: {
-            title: 'Refresh health',
-            description:
-                'Track refresh reliability, failures, and new entries.',
-        },
-        backlog: {
-            title: 'Backlog trends',
-            description:
-                'Follow unread pressure and cohort read-through over time.',
-        },
+    const title = {
+        overview: 'Charts overview',
+        reading: 'Reading activity',
+        refresh: 'Refresh health',
+        backlog: 'Backlog trends',
     }[view];
     const scopeValue =
         state.feedId !== null
@@ -969,7 +945,7 @@ function ChartReportWorkspace({ view }: { readonly view: ChartReportView }) {
                     p={0}
                 >
                     <header className={classes.topbarHeader}>
-                        <Title order={1}>{presentation.title}</Title>
+                        <Title order={1}>{title}</Title>
                     </header>
                     <Stack className={classes.filterBody} gap="sm">
                         <Group
@@ -1086,10 +1062,6 @@ function ChartReportWorkspace({ view }: { readonly view: ChartReportView }) {
                         </Group>
                     </Stack>
                 </Paper>
-
-                <Text className={classes.introDescription} c="dimmed">
-                    {presentation.description}
-                </Text>
 
                 <Group
                     className={classes.scopeRow}

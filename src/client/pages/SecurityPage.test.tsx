@@ -75,6 +75,5 @@ describe('SecurityPage', () => {
         expect(securityMarkup).not.toContain('Profile settings');
         expect(securityMarkup).toContain('Import &amp; export');
         expect(securityMarkup).toContain('Administration');
-        expect(securityMarkup).toContain('Users and access');
     });
 });

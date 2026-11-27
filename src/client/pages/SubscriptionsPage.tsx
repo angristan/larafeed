@@ -176,12 +176,7 @@ function SubscriptionOverview({
         <>
             <Paper className={classes.auditSurface} p={0}>
                 <header className={classes.overviewHeader}>
-                    <Stack gap={1}>
-                        <Title order={2}>Feed health</Title>
-                        <Text c="dimmed" size="xs">
-                            Current refresh state across every subscription.
-                        </Text>
-                    </Stack>
+                    <Title order={2}>Feed health</Title>
                 </header>
                 <div className={classes.metricGrid}>
                     <div>
@@ -332,12 +327,7 @@ function SubscriptionOverview({
 
             <Paper className={classes.auditSurface} p={0}>
                 <header className={classes.overviewHeader}>
-                    <Stack gap={1}>
-                        <Title order={2}>Categories</Title>
-                        <Text c="dimmed" size="xs">
-                            Subscription distribution across your library.
-                        </Text>
-                    </Stack>
+                    <Title order={2}>Categories</Title>
                 </header>
                 {categories.length === 0 ? (
                     <Text className={classes.emptyRegion} c="dimmed" size="sm">
@@ -939,15 +929,11 @@ function SubscriptionWorkspace({
 
     const sidebar = (
         <>
-            <ApplicationSidebarHeader
-                description="Feed health and refresh audit"
-                title="Subscriptions"
-            />
+            <ApplicationSidebarHeader title="Subscriptions" />
             <ApplicationSidebarNavigation>
                 <NavLink
                     active={view === 'overview'}
                     component={Link}
-                    description="Health and categories"
                     label="Overview"
                     leftSection={<IconListDetails size={16} stroke={1.5} />}
                     to="/settings/subscriptions/overview"
@@ -955,7 +941,6 @@ function SubscriptionWorkspace({
                 <NavLink
                     active={view === 'audit'}
                     component={Link}
-                    description="Search every feed"
                     label="Feed audit"
                     leftSection={<IconTable size={16} stroke={1.5} />}
                     to="/settings/subscriptions"
@@ -972,11 +957,6 @@ function SubscriptionWorkspace({
                 subscription={selected}
             />
             <ApplicationContent
-                description={
-                    view === 'overview'
-                        ? 'Review feed health, problems, and category distribution.'
-                        : 'Search, filter, and inspect refresh activity for every feed.'
-                }
                 title={
                     view === 'overview' ? 'Subscription overview' : 'Feed audit'
                 }
@@ -1024,22 +1004,7 @@ function SubscriptionWorkspace({
 
                 {view === 'audit' && (
                     <Paper className={classes.auditSurface} p={0}>
-                        <section aria-labelledby="audit-filters-heading">
-                            <header className={classes.toolbarHeader}>
-                                <Stack gap={1}>
-                                    <Title id="audit-filters-heading" order={2}>
-                                        Search &amp; Filter
-                                    </Title>
-                                </Stack>
-                                <Button
-                                    color="gray"
-                                    onClick={resetFilters}
-                                    size="xs"
-                                    variant="subtle"
-                                >
-                                    Reset filters
-                                </Button>
-                            </header>
+                        <section aria-label="Filters">
                             <div className={classes.filterGrid}>
                                 <TextInput
                                     label="Search"
@@ -1169,17 +1134,27 @@ function SubscriptionWorkspace({
                         {data !== undefined && (
                             <>
                                 <div className={classes.tableSummary}>
-                                    <Text c="dimmed" size="xs">
-                                        {`Showing ${filtered.length.toLocaleString()} of ${subscriptions.length.toLocaleString()} subscriptions`}
-                                    </Text>
-                                    {management.isFetching && (
-                                        <Group gap="xs" role="status">
-                                            <Loader size="xs" />
-                                            <Text c="dimmed" size="xs">
-                                                Updating…
-                                            </Text>
-                                        </Group>
-                                    )}
+                                    <Group gap="sm">
+                                        <Text c="dimmed" size="xs">
+                                            {`${filtered.length.toLocaleString()} of ${subscriptions.length.toLocaleString()} feeds`}
+                                        </Text>
+                                        {management.isFetching && (
+                                            <Group gap="xs" role="status">
+                                                <Loader size="xs" />
+                                                <Text c="dimmed" size="xs">
+                                                    Updating…
+                                                </Text>
+                                            </Group>
+                                        )}
+                                    </Group>
+                                    <Button
+                                        color="gray"
+                                        onClick={resetFilters}
+                                        size="compact-xs"
+                                        variant="subtle"
+                                    >
+                                        Reset filters
+                                    </Button>
                                 </div>
                                 <Table.ScrollContainer minWidth={980}>
                                     <Table

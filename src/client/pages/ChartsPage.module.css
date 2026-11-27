@@ -16,10 +16,6 @@
     margin-inline: auto;
 }
 
-.introDescription {
-    padding-inline: var(--ds-space-1);
-}
-
 .filterTopbar {
     position: sticky;
     z-index: 12;
@@ -105,19 +101,6 @@
     border-radius: var(--ds-radius-md);
     background: var(--ds-surface-work);
     box-shadow: var(--ds-shadow-work);
-}
-
-.instrumentGroupLabel {
-    min-height: 1.75rem;
-    padding: 0.4rem var(--ds-space-3);
-    border-bottom: 1px solid var(--ds-work-line);
-    color: var(--ds-muted);
-    background: var(--ds-surface-work-header);
-    font-size: var(--mantine-font-size-xs);
-    font-weight: 750;
-    letter-spacing: 0.06em;
-    line-height: 1;
-    text-transform: uppercase;
 }
 
 .instrumentMetrics {

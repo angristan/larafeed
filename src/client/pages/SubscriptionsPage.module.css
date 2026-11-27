@@ -8,8 +8,7 @@
 }
 
 
-.overviewHeader,
-.toolbarHeader {
+.overviewHeader {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -17,14 +16,10 @@
 }
 
 .overviewHeader {
-    min-height: 4rem;
+    min-height: 3rem;
     padding: var(--ds-space-3) var(--ds-space-4);
     border-bottom: 1px solid var(--ds-work-line);
     background: var(--ds-surface-work-header);
-}
-
-.toolbarHeader {
-    padding: var(--ds-space-3) var(--ds-space-4) 0;
 }
 
 .metricGrid {
@@ -58,7 +53,7 @@
     grid-template-columns: minmax(15rem, 1.6fr) repeat(3, minmax(10rem, 1fr));
     gap: var(--ds-space-3);
     align-items: end;
-    padding: var(--ds-space-3) var(--ds-space-4) var(--ds-space-4);
+    padding: var(--ds-space-4);
     border-bottom: 1px solid var(--ds-work-line);
 }
 
@@ -126,24 +121,15 @@
 }
 
 @media (max-width: 56.24em) {
-    .overviewHeader,
-    .toolbarHeader {
-        align-items: flex-start;
-    }
-
     .overviewHeader {
+        align-items: flex-start;
         flex-direction: column;
-    }
-
-    .toolbarHeader {
-        flex-wrap: wrap;
     }
 
     .filterGrid {
         grid-template-columns: minmax(0, 1fr);
     }
 
-    .toolbarHeader,
     .filterGrid,
     .tableSummary {
         padding-inline: var(--ds-space-3);

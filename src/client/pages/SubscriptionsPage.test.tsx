@@ -112,7 +112,7 @@ describe('SubscriptionsPage', () => {
             '/settings/subscriptions',
         );
 
-        expect(markup).toContain('Search &amp; Filter');
+        expect(markup).toContain('aria-label="Filters"');
         expect(markup).toContain('No subscriptions match the current filters');
     });
 
