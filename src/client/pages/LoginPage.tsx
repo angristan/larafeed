@@ -156,7 +156,7 @@ export function LoginPage(): ReactElement {
                             size="xs"
                             variant="light"
                         >
-                            Try again
+                            Retry
                         </Button>
                     </Stack>
                 </Alert>

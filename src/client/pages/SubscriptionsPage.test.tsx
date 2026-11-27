@@ -131,7 +131,7 @@ describe('SubscriptionsPage', () => {
         expect(markup).toContain('<th');
         expect(markup).toContain('Daily example');
         expect(markup).toContain('Technology');
-        expect(markup).toContain('Success');
+        expect(markup).toContain('Healthy');
         expect(markup).toContain('Website');
         expect(markup).toContain('Feed');
         expect(markup).toContain('Last success');
@@ -176,9 +176,9 @@ describe('SubscriptionsPage', () => {
 
         const text = markup.replaceAll(/<[^>]+>/g, '');
         expect(text).toContain('Total feeds4');
-        expect(text).toContain('With errors2');
+        expect(text).toContain('Failing or gone2');
         expect(text).toContain('Never refreshed1');
-        expect(markup).toContain('Failed');
+        expect(markup).toContain('Failing');
         expect(markup).toContain('Gone');
         expect(markup).toContain('Details');
         expect(markup).not.toMatch(/<tr[^>]+role="button"/u);

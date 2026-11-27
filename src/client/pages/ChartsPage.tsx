@@ -230,7 +230,7 @@ function ChartDataDisclosure({
                                 <>
                                     <Table.Th ta="right">Received</Table.Th>
                                     <Table.Th ta="right">Read</Table.Th>
-                                    <Table.Th ta="right">Saved</Table.Th>
+                                    <Table.Th ta="right">Favorites</Table.Th>
                                 </>
                             )}
                             {refresh && (
@@ -396,7 +396,7 @@ function ChartsDashboard({
                     value: data.summary.currentlyRead.toLocaleString(),
                 },
                 {
-                    label: 'Saved',
+                    label: 'Favorites',
                     value: data.summary.currentlySaved.toLocaleString(),
                 },
                 {
@@ -462,7 +462,7 @@ function ChartsDashboard({
             {view === 'overview' && (
                 <Stack gap="md">
                     <ChartSurface
-                        detail="Arrivals, reads, and saves"
+                        detail="Received, read, and added to favorites"
                         primary
                         title="Reading flow"
                     >
@@ -485,7 +485,7 @@ function ChartsDashboard({
                                 },
                                 {
                                     name: 'saved',
-                                    label: 'Saved',
+                                    label: 'Favorites',
                                     color: 'orange.6',
                                 },
                             ]}
@@ -552,7 +552,7 @@ function ChartsDashboard({
             {view === 'reading' && (
                 <Stack component="section" gap="md">
                     <ChartSurface
-                        detail="Arrivals, reads, and saves"
+                        detail="Received, read, and added to favorites"
                         primary
                         title="Reading flow"
                     >
@@ -575,7 +575,7 @@ function ChartsDashboard({
                                 },
                                 {
                                     name: 'saved',
-                                    label: 'Saved',
+                                    label: 'Favorites',
                                     color: 'orange.6',
                                 },
                             ]}
@@ -615,8 +615,8 @@ function ChartsDashboard({
                             />
                         </ChartSurface>
                         <ChartSurface
-                            detail="Saved entries per calendar day"
-                            title="Save density"
+                            detail="Entries added to favorites per calendar day"
+                            title="Favorites density"
                         >
                             <Heatmap
                                 colors={[
@@ -630,8 +630,8 @@ function ChartsDashboard({
                                 getTooltipLabel={({ date, value }) =>
                                     `${formatDate(date)} – ${
                                         value === null || value === 0
-                                            ? 'No saves'
-                                            : `${value} save${value > 1 ? 's' : ''}`
+                                            ? 'No favorites'
+                                            : `${value} favorite${value > 1 ? 's' : ''}`
                                     }`
                                 }
                                 startDate={data.window.startDate}

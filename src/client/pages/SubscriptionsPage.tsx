@@ -70,8 +70,8 @@ type SubscriptionStatus = 'healthy' | 'failing' | 'never' | 'gone';
 type SortField = 'name' | 'entries' | 'lastSuccess' | 'lastFailure';
 
 export const subscriptionStatusFilterOptions = [
-    { label: 'Success', value: 'healthy' },
-    { label: 'Failed', value: 'failing' },
+    { label: 'Healthy', value: 'healthy' },
+    { label: 'Failing', value: 'failing' },
     { label: 'Never refreshed', value: 'never' },
     { label: 'Gone', value: 'gone' },
 ] as const satisfies readonly {
@@ -144,8 +144,8 @@ export function getSubscriptionStatus(
 function StatusBadge({ subscription }: { subscription: ManagedSubscription }) {
     const status = getSubscriptionStatus(subscription);
     const presentation = {
-        healthy: { label: 'Success', color: 'green' },
-        failing: { label: 'Failed', color: 'red' },
+        healthy: { label: 'Healthy', color: 'green' },
+        failing: { label: 'Failing', color: 'red' },
         never: { label: 'Never refreshed', color: 'gray' },
         gone: { label: 'Gone', color: 'gray' },
     }[status];
@@ -202,7 +202,7 @@ function SubscriptionOverview({
                     </div>
                     <div>
                         <Text c="dimmed" size="xs">
-                            With errors
+                            Failing or gone
                         </Text>
                         <Text
                             className={classes.metricValue}
@@ -365,7 +365,7 @@ function SubscriptionOverview({
 
 /**
  * Offers the feed URL that refresh found after the old one stopped working,
- * and lets the user switch to any other URL. A switch keeps read and starred
+ * and lets the user switch to any other URL. A switch keeps read and favorite
  * state, so it replaces "unsubscribe and add again".
  */
 export function MoveFeedSection({
@@ -397,8 +397,8 @@ export function MoveFeedSection({
                     notifications.show({
                         title: 'Feed switched',
                         message: result.keptOldSubscription
-                            ? 'Some starred articles are only in the old feed, so the old subscription was kept.'
-                            : 'Read and starred articles were carried over.',
+                            ? 'Some favorites are only in the old feed, so the old subscription was kept.'
+                            : 'Read state and favorites were carried over.',
                         color: 'green',
                         withBorder: true,
                     });
@@ -504,7 +504,7 @@ export function MoveFeedSection({
                     <Stack gap="xs">
                         <TextInput
                             data-autofocus
-                            description="Read and starred articles carry over to the new feed."
+                            description="Read state and favorites carry over to the new feed."
                             error={move.error?.message}
                             label="New feed or website URL"
                             onChange={(event) =>

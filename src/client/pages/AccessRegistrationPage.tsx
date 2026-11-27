@@ -236,7 +236,7 @@ export function AccessRegistrationPage({
                             size="xs"
                             variant="light"
                         >
-                            Try again
+                            Retry
                         </Button>
                     </Stack>
                 </Alert>

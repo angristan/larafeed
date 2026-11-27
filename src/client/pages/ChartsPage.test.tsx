@@ -129,7 +129,7 @@ describe('chart report pages', () => {
 
         expect(markup).toContain('Reading flow');
         expect(markup).toContain('Reading density');
-        expect(markup).toContain('Save density');
+        expect(markup).toContain('Favorites density');
         expect(markup).toContain(
             'Reader activity tracking is complete from 2026-07-18.',
         );

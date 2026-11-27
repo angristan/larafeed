@@ -94,7 +94,7 @@ export function RouteErrorPage() {
                             loading={revalidator.state !== 'idle'}
                             onClick={() => revalidator.revalidate()}
                         >
-                            Try again
+                            Retry
                         </Button>
                     </Group>
                     <BackAndHomeActions />

@@ -117,7 +117,7 @@ test('switches a moved feed to its new URL from the details drawer', async ({
     await drawer.getByRole('button', { name: 'Switch to new feed' }).click();
 
     await expect(
-        page.getByText('Read and starred articles were carried over.'),
+        page.getByText('Read state and favorites were carried over.'),
     ).toBeVisible();
     expect(moveRequest).toEqual({
         path: '/api/subscriptions/7/move',

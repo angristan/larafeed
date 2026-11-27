@@ -96,7 +96,7 @@ const emptyStates = {
     },
     favorites: {
         title: 'No favorites yet',
-        message: 'Star an entry to keep it here.',
+        message: 'Add an entry to favorites to keep it here.',
     },
 } as const;
 

@@ -264,7 +264,7 @@ export function McpPage() {
                                     size="xs"
                                     variant="light"
                                 >
-                                    Try again
+                                    Retry
                                 </Button>
                             </Stack>
                         </Alert>
@@ -381,10 +381,11 @@ export function McpPage() {
                                     </Group>
                                     <Text c="dimmed" size="xs">
                                         Apps can list feeds and articles, read
-                                        article text, mark articles read,
-                                        starred, or archived, and subscribe or
-                                        unsubscribe. You choose read-only or
-                                        read and write access when you approve.
+                                        article text, mark articles read, add
+                                        them to favorites or archive them, and
+                                        subscribe or unsubscribe. You choose
+                                        read-only or read and write access when
+                                        you approve.
                                     </Text>
                                 </Stack>
                             </ApplicationWorkSurface>
