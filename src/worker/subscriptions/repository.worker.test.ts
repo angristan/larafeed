@@ -484,6 +484,121 @@ describe('subscription management D1 repository', () => {
         ).resolves.toEqual(workBefore);
     });
 
+    it('counts entries per subscription with read state and filters', async () => {
+        const userId = 817_001;
+        const otherUserId = 817_002;
+        const [busyFeed, quietFeed, emptyFeed] = [817_101, 817_102, 817_103];
+        const busyEntry = 817_201;
+        const quietEntry = 817_301;
+        await insertUser(userId);
+        await insertUser(otherUserId);
+        await Effect.runPromise(
+            d1.batch([
+                ...[busyFeed, quietFeed, emptyFeed].map((feedId) => ({
+                    sql: `INSERT INTO feeds (
+                        id, name, feed_url, next_refresh_at, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)`,
+                    bindings: [
+                        feedId,
+                        `Feed ${feedId}`,
+                        `https://counts.example.test/${feedId}.xml`,
+                        now,
+                        now,
+                        now,
+                    ],
+                })),
+                ...[userId, otherUserId].map((owner, index) => ({
+                    sql: `INSERT INTO subscription_categories (
+                        id, user_id, name, created_at, updated_at
+                    ) VALUES (?, ?, 'Counts', ?, ?)`,
+                    bindings: [817_401 + index, owner, now, now],
+                })),
+            ]),
+        );
+        for (let index = 0; index < 4; index += 1) {
+            await insertEntry(busyEntry + index, busyFeed, `Busy ${index}`);
+        }
+        for (let index = 0; index < 2; index += 1) {
+            await insertEntry(quietEntry + index, quietFeed, `Quiet ${index}`);
+        }
+        await Effect.runPromise(
+            d1.batch([
+                ...[busyFeed, quietFeed, emptyFeed].map((feedId) => ({
+                    sql: `INSERT INTO feed_subscriptions (
+                        user_id, feed_id, category_id, read_through_entry_id,
+                        created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)`,
+                    bindings: [
+                        userId,
+                        feedId,
+                        817_401,
+                        // The watermark marks the third busy entry read.
+                        feedId === busyFeed ? busyEntry + 2 : null,
+                        now,
+                        now,
+                    ],
+                })),
+                {
+                    sql: `INSERT INTO feed_subscriptions (
+                        user_id, feed_id, category_id, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?)`,
+                    bindings: [otherUserId, busyFeed, 817_402, now, now],
+                },
+                {
+                    // The first busy entry is explicitly unread, so only the
+                    // watermark and the second entry's override apply.
+                    sql: `INSERT INTO entry_interactions (
+                        user_id, feed_id, entry_id, read_override,
+                        read_changed_at, filtered_at, created_at, updated_at
+                    ) VALUES
+                        (?, ?, ?, 0, ?, NULL, ?, ?),
+                        (?, ?, ?, 1, ?, NULL, ?, ?),
+                        (?, ?, ?, NULL, NULL, ?, ?, ?)`,
+                    bindings: [
+                        userId,
+                        busyFeed,
+                        busyEntry,
+                        now,
+                        now,
+                        now,
+                        userId,
+                        busyFeed,
+                        busyEntry + 1,
+                        now,
+                        now,
+                        now,
+                        userId,
+                        busyFeed,
+                        busyEntry + 3,
+                        now,
+                        now,
+                        now,
+                    ],
+                },
+            ]),
+        );
+
+        const counts = (
+            await Effect.runPromise(repository.listManagement(userId))
+        ).subscriptions.map(({ feedId, entryCount, unreadCount }) => ({
+            feedId,
+            entryCount,
+            unreadCount,
+        }));
+
+        // Busy: 4 entries, 1 filtered; of the other 3, 2 are read.
+        expect(counts).toEqual([
+            { feedId: busyFeed, entryCount: 3, unreadCount: 1 },
+            { feedId: quietFeed, entryCount: 2, unreadCount: 2 },
+            { feedId: emptyFeed, entryCount: 0, unreadCount: 0 },
+        ]);
+        await expect(
+            Effect.runPromise(
+                repository.findSubscription(otherUserId, busyFeed),
+            ),
+        ).resolves.toMatchObject({ entryCount: 4, unreadCount: 4 });
+    });
+
     it('does not allocate a feed ID for an invalid category', async () => {
         const userId = 815_001;
         await insertUser(userId);

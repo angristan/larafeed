@@ -294,19 +294,16 @@ const effectiveRead = `CASE
     WHEN ei.read_override IS NOT NULL THEN ei.read_override
     WHEN fs.read_through_entry_id IS NOT NULL AND e.id <= fs.read_through_entry_id THEN 1
     ELSE 0 END`;
-const subscriptionSelect = `SELECT
+// One pass over each feed's entries computes both counts. Two scalar
+// subqueries read every entry twice.
+const subscriptionSelect = (where: string) => `SELECT
     fs.feed_id, fs.category_id, c.name AS category_name,
     f.name AS feed_name, fs.custom_feed_name, f.feed_url, f.site_url,
     f.favicon_url, f.favicon_asset_hash, f.favicon_is_dark,
-    (SELECT COUNT(*) FROM entries counted
-        LEFT JOIN entry_interactions counted_i
-            ON counted_i.user_id = fs.user_id AND counted_i.entry_id = counted.id
-        WHERE counted.feed_id = fs.feed_id AND counted_i.filtered_at IS NULL) AS entry_count,
-    (SELECT COUNT(*) FROM entries e
-        LEFT JOIN entry_interactions ei
-            ON ei.user_id = fs.user_id AND ei.entry_id = e.id
-        WHERE e.feed_id = fs.feed_id AND ei.filtered_at IS NULL
-          AND ${effectiveRead} = 0) AS unread_count,
+    COALESCE(SUM(CASE WHEN e.id IS NOT NULL AND ei.filtered_at IS NULL
+        THEN 1 ELSE 0 END), 0) AS entry_count,
+    COALESCE(SUM(CASE WHEN e.id IS NOT NULL AND ei.filtered_at IS NULL
+        AND ${effectiveRead} = 0 THEN 1 ELSE 0 END), 0) AS unread_count,
     f.is_gone, f.consecutive_failures, f.last_attempt_at,
     f.last_successful_refresh_at, f.last_failed_refresh_at,
     f.last_error_class, f.last_error_message,
@@ -330,7 +327,12 @@ const subscriptionSelect = `SELECT
 FROM feed_subscriptions fs
 JOIN feeds f ON f.id = fs.feed_id
 JOIN subscription_categories c
-    ON c.user_id = fs.user_id AND c.id = fs.category_id`;
+    ON c.user_id = fs.user_id AND c.id = fs.category_id
+LEFT JOIN entries e ON e.feed_id = fs.feed_id
+LEFT JOIN entry_interactions ei
+    ON ei.user_id = fs.user_id AND ei.entry_id = e.id
+WHERE ${where}
+GROUP BY fs.user_id, fs.feed_id`;
 
 const invariant = (operation: string) =>
     new SubscriptionInvariantError({ operation });
@@ -463,8 +465,9 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
             const row = yield* mapStorage(
                 operation,
                 d1.first({
-                    sql: `${subscriptionSelect}
-                        WHERE fs.user_id = ? AND fs.feed_id = ?`,
+                    sql: subscriptionSelect(
+                        'fs.user_id = ? AND fs.feed_id = ?',
+                    ),
                     bindings: [userId, feedId],
                 }),
             );
@@ -498,8 +501,7 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                         mapStorage(
                             operation,
                             d1.all({
-                                sql: `${subscriptionSelect}
-                                    WHERE fs.user_id = ?
+                                sql: `${subscriptionSelect('fs.user_id = ?')}
                                     ORDER BY COALESCE(fs.custom_feed_name, f.name) COLLATE NOCASE, fs.feed_id`,
                                 bindings: [userId],
                             }),
