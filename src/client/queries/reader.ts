@@ -78,6 +78,8 @@ export const categoryListQueryOptions = queryOptions({
     retry: false,
 });
 
+const BADGE_STALE_TIME = 5 * 60_000;
+
 export const subscriptionListQueryOptions = queryOptions({
     queryKey: subscriptionKeys.list(),
     queryFn: ({ signal }) =>
@@ -86,7 +88,11 @@ export const subscriptionListQueryOptions = queryOptions({
             signal,
             (decoders) => decoders.decodeReaderSubscriptionList,
         ),
-    staleTime: 20_000,
+    // Entry interactions patch the unread badges in place, and read-throughs
+    // and subscription changes invalidate them, so a short stale time only
+    // made every tab focus refetch the library. Feed refreshes still show up
+    // on the first focus after this window.
+    staleTime: BADGE_STALE_TIME,
     retry: false,
 });
 
@@ -98,7 +104,7 @@ export const readerCountsQueryOptions = queryOptions({
             signal,
             (decoders) => decoders.decodeReaderCounts,
         ),
-    staleTime: 15_000,
+    staleTime: BADGE_STALE_TIME,
     retry: false,
 });
 

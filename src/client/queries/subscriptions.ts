@@ -62,6 +62,10 @@ export const subscriptionManagementQueryOptions = queryOptions({
     // longer stale window only delays background changes such as new refresh
     // results.
     staleTime: 60_000,
+    // This is the largest payload the reader loads. Refetching it on every
+    // tab focus only refreshed the feed failure dots, which can wait for the
+    // next page visit or subscription change.
+    refetchOnWindowFocus: false,
     retry: false,
 });
 
