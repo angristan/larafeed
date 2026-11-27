@@ -5,6 +5,7 @@ import {
     SubscriptionFeedCandidate,
     type SubscriptionFilterRules,
     SubscriptionManagementResponse,
+    SubscriptionMovedResponse,
     SubscriptionMutationResponse,
 } from '@shared/schemas/subscriptions';
 import { Effect } from 'effect';
@@ -617,6 +618,99 @@ export const makeSubscriptionService = (
                     feedId,
                 );
                 return SubscriptionMutationResponse.make({ subscription });
+            }),
+
+        /**
+         * Replaces a subscription with one to another feed URL, for a feed
+         * that moved. A website URL with several feeds returns them for the
+         * user to pick. The new subscription takes the old category, custom
+         * name and filters, and the read, starred and archived state of
+         * matching entries. Then the old subscription is removed.
+         */
+        moveSubscription: (userId: number, feedId: number, feedUrl: string) =>
+            Effect.gen(function* () {
+                const old = yield* repository.findSubscription(userId, feedId);
+                const result = yield* subscribe(
+                    userId,
+                    { feedUrl, categoryId: old.categoryId },
+                    'ask',
+                );
+                if (result.kind === 'selection_required') {
+                    return result.response;
+                }
+                const { outcome } = result;
+                if (outcome.feedId === feedId) {
+                    return yield* Effect.fail(
+                        new SubscriptionConflict({ reason: 'same_feed' }),
+                    );
+                }
+                // An existing subscription to the new feed keeps its own
+                // settings; the user chose them.
+                if (outcome.createdSubscription) {
+                    const hasRules =
+                        old.filterRules.excludeTitle.length > 0 ||
+                        old.filterRules.excludeContent.length > 0 ||
+                        old.filterRules.excludeAuthor.length > 0;
+                    if (hasRules) {
+                        yield* rebuildFilters(
+                            userId,
+                            outcome.feedId,
+                            old.categoryId,
+                            old.customFeedName,
+                            old.filterRules,
+                        );
+                    } else if (old.customFeedName !== null) {
+                        yield* repository.updateSubscription(
+                            userId,
+                            outcome.feedId,
+                            old.categoryId,
+                            old.customFeedName,
+                            now(),
+                        );
+                    }
+                }
+                const { keptOldSubscription } =
+                    yield* repository.moveSubscriptionState({
+                        userId,
+                        oldFeedId: feedId,
+                        newFeedId: outcome.feedId,
+                        // Articles the old feed never delivered, but that are
+                        // older than its last successful refresh, would only
+                        // flood the new subscription as unread.
+                        readUnmatchedPublishedThrough:
+                            outcome.createdSubscription
+                                ? old.lastSuccessfulRefreshAt
+                                : null,
+                        now: now(),
+                    });
+                return SubscriptionMovedResponse.make({
+                    kind: 'moved',
+                    subscription: yield* repository.findSubscription(
+                        userId,
+                        outcome.feedId,
+                    ),
+                    keptOldSubscription,
+                });
+            }),
+
+        dismissMovedFeed: (
+            userId: number,
+            feedId: number,
+            movedToUrl: string,
+        ) =>
+            Effect.gen(function* () {
+                yield* repository.dismissMovedFeed(
+                    userId,
+                    feedId,
+                    movedToUrl,
+                    now(),
+                );
+                return SubscriptionMutationResponse.make({
+                    subscription: yield* repository.findSubscription(
+                        userId,
+                        feedId,
+                    ),
+                });
             }),
 
         unsubscribe: (userId: number, feedId: number) =>

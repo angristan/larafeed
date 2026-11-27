@@ -9,6 +9,7 @@ import {
 } from './reader';
 import {
     createSubscriptionMutationOptions,
+    moveSubscriptionMutationOptions,
     subscriptionManagementKeys,
     subscriptionManagementQueryOptions,
     unsubscribeMutationOptions,
@@ -178,6 +179,44 @@ describe('subscription management query contracts', () => {
 
         await mutation.execute({ feedId: subscription.feedId });
 
+        expect(queryClient.getQueryData(entryKeys.detail(99))).toBeUndefined();
+    });
+
+    it('posts a feed move and refreshes reader data after it', async () => {
+        vi.stubGlobal('document', { cookie: 'larafeed-csrf=csrf-token' });
+        const fetchMock = vi.fn(
+            (_input: RequestInfo | URL, _init?: RequestInit) =>
+                Promise.resolve(
+                    Response.json({
+                        kind: 'moved',
+                        subscription: { ...subscription, feedId: 8 },
+                        keptOldSubscription: false,
+                    }),
+                ),
+        );
+        vi.stubGlobal('fetch', fetchMock);
+        const queryClient = makeQueryClient();
+        const key = subscriptionManagementKeys.list();
+        queryClient.setQueryData(key, { seeded: true });
+        queryClient.setQueryData(entryKeys.detail(99), { id: 99 });
+        const mutation = queryClient
+            .getMutationCache()
+            .build(queryClient, moveSubscriptionMutationOptions(queryClient));
+
+        await expect(
+            mutation.execute({
+                feedId: subscription.feedId,
+                feedUrl: 'https://example.com/new.xml',
+            }),
+        ).resolves.toMatchObject({ kind: 'moved' });
+
+        const [path, init] = fetchMock.mock.calls[0] ?? [];
+        expect(path).toBe('/api/subscriptions/7/move');
+        expect(init?.method).toBe('POST');
+        expect(JSON.parse(String(init?.body))).toEqual({
+            feedUrl: 'https://example.com/new.xml',
+        });
+        expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
         expect(queryClient.getQueryData(entryKeys.detail(99))).toBeUndefined();
     });
 

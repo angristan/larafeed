@@ -75,6 +75,150 @@ const insertEntry = (id: number, feedId: number, title: string) =>
         }),
     );
 
+interface MoveFixtureEntry {
+    readonly id: number;
+    readonly feedId: number;
+    readonly key: number;
+    readonly url?: string;
+    readonly publishedAt?: number;
+}
+
+/** Creates a user, a category, and feeds with the given entries. */
+const insertMoveFixture = async (input: {
+    readonly userId: number;
+    readonly categoryId: number;
+    readonly feeds: readonly {
+        readonly id: number;
+        readonly lastSuccessAt?: number;
+    }[];
+    readonly entries: readonly MoveFixtureEntry[];
+}) => {
+    await insertUser(input.userId);
+    await Effect.runPromise(
+        d1.batch([
+            {
+                sql: `INSERT INTO subscription_categories (
+                    id, user_id, name, created_at, updated_at
+                ) VALUES (?, ?, 'Moves', ?, ?)`,
+                bindings: [input.categoryId, input.userId, now, now],
+            },
+            ...input.feeds.map((feed) => ({
+                sql: `INSERT INTO feeds (
+                    id, name, feed_url, next_refresh_at,
+                    last_successful_refresh_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                bindings: [
+                    feed.id,
+                    `Feed ${feed.id}`,
+                    `https://moves.example.test/${feed.id}.xml`,
+                    now,
+                    feed.lastSuccessAt ?? null,
+                    now,
+                    now,
+                ],
+            })),
+            ...input.entries.map((entry) => ({
+                sql: `INSERT INTO entries (
+                    id, feed_id, deduplication_key, title, url,
+                    published_at, content_status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, 'empty', ?, ?)`,
+                bindings: [
+                    entry.id,
+                    entry.feedId,
+                    bytes(entry.key),
+                    `Entry ${entry.id}`,
+                    entry.url ?? null,
+                    entry.publishedAt ?? now,
+                    now,
+                    now,
+                ],
+            })),
+        ]),
+    );
+};
+
+const subscribeTo = (
+    userId: number,
+    feedId: number,
+    categoryId: number,
+    readThroughEntryId: number | null = null,
+) =>
+    Effect.runPromise(
+        d1.run({
+            sql: `INSERT INTO feed_subscriptions (
+                user_id, feed_id, category_id, read_through_entry_id,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?)`,
+            bindings: [
+                userId,
+                feedId,
+                categoryId,
+                readThroughEntryId,
+                now,
+                now,
+            ],
+        }),
+    );
+
+const setInteraction = (
+    userId: number,
+    feedId: number,
+    entryId: number,
+    state: {
+        readonly read?: 0 | 1;
+        readonly starredAt?: number;
+        readonly archivedAt?: number;
+    },
+) =>
+    Effect.runPromise(
+        d1.run({
+            sql: `INSERT INTO entry_interactions (
+                user_id, feed_id, entry_id, read_override, read_changed_at,
+                starred_at, archived_at, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            bindings: [
+                userId,
+                feedId,
+                entryId,
+                state.read ?? null,
+                state.read === undefined ? null : now - 1,
+                state.starredAt ?? null,
+                state.archivedAt ?? null,
+                now,
+                now,
+            ],
+        }),
+    );
+
+const interactions = async (userId: number, feedId: number) =>
+    (
+        await Effect.runPromise(
+            d1.all<{
+                entry_id: number;
+                read_override: number | null;
+                starred_at: number | null;
+                archived_at: number | null;
+            }>({
+                sql: `SELECT entry_id, read_override, starred_at, archived_at
+                    FROM entry_interactions
+                    WHERE user_id = ? AND feed_id = ?
+                    ORDER BY entry_id`,
+                bindings: [userId, feedId],
+            }),
+        )
+    ).results;
+
+const subscribedFeedIds = async (userId: number) =>
+    (
+        await Effect.runPromise(
+            d1.all<{ feed_id: number }>({
+                sql: `SELECT feed_id FROM feed_subscriptions
+                    WHERE user_id = ? ORDER BY feed_id`,
+                bindings: [userId],
+            }),
+        )
+    ).results.map((row) => row.feed_id);
+
 describe('subscription management D1 repository', () => {
     it('creates owned categories and reuses a shared feed safely', async () => {
         const firstUser = 810_001;
@@ -1180,5 +1324,257 @@ describe('subscription management D1 repository', () => {
                 ),
             ),
         ).resolves.toBe(1);
+    });
+    it('moves read, starred and archived state to the matching new entries', async () => {
+        const userId = 870_001;
+        const categoryId = 870_101;
+        const [oldFeed, newFeed] = [870_201, 870_202];
+        const lastSuccessAt = now - 10_000;
+        await insertMoveFixture({
+            userId,
+            categoryId,
+            feeds: [{ id: oldFeed, lastSuccessAt }, { id: newFeed }],
+            entries: [
+                // Read through the old watermark; matched by identity.
+                { id: 870_301, feedId: oldFeed, key: 11 },
+                // Starred, explicitly read; the new feed changed its GUID
+                // but kept the link.
+                {
+                    id: 870_302,
+                    feedId: oldFeed,
+                    key: 12,
+                    url: 'https://moves.example.test/post-2',
+                },
+                // Archived and explicitly unread.
+                { id: 870_303, feedId: oldFeed, key: 13 },
+                // Unread and untouched.
+                { id: 870_304, feedId: oldFeed, key: 14 },
+                { id: 870_401, feedId: newFeed, key: 11 },
+                {
+                    id: 870_402,
+                    feedId: newFeed,
+                    key: 22,
+                    url: 'https://moves.example.test/post-2',
+                },
+                { id: 870_403, feedId: newFeed, key: 13 },
+                { id: 870_404, feedId: newFeed, key: 14 },
+                // Not in the old feed: one older than its last success, one
+                // newer.
+                {
+                    id: 870_405,
+                    feedId: newFeed,
+                    key: 25,
+                    publishedAt: lastSuccessAt - 1,
+                },
+                {
+                    id: 870_406,
+                    feedId: newFeed,
+                    key: 26,
+                    publishedAt: lastSuccessAt + 1,
+                },
+            ],
+        });
+        await subscribeTo(userId, oldFeed, categoryId, 870_301);
+        await subscribeTo(userId, newFeed, categoryId);
+        await setInteraction(userId, oldFeed, 870_302, {
+            read: 1,
+            starredAt: now - 5,
+        });
+        await setInteraction(userId, oldFeed, 870_303, {
+            read: 0,
+            archivedAt: now - 6,
+        });
+        // The user already marked this new entry unread; that choice wins.
+        await setInteraction(userId, newFeed, 870_401, { read: 0 });
+
+        await expect(
+            Effect.runPromise(
+                repository.moveSubscriptionState({
+                    userId,
+                    oldFeedId: oldFeed,
+                    newFeedId: newFeed,
+                    readUnmatchedPublishedThrough: lastSuccessAt,
+                    now: now + 1,
+                }),
+            ),
+        ).resolves.toEqual({ keptOldSubscription: false });
+
+        await expect(interactions(userId, newFeed)).resolves.toEqual([
+            {
+                entry_id: 870_401,
+                read_override: 0,
+                starred_at: null,
+                archived_at: null,
+            },
+            {
+                entry_id: 870_402,
+                read_override: 1,
+                starred_at: now - 5,
+                archived_at: null,
+            },
+            {
+                entry_id: 870_403,
+                read_override: null,
+                starred_at: null,
+                archived_at: now - 6,
+            },
+            {
+                entry_id: 870_405,
+                read_override: 1,
+                starred_at: null,
+                archived_at: null,
+            },
+        ]);
+        await expect(subscribedFeedIds(userId)).resolves.toEqual([newFeed]);
+        // Nobody else followed the old feed, so it is gone with its entries.
+        await expect(
+            Effect.runPromise(
+                d1.first<number>(
+                    {
+                        sql: `SELECT COUNT(*) AS count FROM entries
+                            WHERE feed_id = ?`,
+                        bindings: [oldFeed],
+                    },
+                    'count',
+                ),
+            ),
+        ).resolves.toBe(0);
+    });
+
+    it('keeps the old subscription when a starred entry has no match', async () => {
+        // insertUser derives a unique key from `id % 255`.
+        const userId = 871_003;
+        const categoryId = 871_101;
+        const [oldFeed, newFeed] = [871_201, 871_202];
+        await insertMoveFixture({
+            userId,
+            categoryId,
+            feeds: [{ id: oldFeed }, { id: newFeed }],
+            entries: [
+                { id: 871_301, feedId: oldFeed, key: 31 },
+                { id: 871_302, feedId: oldFeed, key: 32 },
+                { id: 871_401, feedId: newFeed, key: 31 },
+            ],
+        });
+        await subscribeTo(userId, oldFeed, categoryId);
+        await subscribeTo(userId, newFeed, categoryId);
+        await setInteraction(userId, oldFeed, 871_301, { starredAt: now - 1 });
+        await setInteraction(userId, oldFeed, 871_302, { starredAt: now - 2 });
+
+        await expect(
+            Effect.runPromise(
+                repository.moveSubscriptionState({
+                    userId,
+                    oldFeedId: oldFeed,
+                    newFeedId: newFeed,
+                    readUnmatchedPublishedThrough: null,
+                    now: now + 1,
+                }),
+            ),
+        ).resolves.toEqual({ keptOldSubscription: true });
+        await expect(subscribedFeedIds(userId)).resolves.toEqual([
+            oldFeed,
+            newFeed,
+        ]);
+        await expect(interactions(userId, newFeed)).resolves.toEqual([
+            {
+                entry_id: 871_401,
+                read_override: null,
+                starred_at: now - 1,
+                archived_at: null,
+            },
+        ]);
+        await expect(interactions(userId, oldFeed)).resolves.toHaveLength(2);
+    });
+
+    it('moves a subscription to a new URL with its settings', async () => {
+        const userId = 872_001;
+        const categoryId = 872_101;
+        const [oldFeed, newFeed] = [872_201, 872_202];
+        const newFeedUrl = `https://moves.example.test/${newFeed}.xml`;
+        await insertMoveFixture({
+            userId,
+            categoryId,
+            feeds: [{ id: oldFeed, lastSuccessAt: now - 100 }, { id: newFeed }],
+            entries: [
+                { id: 872_301, feedId: oldFeed, key: 41 },
+                { id: 872_401, feedId: newFeed, key: 41 },
+                // Older than the old feed's last success, so it starts read.
+                {
+                    id: 872_402,
+                    feedId: newFeed,
+                    key: 42,
+                    publishedAt: now - 200,
+                },
+            ],
+        });
+        await subscribeTo(userId, oldFeed, categoryId, 872_301);
+        await Effect.runPromise(
+            d1.run({
+                sql: `UPDATE feeds SET moved_to_url = ? WHERE id = ?`,
+                bindings: [newFeedUrl, oldFeed],
+            }),
+        );
+        const service = makeSubscriptionService({
+            repository,
+            // The new URL is already a known feed, so nothing is fetched.
+            discoverFeeds: () => Effect.die('unused'),
+            now: () => now + 1,
+        });
+        await Effect.runPromise(
+            service.updateSubscription(userId, oldFeed, {
+                categoryId,
+                customFeedName: 'My blog',
+                filterRules: {
+                    excludeTitle: ['Sponsored'],
+                    excludeContent: [],
+                    excludeAuthor: [],
+                },
+            }),
+        );
+
+        // Dismissing hides the notice for this URL only.
+        await expect(
+            Effect.runPromise(
+                service.dismissMovedFeed(userId, oldFeed, newFeedUrl),
+            ),
+        ).resolves.toMatchObject({ subscription: { movedToUrl: null } });
+        await Effect.runPromise(
+            d1.run({
+                sql: `UPDATE feeds SET moved_to_url = ? WHERE id = ?`,
+                bindings: [`${newFeedUrl}?v=2`, oldFeed],
+            }),
+        );
+        await expect(
+            Effect.runPromise(repository.findSubscription(userId, oldFeed)),
+        ).resolves.toMatchObject({ movedToUrl: `${newFeedUrl}?v=2` });
+
+        await expect(
+            Effect.runPromise(
+                service.moveSubscription(
+                    userId,
+                    oldFeed,
+                    `https://moves.example.test/${oldFeed}.xml`,
+                ),
+            ),
+        ).rejects.toMatchObject({ reason: 'same_feed' });
+
+        await expect(
+            Effect.runPromise(
+                service.moveSubscription(userId, oldFeed, newFeedUrl),
+            ),
+        ).resolves.toMatchObject({
+            kind: 'moved',
+            keptOldSubscription: false,
+            subscription: {
+                feedId: newFeed,
+                categoryId,
+                customFeedName: 'My blog',
+                filterRules: { excludeTitle: ['Sponsored'] },
+                entryCount: 2,
+                unreadCount: 0,
+            },
+        });
+        await expect(subscribedFeedIds(userId)).resolves.toEqual([newFeed]);
     });
 });

@@ -17,6 +17,7 @@ export class SubscriptionConflict extends Schema.TaggedError<SubscriptionConflic
             'category_name_exists',
             'category_in_use',
             'already_subscribed',
+            'same_feed',
             'filter_rebuild_too_large',
             'filter_rebuild_stale',
         ]),

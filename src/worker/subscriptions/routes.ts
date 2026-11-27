@@ -5,6 +5,9 @@ import {
     CreateSubscriptionRequest,
     CreateSubscriptionResponse,
     DeleteResourceResponse,
+    DismissMovedFeedRequest,
+    MoveSubscriptionRequest,
+    MoveSubscriptionResponse,
     SubscriptionManagementResponse,
     SubscriptionMutationResponse,
     UpdateCategoryRequest,
@@ -266,9 +269,11 @@ const safeError = (error: unknown): SafeError => {
                         ? 'Move or remove feeds before deleting this category'
                         : reason === 'already_subscribed'
                           ? 'You are already subscribed to this feed'
-                          : reason === 'filter_rebuild_too_large'
-                            ? `Filters can be changed for feeds with up to ${MAX_FILTER_REAPPLY_ENTRIES.toLocaleString('en-US')} existing entries`
-                            : 'This change conflicts with existing data',
+                          : reason === 'same_feed'
+                            ? 'This URL leads to the feed you already follow'
+                            : reason === 'filter_rebuild_too_large'
+                              ? `Filters can be changed for feeds with up to ${MAX_FILTER_REAPPLY_ENTRIES.toLocaleString('en-US')} existing entries`
+                              : 'This change conflicts with existing data',
                 status: 409,
             };
         }
@@ -474,6 +479,65 @@ export const registerSubscriptionRoutes = (
                                 session.user.id,
                                 feedId,
                                 input,
+                            );
+                        }),
+                    ),
+                ),
+                Effect.flatMap((body) =>
+                    jsonResponse(SubscriptionMutationResponse, body),
+                ),
+            ),
+        ),
+    );
+
+    app.post('/api/subscriptions/:feedId/move', (context) =>
+        runRoute(
+            context.req.raw,
+            runtime(context.env).pipe(
+                Effect.flatMap((value) =>
+                    authenticatedMutation(context, value, (session) =>
+                        Effect.gen(function* () {
+                            const feedId = yield* decodeId(
+                                context.req.param('feedId'),
+                            );
+                            yield* value.limitFeedAdd(session.user.id);
+                            const input = yield* decodeJson(
+                                context.req.raw,
+                                MoveSubscriptionRequest,
+                            );
+                            return yield* value.service.moveSubscription(
+                                session.user.id,
+                                feedId,
+                                input.feedUrl,
+                            );
+                        }),
+                    ),
+                ),
+                Effect.flatMap((body) =>
+                    jsonResponse(MoveSubscriptionResponse, body),
+                ),
+            ),
+        ),
+    );
+
+    app.post('/api/subscriptions/:feedId/moved/dismiss', (context) =>
+        runRoute(
+            context.req.raw,
+            runtime(context.env).pipe(
+                Effect.flatMap((value) =>
+                    authenticatedMutation(context, value, (session) =>
+                        Effect.gen(function* () {
+                            const feedId = yield* decodeId(
+                                context.req.param('feedId'),
+                            );
+                            const input = yield* decodeJson(
+                                context.req.raw,
+                                DismissMovedFeedRequest,
+                            );
+                            return yield* value.service.dismissMovedFeed(
+                                session.user.id,
+                                feedId,
+                                input.movedToUrl,
                             );
                         }),
                     ),

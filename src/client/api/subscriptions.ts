@@ -9,6 +9,9 @@ import {
     type CreateSubscriptionRequest,
     CreateSubscriptionResponse,
     DeleteResourceResponse,
+    type DismissMovedFeedRequest,
+    type MoveSubscriptionRequest,
+    MoveSubscriptionResponse,
     SubscriptionManagementResponse,
     SubscriptionMutationResponse,
     type UpdateCategoryRequest,
@@ -26,6 +29,7 @@ export type SubscriptionFilterRules = ManagedSubscription['filterRules'];
 export type RefreshCommand = typeof RefreshCommandResponse.Type;
 export type FaviconRefresh = typeof FaviconRefreshResponse.Type;
 export type CreateSubscriptionResult = typeof CreateSubscriptionResponse.Type;
+export type MoveSubscriptionResult = typeof MoveSubscriptionResponse.Type;
 export type FeedDiscoveryCandidate = Extract<
     CreateSubscriptionResult,
     { readonly kind: 'selection_required' }
@@ -66,6 +70,18 @@ export interface UpdateSubscriptionInput {
     readonly categoryId: typeof UpdateSubscriptionRequest.Type.categoryId;
     readonly customFeedName: typeof UpdateSubscriptionRequest.Type.customFeedName;
     readonly filterRules: typeof UpdateSubscriptionRequest.Type.filterRules;
+    readonly csrfToken: string;
+}
+
+export interface MoveSubscriptionInput {
+    readonly feedId: number;
+    readonly feedUrl: typeof MoveSubscriptionRequest.Type.feedUrl;
+    readonly csrfToken: string;
+}
+
+export interface DismissMovedFeedInput {
+    readonly feedId: number;
+    readonly movedToUrl: typeof DismissMovedFeedRequest.Type.movedToUrl;
     readonly csrfToken: string;
 }
 
@@ -265,6 +281,38 @@ export const updateSubscription = Effect.fn(
                 customFeedName: input.customFeedName,
                 filterRules: input.filterRules,
             } satisfies typeof UpdateSubscriptionRequest.Type,
+            csrfToken: input.csrfToken,
+        },
+    ),
+);
+
+export const moveSubscription = Effect.fn(
+    'SubscriptionClient.moveSubscription',
+)((input: MoveSubscriptionInput) =>
+    requestJson(
+        `/api/subscriptions/${input.feedId}/move`,
+        MoveSubscriptionResponse,
+        {
+            method: 'POST',
+            body: {
+                feedUrl: input.feedUrl,
+            } satisfies typeof MoveSubscriptionRequest.Type,
+            csrfToken: input.csrfToken,
+        },
+    ),
+);
+
+export const dismissMovedFeed = Effect.fn(
+    'SubscriptionClient.dismissMovedFeed',
+)((input: DismissMovedFeedInput) =>
+    requestJson(
+        `/api/subscriptions/${input.feedId}/moved/dismiss`,
+        SubscriptionMutationResponse,
+        {
+            method: 'POST',
+            body: {
+                movedToUrl: input.movedToUrl,
+            } satisfies typeof DismissMovedFeedRequest.Type,
             csrfToken: input.csrfToken,
         },
     ),

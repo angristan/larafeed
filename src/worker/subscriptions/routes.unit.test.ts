@@ -1,6 +1,7 @@
 import {
     ApiErrorResponse,
     CreateSubscriptionResponse,
+    MoveSubscriptionResponse,
     SubscriptionManagementResponse,
 } from '@shared/http';
 import { Effect, Schema } from 'effect';
@@ -432,6 +433,58 @@ describe('subscription management routes', () => {
                 code: 'conflict',
                 message:
                     'Filters can be changed for feeds with up to 15,000 existing entries',
+            },
+        });
+    });
+    it('moves a subscription and explains a move to the same feed', async () => {
+        const calls: unknown[] = [];
+        const moved = await app(
+            subscriptionService({
+                moveSubscription: (userId, feedId, feedUrl) => {
+                    calls.push({ userId, feedId, feedUrl });
+                    return Effect.succeed({
+                        kind: 'moved' as const,
+                        subscription,
+                        keptOldSubscription: false,
+                    });
+                },
+            }),
+        ).request(
+            '/api/subscriptions/20/move',
+            request('POST', { feedUrl: 'https://example.test/feed.xml' }),
+        );
+        expect(moved.status).toBe(200);
+        await expect(
+            decode(moved, MoveSubscriptionResponse),
+        ).resolves.toMatchObject({
+            kind: 'moved',
+            subscription: { feedId: 21 },
+            keptOldSubscription: false,
+        });
+        expect(calls).toEqual([
+            {
+                userId: session.user.id,
+                feedId: 20,
+                feedUrl: 'https://example.test/feed.xml',
+            },
+        ]);
+
+        const same = await app(
+            subscriptionService({
+                moveSubscription: () =>
+                    Effect.fail(
+                        new SubscriptionConflict({ reason: 'same_feed' }),
+                    ),
+            }),
+        ).request(
+            '/api/subscriptions/21/move',
+            request('POST', { feedUrl: 'https://example.test/feed.xml' }),
+        );
+        expect(same.status).toBe(409);
+        await expect(decode(same, ApiErrorResponse)).resolves.toEqual({
+            error: {
+                code: 'conflict',
+                message: 'This URL leads to the feed you already follow',
             },
         });
     });

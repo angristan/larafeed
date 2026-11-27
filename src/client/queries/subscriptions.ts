@@ -10,7 +10,9 @@ import {
     createCategory,
     createSubscription,
     deleteCategory,
+    dismissMovedFeed,
     listManagedSubscriptions,
+    moveSubscription,
     refreshFavicon,
     refreshSubscription,
     SubscriptionClientError,
@@ -220,6 +222,54 @@ export function unsubscribeMutationOptions(queryClient: QueryClient) {
             queryClient.removeQueries({ queryKey: entryKeys.details() });
             await invalidateSubscriptionReadModels(queryClient);
         },
+    });
+}
+
+export interface MoveSubscriptionVariables {
+    readonly feedId: number;
+    readonly feedUrl: string;
+}
+
+export function moveSubscriptionMutationOptions(queryClient: QueryClient) {
+    return mutationOptions({
+        mutationKey: [...subscriptionManagementKeys.subscriptions(), 'move'],
+        retry: false,
+        mutationFn: (input: MoveSubscriptionVariables) =>
+            Effect.runPromise(
+                moveSubscription({
+                    ...input,
+                    csrfToken: requireCsrfToken(),
+                }),
+            ),
+        onSuccess: async (result) => {
+            if (result.kind !== 'moved') return;
+            // The old feed's entries may be gone.
+            queryClient.removeQueries({ queryKey: entryKeys.details() });
+            await invalidateSubscriptionReadModels(queryClient);
+        },
+    });
+}
+
+export interface DismissMovedFeedVariables {
+    readonly feedId: number;
+    readonly movedToUrl: string;
+}
+
+export function dismissMovedFeedMutationOptions(queryClient: QueryClient) {
+    return mutationOptions({
+        mutationKey: [
+            ...subscriptionManagementKeys.subscriptions(),
+            'dismiss-moved',
+        ],
+        retry: false,
+        mutationFn: (input: DismissMovedFeedVariables) =>
+            Effect.runPromise(
+                dismissMovedFeed({
+                    ...input,
+                    csrfToken: requireCsrfToken(),
+                }),
+            ),
+        onSuccess: async () => invalidateSubscriptionReadModels(queryClient),
     });
 }
 

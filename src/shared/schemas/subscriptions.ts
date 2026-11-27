@@ -142,6 +142,36 @@ export const CreateSubscriptionResponse = Schema.Union([
 ]);
 export type CreateSubscriptionResponse = typeof CreateSubscriptionResponse.Type;
 
+export class MoveSubscriptionRequest extends Schema.Class<MoveSubscriptionRequest>(
+    'MoveSubscriptionRequest',
+)({
+    feedUrl: NonEmptyString.check(Schema.isMaxLength(2_048)),
+}) {}
+
+export class SubscriptionMovedResponse extends Schema.Class<SubscriptionMovedResponse>(
+    'SubscriptionMovedResponse',
+)({
+    kind: Schema.Literal('moved'),
+    subscription: ManagedSubscription,
+    /**
+     * True when the old subscription still exists because some of its
+     * starred entries are not in the new feed.
+     */
+    keptOldSubscription: Schema.Boolean,
+}) {}
+
+export const MoveSubscriptionResponse = Schema.Union([
+    SubscriptionMovedResponse,
+    SubscriptionCandidateSelectionResponse,
+]);
+export type MoveSubscriptionResponse = typeof MoveSubscriptionResponse.Type;
+
+export class DismissMovedFeedRequest extends Schema.Class<DismissMovedFeedRequest>(
+    'DismissMovedFeedRequest',
+)({
+    movedToUrl: NonEmptyString.check(Schema.isMaxLength(2_048)),
+}) {}
+
 export class UpdateSubscriptionRequest extends Schema.Class<UpdateSubscriptionRequest>(
     'UpdateSubscriptionRequest',
 )({

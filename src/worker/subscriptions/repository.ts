@@ -132,6 +132,18 @@ export interface SubscriptionFilterCandidate {
     readonly contentHtml: string | null;
 }
 
+export interface MoveSubscriptionStateInput {
+    readonly userId: number;
+    readonly oldFeedId: number;
+    readonly newFeedId: number;
+    /**
+     * New-feed entries published at or before this time with no match in the
+     * old feed are marked read. Null skips this step.
+     */
+    readonly readUnmatchedPublishedThrough: number | null;
+    readonly now: number;
+}
+
 export interface SubscriptionRepository {
     readonly listManagement: (userId: number) => Effect.Effect<
         {
@@ -248,6 +260,29 @@ export interface SubscriptionRepository {
         | SubscriptionStorageError
         | SubscriptionInvariantError
     >;
+    /**
+     * Copies the user's state from the old feed to matching entries of the
+     * new one, then removes the old subscription. See
+     * {@link moveSubscriptionStatements} for the rules.
+     */
+    readonly moveSubscriptionState: (
+        input: MoveSubscriptionStateInput,
+    ) => Effect.Effect<
+        { readonly keptOldSubscription: boolean },
+        SubscriptionStorageError | SubscriptionInvariantError
+    >;
+    /** Hides the moved-feed notice while the feed still points to this URL. */
+    readonly dismissMovedFeed: (
+        userId: number,
+        feedId: number,
+        movedToUrl: string,
+        now: number,
+    ) => Effect.Effect<
+        void,
+        | SubscriptionNotFound
+        | SubscriptionStorageError
+        | SubscriptionInvariantError
+    >;
     readonly filterEntryWindow: (
         userId: number,
         feedId: number,
@@ -305,7 +340,10 @@ const subscriptionSelect = (where: string) => `SELECT
         THEN 1 ELSE 0 END), 0) AS entry_count,
     COALESCE(SUM(CASE WHEN e.id IS NOT NULL AND ei.filtered_at IS NULL
         AND ${effectiveRead} = 0 THEN 1 ELSE 0 END), 0) AS unread_count,
-    f.is_gone, f.moved_to_url, f.consecutive_failures, f.last_attempt_at,
+    f.is_gone,
+    CASE WHEN f.moved_to_url IS NOT fs.dismissed_moved_url
+        THEN f.moved_to_url END AS moved_to_url,
+    f.consecutive_failures, f.last_attempt_at,
     f.last_successful_refresh_at, f.last_failed_refresh_at,
     f.last_error_class, f.last_error_message,
     fs.filter_rules_json,
@@ -334,6 +372,142 @@ LEFT JOIN entry_interactions ei
     ON ei.user_id = fs.user_id AND ei.entry_id = e.id
 WHERE ${where}
 GROUP BY fs.user_id, fs.feed_id`;
+
+// An old and a new entry are the same article when they share a source
+// identity (GUID, else URL) or a link.
+const sameArticle = (oldEntry: string, newEntry: string) =>
+    `(${oldEntry}.deduplication_key = ${newEntry}.deduplication_key
+        OR (${newEntry}.url IS NOT NULL AND ${oldEntry}.url = ${newEntry}.url))`;
+
+/**
+ * Statements that move a subscription's state to another feed, run in one
+ * batch:
+ *
+ * 1. Each new entry that matches old entries takes their read, starred and
+ *    archived state. State the user already set on the new entry wins.
+ * 2. Optionally, unmatched new entries published before a cutoff are marked
+ *    read, so a fuller new feed does not bring back old articles as unread.
+ * 3. The old subscription is deleted, unless it has a starred entry with no
+ *    match in the new feed. Deleting it would delete that star.
+ * 4. The old feed is deleted when nobody else follows it.
+ * 5. The last statement reports whether the old subscription still exists.
+ */
+const moveSubscriptionStatements = (input: MoveSubscriptionStateInput) => {
+    const { userId, oldFeedId, newFeedId, now } = input;
+    const statements = [
+        {
+            sql: `INSERT INTO entry_interactions
+                (user_id, feed_id, entry_id, read_override, read_changed_at,
+                 starred_at, archived_at, created_at, updated_at)
+                SELECT ?, ?, moved.entry_id,
+                    CASE WHEN moved.was_read = 1 THEN 1 END,
+                    CASE WHEN moved.was_read = 1
+                        THEN COALESCE(moved.read_changed_at, ?) END,
+                    moved.starred_at, moved.archived_at, ?, ?
+                FROM (
+                    SELECT n.id AS entry_id,
+                        MAX(CASE
+                            WHEN oi.read_override IS NOT NULL THEN oi.read_override
+                            WHEN ofs.read_through_entry_id IS NOT NULL
+                                AND o.id <= ofs.read_through_entry_id THEN 1
+                            ELSE 0 END) AS was_read,
+                        MAX(oi.read_changed_at) AS read_changed_at,
+                        MAX(oi.starred_at) AS starred_at,
+                        MAX(oi.archived_at) AS archived_at
+                    FROM entries n
+                    JOIN feed_subscriptions ofs
+                        ON ofs.user_id = ? AND ofs.feed_id = ?
+                    JOIN entries o
+                        ON o.feed_id = ofs.feed_id AND ${sameArticle('o', 'n')}
+                    LEFT JOIN entry_interactions oi
+                        ON oi.user_id = ofs.user_id AND oi.entry_id = o.id
+                    WHERE n.feed_id = ?
+                    GROUP BY n.id
+                ) moved
+                WHERE moved.was_read = 1
+                    OR moved.starred_at IS NOT NULL
+                    OR moved.archived_at IS NOT NULL
+                ON CONFLICT (user_id, entry_id) DO UPDATE SET
+                    read_changed_at = CASE
+                        WHEN entry_interactions.read_override IS NULL
+                        THEN excluded.read_changed_at
+                        ELSE entry_interactions.read_changed_at END,
+                    read_override = COALESCE(
+                        entry_interactions.read_override, excluded.read_override),
+                    starred_at = COALESCE(
+                        entry_interactions.starred_at, excluded.starred_at),
+                    archived_at = COALESCE(
+                        entry_interactions.archived_at, excluded.archived_at),
+                    updated_at = MAX(
+                        entry_interactions.updated_at, excluded.updated_at)`,
+            bindings: [
+                userId,
+                newFeedId,
+                now,
+                now,
+                now,
+                userId,
+                oldFeedId,
+                newFeedId,
+            ],
+        },
+    ];
+    if (input.readUnmatchedPublishedThrough !== null) {
+        statements.push({
+            sql: `INSERT INTO entry_interactions
+                (user_id, feed_id, entry_id, read_override, read_changed_at,
+                 created_at, updated_at)
+                SELECT ?, n.feed_id, n.id, 1, ?, ?, ?
+                FROM entries n
+                WHERE n.feed_id = ? AND n.published_at <= ?
+                    AND NOT EXISTS (
+                        SELECT 1 FROM entries o
+                        WHERE o.feed_id = ? AND ${sameArticle('o', 'n')}
+                    )
+                ON CONFLICT (user_id, entry_id) DO NOTHING`,
+            bindings: [
+                userId,
+                now,
+                now,
+                now,
+                newFeedId,
+                input.readUnmatchedPublishedThrough,
+                oldFeedId,
+            ],
+        });
+    }
+    statements.push(
+        {
+            sql: `DELETE FROM feed_subscriptions
+                WHERE user_id = ? AND feed_id = ? AND NOT EXISTS (
+                    SELECT 1 FROM entry_interactions oi
+                    JOIN entries o ON o.id = oi.entry_id
+                    WHERE oi.user_id = ? AND oi.feed_id = ?
+                        AND oi.starred_at IS NOT NULL
+                        AND NOT EXISTS (
+                            SELECT 1 FROM entries n
+                            WHERE n.feed_id = ? AND ${sameArticle('o', 'n')}
+                        )
+                )`,
+            bindings: [userId, oldFeedId, userId, oldFeedId, newFeedId],
+        },
+        {
+            sql: `DELETE FROM feeds
+                WHERE id = ? AND NOT EXISTS (
+                    SELECT 1 FROM feed_subscriptions WHERE feed_id = ?
+                )`,
+            bindings: [oldFeedId, oldFeedId],
+        },
+        {
+            sql: `SELECT EXISTS (
+                    SELECT 1 FROM feed_subscriptions
+                    WHERE user_id = ? AND feed_id = ?
+                ) AS kept`,
+            bindings: [userId, oldFeedId],
+        },
+    );
+    return statements;
+};
 
 const invariant = (operation: string) =>
     new SubscriptionInvariantError({ operation });
@@ -1126,6 +1300,39 @@ export const makeSubscriptionRepository = (d1: D1): SubscriptionRepository => {
                 // D1 also includes cascaded history, entries, and aggregates
                 // when the final subscription deletes a feed.
                 yield* changeCount(operation, results[1]);
+            }),
+
+        moveSubscriptionState: (input) =>
+            Effect.gen(function* () {
+                const operation = 'subscriptions.move';
+                const results = yield* mapStorage(
+                    operation,
+                    d1.batch(moveSubscriptionStatements(input)),
+                );
+                const row = yield* decode(
+                    operation,
+                    Schema.Struct({ kept: BooleanInt }),
+                    results.at(-1)?.results[0],
+                );
+                return { keptOldSubscription: row.kept === 1 };
+            }),
+
+        dismissMovedFeed: (userId, feedId, movedToUrl, now) =>
+            Effect.gen(function* () {
+                const operation = 'subscriptions.dismissMoved';
+                const result = yield* mapStorage(
+                    operation,
+                    d1.run({
+                        sql: `UPDATE feed_subscriptions
+                            SET dismissed_moved_url = ?,
+                                updated_at = MAX(updated_at, ?)
+                            WHERE user_id = ? AND feed_id = ?`,
+                        bindings: [movedToUrl, now, userId, feedId],
+                    }),
+                );
+                if ((yield* changeCount(operation, result)) === 0) {
+                    return yield* Effect.fail(new SubscriptionNotFound());
+                }
             }),
 
         filterEntryWindow: (userId, feedId) =>
