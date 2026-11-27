@@ -18,6 +18,7 @@ import {
     Text,
     TextInput,
     Tooltip,
+    VisuallyHidden,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
@@ -107,6 +108,14 @@ interface ReaderSidebarProps {
     readonly error: Error | null;
     readonly onRetry: () => void;
     readonly onNavigate?: () => void;
+}
+
+/** Spoken after a feed or category name; the visible badge is aria-hidden. */
+function UnreadCountLabel({ count }: { readonly count: number }) {
+    if (count === 0) return null;
+    return (
+        <VisuallyHidden>{`, ${count.toLocaleString()} unread`}</VisuallyHidden>
+    );
 }
 
 function FilterLink({
@@ -1027,14 +1036,14 @@ export function FeedActions({
 }) {
     return (
         <div className={classes.managementControl}>
-            {showCount && (
+            {showCount && subscription.unreadCount > 0 && (
                 <Badge
                     aria-hidden="true"
                     className={`${classes.mainLinkBadge} ${classes.managementCount}`}
                     size="sm"
                     variant="default"
                 >
-                    {subscription.totalCount}
+                    {subscription.unreadCount.toLocaleString()}
                 </Badge>
             )}
             <Menu
@@ -1277,26 +1286,28 @@ function CategoryActionsMenuItems({
 function CategoryHeader({
     categoryId,
     name,
-    entriesCount,
+    unreadCount,
     feedCount,
     feedIds,
 }: {
     readonly categoryId: number;
     readonly name: string;
-    readonly entriesCount: number;
+    readonly unreadCount: number;
     readonly feedCount: number;
     readonly feedIds: readonly number[];
 }) {
     return (
         <div className={classes.managementControl}>
-            <Badge
-                aria-hidden="true"
-                className={`${classes.mainLinkBadge} ${classes.managementCount}`}
-                size="sm"
-                variant="default"
-            >
-                {entriesCount}
-            </Badge>
+            {unreadCount > 0 && (
+                <Badge
+                    aria-hidden="true"
+                    className={`${classes.mainLinkBadge} ${classes.managementCount}`}
+                    size="sm"
+                    variant="default"
+                >
+                    {unreadCount.toLocaleString()}
+                </Badge>
+            )}
             <Menu
                 classNames={{
                     dropdown: classes.managementMenuDropdown,
@@ -1443,8 +1454,8 @@ export const ReaderSidebar = memo(function ReaderSidebar({
             model.push({
                 categoryId: category.id,
                 categoryName: category.name,
-                entriesCount: categorySubscriptions.reduce(
-                    (total, subscription) => total + subscription.totalCount,
+                unreadCount: categorySubscriptions.reduce(
+                    (total, subscription) => total + subscription.unreadCount,
                     0,
                 ),
                 feedCount: categorySubscriptions.length,
@@ -1670,7 +1681,7 @@ export const ReaderSidebar = memo(function ReaderSidebar({
                                                 }
                                                 categoryId={row.categoryId}
                                                 categoryName={row.categoryName}
-                                                entriesCount={row.entriesCount}
+                                                unreadCount={row.unreadCount}
                                                 feedCount={row.feedCount}
                                                 feedIds={row.feedIds}
                                                 href={readerHref(state, {
@@ -1724,7 +1735,7 @@ type SidebarRow =
           readonly categoryId: number;
           readonly categoryName: string;
           readonly opened: boolean;
-          readonly entriesCount: number;
+          readonly unreadCount: number;
           readonly feedCount: number;
           readonly feedIds: readonly number[];
       }
@@ -1745,7 +1756,7 @@ interface CategoryRowProps {
     readonly active: boolean;
     readonly categoryId: number;
     readonly categoryName: string;
-    readonly entriesCount: number;
+    readonly unreadCount: number;
     readonly feedCount: number;
     readonly feedIds: readonly number[];
     readonly href: string;
@@ -1776,7 +1787,7 @@ const CategoryRow = memo(function CategoryRow({
     active,
     categoryId,
     categoryName,
-    entriesCount,
+    unreadCount,
     feedCount,
     feedIds,
     href,
@@ -1796,13 +1807,18 @@ const CategoryRow = memo(function CategoryRow({
                 active={active}
                 className={classes.categoryNavigation}
                 component={Link}
-                label={categoryName}
+                label={
+                    <>
+                        {categoryName}
+                        <UnreadCountLabel count={unreadCount} />
+                    </>
+                }
                 onClick={onNavigate}
                 to={href}
             />
             <CategoryHeader
                 categoryId={categoryId}
-                entriesCount={entriesCount}
+                unreadCount={unreadCount}
                 feedCount={feedCount}
                 feedIds={feedIds}
                 name={categoryName}
@@ -1909,6 +1925,9 @@ const FeedRow = memo(function FeedRow({
                                 />
                             </Indicator>
                             <span className={classes.feedName}>{name}</span>
+                            <UnreadCountLabel
+                                count={subscription.unreadCount}
+                            />
                         </div>
                     </Link>
                     <FeedActions

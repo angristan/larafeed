@@ -11,7 +11,96 @@ import {
     ReaderSidebar,
 } from './ReaderSidebar';
 
+type SidebarProps = Parameters<typeof ReaderSidebar>[0];
+
+const cloudflare = {
+    feedId: 8,
+    categoryId: 3,
+    feedName: 'Cloudflare Blog',
+    customFeedName: null,
+    faviconUrl: null,
+    faviconIsDark: false,
+    totalCount: 20,
+    unreadCount: 6,
+};
+
+const renderSidebar = (overrides: Partial<SidebarProps> = {}): string => {
+    const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+    });
+    return renderToStaticMarkup(
+        <MemoryRouter>
+            <QueryClientProvider client={queryClient}>
+                <MantineProvider>
+                    <AppShell
+                        header={{ height: 56 }}
+                        navbar={{ width: 300, breakpoint: 'sm' }}
+                    >
+                        <AppShell.Navbar>
+                            <ReaderSidebar
+                                categories={[
+                                    { id: 3, name: 'Technology' },
+                                    { id: 4, name: 'Newsletters' },
+                                ]}
+                                counts={{
+                                    total: 40,
+                                    unread: 6,
+                                    read: 34,
+                                    starred: 2,
+                                }}
+                                error={null}
+                                isPending={false}
+                                onRetry={() => undefined}
+                                state={{
+                                    feedId: null,
+                                    categoryId: null,
+                                    filter: 'unread',
+                                    orderBy: 'published_at',
+                                    entryId: null,
+                                    summarize: false,
+                                }}
+                                subscriptions={[cloudflare]}
+                                {...overrides}
+                            />
+                        </AppShell.Navbar>
+                    </AppShell>
+                </MantineProvider>
+            </QueryClientProvider>
+        </MemoryRouter>,
+    );
+};
+
 describe('ReaderSidebar', () => {
+    it('shows unread counts and speaks them with the feed name', () => {
+        const markup = renderSidebar({
+            subscriptions: [
+                cloudflare,
+                {
+                    ...cloudflare,
+                    feedId: 9,
+                    feedName: 'Quiet Feed',
+                    totalCount: 50,
+                    unreadCount: 0,
+                },
+            ],
+        });
+        const badges = [...markup.matchAll(/Badge-label[^>]*>([^<]+)</gu)].map(
+            (match) => match[1],
+        );
+        const text = markup.replace(/<[^>]+>/gu, '');
+
+        // Badges show unread entries, not every stored entry, and a feed
+        // with nothing unread shows no badge.
+        expect(badges).toContain('6');
+        expect(badges).not.toContain('20');
+        expect(badges).not.toContain('50');
+        expect(badges).not.toContain('0');
+        // The count is part of the link name, so screen readers hear it.
+        expect(text).toContain('Cloudflare Blog, 6 unread');
+        expect(text).toContain('Technology, 6 unread');
+        expect(text).not.toContain('Quiet Feed, ');
+    });
+
     it('renders the original filters, categories, and feed hierarchy', () => {
         const queryClient = new QueryClient({
             defaultOptions: { queries: { retry: false } },
