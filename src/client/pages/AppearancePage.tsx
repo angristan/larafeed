@@ -130,11 +130,12 @@ function FeedListSection() {
 
 export function AppearancePage() {
     return (
-        <ApplicationPage activePage="settings" settingsNavigation>
-            <ApplicationSettingsContent
-                description="Adjust how Larafeed looks on this device."
-                title="Settings"
-            >
+        <ApplicationPage
+            activePage="settings"
+            pageTitle="Appearance"
+            settingsNavigation
+        >
+            <ApplicationSettingsContent title="Appearance">
                 <ApplicationWorkSurface>
                     <FeedListSection />
                 </ApplicationWorkSurface>

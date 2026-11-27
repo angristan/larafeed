@@ -25,8 +25,8 @@ import { Link } from 'react-router';
 
 import type { ManagedAccessLink, ManagedUser } from '../api/account';
 import {
-    ApplicationContent,
     ApplicationPage,
+    ApplicationSettingsContent,
 } from '../components/ApplicationPage';
 import {
     adminOverviewQueryOptions,
@@ -325,10 +325,7 @@ export function AdminUsersPage() {
             pageTitle="Administration"
             settingsNavigation
         >
-            <ApplicationContent
-                description="Invite users, issue recovery links, control access, and review security events."
-                title="Administration"
-            >
+            <ApplicationSettingsContent title="Administration">
                 <EnrollmentForm />
                 {overview.isPending ? (
                     <Stack gap="md">
@@ -594,7 +591,7 @@ export function AdminUsersPage() {
                         My security settings
                     </Button>
                 </Group>
-            </ApplicationContent>
+            </ApplicationSettingsContent>
         </ApplicationPage>
     );
 }

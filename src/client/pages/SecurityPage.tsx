@@ -152,14 +152,13 @@ function ProfileSection() {
     };
 
     return (
-        <Stack component="section" gap="lg" id="profile" maw={600}>
-            <Stack gap={3}>
-                <Title order={2}>Profile settings</Title>
-                <Text c="dimmed" size="sm">
-                    Update the name and email attached to your private account.
-                </Text>
-            </Stack>
-            <Divider />
+        <Stack
+            aria-label="Profile"
+            component="section"
+            gap="lg"
+            id="profile"
+            maw={600}
+        >
             {profile.isPending ? (
                 <Stack gap="sm">
                     <Skeleton height={62} />
@@ -399,14 +398,7 @@ function PasskeysSection() {
     return (
         <Stack component="section" gap="lg" id="security" maw={600}>
             <Stack gap={3}>
-                <Title order={2}>Security</Title>
-                <Text c="dimmed" size="sm">
-                    Manage the sign-in methods that protect this account.
-                </Text>
-            </Stack>
-            <Divider />
-            <Stack gap={3}>
-                <Title order={3}>Passkeys</Title>
+                <Title order={2}>Passkeys</Title>
                 <Text c="dimmed" size="sm">
                     Keep at least two passkeys on separate devices for safer
                     recovery.
@@ -717,13 +709,15 @@ export function SecurityPage() {
     const profile = useQuery(accountQueryOptions);
     const location = useLocation();
     const section = location.hash === '#security' ? 'security' : 'profile';
+    const title = section === 'security' ? 'Security' : 'Profile';
 
     return (
-        <ApplicationPage activePage="settings" settingsNavigation>
-            <ApplicationSettingsContent
-                description="Manage your account, preferences, and data import/export tools."
-                title="Settings"
-            >
+        <ApplicationPage
+            activePage="settings"
+            pageTitle={title}
+            settingsNavigation
+        >
+            <ApplicationSettingsContent title={title}>
                 {section === 'security' ? (
                     <ApplicationWorkSurface>
                         <PasskeysSection />

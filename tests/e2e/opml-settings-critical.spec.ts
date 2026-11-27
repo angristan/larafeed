@@ -186,18 +186,18 @@ test('preserves legacy settings deep links and page-specific titles', async ({
     await expect(page).toHaveURL(
         /\/settings\/security\?source=legacy#profile$/u,
     );
-    await expect(page).toHaveTitle('Settings - Larafeed');
+    await expect(page).toHaveTitle('Profile - Larafeed');
     await expect(
-        page.getByRole('heading', { name: 'Profile settings' }),
+        page.getByRole('heading', { level: 1, name: 'Profile' }),
     ).toBeVisible();
 
     await page.goto('/profile?section=security&source=legacy');
     await expect(page).toHaveURL(
         /\/settings\/security\?source=legacy#security$/u,
     );
-    await expect(page).toHaveTitle('Settings - Larafeed');
+    await expect(page).toHaveTitle('Security - Larafeed');
     await expect(
-        page.getByRole('heading', { name: 'Security', exact: true }),
+        page.getByRole('heading', { level: 1, name: 'Security' }),
     ).toBeVisible();
 
     await page.goto('/profile?section=opml&source=legacy#history');

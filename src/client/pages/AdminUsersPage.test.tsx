@@ -82,6 +82,7 @@ describe('AdminUsersPage', () => {
         );
 
         expect(markup).toContain('Invite a user');
+        expect(markup).toMatch(/<h1[^>]*>Administration<\/h1>/u);
         expect(markup).toContain('Disabled user');
         expect(markup).toContain('Reactivate');
         expect(markup).toContain('Revoked');

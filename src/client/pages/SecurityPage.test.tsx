@@ -59,8 +59,9 @@ describe('SecurityPage', () => {
             );
 
         const profileMarkup = render('/settings/security#profile');
-        expect(profileMarkup).toContain('Settings');
-        expect(profileMarkup).toContain('Profile settings');
+        // The page heading names the open section, not the whole area.
+        expect(profileMarkup).toMatch(/<h1[^>]*>Profile<\/h1>/u);
+        expect(profileMarkup).not.toContain('Manage your account');
         expect(profileMarkup).toContain('reader@example.test');
         expect(profileMarkup).toContain('Clear reader data');
         expect(profileMarkup).toContain('Delete account');
@@ -69,10 +70,10 @@ describe('SecurityPage', () => {
         expect(profileMarkup).not.toContain('Laptop');
 
         const securityMarkup = render('/settings/security#security');
-        expect(securityMarkup).toContain('Security');
+        expect(securityMarkup).toMatch(/<h1[^>]*>Security<\/h1>/u);
         expect(securityMarkup).toContain('Laptop');
         expect(securityMarkup).toContain('Add another passkey before deleting');
-        expect(securityMarkup).not.toContain('Profile settings');
+        expect(securityMarkup).not.toContain('reader@example.test');
         expect(securityMarkup).toContain('Import &amp; export');
         expect(securityMarkup).toContain('Administration');
     });
