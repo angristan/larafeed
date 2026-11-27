@@ -1332,7 +1332,7 @@ function CategoryHeader({
     );
 }
 
-export function ReaderSidebar({
+export const ReaderSidebar = memo(function ReaderSidebar({
     state,
     categories,
     subscriptions,
@@ -1716,7 +1716,7 @@ export function ReaderSidebar({
             </AppShell.Section>
         </>
     );
-}
+});
 
 type SidebarRow =
     | {

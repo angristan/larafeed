@@ -189,7 +189,7 @@ const ReaderEntryRow = memo(function ReaderEntryRow({
     );
 });
 
-export function ReaderEntryList({
+export const ReaderEntryList = memo(function ReaderEntryList({
     density,
     state,
     scopeTitle,
@@ -574,4 +574,4 @@ export function ReaderEntryList({
             </ScrollArea>
         </section>
     );
-}
+});

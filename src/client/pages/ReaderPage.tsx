@@ -14,7 +14,14 @@ import {
     useQueryClient,
 } from '@tanstack/react-query';
 import { Effect } from 'effect';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    useCallback,
+    useEffect,
+    useEffectEvent,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
 
 import {
@@ -199,6 +206,10 @@ export function ReaderPage() {
             sessionQuery.data?.authenticated !== false,
     });
     const entryMutations = useEntryInteractionMutations(selectedEntryId);
+    // mutate is stable for the life of the page, unlike the mutation results.
+    const markEntryRead = entryMutations.read.mutate;
+    const markEntryStarred = entryMutations.star.mutate;
+    const markEntryArchived = entryMutations.archive.mutate;
     const openedReadAttempt = useRef<number | null>(null);
     const [returnFocusEntryId, setReturnFocusEntryId] = useState<number | null>(
         null,
@@ -259,7 +270,7 @@ export function ReaderPage() {
         }
 
         openedReadAttempt.current = entry.id;
-        entryMutations.read.mutate(true, {
+        markEntryRead(true, {
             onError: (mutationError) =>
                 notifications.show({
                     title: 'Failed to mark entry as read',
@@ -268,72 +279,183 @@ export function ReaderPage() {
                     withBorder: true,
                 }),
         });
-    }, [entryDetailQuery.data, entryMutations.read, state.entryId]);
+    }, [entryDetailQuery.data, markEntryRead, state.entryId]);
+
+    // An effect event reads the latest list and query state, so the window
+    // listener is added once instead of after every render.
+    const navigateList = useEffectEvent((event: KeyboardEvent) => {
+        if (
+            event.defaultPrevented ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.altKey ||
+            isEditableTarget(event.target)
+        ) {
+            return;
+        }
+
+        const key = event.key.toLowerCase();
+        if (key !== 'j' && key !== 'k') {
+            return;
+        }
+
+        if (listEntries.length === 0) {
+            return;
+        }
+
+        const currentIndex = listEntries.findIndex(
+            (entry) => entry.id === state.entryId,
+        );
+        const nextIndex =
+            currentIndex === -1 ? 0 : currentIndex + (key === 'j' ? 1 : -1);
+        if (nextIndex < 0) {
+            return;
+        }
+        if (nextIndex >= listEntries.length) {
+            if (
+                entryListQuery.hasNextPage &&
+                !entryListQuery.isFetchingNextPage
+            ) {
+                event.preventDefault();
+                void entryListQuery.fetchNextPage().then((result) => {
+                    const next = flattenEntries(result.data?.pages ?? []).at(
+                        nextIndex,
+                    );
+                    if (next !== undefined) {
+                        void navigate(
+                            readerHref(state, {
+                                entryId: next.id,
+                                summarize: state.summarize,
+                            }),
+                        );
+                    }
+                });
+            }
+            return;
+        }
+
+        event.preventDefault();
+        void navigate(
+            readerHref(state, {
+                entryId: listEntries[nextIndex].id,
+                summarize: state.summarize,
+            }),
+        );
+    });
 
     useEffect(() => {
-        const navigateList = (event: KeyboardEvent) => {
-            if (
-                event.defaultPrevented ||
-                event.metaKey ||
-                event.ctrlKey ||
-                event.altKey ||
-                isEditableTarget(event.target)
-            ) {
-                return;
-            }
+        const onKeyDown = (event: KeyboardEvent) => navigateList(event);
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, []);
 
-            const key = event.key.toLowerCase();
-            if (key !== 'j' && key !== 'k') {
-                return;
-            }
+    // Stable callbacks keep the memoized list, detail, and sidebar from
+    // re-rendering when unrelated page state changes.
+    const { hasNextPage, isFetchingNextPage, fetchNextPage } = entryListQuery;
+    const loadMoreEntries = useCallback(() => {
+        if (hasNextPage && !isFetchingNextPage) {
+            void fetchNextPage();
+        }
+    }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+    const retryEntryList = useCallback(() => {
+        void refetchEntryList();
+    }, [refetchEntryList]);
+    const restoreFocusHandled = useCallback(
+        () => setReturnFocusEntryId(null),
+        [],
+    );
+    const refetchEntryDetail = entryDetailQuery.refetch;
+    const retryEntryDetail = useCallback(() => {
+        void refetchEntryDetail();
+    }, [refetchEntryDetail]);
+    const refetchCategories = categoriesQuery.refetch;
+    const refetchSubscriptions = subscriptionsQuery.refetch;
+    const refetchCounts = countsQuery.refetch;
+    const retrySidebar = useCallback(() => {
+        void refetchCategories();
+        void refetchSubscriptions();
+        void refetchCounts();
+    }, [refetchCategories, refetchCounts, refetchSubscriptions]);
 
-            if (listEntries.length === 0) {
-                return;
-            }
-
-            const currentIndex = listEntries.findIndex(
-                (entry) => entry.id === state.entryId,
-            );
-            const nextIndex =
-                currentIndex === -1 ? 0 : currentIndex + (key === 'j' ? 1 : -1);
-            if (nextIndex < 0) {
-                return;
-            }
-            if (nextIndex >= listEntries.length) {
-                if (
-                    entryListQuery.hasNextPage &&
-                    !entryListQuery.isFetchingNextPage
-                ) {
-                    event.preventDefault();
-                    void entryListQuery.fetchNextPage().then((result) => {
-                        const next = flattenEntries(
-                            result.data?.pages ?? [],
-                        ).at(nextIndex);
-                        if (next !== undefined) {
-                            void navigate(
-                                readerHref(state, {
-                                    entryId: next.id,
-                                    summarize: state.summarize,
-                                }),
-                            );
-                        }
-                    });
-                }
-                return;
-            }
-
-            event.preventDefault();
-            void navigate(
-                readerHref(state, {
-                    entryId: listEntries[nextIndex].id,
-                    summarize: state.summarize,
-                }),
-            );
-        };
-
-        window.addEventListener('keydown', navigateList);
-        return () => window.removeEventListener('keydown', navigateList);
-    }, [listEntries, entryListQuery, navigate, state]);
+    const backToList = useCallback(() => {
+        setReturnFocusEntryId(state.entryId);
+        openedReadAttempt.current = null;
+        void navigate(readerHref(state, { entryId: null }));
+    }, [navigate, state]);
+    const setSummarize = useCallback(
+        (summarize: boolean) => void navigate(readerHref(state, { summarize })),
+        [navigate, state],
+    );
+    const setRead = useCallback(
+        (read: boolean) =>
+            markEntryRead(read, {
+                onSuccess: () =>
+                    notifications.show({
+                        title: read ? 'Marked as read' : 'Marked as unread',
+                        message: read
+                            ? 'Entry marked as read'
+                            : 'Entry marked as unread',
+                        color: 'blue',
+                        withBorder: true,
+                    }),
+                onError: (mutationError) =>
+                    notifications.show({
+                        title: read
+                            ? 'Failed to mark entry as read'
+                            : 'Failed to mark entry as unread',
+                        message: mutationError.message,
+                        color: 'red',
+                        withBorder: true,
+                    }),
+            }),
+        [markEntryRead],
+    );
+    const setStarred = useCallback(
+        (starred: boolean) =>
+            markEntryStarred(starred, {
+                onSuccess: () =>
+                    notifications.show({
+                        title: starred
+                            ? 'Added to favorites'
+                            : 'Removed from favorites',
+                        message: starred
+                            ? 'The entry is now in Favorites.'
+                            : 'The entry was removed from Favorites.',
+                        color: 'blue',
+                        withBorder: true,
+                    }),
+                onError: (mutationError) =>
+                    notifications.show({
+                        title: 'Failed to star entry',
+                        message: mutationError.message,
+                        color: 'red',
+                        withBorder: true,
+                    }),
+            }),
+        [markEntryStarred],
+    );
+    const setArchived = useCallback(
+        (archived: boolean) =>
+            markEntryArchived(archived, {
+                onSuccess: () =>
+                    notifications.show({
+                        title: archived ? 'Entry archived' : 'Entry restored',
+                        message: archived ? 'Entry archived' : 'Entry restored',
+                        color: 'blue',
+                        withBorder: true,
+                    }),
+                onError: (mutationError) =>
+                    notifications.show({
+                        title: archived
+                            ? 'Failed to archive entry'
+                            : 'Failed to restore entry',
+                        message: mutationError.message,
+                        color: 'red',
+                        withBorder: true,
+                    }),
+            }),
+        [markEntryArchived],
+    );
 
     if (sessionQuery.data !== undefined && !sessionQuery.data.authenticated) {
         return <Navigate to="/login" replace />;
@@ -369,12 +491,6 @@ export function ReaderPage() {
             ? `${baseScopeTitle}: ${filterTitles[state.filter]}`
             : baseScopeTitle;
 
-    const backToList = () => {
-        setReturnFocusEntryId(state.entryId);
-        openedReadAttempt.current = null;
-        void navigate(readerHref(state, { entryId: null }));
-    };
-
     return (
         <AppShell
             className={classes.shell}
@@ -402,11 +518,7 @@ export function ReaderPage() {
                             countsQuery.isPending
                         }
                         onNavigate={navbar.close}
-                        onRetry={() => {
-                            void categoriesQuery.refetch();
-                            void subscriptionsQuery.refetch();
-                            void countsQuery.refetch();
-                        }}
+                        onRetry={retrySidebar}
                         state={state}
                         subscriptions={subscriptions}
                     />
@@ -446,20 +558,11 @@ export function ReaderPage() {
                                 entryListQuery.isFetchingNextPage
                             }
                             isPending={entryListQuery.isPending}
-                            onLoadMore={() => {
-                                if (
-                                    entryListQuery.hasNextPage &&
-                                    !entryListQuery.isFetchingNextPage
-                                ) {
-                                    void entryListQuery.fetchNextPage();
-                                }
-                            }}
+                            onLoadMore={loadMoreEntries}
                             onShowNewEntries={showNewEntries}
                             onPrefetchEntry={prefetchEntry}
-                            onRestoreFocusHandled={() =>
-                                setReturnFocusEntryId(null)
-                            }
-                            onRetry={() => void entryListQuery.refetch()}
+                            onRestoreFocusHandled={restoreFocusHandled}
+                            onRetry={retryEntryList}
                             restoreFocusEntryId={returnFocusEntryId}
                             state={state}
                             total={
@@ -477,80 +580,11 @@ export function ReaderPage() {
                             isPending={entryDetailQuery.isPending}
                             mutationError={mutationError}
                             onBack={backToList}
-                            onRetry={() => void entryDetailQuery.refetch()}
-                            onSetArchived={(archived) =>
-                                entryMutations.archive.mutate(archived, {
-                                    onSuccess: () =>
-                                        notifications.show({
-                                            title: archived
-                                                ? 'Entry archived'
-                                                : 'Entry restored',
-                                            message: archived
-                                                ? 'Entry archived'
-                                                : 'Entry restored',
-                                            color: 'blue',
-                                            withBorder: true,
-                                        }),
-                                    onError: (mutationError) =>
-                                        notifications.show({
-                                            title: archived
-                                                ? 'Failed to archive entry'
-                                                : 'Failed to restore entry',
-                                            message: mutationError.message,
-                                            color: 'red',
-                                            withBorder: true,
-                                        }),
-                                })
-                            }
-                            onSetRead={(read) =>
-                                entryMutations.read.mutate(read, {
-                                    onSuccess: () =>
-                                        notifications.show({
-                                            title: read
-                                                ? 'Marked as read'
-                                                : 'Marked as unread',
-                                            message: read
-                                                ? 'Entry marked as read'
-                                                : 'Entry marked as unread',
-                                            color: 'blue',
-                                            withBorder: true,
-                                        }),
-                                    onError: (mutationError) =>
-                                        notifications.show({
-                                            title: read
-                                                ? 'Failed to mark entry as read'
-                                                : 'Failed to mark entry as unread',
-                                            message: mutationError.message,
-                                            color: 'red',
-                                            withBorder: true,
-                                        }),
-                                })
-                            }
-                            onSetStarred={(starred) =>
-                                entryMutations.star.mutate(starred, {
-                                    onSuccess: () =>
-                                        notifications.show({
-                                            title: starred
-                                                ? 'Added to favorites'
-                                                : 'Removed from favorites',
-                                            message: starred
-                                                ? 'The entry is now in Favorites.'
-                                                : 'The entry was removed from Favorites.',
-                                            color: 'blue',
-                                            withBorder: true,
-                                        }),
-                                    onError: (mutationError) =>
-                                        notifications.show({
-                                            title: 'Failed to star entry',
-                                            message: mutationError.message,
-                                            color: 'red',
-                                            withBorder: true,
-                                        }),
-                                })
-                            }
-                            onSetSummarize={(summarize) =>
-                                void navigate(readerHref(state, { summarize }))
-                            }
+                            onRetry={retryEntryDetail}
+                            onSetArchived={setArchived}
+                            onSetRead={setRead}
+                            onSetStarred={setStarred}
+                            onSetSummarize={setSummarize}
                             previewEntry={previewEntry}
                             readPending={entryMutations.read.isPending}
                             selected={state.entryId !== null}

@@ -41,7 +41,7 @@ import {
     useQuery,
     useQueryClient,
 } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ReaderEntry, ReaderEntryPage } from '../../api/reader';
 import {
@@ -388,7 +388,7 @@ function ReaderEntrySummary({ entryId }: { readonly entryId: number }) {
     );
 }
 
-export function ReaderEntryDetail({
+export const ReaderEntryDetail = memo(function ReaderEntryDetail({
     entry,
     previewEntry,
     selected,
@@ -991,4 +991,4 @@ export function ReaderEntryDetail({
             </ScrollArea>
         </Flex>
     );
-}
+});
