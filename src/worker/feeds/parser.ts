@@ -828,6 +828,57 @@ const entriesFromCandidates = async (
     return entries.reverse();
 };
 
+const decoderFor = (label: string | undefined): TextDecoder | undefined => {
+    if (label === undefined) return undefined;
+    try {
+        return new TextDecoder(label);
+    } catch {
+        return undefined;
+    }
+};
+
+const bomEncoding = (bytes: Uint8Array): string | undefined => {
+    if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+        return 'utf-8';
+    }
+    if (bytes[0] === 0xfe && bytes[1] === 0xff) return 'utf-16be';
+    if (bytes[0] === 0xff && bytes[1] === 0xfe) return 'utf-16le';
+    return undefined;
+};
+
+const contentTypeCharset = (
+    contentType: string | null | undefined,
+): string | undefined =>
+    contentType == null
+        ? undefined
+        : /;\s*charset\s*=\s*"?([A-Za-z0-9_.:-]{1,40})/iu.exec(
+              contentType,
+          )?.[1];
+
+const xmlDeclarationEncoding = (bytes: Uint8Array): string | undefined => {
+    // The declaration is ASCII in every ASCII-compatible encoding.
+    const head = new TextDecoder('windows-1252').decode(bytes.subarray(0, 512));
+    return /^\s*<\?xml\s[^>]*?\bencoding\s*=\s*["']([A-Za-z0-9_.:-]{1,40})["']/u.exec(
+        head,
+    )?.[1];
+};
+
+/**
+ * Decode with the byte order mark, then the HTTP charset, then the XML
+ * declaration, as XML and HTTP define. Unknown labels fall back to UTF-8.
+ */
+const decodeFeedBytes = (
+    bytes: Uint8Array,
+    contentType: string | null | undefined,
+): string => {
+    const decoder =
+        decoderFor(bomEncoding(bytes)) ??
+        decoderFor(contentTypeCharset(contentType)) ??
+        decoderFor(xmlDeclarationEncoding(bytes)) ??
+        new TextDecoder();
+    return decoder.decode(bytes);
+};
+
 export const parseFeedDocument = async (
     bytes: Uint8Array,
     options: ParseFeedOptions,
@@ -835,7 +886,7 @@ export const parseFeedDocument = async (
     if (bytes.byteLength === 0) {
         throw new FeedParseError({ reason: 'empty_document' });
     }
-    const decoded = new TextDecoder().decode(bytes);
+    const decoded = decodeFeedBytes(bytes, options.contentType);
     const source = decoded.startsWith('\ufeff') ? decoded.slice(1) : decoded;
     const contentType = options.contentType
         ?.split(';', 1)[0]

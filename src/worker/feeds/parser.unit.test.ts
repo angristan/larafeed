@@ -180,6 +180,57 @@ describe('feed parser', () => {
         );
     });
 
+    it('decodes documents with the declared character encoding', async () => {
+        // "Café ’" in windows-1252, where 0x92 is a right single quote.
+        const latin = (text: string) =>
+            Uint8Array.from(
+                text.replaceAll('{e}', '\u00e9').replace('{q}', '\u0092'),
+                (character) => character.charCodeAt(0),
+            );
+        const rss = (declaration: string) =>
+            latin(`${declaration}<rss version="2.0"><channel><title>Caf{e} {q}</title>
+                <item><guid>1</guid><title>Entr{e}e</title><pubDate>Sat, 18 Jul 2026 09:00:00 GMT</pubDate></item>
+            </channel></rss>`);
+        const titles = async (
+            body: Uint8Array,
+            contentType: string | null = null,
+        ) => {
+            const feed = await parseFeedDocument(body, {
+                finalUrl,
+                fetchedAt,
+                contentType,
+            });
+            return [feed.metadata.title, feed.entries[0]?.title];
+        };
+
+        await expect(
+            titles(rss(''), 'application/rss+xml; charset=windows-1252'),
+        ).resolves.toEqual(['Café ’', 'Entrée']);
+        await expect(
+            titles(
+                rss('<?xml version="1.0" encoding="ISO-8859-1"?>'),
+                'text/xml',
+            ),
+        ).resolves.toEqual(['Café ’', 'Entrée']);
+        // The HTTP charset wins over the XML declaration.
+        await expect(
+            titles(
+                bytes(
+                    '<?xml version="1.0" encoding="ISO-8859-1"?><rss version="2.0"><channel><title>Café</title></channel></rss>',
+                ),
+                'application/xml; charset=utf-8',
+            ),
+        ).resolves.toEqual(['Café', undefined]);
+        // An unknown label falls back to UTF-8.
+        await expect(
+            titles(
+                bytes(
+                    '<?xml version="1.0" encoding="x-unknown"?><rss version="2.0"><channel><title>Café</title></channel></rss>',
+                ),
+            ),
+        ).resolves.toEqual(['Café', undefined]);
+    });
+
     it('decodes Atom title entities once and skips future updated entries', async () => {
         const feed = await parse(`<feed xmlns="http://www.w3.org/2005/Atom">
             <title>Here&#8217;s &amp; Atom &amp;amp; &amp;mdash;</title>
