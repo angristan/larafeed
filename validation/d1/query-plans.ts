@@ -94,6 +94,50 @@ export const queryPlanSpecs = (
             required: ['INTEGER PRIMARY KEY'],
         },
         {
+            // The reader's new-entry check counts only recent ingestions.
+            name: 'reader.new_entries',
+            sql: `SELECT COUNT(*) AS total FROM entries e
+                JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id
+                LEFT JOIN entry_interactions ei
+                    ON ei.user_id = fs.user_id AND ei.entry_id = e.id
+                WHERE fs.user_id = ? AND ei.filtered_at IS NULL
+                    AND e.created_at >= ?`,
+            bindings: [primaryUserId, fixture.generatedAt],
+            required: ['entries_feed_created (feed_id=? AND created_at>?)'],
+        },
+        {
+            // Refresh commits match their entries by deduplication key.
+            name: 'refresh.entry_keys',
+            sql: `SELECT e.id FROM json_each(?) mapping
+                CROSS JOIN entries e
+                  ON e.feed_id = ?
+                 AND e.deduplication_key = unhex(json_extract(mapping.value, '$.deduplicationKey'))`,
+            bindings: [
+                JSON.stringify([{ deduplicationKey: '00'.repeat(32) }]),
+                primaryFeedId,
+            ],
+            required: [
+                'sqlite_autoindex_entries_1 (feed_id=? AND deduplication_key=?)',
+            ],
+        },
+        {
+            // Refresh commits clear filter state for the snapshot users only.
+            name: 'refresh.filter_cleanup',
+            sql: `SELECT entry_id FROM entry_interactions
+                WHERE feed_id = ? AND filtered_at IS NOT NULL
+                  AND user_id IN (
+                    SELECT CAST(json_extract(value, '$.userId') AS INTEGER)
+                    FROM json_each(?)
+                  )
+                  AND entry_id IN (SELECT value FROM json_each(?))`,
+            bindings: [
+                primaryFeedId,
+                JSON.stringify([{ userId: primaryUserId }]),
+                JSON.stringify([lateOldEntryId]),
+            ],
+            required: ['SEARCH entry_interactions USING'],
+        },
+        {
             name: 'refresh.due',
             sql: `SELECT id, next_refresh_at FROM feeds
                 WHERE is_gone = 0 AND next_refresh_at <= ?

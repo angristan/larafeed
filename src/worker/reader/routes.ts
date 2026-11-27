@@ -47,6 +47,7 @@ const allowedQueryKeys = new Set([
     'order_by',
     'cursor',
     'page_size',
+    'created_from',
 ]);
 
 export interface ReaderRuntime {
@@ -300,7 +301,28 @@ export const parseReaderEntryQuery = (
                 ? DEFAULT_PAGE_SIZE
                 : yield* parsePositiveInt(pageSizeValue, 100);
 
-        return { scope, filter, orderBy, cursor, pageSize };
+        // Lower bound on ingestion time, in epoch milliseconds. The reader's
+        // new-entry check uses it so the total counts only new entries
+        // instead of the whole scope. The range applies to the order column.
+        const createdFromValue = search.get('created_from');
+        if (createdFromValue === null) {
+            return { scope, filter, orderBy, cursor, pageSize };
+        }
+        if (orderBy !== 'created_at') {
+            return yield* Effect.fail(new ReaderValidationError());
+        }
+        const createdFrom = yield* parsePositiveInt(
+            createdFromValue,
+            Number.MAX_SAFE_INTEGER,
+        );
+        return {
+            scope,
+            filter,
+            orderBy,
+            cursor,
+            pageSize,
+            range: { from: createdFrom },
+        };
     });
 
 const sessionToken = (
@@ -405,7 +427,7 @@ export const registerReaderRoutes = (
                     authenticated(context, readerRuntime, (session) =>
                         parseReaderEntryQuery(context.req.raw).pipe(
                             Effect.flatMap((query) =>
-                                readerRuntime.service.listEntries(
+                                readerRuntime.service.listEntryPage(
                                     session.user.id,
                                     query,
                                 ),

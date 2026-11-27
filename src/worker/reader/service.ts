@@ -1,13 +1,14 @@
 import {
     ReaderCategoryListResponse,
-    ReaderEntryListResponse,
+    type ReaderEntry,
     ReaderSubscriptionListResponse,
 } from '@shared/schemas/reader';
 import { Effect } from 'effect';
 
 import { rewriteArticleImageUrls } from '../images/article';
-import { ReaderInvariantError } from './errors';
+import { ReaderInvariantError, type ReaderStorageError } from './errors';
 import type {
+    ReaderEntryCursor,
     ReaderEntryQuery,
     ReaderRepository,
     ReaderSearchQuery,
@@ -19,6 +20,15 @@ export interface ReaderServiceDependencies {
     // When the image proxy is disabled, article images keep their source URLs.
     readonly proxyImages?: boolean;
 }
+
+export interface ReaderEntryListBody {
+    readonly entries: readonly ReaderEntry[];
+    readonly total: number | null;
+    readonly nextCursor: string | null;
+}
+
+const formatCursor = (cursor: ReaderEntryCursor | null): string | null =>
+    cursor === null ? null : `${cursor.orderValue}:${cursor.id}`;
 
 export const makeReaderService = (dependencies: ReaderServiceDependencies) => {
     const { repository } = dependencies;
@@ -43,19 +53,42 @@ export const makeReaderService = (dependencies: ReaderServiceDependencies) => {
                     ),
                 ),
         getCounts: (userId: number) => repository.getCounts(userId),
+        // Both return plain objects, so `total` keeps its exact type. The
+        // route encodes them through ReaderEntryListResponse.
         listEntries: (userId: number, query: ReaderEntryQuery) =>
             repository.listEntries(userId, query).pipe(
-                Effect.map(({ entries, total, nextCursor }) =>
-                    ReaderEntryListResponse.make({
-                        entries,
-                        total,
-                        nextCursor:
-                            nextCursor === null
-                                ? null
-                                : `${nextCursor.orderValue}:${nextCursor.id}`,
-                    }),
-                ),
+                Effect.map(({ entries, total, nextCursor }) => ({
+                    entries,
+                    total,
+                    nextCursor: formatCursor(nextCursor),
+                })),
             ),
+        /**
+         * Counts the scope only for the first page. The reader keeps that
+         * total while it loads more, and each count reads every entry.
+         */
+        listEntryPage: (
+            userId: number,
+            query: ReaderEntryQuery,
+        ): Effect.Effect<
+            ReaderEntryListBody,
+            ReaderStorageError | ReaderInvariantError
+        > =>
+            query.cursor === null
+                ? repository.listEntries(userId, query).pipe(
+                      Effect.map(({ entries, total, nextCursor }) => ({
+                          entries,
+                          total,
+                          nextCursor: formatCursor(nextCursor),
+                      })),
+                  )
+                : repository.listEntriesUncounted(userId, query).pipe(
+                      Effect.map(({ entries, nextCursor }) => ({
+                          entries,
+                          total: null,
+                          nextCursor: formatCursor(nextCursor),
+                      })),
+                  ),
         searchEntries: (userId: number, query: ReaderSearchQuery) =>
             repository.searchEntries(userId, query),
         findEntry: (userId: number, entryId: number) =>

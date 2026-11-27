@@ -32,6 +32,8 @@ export interface ReaderEntryListInput {
     readonly orderBy: ReaderOrder;
     readonly cursor: string | null;
     readonly pageSize: number;
+    /** Only entries ingested at or after this time; needs created_at order. */
+    readonly createdFrom?: number;
 }
 
 export interface DesiredReadInput {

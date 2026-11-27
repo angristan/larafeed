@@ -27,11 +27,7 @@ import { ReaderEntryDetail } from '../components/reader/ReaderEntryDetail';
 import { ReaderEntryList } from '../components/reader/ReaderEntryList';
 import { ReaderSidebar } from '../components/reader/ReaderSidebar';
 import { useDocumentTitle } from '../documentTitle';
-import {
-    countNewIngestions,
-    isNewerIngestion,
-    latestIngestion,
-} from '../entryIngestion';
+import { latestIngestion } from '../entryIngestion';
 import { shouldPrefetchEntryDetails } from '../networkHints';
 import { authSessionQueryOptions } from '../queries/auth';
 import {
@@ -111,15 +107,15 @@ export function ReaderPage() {
     );
 
     // The list skips the focus refetch (it would replay every loaded page),
-    // so a refocus sends a one-entry probe instead. The fresh scope total
-    // supplies the count without downloading every newly ingested entry.
+    // so a refocus sends a one-entry probe instead. The probe asks only for
+    // entries ingested after the newest cached one, so its total is the new
+    // entry count and the server counts new rows instead of the whole scope.
     const [newEntryCount, setNewEntryCount] = useState(0);
     const lastProbeAt = useRef(0);
     const latestIngested = useMemo(
         () => latestIngestion(listEntries),
         [listEntries],
     );
-    const cachedEntryTotal = entryListQuery.data?.pages[0]?.total;
     const listScope = useMemo(
         () => ({
             feedId: state.feedId,
@@ -153,18 +149,16 @@ export function ReaderPage() {
                     orderBy: 'created_at',
                     cursor: null,
                     pageSize: 1,
+                    // A refresh stores its completion time as the created_at
+                    // of every entry it adds, so one millisecond later skips
+                    // the newest cached refresh. A second refresh completing
+                    // in that same millisecond is missed until a reload.
+                    createdFrom: latestIngested.createdAt + 1,
                 }),
             )
                 .then((page) => {
-                    const fresh = page.entries[0];
-                    if (
-                        fresh !== undefined &&
-                        isNewerIngestion(fresh, latestIngested)
-                    ) {
-                        const discovered = countNewIngestions(
-                            cachedEntryTotal,
-                            page.total,
-                        );
+                    const discovered = page.total ?? 0;
+                    if (discovered > 0) {
                         setNewEntryCount((current) =>
                             Math.max(current, discovered),
                         );
@@ -179,7 +173,7 @@ export function ReaderPage() {
             window.removeEventListener('focus', probe);
             document.removeEventListener('visibilitychange', probe);
         };
-    }, [cachedEntryTotal, latestIngested, listScope]);
+    }, [latestIngested, listScope]);
 
     // Refetching replays every loaded page sequentially with recomputed
     // cursors, so new entries land at their sorted position — including
@@ -468,7 +462,10 @@ export function ReaderPage() {
                             onRetry={() => void entryListQuery.refetch()}
                             restoreFocusEntryId={returnFocusEntryId}
                             state={state}
-                            total={entryListQuery.data?.pages[0]?.total}
+                            total={
+                                entryListQuery.data?.pages[0]?.total ??
+                                undefined
+                            }
                         />
                     </Split.Pane>
                     <Split.Pane className={classes.detailPaneContainer} grow>

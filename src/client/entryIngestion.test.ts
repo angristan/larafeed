@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    countNewIngestions,
-    isNewerIngestion,
-    latestIngestion,
-} from './entryIngestion';
+import { isNewerIngestion, latestIngestion } from './entryIngestion';
 
 describe('latestIngestion', () => {
     it('returns undefined for an empty list', () => {
@@ -28,18 +24,6 @@ describe('latestIngestion', () => {
             { id: 8, createdAt: 100 },
         ];
         expect(latestIngestion(entries)?.id).toBe(8);
-    });
-});
-
-describe('countNewIngestions', () => {
-    it('uses the fresh scope total delta', () => {
-        expect(countNewIngestions(40, 45)).toBe(5);
-    });
-
-    it('reports at least one when retained filters hide the delta', () => {
-        expect(countNewIngestions(40, 40)).toBe(1);
-        expect(countNewIngestions(40, 39)).toBe(1);
-        expect(countNewIngestions(undefined, 1)).toBe(1);
     });
 });
 

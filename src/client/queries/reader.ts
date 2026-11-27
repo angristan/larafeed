@@ -5,6 +5,7 @@ import {
     queryOptions,
 } from '@tanstack/react-query';
 import type {
+    ReaderCounts,
     ReaderEntry,
     ReaderEntryListInput,
     ReaderEntryPage,
@@ -190,18 +191,80 @@ function patchSubscriptionUnread(
     );
 }
 
+function patchCounts(
+    queryClient: QueryClient,
+    unreadDelta: number,
+    starredDelta: number,
+): void {
+    if (unreadDelta === 0 && starredDelta === 0) {
+        return;
+    }
+
+    queryClient.setQueryData<ReaderCounts>(readerKeys.counts(), (current) =>
+        current === undefined
+            ? current
+            : {
+                  ...current,
+                  unread: Math.max(0, current.unread + unreadDelta),
+                  read: Math.max(0, current.read - unreadDelta),
+                  starred: Math.max(0, current.starred + starredDelta),
+              },
+    );
+}
+
+type CachedEntryState = Pick<ReaderEntry, 'feedId' | 'read' | 'starred'>;
+
+// The open entry's detail is the usual source. A list row covers actions
+// taken before the detail loads.
+function cachedEntryState(
+    queryClient: QueryClient,
+    entryId: number,
+): CachedEntryState | undefined {
+    const detail = queryClient.getQueryData<ReaderEntry>(
+        entryKeys.detail(entryId),
+    );
+    if (detail !== undefined) {
+        return detail;
+    }
+
+    for (const [, data] of queryClient.getQueriesData<
+        InfiniteData<ReaderEntryPage>
+    >({ queryKey: entryKeys.lists() })) {
+        for (const page of data?.pages ?? []) {
+            const entry = page.entries.find(
+                (candidate) => candidate.id === entryId,
+            );
+            if (entry !== undefined) {
+                return entry;
+            }
+        }
+    }
+    return undefined;
+}
+
 export function reconcileReaderInteraction(
     queryClient: QueryClient,
     interaction: ReaderInteraction,
 ): void {
-    const previous = queryClient.getQueryData<ReaderEntry>(
-        entryKeys.detail(interaction.entryId),
-    );
+    // The server counts every entry in the user's feeds to answer a counts
+    // request, so the badges move by the change instead of refetching.
+    const previous = cachedEntryState(queryClient, interaction.entryId);
+    if (
+        previous === undefined ||
+        queryClient.isFetching({ queryKey: readerKeys.counts() }) > 0
+    ) {
+        // Without the previous state there is no delta, and a counts request
+        // already in flight may or may not include this change.
+        void queryClient.invalidateQueries({ queryKey: readerKeys.counts() });
+    }
     if (previous !== undefined) {
-        patchSubscriptionUnread(
+        const unreadDelta =
+            previous.read === interaction.read ? 0 : interaction.read ? -1 : 1;
+        patchSubscriptionUnread(queryClient, previous.feedId, unreadDelta);
+        patchCounts(
             queryClient,
-            previous.feedId,
-            previous.read === interaction.read ? 0 : interaction.read ? -1 : 1,
+            unreadDelta,
+            Number(interaction.starred) - Number(previous.starred),
         );
     }
 
@@ -241,11 +304,10 @@ export function reconcileReaderInteraction(
 export async function invalidateReaderAfterInteraction(
     queryClient: QueryClient,
 ): Promise<void> {
+    // The interaction response already patched the retained pages and the
+    // counts. Keeping the pages fresh avoids removing the selected unread or
+    // favorite entry while the user reads through the current page.
     await Promise.all([
-        // The authoritative interaction response already patches all retained
-        // pages. Keeping them fresh avoids removing the selected unread or
-        // favorite entry while the user reads through the current page.
-        queryClient.invalidateQueries({ queryKey: readerKeys.counts() }),
         // The feed badge was already patched from the interaction response.
         // Refetching the whole library here re-rendered every feed row in the
         // sidebar, which cost more than the click that triggered it; the list

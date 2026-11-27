@@ -280,6 +280,51 @@ describe('reader D1 repository', () => {
         }
     });
 
+    it('counts the scope for the first page and for new ingestions only', async () => {
+        const userId = 61_001;
+        const feedId = 62_001;
+        await Effect.runPromise(
+            Effect.gen(function* () {
+                yield* insertUser(userId);
+                yield* insertFeed(feedId);
+                yield* subscribe(userId, feedId, 63_001);
+                yield* insertEntry(64_001, feedId, 100, 1_000);
+                yield* insertEntry(64_002, feedId, 200, 2_000);
+                yield* insertEntry(64_003, feedId, 300, 3_000);
+            }),
+        );
+        const page = (
+            overrides: Partial<Parameters<typeof service.listEntryPage>[1]>,
+        ) =>
+            Effect.runPromise(
+                service.listEntryPage(userId, {
+                    scope: { type: 'all' },
+                    filter: 'all',
+                    orderBy: 'created_at',
+                    cursor: null,
+                    pageSize: 2,
+                    ...overrides,
+                }),
+            );
+
+        const first = await page({});
+        expect(first.entries.map(({ id }) => id)).toEqual([64_003, 64_002]);
+        expect(first.total).toBe(3);
+        expect(first.nextCursor).toBe('2000:64002');
+
+        const second = await page({
+            cursor: { orderValue: 2_000, id: 64_002 },
+        });
+        expect(second.entries.map(({ id }) => id)).toEqual([64_001]);
+        expect(second.total).toBeNull();
+        expect(second.nextCursor).toBeNull();
+
+        // The reader's new-entry check: only entries after the newest cached.
+        const fresh = await page({ pageSize: 1, range: { from: 2_001 } });
+        expect(fresh.entries.map(({ id }) => id)).toEqual([64_003]);
+        expect(fresh.total).toBe(1);
+    });
+
     it('does not skip entries when earlier ones leave the filtered set', async () => {
         const userId = 35_001;
         const feedId = 36_001;

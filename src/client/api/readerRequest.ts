@@ -16,6 +16,9 @@ export function readerEntryListPath(input: ReaderEntryListInput): string {
         page_size: input.pageSize.toString(),
     });
     if (input.cursor !== null) search.set('cursor', input.cursor);
+    if (input.createdFrom !== undefined) {
+        search.set('created_from', input.createdFrom.toString());
+    }
 
     if (input.feedId !== null) {
         search.set('feed_id', input.feedId.toString());

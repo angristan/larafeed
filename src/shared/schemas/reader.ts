@@ -83,7 +83,8 @@ export class ReaderEntryListResponse extends Schema.Class<ReaderEntryListRespons
     'ReaderEntryListResponse',
 )({
     entries: Schema.Array(ReaderEntry),
-    total: Count,
+    // Only the first page (no cursor) counts the scope; later pages are null.
+    total: Schema.NullOr(Count),
     nextCursor: Schema.NullOr(NonEmptyString),
 }) {}
 
