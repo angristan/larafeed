@@ -5,6 +5,7 @@ import {
     ReaderEntryDetail,
     ReaderEntryListResponse,
     ReaderInteractionResponse,
+    ReaderReadThroughListResponse,
     ReaderReadThroughResponse,
     ReaderSubscriptionListResponse,
 } from '@shared/http';
@@ -345,6 +346,56 @@ describe('reader routes', () => {
             csrfHeaderToken: 'csrf-secret',
         });
         expect(authorizeMutation).toHaveBeenCalledTimes(4);
+    });
+
+    it('marks a category or the whole library read in one CSRF-protected request', async () => {
+        const advanceReadThroughScope = vi.fn(() =>
+            Effect.succeed([
+                { feedId: 21, readThroughEntryId: 31 },
+                { feedId: 22, readThroughEntryId: null },
+            ]),
+        );
+        const authorizeMutation = vi.fn(() => Effect.succeed(undefined));
+        const app = makeApp(
+            makeReaderService({ advanceReadThroughScope }),
+            makeAuthService({ authorizeMutation }),
+        );
+
+        const category = await app.request(
+            '/api/categories/4/read-through',
+            put({}),
+        );
+        const all = await app.request(
+            '/api/subscriptions/read-through',
+            put({}),
+        );
+        for (const response of [category, all]) {
+            expect(response.status).toBe(200);
+            expectNoStore(response);
+            await expect(
+                decodeResponse(response, ReaderReadThroughListResponse),
+            ).resolves.toEqual({
+                subscriptions: [
+                    { feedId: 21, readThroughEntryId: 31 },
+                    { feedId: 22, readThroughEntryId: null },
+                ],
+            });
+        }
+        expect(advanceReadThroughScope).toHaveBeenNthCalledWith(1, 7, {
+            type: 'category',
+            id: 4,
+        });
+        expect(advanceReadThroughScope).toHaveBeenNthCalledWith(2, 7, {
+            type: 'all',
+        });
+        expect(authorizeMutation).toHaveBeenCalledTimes(2);
+
+        const invalid = await app.request(
+            '/api/categories/0/read-through',
+            put({}),
+        );
+        expect(invalid.status).toBe(400);
+        expect(advanceReadThroughScope).toHaveBeenCalledTimes(2);
     });
 
     it('rejects missing authentication, CSRF failures, and excess JSON fields safely', async () => {

@@ -7,6 +7,7 @@ import {
     type ReaderFilter,
     ReaderInteractionResponse,
     type ReaderOrder,
+    ReaderReadThroughListResponse,
     ReaderReadThroughResponse,
     ReaderSubscriptionListResponse,
 } from '@shared/http';
@@ -56,6 +57,11 @@ export interface DesiredArchiveInput {
 
 export interface ReadThroughInput {
     readonly feedId: number;
+    readonly csrfToken: string;
+}
+
+export interface CategoryReadThroughInput {
+    readonly categoryId: number;
     readonly csrfToken: string;
 }
 
@@ -221,6 +227,21 @@ export const markFeedReadThrough = Effect.fn(
     requestJson(
         `/api/subscriptions/${input.feedId}/read-through`,
         ReaderReadThroughResponse,
+        {
+            method: 'PUT',
+            body: {},
+            csrfToken: input.csrfToken,
+        },
+    ),
+);
+
+/** Marks every feed of a category as read in one request. */
+export const markCategoryReadThrough = Effect.fn(
+    'ReaderClient.markCategoryReadThrough',
+)((input: CategoryReadThroughInput) =>
+    requestJson(
+        `/api/categories/${input.categoryId}/read-through`,
+        ReaderReadThroughListResponse,
         {
             method: 'PUT',
             body: {},

@@ -135,3 +135,10 @@ export class ReaderReadThroughResponse extends Schema.Class<ReaderReadThroughRes
     feedId: SafeId,
     readThroughEntryId: Schema.NullOr(SafeId),
 }) {}
+
+/** The subscriptions a category or library read-through covered. */
+export class ReaderReadThroughListResponse extends Schema.Class<ReaderReadThroughListResponse>(
+    'ReaderReadThroughListResponse',
+)({
+    subscriptions: Schema.Array(ReaderReadThroughResponse),
+}) {}

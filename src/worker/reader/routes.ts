@@ -8,6 +8,7 @@ import {
     ReaderEntryDetail,
     ReaderEntryListResponse,
     ReaderInteractionResponse,
+    ReaderReadThroughListResponse,
     ReaderReadThroughResponse,
     ReaderSubscriptionListResponse,
 } from '@shared/http';
@@ -557,6 +558,58 @@ export const registerReaderRoutes = (
                     jsonResponse(ReaderReadThroughResponse, body),
                 ),
             ),
+        ),
+    );
+
+    // Marks every feed of a category, or of the library, as read in one
+    // request instead of one request per feed.
+    const scopeReadThrough = (
+        context: Parameters<typeof getCookie>[0],
+        scope: (
+            context: Parameters<typeof getCookie>[0],
+        ) => Effect.Effect<
+            | { readonly type: 'all' }
+            | { readonly type: 'category'; readonly id: number },
+            ReaderValidationError
+        >,
+    ) =>
+        runRoute(
+            context.req.raw,
+            runtime(context.env).pipe(
+                Effect.flatMap((readerRuntime) =>
+                    authenticatedMutation(context, readerRuntime, (session) =>
+                        scope(context).pipe(
+                            Effect.tap(() =>
+                                decodeJson(context.req.raw, EmptyJsonObject),
+                            ),
+                            Effect.flatMap((resolved) =>
+                                readerRuntime.service.advanceReadThroughScope(
+                                    session.user.id,
+                                    resolved,
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+                Effect.flatMap((subscriptions) =>
+                    jsonResponse(ReaderReadThroughListResponse, {
+                        subscriptions,
+                    }),
+                ),
+            ),
+        );
+
+    app.put('/api/categories/:categoryId/read-through', (context) =>
+        scopeReadThrough(context, (current) =>
+            decodePathId(current.req.param('categoryId')).pipe(
+                Effect.map((id) => ({ type: 'category' as const, id })),
+            ),
+        ),
+    );
+
+    app.put('/api/subscriptions/read-through', (context) =>
+        scopeReadThrough(context, () =>
+            Effect.succeed({ type: 'all' as const }),
         ),
     );
 

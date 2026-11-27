@@ -14,7 +14,6 @@ import {
 } from '../../mcp-app/contract';
 import { safeErrorClass, spanNames, traceAsync } from '../observability';
 import type { ReaderEntryScope } from '../reader/repository';
-import type { ReaderService } from '../reader/service';
 import { SearchQueryError, toFtsQuery } from '../search/query';
 import type {
     SubscriptionRateLimited,
@@ -787,54 +786,28 @@ export const makeMcpServer = (
                                 'Set at least one of read, starred, or archived.',
                         });
                     }
-                    const updated: unknown[] = [];
-                    const notFound: number[] = [];
-                    // Sequential on purpose: each change is a small D1 batch.
-                    for (const entryId of new Set(input.entryIds)) {
-                        const result = yield* Effect.gen(function* () {
-                            let state:
-                                | Effect.Success<
-                                      ReturnType<ReaderService['setRead']>
-                                  >
-                                | undefined;
-                            if (input.read !== undefined) {
-                                state = yield* reader.setRead(
-                                    userId,
-                                    entryId,
-                                    input.read,
-                                );
-                            }
-                            if (input.starred !== undefined) {
-                                state = yield* reader.setStarred(
-                                    userId,
-                                    entryId,
-                                    input.starred,
-                                );
-                            }
-                            if (input.archived !== undefined) {
-                                state = yield* reader.setArchived(
-                                    userId,
-                                    entryId,
-                                    input.archived,
-                                );
-                            }
-                            return state;
-                        }).pipe(
-                            Effect.catchTag('ReaderNotFound', () =>
-                                Effect.succeed(null),
-                            ),
-                        );
-                        if (result === null || result === undefined) {
-                            notFound.push(entryId);
-                        } else {
-                            updated.push({
-                                id: result.entryId,
-                                read: result.read,
-                                starred: result.starred,
-                                archived: result.archived,
-                            });
-                        }
-                    }
+                    const result = yield* reader.updateEntries(
+                        userId,
+                        input.entryIds,
+                        {
+                            ...(input.read === undefined
+                                ? {}
+                                : { read: input.read }),
+                            ...(input.starred === undefined
+                                ? {}
+                                : { starred: input.starred }),
+                            ...(input.archived === undefined
+                                ? {}
+                                : { archived: input.archived }),
+                        },
+                    );
+                    const updated = result.updated.map((state) => ({
+                        id: state.entryId,
+                        read: state.read,
+                        starred: state.starred,
+                        archived: state.archived,
+                    }));
+                    const { notFound } = result;
                     return jsonResult({ updated, notFound });
                 }),
             ),

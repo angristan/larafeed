@@ -68,7 +68,6 @@ import type {
 } from '../../api/subscriptions';
 import { buildAddFeedBookmarklet } from '../../bookmarklet';
 import {
-    CategoryReadThroughError,
     categoryReadThroughMutationOptions,
     useReadThroughMutation,
 } from '../../queries/readerMutations';
@@ -1028,7 +1027,7 @@ function CategoryHeader({
 }) {
     const queryClient = useQueryClient();
     const markRead = useMutation(
-        categoryReadThroughMutationOptions(queryClient, categoryId, feedIds),
+        categoryReadThroughMutationOptions(queryClient, categoryId),
     );
     const update = useMutation(updateCategoryMutationOptions(queryClient));
     const remove = useMutation(deleteCategoryMutationOptions(queryClient));
@@ -1142,11 +1141,7 @@ function CategoryHeader({
                                         }),
                                     onError: (actionError) =>
                                         notifyActionError(
-                                            actionError instanceof
-                                                CategoryReadThroughError &&
-                                                actionError.succeeded > 0
-                                                ? 'Category partially marked as read'
-                                                : 'Failed to mark category as read',
+                                            'Failed to mark category as read',
                                             actionError,
                                         ),
                                 })

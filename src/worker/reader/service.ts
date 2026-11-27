@@ -10,6 +10,7 @@ import { ReaderInvariantError, type ReaderStorageError } from './errors';
 import type {
     ReaderEntryCursor,
     ReaderEntryQuery,
+    ReaderEntryScope,
     ReaderRepository,
     ReaderSearchQuery,
 } from './repository';
@@ -120,6 +121,65 @@ export const makeReaderService = (dependencies: ReaderServiceDependencies) => {
             repository.setArchived(userId, entryId, desired, currentTime()),
         advanceReadThrough: (userId: number, feedId: number) =>
             repository.advanceReadThrough(userId, feedId, currentTime()),
+        /** Marks a category, or the whole library, as read in one batch. */
+        advanceReadThroughScope: (
+            userId: number,
+            scope: Exclude<ReaderEntryScope, { readonly type: 'feed' }>,
+        ) => repository.advanceReadThroughScope(userId, scope, currentTime()),
+        /**
+         * Applies read, star, and archive changes to many entries with a
+         * few set-based statements, then returns the visible entries'
+         * resulting state in the order of `entryIds`.
+         */
+        updateEntries: (
+            userId: number,
+            entryIds: readonly number[],
+            changes: {
+                readonly read?: boolean;
+                readonly starred?: boolean;
+                readonly archived?: boolean;
+            },
+        ) =>
+            Effect.gen(function* () {
+                const now = currentTime();
+                if (changes.read !== undefined) {
+                    yield* repository.setReadMany(
+                        userId,
+                        entryIds,
+                        changes.read,
+                        now,
+                    );
+                }
+                if (changes.starred !== undefined) {
+                    yield* repository.setStarredMany(
+                        userId,
+                        entryIds,
+                        changes.starred,
+                        now,
+                    );
+                }
+                if (changes.archived !== undefined) {
+                    yield* repository.setArchivedMany(
+                        userId,
+                        entryIds,
+                        changes.archived,
+                        now,
+                    );
+                }
+                const found = new Map(
+                    (yield* repository.findInteractions(userId, entryIds)).map(
+                        (interaction) => [interaction.entryId, interaction],
+                    ),
+                );
+                const unique = [...new Set(entryIds)];
+                return {
+                    updated: unique.flatMap((id) => {
+                        const interaction = found.get(id);
+                        return interaction === undefined ? [] : [interaction];
+                    }),
+                    notFound: unique.filter((id) => !found.has(id)),
+                };
+            }),
     };
 };
 

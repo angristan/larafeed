@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { entryKeys, readerKeys, subscriptionKeys } from './reader';
 import {
-    CategoryReadThroughError,
     categoryReadThroughMutationOptions,
     readThroughMutationOptions,
 } from './readerMutations';
@@ -57,29 +56,20 @@ describe('feed read-through mutation', () => {
 });
 
 describe('category read-through mutation', () => {
-    it('invalidates reader data and reports partial failures accurately', async () => {
+    it('marks the whole category read with one request and refreshes reader data', async () => {
         vi.stubGlobal('document', {
             cookie: 'larafeed-csrf=csrf-token',
         });
-        const fetchMock = vi.fn((path: string) => {
-            if (path === '/api/subscriptions/7/read-through') {
-                return Promise.resolve(
-                    Response.json({ feedId: 7, readThroughEntryId: 70 }),
-                );
-            }
-
-            return Promise.resolve(
-                Response.json(
-                    {
-                        error: {
-                            code: 'internal_server_error',
-                            message: 'Refresh failed.',
-                        },
-                    },
-                    { status: 500 },
-                ),
-            );
-        });
+        const fetchMock = vi.fn((_path: string, _init?: RequestInit) =>
+            Promise.resolve(
+                Response.json({
+                    subscriptions: [
+                        { feedId: 7, readThroughEntryId: 70 },
+                        { feedId: 8, readThroughEntryId: 80 },
+                    ],
+                }),
+            ),
+        );
         vi.stubGlobal('fetch', fetchMock);
 
         const queryClient = new QueryClient({
@@ -97,18 +87,15 @@ describe('category read-through mutation', () => {
 
         const observer = new MutationObserver(
             queryClient,
-            categoryReadThroughMutationOptions(queryClient, 3, [7, 8]),
+            categoryReadThroughMutationOptions(queryClient, 3),
         );
-        const error = await observer.mutate(undefined).catch((cause) => cause);
+        await observer.mutate(undefined);
 
-        expect(error).toBeInstanceOf(CategoryReadThroughError);
-        expect(error).toMatchObject({
-            succeeded: 1,
-            failed: 1,
-            total: 2,
-            message: '1 of 2 feeds were marked as read. 1 failed.',
-        });
-        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(fetchMock.mock.calls[0]?.[0]).toBe(
+            '/api/categories/3/read-through',
+        );
+        expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('PUT');
         expect(queryClient.getQueryState(entryListKey)?.isInvalidated).toBe(
             true,
         );

@@ -231,6 +231,21 @@ export interface ReaderRepository {
         desired: boolean,
         now: number,
     ) => Effect.Effect<number, ReaderStorageError | ReaderInvariantError>;
+    /** Archives or unarchives many entries; returns how many were found. */
+    readonly setArchivedMany: (
+        userId: number,
+        entryIds: readonly number[],
+        desired: boolean,
+        now: number,
+    ) => Effect.Effect<number, ReaderStorageError | ReaderInvariantError>;
+    /** The state of each visible entry among `entryIds`, in no order. */
+    readonly findInteractions: (
+        userId: number,
+        entryIds: readonly number[],
+    ) => Effect.Effect<
+        readonly ReaderInteractionResponse[],
+        ReaderStorageError | ReaderInvariantError
+    >;
     readonly setArchived: (
         userId: number,
         entryId: number,
@@ -825,10 +840,6 @@ const readOutcome = (
         return yield* mutationResult(operation, results, [1, 2, 3], 4);
     });
 
-// Entries per D1 batch for bulk changes. One entry is at most five
-// statements; a batch counts as one query against the invocation limit.
-const BULK_ENTRIES_PER_BATCH = 40;
-
 interface EntryChange {
     readonly statements: D1Statement[];
     readonly outcome: (
@@ -840,15 +851,188 @@ interface EntryChange {
     >;
 }
 
+// Entry IDs per D1 batch for bulk changes. Each statement carries the IDs
+// as one JSON array, and D1 limits a statement to 100 KB.
+const BULK_ENTRIES_PER_BATCH = 500;
+
+/** The visible entries among a JSON array of IDs; binds user, IDs. */
+const ownedEntries = `
+    FROM entries e
+    JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id AND fs.user_id = ?
+    LEFT JOIN entry_interactions ei ON ei.user_id = fs.user_id AND ei.entry_id = e.id
+    WHERE e.id IN (SELECT value FROM json_each(?)) AND ei.filtered_at IS NULL`;
+const interactionRowsIn = `user_id = ? AND entry_id IN (SELECT value FROM json_each(?))
+    AND filtered_at IS NULL`;
+// What the watermark alone says about an interaction row's entry.
+const rowNaturalRead = `(SELECT CASE
+        WHEN fs.read_through_entry_id IS NOT NULL
+            AND entry_interactions.entry_id <= fs.read_through_entry_id THEN 1
+        ELSE 0 END
+    FROM feed_subscriptions fs
+    WHERE fs.user_id = entry_interactions.user_id
+      AND fs.feed_id = entry_interactions.feed_id)`;
+
 /**
- * Applies one change to many entries, several entries per D1 batch.
- * Entries the user cannot see are skipped. Returns how many were found.
+ * The set-based form of `readStatements`: the same activity counts,
+ * override cleanup, and new overrides, for a JSON array of entry IDs.
+ */
+const readManyStatements = (
+    userId: number,
+    ids: string,
+    desired: boolean,
+    now: number,
+): D1Statement[] => {
+    const desiredInt = desired ? 1 : 0;
+    const expectedOverride = `CASE WHEN ${rowNaturalRead} = ? THEN NULL ELSE ? END`;
+    return [
+        {
+            sql: `INSERT INTO chart_daily_activity (
+                user_id, feed_id, day_start, marked_read_count,
+                marked_unread_count, saved_count, unsaved_count,
+                created_at, updated_at
+            )
+            SELECT ?, e.feed_id, ?, COUNT(*) * ?, COUNT(*) * ?, 0, 0, ?, ?
+            ${ownedEntries} AND ${effectiveRead} <> ?
+            GROUP BY e.feed_id
+            ON CONFLICT(user_id, feed_id, day_start) DO UPDATE SET
+                marked_read_count = marked_read_count + excluded.marked_read_count,
+                marked_unread_count = marked_unread_count + excluded.marked_unread_count,
+                updated_at = excluded.updated_at`,
+            bindings: [
+                userId,
+                utcDayStart(now),
+                desiredInt,
+                1 - desiredInt,
+                now,
+                now,
+                userId,
+                ids,
+                desiredInt,
+            ],
+        },
+        {
+            sql: `DELETE FROM entry_interactions
+            WHERE ${interactionRowsIn} AND read_override IS NOT NULL
+                AND starred_at IS NULL AND archived_at IS NULL
+                AND ${rowNaturalRead} = ?`,
+            bindings: [userId, ids, desiredInt],
+        },
+        {
+            sql: `UPDATE entry_interactions
+            SET read_override = ${expectedOverride},
+                read_changed_at = CASE WHEN ${rowNaturalRead} = ? THEN NULL ELSE ? END,
+                updated_at = ?
+            WHERE ${interactionRowsIn}
+                AND read_override IS NOT (${expectedOverride})`,
+            bindings: [
+                desiredInt,
+                desiredInt,
+                desiredInt,
+                now,
+                now,
+                userId,
+                ids,
+                desiredInt,
+                desiredInt,
+            ],
+        },
+        {
+            sql: `INSERT INTO entry_interactions (
+                user_id, feed_id, entry_id, read_override, read_changed_at,
+                created_at, updated_at)
+            SELECT ?, e.feed_id, e.id, ?, ?, ?, ? ${ownedEntries}
+                AND ? <> ${naturalRead}
+            ON CONFLICT(user_id, entry_id) DO NOTHING`,
+            bindings: [
+                userId,
+                desiredInt,
+                now,
+                now,
+                now,
+                userId,
+                ids,
+                desiredInt,
+            ],
+        },
+    ];
+};
+
+/** The set-based form of `timestampChange`. */
+const timestampManyStatements = (
+    input: Omit<TimestampStateInput, 'operation' | 'entryId'>,
+    ids: string,
+): D1Statement[] => {
+    const { userId, now, column, otherColumn } = input;
+    const activity: D1Statement[] =
+        input.activity === 'saved'
+            ? [
+                  {
+                      sql: `INSERT INTO chart_daily_activity (
+                          user_id, feed_id, day_start, marked_read_count,
+                          marked_unread_count, saved_count, unsaved_count,
+                          created_at, updated_at
+                      )
+                      SELECT ?, e.feed_id, ?, 0, 0, COUNT(*) * ?, COUNT(*) * ?, ?, ?
+                      ${ownedEntries} AND (ei.starred_at IS NULL) = ?
+                      GROUP BY e.feed_id
+                      ON CONFLICT(user_id, feed_id, day_start) DO UPDATE SET
+                          saved_count = saved_count + excluded.saved_count,
+                          unsaved_count = unsaved_count + excluded.unsaved_count,
+                          updated_at = excluded.updated_at`,
+                      bindings: [
+                          userId,
+                          utcDayStart(now),
+                          input.desired ? 1 : 0,
+                          input.desired ? 0 : 1,
+                          now,
+                          now,
+                          userId,
+                          ids,
+                          input.desired ? 1 : 0,
+                      ],
+                  },
+              ]
+            : [];
+    const state: D1Statement[] = input.desired
+        ? [
+              {
+                  sql: `INSERT INTO entry_interactions (
+                      user_id, feed_id, entry_id, ${column}, created_at, updated_at)
+                  SELECT ?, e.feed_id, e.id, ?, ?, ? ${ownedEntries}
+                  ON CONFLICT(user_id, entry_id) DO UPDATE SET
+                      ${column} = excluded.${column}, updated_at = excluded.updated_at
+                  WHERE entry_interactions.${column} IS NULL
+                      AND entry_interactions.filtered_at IS NULL`,
+                  bindings: [userId, now, now, now, userId, ids],
+              },
+          ]
+        : [
+              {
+                  sql: `DELETE FROM entry_interactions
+                  WHERE ${interactionRowsIn} AND ${column} IS NOT NULL
+                      AND read_override IS NULL AND ${otherColumn} IS NULL`,
+                  bindings: [userId, ids],
+              },
+              {
+                  sql: `UPDATE entry_interactions SET ${column} = NULL, updated_at = ?
+                  WHERE ${interactionRowsIn} AND ${column} IS NOT NULL`,
+                  bindings: [now, userId, ids],
+              },
+          ];
+    return [...activity, ...state];
+};
+
+/**
+ * Applies one set-based change to many entries, a chunk of IDs per D1
+ * batch. Entries the user cannot see are skipped. Returns how many were
+ * found.
  */
 const applyToEntries = (
     d1: D1,
     operation: string,
+    userId: number,
     entryIds: readonly number[],
-    change: (entryId: number) => EntryChange,
+    statements: (ids: string) => D1Statement[],
 ): Effect.Effect<number, ReaderStorageError | ReaderInvariantError> =>
     Effect.gen(function* () {
         const unique = [...new Set(entryIds)];
@@ -858,25 +1042,23 @@ const applyToEntries = (
             start < unique.length;
             start += BULK_ENTRIES_PER_BATCH
         ) {
-            const changes = unique
-                .slice(start, start + BULK_ENTRIES_PER_BATCH)
-                .map(change);
+            const ids = JSON.stringify(
+                unique.slice(start, start + BULK_ENTRIES_PER_BATCH),
+            );
             const results = yield* withStorageError(
                 operation,
-                d1.batch(changes.flatMap((entry) => entry.statements)),
+                d1.batch([
+                    ...statements(ids),
+                    {
+                        sql: `SELECT COUNT(*) AS total ${ownedEntries}`,
+                        bindings: [userId, ids],
+                    },
+                ]),
             );
-            let offset = 0;
-            for (const entry of changes) {
-                const slice = results.slice(
-                    offset,
-                    offset + entry.statements.length,
-                );
-                offset += entry.statements.length;
-                found += yield* entry.outcome(operation, slice).pipe(
-                    Effect.as(1),
-                    Effect.catchTag('ReaderNotFound', () => Effect.succeed(0)),
-                );
-            }
+            const rows = results.at(-1)?.results ?? [];
+            if (rows.length !== 1)
+                return yield* Effect.fail(invariantError(operation));
+            found += (yield* decode(operation, TotalRow, rows[0])).total;
         }
         return found;
     });
@@ -1066,10 +1248,9 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
         }),
 
     setReadMany: (userId, entryIds, desired, now) =>
-        applyToEntries(d1, 'reader.entries.read.set', entryIds, (entryId) => ({
-            statements: readStatements(userId, entryId, desired, now),
-            outcome: readOutcome,
-        })),
+        applyToEntries(d1, 'reader.entries.read.set', userId, entryIds, (ids) =>
+            readManyStatements(userId, ids, desired, now),
+        ),
 
     setStarred: (userId, entryId, desired, now) =>
         setTimestampState(d1, {
@@ -1084,18 +1265,74 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
         }),
 
     setStarredMany: (userId, entryIds, desired, now) =>
-        applyToEntries(d1, 'reader.entries.star.set', entryIds, (entryId) =>
-            timestampChange({
-                operation: 'reader.entries.star.set',
-                userId,
-                entryId,
-                desired,
-                now,
-                column: 'starred_at',
-                otherColumn: 'archived_at',
-                activity: 'saved',
-            }),
+        applyToEntries(d1, 'reader.entries.star.set', userId, entryIds, (ids) =>
+            timestampManyStatements(
+                {
+                    userId,
+                    desired,
+                    now,
+                    column: 'starred_at',
+                    otherColumn: 'archived_at',
+                    activity: 'saved',
+                },
+                ids,
+            ),
         ),
+
+    setArchivedMany: (userId, entryIds, desired, now) =>
+        applyToEntries(
+            d1,
+            'reader.entries.archive.set',
+            userId,
+            entryIds,
+            (ids) =>
+                timestampManyStatements(
+                    {
+                        userId,
+                        desired,
+                        now,
+                        column: 'archived_at',
+                        otherColumn: 'starred_at',
+                    },
+                    ids,
+                ),
+        ),
+
+    findInteractions: (userId, entryIds) =>
+        Effect.gen(function* () {
+            const operation = 'reader.entries.interactions';
+            const unique = [...new Set(entryIds)];
+            const found: ReaderInteractionResponse[] = [];
+            for (
+                let start = 0;
+                start < unique.length;
+                start += BULK_ENTRIES_PER_BATCH
+            ) {
+                const result = yield* withStorageError(
+                    operation,
+                    d1.all({
+                        sql: `SELECT ${interactionColumns} ${ownedEntries}`,
+                        bindings: [
+                            userId,
+                            JSON.stringify(
+                                unique.slice(
+                                    start,
+                                    start + BULK_ENTRIES_PER_BATCH,
+                                ),
+                            ),
+                        ],
+                    }),
+                );
+                found.push(
+                    ...(yield* decodeRows(
+                        operation,
+                        InteractionRow,
+                        result.results,
+                    )).map(interactionFromRow),
+                );
+            }
+            return found;
+        }),
 
     setArchived: (userId, entryId, desired, now) =>
         setTimestampState(d1, {
