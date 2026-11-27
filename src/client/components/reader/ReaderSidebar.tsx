@@ -4,14 +4,12 @@ import {
     AppShell,
     Badge,
     Button,
-    Fieldset,
     Group,
     Indicator,
     Menu,
     Modal,
     NativeSelect,
     NavLink,
-    rem,
     ScrollArea,
     SegmentedControl,
     Stack,
@@ -25,13 +23,11 @@ import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import {
     IconBook,
-    IconCategory,
     IconCheck,
     IconCheckbox,
     IconChevronRight,
     IconDots,
     IconExternalLink,
-    IconInfoCircle,
     IconPencil,
     IconPhoto,
     IconPlus,
@@ -188,20 +184,8 @@ export function FeedCategoryFields({
                         label: 'Create new category',
                     },
                 ]}
-                description={
-                    <Text c="dimmed" size="xs">
-                        The category where the feed will be added
-                    </Text>
-                }
-                label={
-                    <Group gap={5}>
-                        <IconCategory
-                            style={{ width: rem(10), height: rem(10) }}
-                        />
-                        <span>Category</span>
-                    </Group>
-                }
-                mt={10}
+                label="Category"
+                mt="md"
                 onChange={(event) =>
                     onCategorySelectionChange(event.currentTarget.value)
                 }
@@ -210,20 +194,7 @@ export function FeedCategoryFields({
             {categorySelection === 'new' && (
                 <TextInput
                     data-autofocus={categories.length === 0}
-                    description={
-                        <Text c="dimmed" size="xs">
-                            We will create this category and add the feed to it
-                            automatically
-                        </Text>
-                    }
-                    label={
-                        <Group gap={5}>
-                            <IconCategory
-                                style={{ width: rem(10), height: rem(10) }}
-                            />
-                            <span>New category name</span>
-                        </Group>
-                    }
+                    label="New category name"
                     mt="sm"
                     onChange={(event) =>
                         onCategoryNameChange(event.currentTarget.value)
@@ -356,169 +327,141 @@ export function AddFeedModal({
         );
     };
 
+    const choosingCandidate = view === 'new_feed' && feedCandidates !== null;
+
     return (
-        <Modal.Root opened={opened} onClose={closeAndReset}>
-            <Modal.Overlay />
-            <Modal.Content>
-                <Modal.Header>
-                    <Modal.Title>
-                        {view === 'new_feed' && feedCandidates !== null ? (
-                            'Choose a feed'
-                        ) : (
-                            <SegmentedControl
-                                data={[
-                                    { value: 'new_feed', label: 'New feed' },
-                                    {
-                                        value: 'new_category',
-                                        label: 'New category',
-                                    },
-                                ]}
-                                onChange={setView}
-                                radius="sm"
-                                size="sm"
-                                value={view}
+        <Modal
+            onClose={closeAndReset}
+            opened={opened}
+            title={
+                choosingCandidate
+                    ? 'Choose a feed'
+                    : view === 'new_feed'
+                      ? 'Add feed'
+                      : 'New category'
+            }
+        >
+            {choosingCandidate ? (
+                <FeedCandidateSelector
+                    candidates={feedCandidates}
+                    error={addFeed.error}
+                    isPending={addFeed.isPending}
+                    onBack={() => {
+                        setFeedCandidates(null);
+                        addFeed.reset();
+                    }}
+                    onSubmit={submitFeedUrl}
+                />
+            ) : (
+                <>
+                    <SegmentedControl
+                        aria-label="What to add"
+                        data={[
+                            { value: 'new_feed', label: 'Feed' },
+                            { value: 'new_category', label: 'Category' },
+                        ]}
+                        fullWidth
+                        mb="md"
+                        onChange={setView}
+                        size="sm"
+                        value={view}
+                    />
+                    {view === 'new_feed' ? (
+                        <form onSubmit={submitFeed}>
+                            <TextInput
+                                data-autofocus
+                                description="A website or feed address. Larafeed finds the feed."
+                                error={addFeed.error?.message}
+                                label="Feed URL"
+                                onChange={(event) =>
+                                    setFeedUrl(event.currentTarget.value)
+                                }
+                                placeholder="https://blog.cloudflare.com/rss/"
+                                value={feedUrl}
                             />
-                        )}
-                    </Modal.Title>
-                    <Modal.CloseButton />
-                </Modal.Header>
-                <Modal.Body>
-                    <Fieldset
-                        className={
-                            feedCandidates === null
-                                ? undefined
-                                : classes.candidateFieldset
-                        }
-                        variant="filled"
-                    >
-                        {view === 'new_feed' && feedCandidates !== null ? (
-                            <FeedCandidateSelector
-                                candidates={feedCandidates}
-                                error={addFeed.error}
-                                isPending={addFeed.isPending}
-                                onBack={() => {
-                                    setFeedCandidates(null);
-                                    addFeed.reset();
-                                }}
-                                onSubmit={submitFeedUrl}
+                            <FeedCategoryFields
+                                categories={categories}
+                                categoryName={categoryName}
+                                categorySelection={categorySelection}
+                                onCategoryNameChange={setCategoryName}
+                                onCategorySelectionChange={setCategorySelection}
                             />
-                        ) : view === 'new_feed' ? (
-                            <form onSubmit={submitFeed}>
-                                <TextInput
-                                    data-autofocus
-                                    description={
-                                        <Text c="dimmed" size="xs">
-                                            You can use the URL of the website
-                                            or the URL of the RSS feed, we will
-                                            try to find the feed for you!
-                                        </Text>
-                                    }
-                                    error={addFeed.error?.message}
-                                    label={
-                                        <Group gap={5}>
-                                            <IconRss
-                                                style={{
-                                                    width: rem(10),
-                                                    height: rem(10),
-                                                }}
-                                            />
-                                            <span>Feed URL</span>
-                                        </Group>
-                                    }
-                                    onChange={(event) =>
-                                        setFeedUrl(event.currentTarget.value)
-                                    }
-                                    placeholder="https://blog.cloudflare.com/rss/"
-                                    value={feedUrl}
-                                />
-                                <Text c="dimmed" mt="sm" size="xs">
-                                    <IconInfoCircle
-                                        style={{
-                                            width: rem(10),
-                                            height: rem(10),
-                                        }}
-                                    />{' '}
-                                    Tip: drag this{' '}
-                                    {/* biome-ignore lint/a11y/useValidAnchor: The trusted bookmarklet href is assigned after React's URL sanitizer runs. */}
-                                    {/* biome-ignore lint/a11y/noAmbiguousAnchorText: The surrounding sentence describes the bookmarklet action. */}
-                                    <a ref={bookmarklet}>link</a> to your
-                                    bookmark bar. When you are on a website,
-                                    click it to open Larafeed with the URL
-                                    pre-filled.
-                                </Text>
-                                <FeedCategoryFields
-                                    categories={categories}
-                                    categoryName={categoryName}
-                                    categorySelection={categorySelection}
-                                    onCategoryNameChange={setCategoryName}
-                                    onCategorySelectionChange={
-                                        setCategorySelection
-                                    }
-                                />
-                                <Button
-                                    disabled={
-                                        addFeed.isPending ||
-                                        feedUrl.trim() === '' ||
-                                        categorySelection === '' ||
-                                        (categorySelection === 'new' &&
-                                            categoryName.trim() === '')
-                                    }
-                                    fullWidth
-                                    loading={addFeed.isPending}
-                                    mt="md"
-                                    type="submit"
-                                >
-                                    Add feed
-                                </Button>
-                            </form>
-                        ) : (
-                            <form onSubmit={submitCategory}>
-                                <TextInput
-                                    data-autofocus
-                                    description={
-                                        <Text c="dimmed" size="xs">
-                                            You will then be able to assign
-                                            feeds to this category
-                                        </Text>
-                                    }
-                                    error={addCategory.error?.message}
-                                    label={
-                                        <Group gap={5}>
-                                            <IconCategory
-                                                style={{
-                                                    width: rem(10),
-                                                    height: rem(10),
-                                                }}
-                                            />
-                                            <span>Category name</span>
-                                        </Group>
-                                    }
-                                    onChange={(event) =>
-                                        setCategoryName(
-                                            event.currentTarget.value,
-                                        )
-                                    }
-                                    placeholder="Tech"
-                                    value={categoryName}
-                                />
-                                <Button
-                                    disabled={
-                                        addCategory.isPending ||
-                                        categoryName.trim() === ''
-                                    }
-                                    fullWidth
-                                    loading={addCategory.isPending}
-                                    mt="md"
-                                    type="submit"
-                                >
-                                    Create category
-                                </Button>
-                            </form>
-                        )}
-                    </Fieldset>
-                </Modal.Body>
-            </Modal.Content>
-        </Modal.Root>
+                            <Text c="dimmed" mt="md" size="xs">
+                                Drag{' '}
+                                {/* biome-ignore lint/a11y/useValidAnchor: The trusted bookmarklet href is assigned after React's URL sanitizer runs. */}
+                                <a ref={bookmarklet}>Add to Larafeed</a> to your
+                                bookmarks bar to add the site you are on.
+                            </Text>
+                            <ModalActions
+                                onCancel={closeAndReset}
+                                submitDisabled={
+                                    addFeed.isPending ||
+                                    feedUrl.trim() === '' ||
+                                    categorySelection === '' ||
+                                    (categorySelection === 'new' &&
+                                        categoryName.trim() === '')
+                                }
+                                submitLabel="Add feed"
+                                submitLoading={addFeed.isPending}
+                            />
+                        </form>
+                    ) : (
+                        <form onSubmit={submitCategory}>
+                            <TextInput
+                                data-autofocus
+                                error={addCategory.error?.message}
+                                label="Category name"
+                                onChange={(event) =>
+                                    setCategoryName(event.currentTarget.value)
+                                }
+                                placeholder="Tech"
+                                value={categoryName}
+                            />
+                            <ModalActions
+                                onCancel={closeAndReset}
+                                submitDisabled={
+                                    addCategory.isPending ||
+                                    categoryName.trim() === ''
+                                }
+                                submitLabel="Create category"
+                                submitLoading={addCategory.isPending}
+                            />
+                        </form>
+                    )}
+                </>
+            )}
+        </Modal>
+    );
+}
+
+/**
+ * The button row shared by the reader's form modals: Cancel, then the
+ * primary action, aligned right.
+ */
+export function ModalActions({
+    onCancel,
+    submitLabel,
+    submitDisabled = false,
+    submitLoading = false,
+}: {
+    readonly onCancel: () => void;
+    readonly submitLabel: string;
+    readonly submitDisabled?: boolean;
+    readonly submitLoading?: boolean;
+}) {
+    return (
+        <Group justify="flex-end" mt="lg">
+            <Button onClick={onCancel} type="button" variant="default">
+                Cancel
+            </Button>
+            <Button
+                disabled={submitDisabled}
+                loading={submitLoading}
+                type="submit"
+            >
+                {submitLabel}
+            </Button>
+        </Group>
     );
 }
 
@@ -733,86 +676,77 @@ function FeedEditForm({
     };
 
     return (
-        <Fieldset variant="filled">
-            <form onSubmit={submitEdit}>
-                <TextInput
-                    data-autofocus
-                    description="Leave empty to keep the original name"
-                    label="Feed name"
-                    maxLength={255}
-                    onChange={(event) =>
-                        setCustomName(event.currentTarget.value)
-                    }
-                    placeholder={managed.feedName}
-                    value={customName}
-                />
-                <NativeSelect
-                    data={categories.map((category) => ({
-                        value: String(category.id),
-                        label: category.name,
-                    }))}
-                    description="The category where the feed will be moved"
-                    label="Category"
-                    mt="md"
-                    onChange={(event) =>
-                        setCategoryId(event.currentTarget.value)
-                    }
-                    value={categoryId}
-                />
-                <Text fw={500} mt="lg" size="sm">
-                    Filter rules
-                </Text>
-                <Text c="dimmed" mb="xs" size="xs">
-                    Hide entries matching these patterns (supports regex)
-                </Text>
-                <FilterRuleSection
-                    buttonText="Add title filter"
-                    filters={filterRules.excludeTitle}
-                    label="Exclude by title"
-                    onAdd={() => addFilter('excludeTitle')}
-                    onRemove={(index) => removeFilter('excludeTitle', index)}
-                    onUpdate={(index, value) =>
-                        updateFilter('excludeTitle', index, value)
-                    }
-                    placeholder="e.g. alpha|beta"
-                />
-                <FilterRuleSection
-                    buttonText="Add content filter"
-                    filters={filterRules.excludeContent}
-                    label="Exclude by content"
-                    onAdd={() => addFilter('excludeContent')}
-                    onRemove={(index) => removeFilter('excludeContent', index)}
-                    onUpdate={(index, value) =>
-                        updateFilter('excludeContent', index, value)
-                    }
-                    placeholder="e.g. sponsored"
-                />
-                <FilterRuleSection
-                    buttonText="Add author filter"
-                    filters={filterRules.excludeAuthor}
-                    label="Exclude by author"
-                    onAdd={() => addFilter('excludeAuthor')}
-                    onRemove={(index) => removeFilter('excludeAuthor', index)}
-                    onUpdate={(index, value) =>
-                        updateFilter('excludeAuthor', index, value)
-                    }
-                    placeholder="e.g. bot"
-                />
-                {update.error !== null && (
-                    <Alert color="red" mt="md">
-                        {update.error.message}
-                    </Alert>
-                )}
-                <Button
-                    fullWidth
-                    loading={update.isPending}
-                    mt="md"
-                    type="submit"
-                >
-                    Save changes
-                </Button>
-            </form>
-        </Fieldset>
+        <form onSubmit={submitEdit}>
+            <TextInput
+                data-autofocus
+                description="Leave empty to use the feed's own name."
+                label="Feed name"
+                maxLength={255}
+                onChange={(event) => setCustomName(event.currentTarget.value)}
+                placeholder={managed.feedName}
+                value={customName}
+            />
+            <NativeSelect
+                data={categories.map((category) => ({
+                    value: String(category.id),
+                    label: category.name,
+                }))}
+                label="Category"
+                mt="md"
+                onChange={(event) => setCategoryId(event.currentTarget.value)}
+                value={categoryId}
+            />
+            <Text fw={500} mt="lg" size="sm">
+                Filter rules
+            </Text>
+            <Text c="dimmed" mb="xs" size="xs">
+                Hide entries that match a pattern. Patterns are regular
+                expressions.
+            </Text>
+            <FilterRuleSection
+                buttonText="Add title filter"
+                filters={filterRules.excludeTitle}
+                label="Exclude by title"
+                onAdd={() => addFilter('excludeTitle')}
+                onRemove={(index) => removeFilter('excludeTitle', index)}
+                onUpdate={(index, value) =>
+                    updateFilter('excludeTitle', index, value)
+                }
+                placeholder="e.g. alpha|beta"
+            />
+            <FilterRuleSection
+                buttonText="Add content filter"
+                filters={filterRules.excludeContent}
+                label="Exclude by content"
+                onAdd={() => addFilter('excludeContent')}
+                onRemove={(index) => removeFilter('excludeContent', index)}
+                onUpdate={(index, value) =>
+                    updateFilter('excludeContent', index, value)
+                }
+                placeholder="e.g. sponsored"
+            />
+            <FilterRuleSection
+                buttonText="Add author filter"
+                filters={filterRules.excludeAuthor}
+                label="Exclude by author"
+                onAdd={() => addFilter('excludeAuthor')}
+                onRemove={(index) => removeFilter('excludeAuthor', index)}
+                onUpdate={(index, value) =>
+                    updateFilter('excludeAuthor', index, value)
+                }
+                placeholder="e.g. bot"
+            />
+            {update.error !== null && (
+                <Alert color="red" mt="md">
+                    {update.error.message}
+                </Alert>
+            )}
+            <ModalActions
+                onCancel={() => modals.close(modalId)}
+                submitLabel="Save"
+                submitLoading={update.isPending}
+            />
+        </form>
     );
 }
 
@@ -866,7 +800,7 @@ function FeedActionsMenuItems({
         const modalId = `feed-edit-${managed.feedId}`;
         modals.open({
             modalId,
-            title: 'Update feed',
+            title: 'Edit feed',
             children: (
                 <FeedEditForm
                     categories={categories}
@@ -1123,18 +1057,12 @@ function CategoryRenameForm({
                 required
                 value={nextName}
             />
-            <Group justify="flex-end" mt="md">
-                <Button onClick={() => modals.close(modalId)} variant="default">
-                    Cancel
-                </Button>
-                <Button
-                    disabled={nextName.trim() === ''}
-                    loading={update.isPending}
-                    type="submit"
-                >
-                    Save
-                </Button>
-            </Group>
+            <ModalActions
+                onCancel={() => modals.close(modalId)}
+                submitDisabled={nextName.trim() === ''}
+                submitLabel="Save"
+                submitLoading={update.isPending}
+            />
         </form>
     );
 }
@@ -1216,7 +1144,7 @@ function CategoryActionsMenuItems({
                     modals.open({
                         modalId,
                         centered: true,
-                        title: 'Edit category name',
+                        title: 'Rename category',
                         children: (
                             <CategoryRenameForm
                                 categoryId={categoryId}
@@ -1227,7 +1155,7 @@ function CategoryActionsMenuItems({
                     });
                 }}
             >
-                Edit category name
+                Rename category
             </Menu.Item>
             <Menu.Divider />
             <Menu.Item

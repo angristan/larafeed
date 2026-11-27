@@ -332,8 +332,5 @@ describe('ReaderSidebar', () => {
 
         expect(markup).toContain('Create new category');
         expect(markup).toContain('New category name');
-        expect(markup).toContain(
-            'We will create this category and add the feed to it automatically',
-        );
     });
 });

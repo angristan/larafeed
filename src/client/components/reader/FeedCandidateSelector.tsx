@@ -165,7 +165,7 @@ export function FeedCandidateSelector({
                         disabled={isPending}
                         onClick={onBack}
                         type="button"
-                        variant="subtle"
+                        variant="default"
                     >
                         Back
                     </Button>

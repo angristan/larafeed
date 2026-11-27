@@ -515,6 +515,7 @@ test('asks the user to choose between matching feed candidates', async ({
     await page.goto('/feeds?filter=all&order_by=published_at');
 
     await page.getByRole('button', { name: 'Create feed or category' }).click();
+    await expect(page.getByRole('dialog', { name: 'Add feed' })).toBeVisible();
     await page.setViewportSize({ width: 320, height: 700 });
     await page
         .getByRole('textbox', { name: 'Feed URL' })
