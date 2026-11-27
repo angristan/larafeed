@@ -4,6 +4,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
+import type { SubscriptionManagement } from '../../api/subscriptions';
+import { subscriptionManagementKeys } from '../../queries/subscriptions';
+
 import {
     FeedCategoryFields,
     FilterRuleSection,
@@ -24,10 +27,16 @@ const cloudflare = {
     unreadCount: 6,
 };
 
-const renderSidebar = (overrides: Partial<SidebarProps> = {}): string => {
+const renderSidebar = (
+    overrides: Partial<SidebarProps> = {},
+    management?: SubscriptionManagement,
+): string => {
     const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false } },
     });
+    if (management !== undefined) {
+        queryClient.setQueryData(subscriptionManagementKeys.list(), management);
+    }
     return renderToStaticMarkup(
         <MemoryRouter>
             <QueryClientProvider client={queryClient}>
@@ -99,6 +108,57 @@ describe('ReaderSidebar', () => {
         expect(text).toContain('Cloudflare Blog, 6 unread');
         expect(text).toContain('Technology, 6 unread');
         expect(text).not.toContain('Quiet Feed, ');
+    });
+
+    it('marks the open view and names failing feeds', () => {
+        const markup = renderSidebar(
+            {
+                state: {
+                    feedId: 8,
+                    categoryId: null,
+                    filter: 'all',
+                    orderBy: 'published_at',
+                    entryId: null,
+                    summarize: false,
+                },
+            },
+            {
+                categories: [
+                    { id: 3, name: 'Technology', subscriptionCount: 1 },
+                ],
+                subscriptions: [
+                    {
+                        ...cloudflare,
+                        categoryName: 'Technology',
+                        feedUrl: 'https://blog.cloudflare.com/rss/',
+                        siteUrl: 'https://blog.cloudflare.com/',
+                        entryCount: 20,
+                        isGone: false,
+                        movedToUrl: null,
+                        consecutiveFailures: 3,
+                        lastAttemptAt: 1_900_000_000_000,
+                        lastSuccessfulRefreshAt: null,
+                        lastFailedRefreshAt: 1_900_000_000_000,
+                        lastErrorClass: 'http_status',
+                        lastErrorMessage: 'The server returned HTTP 503.',
+                        filterRules: {
+                            excludeTitle: [],
+                            excludeContent: [],
+                            excludeAuthor: [],
+                        },
+                        refreshes: [],
+                    },
+                ],
+            },
+        );
+        const currentLinks = [
+            ...markup.matchAll(/<a[^>]*aria-current="page"[^>]*>(.*?)<\/a>/gsu),
+        ].map((match) => match[1].replace(/<[^>]+>/gu, ''));
+
+        expect(currentLinks).toHaveLength(1);
+        expect(currentLinks[0]).toContain('Cloudflare Blog');
+        // The orange dot is not the only sign of a failing feed.
+        expect(currentLinks[0]).toContain('last refresh failed');
     });
 
     it('renders the original filters, categories, and feed hierarchy', () => {

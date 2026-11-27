@@ -138,6 +138,7 @@ function FilterLink({
 
     return (
         <Link
+            aria-current={active ? 'page' : undefined}
             className={`${classes.mainLink} ${active ? classes.activeFeed : ''}`}
             onClick={onNavigate}
             to={readerHref(state, {
@@ -1805,6 +1806,7 @@ const CategoryRow = memo(function CategoryRow({
         >
             <NavLink
                 active={active}
+                aria-current={active ? 'page' : undefined}
                 className={classes.categoryNavigation}
                 component={Link}
                 label={
@@ -1883,6 +1885,7 @@ const FeedRow = memo(function FeedRow({
     readonly subscription: ReaderSubscriptionList['subscriptions'][number];
 }) {
     const name = subscription.customFeedName ?? subscription.feedName;
+    const failing = managed !== undefined && managed.consecutiveFailures > 0;
 
     return (
         <Tooltip
@@ -1899,6 +1902,7 @@ const FeedRow = memo(function FeedRow({
             >
                 <div className={classes.feedRow}>
                     <Link
+                        aria-current={active ? 'page' : undefined}
                         className={classes.feedNavigationLink}
                         onClick={onNavigate}
                         to={href}
@@ -1910,10 +1914,7 @@ const FeedRow = memo(function FeedRow({
                             <Indicator
                                 className={classes.feedFailureIndicator}
                                 color="orange"
-                                disabled={
-                                    managed === undefined ||
-                                    managed.consecutiveFailures === 0
-                                }
+                                disabled={!failing}
                                 inline
                                 size={8}
                                 withBorder
@@ -1928,6 +1929,11 @@ const FeedRow = memo(function FeedRow({
                             <UnreadCountLabel
                                 count={subscription.unreadCount}
                             />
+                            {failing && (
+                                <VisuallyHidden>
+                                    , last refresh failed
+                                </VisuallyHidden>
+                            )}
                         </div>
                     </Link>
                     <FeedActions

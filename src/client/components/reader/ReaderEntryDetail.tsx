@@ -616,8 +616,10 @@ export const ReaderEntryDetail = memo(function ReaderEntryDetail({
                                                     ? 'Show the feed version'
                                                     : 'Fetch the full article'
                                             }
-                                            aria-pressed={fullArticle}
                                             className={classes.fullToggle}
+                                            data-full-article={
+                                                fullArticle || undefined
+                                            }
                                             color="gray"
                                             onClick={() =>
                                                 setFullArticle(
@@ -681,7 +683,6 @@ export const ReaderEntryDetail = memo(function ReaderEntryDetail({
                                             ? 'Remove entry from favorites'
                                             : 'Add entry to favorites'
                                     }
-                                    aria-pressed={shownEntry.starred}
                                     color="gray"
                                     loading={starPending}
                                     onClick={() =>
@@ -714,7 +715,6 @@ export const ReaderEntryDetail = memo(function ReaderEntryDetail({
                                             ? 'Mark entry as unread'
                                             : 'Mark entry as read'
                                     }
-                                    aria-pressed={shownEntry.read}
                                     className={classes.readAction}
                                     color="gray"
                                     data-direct-read-action

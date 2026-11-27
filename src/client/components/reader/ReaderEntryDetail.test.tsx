@@ -209,6 +209,16 @@ describe('ReaderEntryDetail summaries', () => {
         );
     });
 
+    it('names toolbar toggles by their action without aria-pressed', () => {
+        const markup = renderDetail();
+
+        // A changing label plus aria-pressed reads as "Mark entry as
+        // unread, pressed": the action label alone is unambiguous.
+        expect(markup).toContain('aria-label="Mark entry as unread"');
+        expect(markup).toContain('aria-label="Add entry to favorites"');
+        expect(markup).not.toContain('aria-pressed');
+    });
+
     it('offers the full article toggle in the toolbar', () => {
         const markup = renderDetail();
 

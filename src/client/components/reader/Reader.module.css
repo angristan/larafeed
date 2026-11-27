@@ -152,7 +152,7 @@
     background: color-mix(in srgb, var(--ds-line-strong) 44%, transparent);
 }
 
-.detailToolbar .fullToggle[aria-pressed='true'] {
+.detailToolbar .fullToggle[data-full-article] {
     border-color: color-mix(
         in srgb,
         var(--mantine-primary-color-filled) 72%,
@@ -162,7 +162,7 @@
     background: var(--mantine-primary-color-filled);
 }
 
-.detailToolbar .fullToggle[aria-pressed='true']:hover {
+.detailToolbar .fullToggle[data-full-article]:hover {
     background: color-mix(
         in srgb,
         var(--mantine-primary-color-filled) 88%,
