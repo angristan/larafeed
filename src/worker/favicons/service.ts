@@ -1,6 +1,7 @@
 import { Effect, Schema } from 'effect';
 
 import { validateFeedUrl } from '../feeds/policy';
+import { LARAFEED_USER_AGENT } from '../http/user-agent';
 import { FeedImageUnavailable, fetchImageResource } from '../images/service';
 import { spanNames, type TelemetryFailure, traceAsync } from '../observability';
 import {
@@ -325,8 +326,7 @@ const fetchResource = async (
                 signal: controller.signal,
                 headers: {
                     accept: input.accept,
-                    'user-agent':
-                        'Larafeed/1.0 (+https://larafeed.stanislas.cloud)',
+                    'user-agent': LARAFEED_USER_AGENT,
                 },
             });
             if (REDIRECTS.has(response.status)) {

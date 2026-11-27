@@ -2,7 +2,7 @@ import { Effect } from 'effect';
 
 import { MAX_FEED_RESPONSE_BYTES } from '../feeds/limits';
 import { validateFeedUrl } from '../feeds/policy';
-import { FEED_USER_AGENT } from '../feeds/service';
+import { LARAFEED_USER_AGENT } from '../http/user-agent';
 import { FullContentFetchError } from './errors';
 
 export const ARTICLE_FETCH_TIMEOUT_MS = 15_000;
@@ -129,7 +129,7 @@ const fetchPage = async (
                     method: 'GET',
                     headers: {
                         accept: 'text/html, application/xhtml+xml;q=0.9, */*;q=0.1',
-                        'user-agent': FEED_USER_AGENT,
+                        'user-agent': LARAFEED_USER_AGENT,
                     },
                     redirect: 'manual',
                     signal: controller.signal,

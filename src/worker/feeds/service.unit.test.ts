@@ -1,6 +1,6 @@
 import { Effect } from 'effect';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-
+import { LARAFEED_USER_AGENT } from '../http/user-agent';
 import {
     FeedHttpError,
     FeedNetworkError,
@@ -12,7 +12,6 @@ import { MAX_FEED_ENTRIES } from './parser';
 import {
     COMMON_FEED_DISCOVERY_PATHS,
     FEED_FETCH_TIMEOUT_MS,
-    FEED_USER_AGENT,
     MAX_FEED_REDIRECTS,
     MAX_FEED_RESPONSE_BYTES,
     makeFeedRefreshService,
@@ -72,7 +71,7 @@ describe('feed refresh service', () => {
         const headers = new Headers(init?.headers);
         expect(headers.get('if-none-match')).toBe(source.etag);
         expect(headers.get('if-modified-since')).toBe(source.lastModified);
-        expect(headers.get('user-agent')).toBe(FEED_USER_AGENT);
+        expect(headers.get('user-agent')).toBe(LARAFEED_USER_AGENT);
         expect(headers.get('accept')).toContain('application/feed+json');
         expect(headers.get('accept')).toContain('application/json');
         expect(init?.signal).toBeInstanceOf(AbortSignal);

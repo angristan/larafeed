@@ -1,5 +1,5 @@
 import { Effect } from 'effect';
-
+import { LARAFEED_USER_AGENT } from '../http/user-agent';
 import {
     annotateDiscoveryCandidates,
     type FeedDiscoveryResult,
@@ -46,8 +46,6 @@ export const COMMON_FEED_DISCOVERY_PATHS = [
     '/index.xml',
     '/feed.json',
 ] as const;
-export const FEED_USER_AGENT =
-    'Larafeed/1.0 (+https://larafeed.stanislas.cloud)';
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const RETRYABLE_HTTP_STATUSES = new Set([408, 425, 429]);
@@ -112,7 +110,7 @@ const safeConditionalHeader = (value: string | null): string | undefined =>
 const requestHeaders = (feed: AuthoritativeFeedSource): Headers => {
     const headers = new Headers({
         accept: 'application/feed+json, application/json;q=0.9, application/atom+xml, application/rss+xml, application/rdf+xml, application/xml, text/xml, */*;q=0.1',
-        'user-agent': FEED_USER_AGENT,
+        'user-agent': LARAFEED_USER_AGENT,
     });
     const etag = safeConditionalHeader(feed.etag);
     const lastModified = safeConditionalHeader(feed.lastModified);
@@ -343,7 +341,7 @@ const fetchDiscoveryPage = async (
                     method: 'GET',
                     headers: {
                         accept: 'text/html, application/xhtml+xml;q=0.9, */*;q=0.1',
-                        'user-agent': FEED_USER_AGENT,
+                        'user-agent': LARAFEED_USER_AGENT,
                     },
                     redirect: 'manual',
                     signal: controller.signal,

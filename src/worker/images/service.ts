@@ -1,4 +1,5 @@
 import { validateFeedUrl } from '../feeds/policy';
+import { LARAFEED_USER_AGENT } from '../http/user-agent';
 
 export const IMAGE_FETCH_TIMEOUT_MS = 5_000;
 export const MAX_IMAGE_RESPONSE_BYTES = 2 * 1024 * 1024;
@@ -182,8 +183,7 @@ export const fetchImageResource = async (
                 method: 'GET',
                 headers: {
                     accept: IMAGE_ACCEPT,
-                    'user-agent':
-                        'Larafeed/1.0 (+https://larafeed.stanislas.cloud)',
+                    'user-agent': LARAFEED_USER_AGENT,
                 },
                 redirect: 'manual',
                 signal: controller.signal,
