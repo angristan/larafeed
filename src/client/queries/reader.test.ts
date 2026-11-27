@@ -231,6 +231,68 @@ describe('reader query contracts', () => {
         );
     });
 
+    it('replaces only the patched subscription and entry rows', () => {
+        // Structural sharing would hide a patch that rebuilds every page.
+        // Turn it off to check what the patch itself returns.
+        const queryClient = new QueryClient({
+            defaultOptions: { queries: { structuralSharing: false } },
+        });
+        queryClient.setQueryData<ReaderEntry>(entryKeys.detail(7), detail);
+        const otherSubscription = {
+            categoryId: 11,
+            customFeedName: null,
+            faviconIsDark: false,
+            faviconUrl: null,
+            feedId: 4,
+            feedName: 'Other feed',
+            totalCount: 3,
+            unreadCount: 1,
+        };
+        queryClient.setQueryData(subscriptionKeys.list(), {
+            subscriptions: [
+                { ...otherSubscription, feedId: 3, unreadCount: 5 },
+                otherSubscription,
+            ],
+        });
+        const otherPage: ReaderEntryPage = {
+            entries: page.entries.map((entry) => ({ ...entry, id: 8 })),
+            total: null,
+            nextCursor: null,
+        };
+        const otherScope = { ...listScope, feedId: 4 };
+        const otherList: InfiniteData<ReaderEntryPage> = {
+            pages: [otherPage],
+            pageParams: [null],
+        };
+        queryClient.setQueryData(entryKeys.list(listScope), {
+            pages: [page, otherPage],
+            pageParams: [null, '1900000000000:7'],
+        });
+        queryClient.setQueryData(entryKeys.list(otherScope), otherList);
+
+        reconcileReaderInteraction(queryClient, interaction);
+
+        const subscriptions = queryClient.getQueryData<{
+            subscriptions: readonly (typeof otherSubscription)[];
+        }>(subscriptionKeys.list())?.subscriptions;
+        expect(subscriptions?.[0]?.unreadCount).toBe(4);
+        expect(subscriptions?.[1]).toBe(otherSubscription);
+        const patched = queryClient.getQueryData<InfiniteData<ReaderEntryPage>>(
+            entryKeys.list(listScope),
+        );
+        expect(patched?.pages[0]?.entries[0]?.read).toBe(true);
+        expect(patched?.pages[1]).toBe(otherPage);
+        expect(queryClient.getQueryData(entryKeys.list(otherScope))).toBe(
+            otherList,
+        );
+
+        // Replaying the same result changes nothing, so no list is rebuilt.
+        reconcileReaderInteraction(queryClient, interaction);
+        expect(queryClient.getQueryData(entryKeys.list(listScope))).toBe(
+            patched,
+        );
+    });
+
     it('does not refetch the feed library after an interaction', async () => {
         const queryClient = new QueryClient();
         const subscriptionQuery = vi.fn(() =>

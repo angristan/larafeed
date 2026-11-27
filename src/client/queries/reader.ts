@@ -152,7 +152,12 @@ function patchEntry<A extends ReaderEntryPage['entries'][number]>(
     entry: A,
     interaction: ReaderInteraction,
 ): A {
-    if (entry.id !== interaction.entryId) {
+    if (
+        entry.id !== interaction.entryId ||
+        (entry.read === interaction.read &&
+            entry.starred === interaction.starred &&
+            entry.archived === interaction.archived)
+    ) {
         return entry;
     }
 
@@ -164,6 +169,41 @@ function patchEntry<A extends ReaderEntryPage['entries'][number]>(
     };
 }
 
+// Returns the same page when it does not hold the entry or nothing changed,
+// so the other cached lists and pages keep their references.
+function patchEntryPage(
+    page: ReaderEntryPage,
+    interaction: ReaderInteraction,
+): ReaderEntryPage {
+    const index = page.entries.findIndex(
+        (entry) => entry.id === interaction.entryId,
+    );
+    const entry = page.entries[index];
+    if (entry === undefined) {
+        return page;
+    }
+    const patched = patchEntry(entry, interaction);
+    if (patched === entry) {
+        return page;
+    }
+    const entries = [...page.entries];
+    entries[index] = patched;
+    return { ...page, entries };
+}
+
+function patchEntryList(
+    data: InfiniteData<ReaderEntryPage>,
+    interaction: ReaderInteraction,
+): InfiniteData<ReaderEntryPage> {
+    let changed = false;
+    const pages = data.pages.map((page) => {
+        const patched = patchEntryPage(page, interaction);
+        if (patched !== page) changed = true;
+        return patched;
+    });
+    return changed ? { ...data, pages } : data;
+}
+
 function patchSubscriptionUnread(
     queryClient: QueryClient,
     feedId: number,
@@ -173,27 +213,32 @@ function patchSubscriptionUnread(
         return;
     }
 
+    // Only the changed subscription gets a new object. The other rows keep
+    // their references so memoized consumers skip them.
     queryClient.setQueriesData<ReaderSubscriptionList>(
         { queryKey: subscriptionKeys.lists() },
-        (current) =>
-            current === undefined
-                ? current
-                : {
-                      ...current,
-                      subscriptions: current.subscriptions.map(
-                          (subscription) =>
-                              subscription.feedId === feedId
-                                  ? {
-                                        ...subscription,
-                                        unreadCount: Math.max(
-                                            0,
-                                            subscription.unreadCount +
-                                                unreadDelta,
-                                        ),
-                                    }
-                                  : subscription,
-                      ),
-                  },
+        (current) => {
+            if (current === undefined) {
+                return current;
+            }
+            const index = current.subscriptions.findIndex(
+                (subscription) => subscription.feedId === feedId,
+            );
+            const subscription = current.subscriptions[index];
+            if (subscription === undefined) {
+                return current;
+            }
+            const unreadCount = Math.max(
+                0,
+                subscription.unreadCount + unreadDelta,
+            );
+            if (unreadCount === subscription.unreadCount) {
+                return current;
+            }
+            const subscriptions = [...current.subscriptions];
+            subscriptions[index] = { ...subscription, unreadCount };
+            return { ...current, subscriptions };
+        },
     );
 }
 
@@ -295,15 +340,7 @@ export function reconcileReaderInteraction(
         (current) =>
             current === undefined
                 ? current
-                : {
-                      ...current,
-                      pages: current.pages.map((page) => ({
-                          ...page,
-                          entries: page.entries.map((entry) =>
-                              patchEntry(entry, interaction),
-                          ),
-                      })),
-                  },
+                : patchEntryList(current, interaction),
     );
 }
 
