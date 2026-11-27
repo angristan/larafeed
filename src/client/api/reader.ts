@@ -13,16 +13,24 @@ import {
 } from '@shared/http';
 import { Effect, Schema } from 'effect';
 
+import type {
+    ReaderCategoryListData,
+    ReaderCountsData,
+    ReaderEntryDetailData,
+    ReaderEntryPageData,
+    ReaderSubscriptionListData,
+} from './readerDecoders';
 import { ReaderClientError } from './readerError';
 import { readerEntryListPath } from './readerRequest';
 
 export { ReaderClientError, type ReaderClientErrorKind } from './readerError';
 
-export type ReaderCategoryList = typeof ReaderCategoryListResponse.Type;
-export type ReaderSubscriptionList = typeof ReaderSubscriptionListResponse.Type;
-export type ReaderCounts = typeof ReaderCountsResponse.Type;
-export type ReaderEntryPage = typeof ReaderEntryListResponse.Type;
-export type ReaderEntry = typeof ReaderEntryDetail.Type;
+// Cached reader data is decoded to plain objects (see readerDecoders.ts).
+export type ReaderCategoryList = ReaderCategoryListData;
+export type ReaderSubscriptionList = ReaderSubscriptionListData;
+export type ReaderCounts = ReaderCountsData;
+export type ReaderEntryPage = ReaderEntryPageData;
+export type ReaderEntry = ReaderEntryDetailData;
 export type ReaderInteraction = typeof ReaderInteractionResponse.Type;
 export type ReaderReadThrough = typeof ReaderReadThroughResponse.Type;
 

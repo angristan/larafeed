@@ -1,3 +1,4 @@
+import { replaceEqualDeep } from '@tanstack/react-query';
 import { Effect } from 'effect';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -63,6 +64,38 @@ describe('SubscriptionClient', () => {
             categories: [category],
             subscriptions: [subscription],
         });
+    });
+
+    it('decodes management data that a refetch can share structurally', async () => {
+        const body = {
+            categories: [category],
+            subscriptions: [
+                {
+                    ...subscription,
+                    refreshes: [
+                        {
+                            id: 1,
+                            refreshedAt: 1_900_000_000_000,
+                            successful: true,
+                            notModified: false,
+                            httpStatus: 200,
+                            entriesCreated: 1,
+                            errorClass: null,
+                            errorMessage: null,
+                        },
+                    ],
+                },
+            ],
+        };
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(() => Promise.resolve(Response.json(body))),
+        );
+
+        const first = await Effect.runPromise(listManagedSubscriptions());
+        const second = await Effect.runPromise(listManagedSubscriptions());
+
+        expect(replaceEqualDeep(first, second)).toBe(first);
     });
 
     it('adds a feed with a typed body and CSRF token', async () => {

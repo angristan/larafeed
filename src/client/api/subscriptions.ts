@@ -10,16 +10,36 @@ import {
     CreateSubscriptionResponse,
     DeleteResourceResponse,
     type DismissMovedFeedRequest,
+    ManagedCategory as ManagedCategorySchema,
+    ManagedSubscription as ManagedSubscriptionSchema,
     type MoveSubscriptionRequest,
     MoveSubscriptionResponse,
-    SubscriptionManagementResponse,
+    SubscriptionFilterRules as SubscriptionFilterRulesSchema,
     SubscriptionMutationResponse,
+    SubscriptionRefreshRecord as SubscriptionRefreshRecordSchema,
     type UpdateCategoryRequest,
     type UpdateSubscriptionRequest,
 } from '@shared/schemas/subscriptions';
 import { Effect, Schema } from 'effect';
 
-export type SubscriptionManagement = typeof SubscriptionManagementResponse.Type;
+// The shared schemas decode to Schema.Class instances, which TanStack Query
+// cannot share structurally between refetches. The cached management payload
+// decodes the same fields to plain objects so unchanged rows keep their
+// references.
+const SubscriptionManagementPlain = Schema.Struct({
+    categories: Schema.Array(Schema.Struct(ManagedCategorySchema.fields)),
+    subscriptions: Schema.Array(
+        Schema.Struct({
+            ...ManagedSubscriptionSchema.fields,
+            filterRules: Schema.Struct(SubscriptionFilterRulesSchema.fields),
+            refreshes: Schema.Array(
+                Schema.Struct(SubscriptionRefreshRecordSchema.fields),
+            ),
+        }),
+    ),
+});
+
+export type SubscriptionManagement = typeof SubscriptionManagementPlain.Type;
 export type ManagedCategory = SubscriptionManagement['categories'][number];
 export type ManagedSubscription =
     SubscriptionManagement['subscriptions'][number];
@@ -214,9 +234,7 @@ const requestJson = <A>(
 
 export const listManagedSubscriptions = Effect.fn(
     'SubscriptionClient.listManaged',
-)(() =>
-    requestJson('/api/subscriptions/manage', SubscriptionManagementResponse),
-);
+)(() => requestJson('/api/subscriptions/manage', SubscriptionManagementPlain));
 
 export const createCategory = Effect.fn('SubscriptionClient.createCategory')(
     (input: CreateCategoryInput) =>
