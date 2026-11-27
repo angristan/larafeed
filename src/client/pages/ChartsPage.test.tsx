@@ -146,7 +146,7 @@ describe('chart report pages', () => {
         expect(refreshAttemptSeries).toContainEqual({
             name: 'totalAttempts',
             label: 'Total attempts',
-            color: 'blue.6',
+            color: 'sky.6',
         });
         expect(markup).not.toContain('Reading density');
     });

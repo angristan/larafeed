@@ -53,6 +53,9 @@ import classes from './ChartsPage.module.css';
 
 type ChartReportView = 'overview' | 'reading' | 'refresh' | 'backlog';
 
+// Each measure keeps one theme color on every chart and heatmap: received
+// is sage, read is sky, favorites are honey, the unread backlog is gray,
+// and refresh failures are rust.
 export const refreshAttemptSeries = [
     {
         name: 'successes',
@@ -62,12 +65,12 @@ export const refreshAttemptSeries = [
     {
         name: 'failures',
         label: 'Failed',
-        color: 'red.6',
+        color: 'rust.6',
     },
     {
         name: 'totalAttempts',
         label: 'Total attempts',
-        color: 'blue.6',
+        color: 'sky.6',
     },
 ];
 
@@ -476,7 +479,7 @@ function ChartsDashboard({
                                 {
                                     name: 'received',
                                     label: 'Received',
-                                    color: 'teal.7',
+                                    color: 'sage.6',
                                 },
                                 {
                                     name: 'read',
@@ -486,7 +489,7 @@ function ChartsDashboard({
                                 {
                                     name: 'saved',
                                     label: 'Favorites',
-                                    color: 'orange.6',
+                                    color: 'honey.6',
                                 },
                             ]}
                             valueFormatter={(value) =>
@@ -508,7 +511,7 @@ function ChartsDashboard({
                                     {
                                         name: 'backlog',
                                         label: 'Unread backlog',
-                                        color: 'orange.6',
+                                        color: 'gray.6',
                                     },
                                 ]}
                                 valueFormatter={(value) =>
@@ -566,7 +569,7 @@ function ChartsDashboard({
                                 {
                                     name: 'received',
                                     label: 'Received',
-                                    color: 'teal.7',
+                                    color: 'sage.6',
                                 },
                                 {
                                     name: 'read',
@@ -576,7 +579,7 @@ function ChartsDashboard({
                                 {
                                     name: 'saved',
                                     label: 'Favorites',
-                                    color: 'orange.6',
+                                    color: 'honey.6',
                                 },
                             ]}
                             valueFormatter={(value) =>
@@ -594,10 +597,10 @@ function ChartsDashboard({
                         >
                             <Heatmap
                                 colors={[
-                                    'var(--mantine-color-blue-1)',
-                                    'var(--mantine-color-blue-4)',
-                                    'var(--mantine-color-blue-6)',
-                                    'var(--mantine-color-blue-8)',
+                                    'var(--mantine-color-sky-1)',
+                                    'var(--mantine-color-sky-4)',
+                                    'var(--mantine-color-sky-6)',
+                                    'var(--mantine-color-sky-8)',
                                 ]}
                                 data={reads}
                                 endDate={data.window.endDate}
@@ -620,10 +623,10 @@ function ChartsDashboard({
                         >
                             <Heatmap
                                 colors={[
-                                    'var(--mantine-color-orange-1)',
-                                    'var(--mantine-color-orange-4)',
-                                    'var(--mantine-color-orange-6)',
-                                    'var(--mantine-color-orange-8)',
+                                    'var(--mantine-color-honey-1)',
+                                    'var(--mantine-color-honey-4)',
+                                    'var(--mantine-color-honey-6)',
+                                    'var(--mantine-color-honey-8)',
                                 ]}
                                 data={saved}
                                 endDate={data.window.endDate}
@@ -756,7 +759,7 @@ function ChartsDashboard({
                                 {
                                     name: 'backlog',
                                     label: 'Unread backlog',
-                                    color: 'orange.6',
+                                    color: 'gray.6',
                                 },
                             ]}
                             valueFormatter={(value) =>
@@ -803,10 +806,10 @@ function ChartsDashboard({
                         >
                             <Heatmap
                                 colors={[
-                                    'var(--mantine-color-green-1)',
-                                    'var(--mantine-color-green-4)',
-                                    'var(--mantine-color-green-6)',
-                                    'var(--mantine-color-green-8)',
+                                    'var(--mantine-color-sage-1)',
+                                    'var(--mantine-color-sage-4)',
+                                    'var(--mantine-color-sage-6)',
+                                    'var(--mantine-color-sage-8)',
                                 ]}
                                 data={entries}
                                 endDate={data.window.endDate}
