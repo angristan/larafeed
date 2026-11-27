@@ -871,30 +871,51 @@ export const ReaderEntryDetail = memo(function ReaderEntryDetail({
                                 <ReaderEntryFullContent entryId={entry.id} />
                             ) : entry.contentHtml === null ||
                               entry.contentHtml.trim().length === 0 ? (
-                                <Alert color="gray" title="No article content">
-                                    <Stack align="flex-start" gap="sm">
-                                        <Text size="sm">
-                                            Open the original article to read it
-                                            on the publisher’s website.
-                                        </Text>
-                                        {entry.url !== null && (
-                                            <Button
-                                                leftSection={
-                                                    <IconFileText
-                                                        size={15}
-                                                        stroke={2}
-                                                    />
-                                                }
-                                                onClick={() =>
-                                                    setFullArticle(true)
-                                                }
-                                                size="xs"
-                                                variant="light"
-                                            >
-                                                Fetch full article
-                                            </Button>
-                                        )}
-                                    </Stack>
+                                <Alert
+                                    color="gray"
+                                    title="The feed has no text for this entry"
+                                >
+                                    {entry.url === null ? null : (
+                                        <Stack align="flex-start" gap="sm">
+                                            <Text size="sm">
+                                                Fetch the full article here, or
+                                                read it on the publisher’s site.
+                                            </Text>
+                                            <Group gap="xs">
+                                                <Button
+                                                    leftSection={
+                                                        <IconFileText
+                                                            size={15}
+                                                            stroke={2}
+                                                        />
+                                                    }
+                                                    onClick={() =>
+                                                        setFullArticle(true)
+                                                    }
+                                                    size="xs"
+                                                    variant="light"
+                                                >
+                                                    Fetch the full article
+                                                </Button>
+                                                <Button
+                                                    component="a"
+                                                    href={entry.url}
+                                                    rel="noopener noreferrer"
+                                                    rightSection={
+                                                        <IconExternalLink
+                                                            aria-hidden="true"
+                                                            size={14}
+                                                        />
+                                                    }
+                                                    size="xs"
+                                                    target="_blank"
+                                                    variant="default"
+                                                >
+                                                    Open original
+                                                </Button>
+                                            </Group>
+                                        </Stack>
+                                    )}
                                 </Alert>
                             ) : (
                                 <div

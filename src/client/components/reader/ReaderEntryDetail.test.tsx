@@ -228,6 +228,16 @@ describe('ReaderEntryDetail summaries', () => {
         expect(markup).toContain('aria-label="Mark entry as unread"');
     });
 
+    it('offers both ways to read an entry the feed sent without text', () => {
+        const markup = renderDetail({
+            detailEntry: { ...entry, contentHtml: null },
+        });
+
+        expect(markup).toContain('The feed has no text for this entry');
+        expect(markup).toContain('Fetch the full article');
+        expect(markup).toContain('Open original</span>');
+    });
+
     it('offers the full article toggle in the toolbar', () => {
         const markup = renderDetail();
 

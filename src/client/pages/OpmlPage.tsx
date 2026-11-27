@@ -106,7 +106,7 @@ function ImportCard({ opmlImport }: { readonly opmlImport: OpmlImport }) {
         >
             <Group justify="space-between" align="flex-start" wrap="wrap">
                 <Stack gap={2}>
-                    <Title id={headingId} order={3} size="h4">
+                    <Title id={headingId} order={4}>
                         {opmlImport.filename ?? `Import #${opmlImport.id}`}
                     </Title>
                     <Text c="dimmed" size="xs">
@@ -228,7 +228,7 @@ function ImportHistory({
         <Stack gap="xl">
             {currentImports.length > 0 && (
                 <Stack component="section" gap="sm">
-                    <Title order={2}>Current imports</Title>
+                    <Title order={3}>Current imports</Title>
                     {currentImports.map((opmlImport) => (
                         <ImportCard
                             key={opmlImport.id}
@@ -240,7 +240,7 @@ function ImportHistory({
 
             {recentImports.length > 0 && (
                 <Stack component="section" gap="sm">
-                    <Title order={2}>Recent imports</Title>
+                    <Title order={3}>Recent imports</Title>
                     {recentImports.map((opmlImport) => (
                         <ImportCard
                             key={opmlImport.id}
@@ -338,7 +338,7 @@ export function OpmlPage() {
                 <Stack gap="md">
                     <ApplicationWorkSurface>
                         <Stack component="section" gap="md" maw={600}>
-                            <Title id="opml-upload-heading" order={3}>
+                            <Title id="opml-upload-heading" order={2}>
                                 Import OPML
                             </Title>
                             <form onSubmit={handleSubmit}>
@@ -405,7 +405,7 @@ export function OpmlPage() {
 
                     <ApplicationWorkSurface>
                         <Stack component="section" gap="sm" maw={600}>
-                            <Title order={3}>Export OPML</Title>
+                            <Title order={2}>Export OPML</Title>
                             <Text c="dimmed" size="sm">
                                 Download your subscriptions and categories as an
                                 OPML file.
