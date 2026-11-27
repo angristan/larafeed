@@ -33,7 +33,9 @@ const colors = {
         paperStrong: '#e2dacf',
         ink: '#29241f',
         muted: '#655d55',
-        subtle: '#766d64',
+        // 4.8:1 on the canvas and 5.9:1 on paper. The previous #766d64 was
+        // 4.1:1 on the canvas, below the WCAG AA minimum for body text.
+        subtle: '#6b625a',
         line: '#d3c8ba',
         lineStrong: '#897b6e',
         accent: '#c87352',
@@ -92,6 +94,9 @@ const semanticVariables = (
         '--ds-paper-strong': palette.paperStrong,
         '--ds-ink': palette.ink,
         '--ds-muted': palette.muted,
+        // Mantine's c="dimmed" defaults to gray.6, which is too light on
+        // the canvas. Use the muted ink instead in both color schemes.
+        '--mantine-color-dimmed': palette.muted,
         '--ds-subtle': palette.subtle,
         '--ds-line': palette.line,
         '--ds-line-strong': palette.lineStrong,
@@ -227,7 +232,7 @@ const warmGray = [
     '#cfc4b8',
     '#b5a79a',
     '#96877a',
-    '#766d64',
+    '#6b625a',
     '#5c534c',
     '#3e3732',
     '#27221e',
