@@ -794,13 +794,13 @@ const SubscriptionAuditRow = memo(function SubscriptionAuditRow({
                     </Stack>
                 </Group>
             </Table.Td>
-            <Table.Td>
+            <Table.Td data-label="Category">
                 <Text size="sm">{subscription.categoryName}</Text>
             </Table.Td>
-            <Table.Td ta="right">
+            <Table.Td data-label="Entries" ta="right">
                 {subscription.entryCount.toLocaleString()}
             </Table.Td>
-            <Table.Td>
+            <Table.Td data-label="Status">
                 <Stack gap={3}>
                     <StatusBadge subscription={subscription} />
                     {issue !== null && (
@@ -816,7 +816,7 @@ const SubscriptionAuditRow = memo(function SubscriptionAuditRow({
                     )}
                 </Stack>
             </Table.Td>
-            <Table.Td>
+            <Table.Td data-label="Last success">
                 <Tooltip
                     label={formatAbsolute(subscription.lastSuccessfulRefreshAt)}
                     withArrow
@@ -826,7 +826,7 @@ const SubscriptionAuditRow = memo(function SubscriptionAuditRow({
                     </Text>
                 </Tooltip>
             </Table.Td>
-            <Table.Td>
+            <Table.Td data-label="Last failure">
                 <Tooltip label={formatAbsolute(lastFailure)} withArrow>
                     <Text size="sm">{formatRelative(lastFailure)}</Text>
                 </Tooltip>
@@ -1177,9 +1177,12 @@ function SubscriptionWorkspace({
                                         Reset filters
                                     </Button>
                                 </div>
-                                <Table.ScrollContainer minWidth={980}>
+                                <Table.ScrollContainer
+                                    className={classes.auditScroll}
+                                    minWidth={980}
+                                >
                                     <Table
-                                        className={classes.table}
+                                        className={`${classes.table} ${classes.auditTable}`}
                                         highlightOnHover
                                         verticalSpacing="sm"
                                         withRowBorders

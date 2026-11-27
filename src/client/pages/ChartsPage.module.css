@@ -215,10 +215,6 @@
     .reportGrid {
         grid-template-columns: minmax(0, 1fr);
     }
-
-    .chartBody > * {
-        min-width: 36rem;
-    }
 }
 
 @media (max-width: 56.24em) {
@@ -271,10 +267,6 @@
     .scopeRow > *,
     .scopeSelect {
         width: 100%;
-    }
-
-    .chartBody > * {
-        min-width: 36rem;
     }
 }
 

@@ -192,3 +192,47 @@ test('confirms a refresh started from the details drawer', async ({ page }) => {
     ).toBeVisible();
     expect(refreshRequests).toBe(1);
 });
+
+test('fits the feed audit on a phone without sideways scrolling', async ({
+    page,
+}) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.route('**/api/**', async (route) => {
+        const { pathname } = new URL(route.request().url());
+        if (pathname === '/api/auth/session') {
+            await route.fulfill(
+                json({
+                    authenticated: true,
+                    user,
+                    expiresAt: now + 86_400_000,
+                }),
+            );
+            return;
+        }
+        if (pathname === '/api/subscriptions/manage') {
+            await route.fulfill(
+                json({
+                    categories: [category],
+                    subscriptions: [oldSubscription],
+                }),
+            );
+            return;
+        }
+        await route.fulfill({ status: 404, body: '' });
+    });
+
+    await page.goto('/settings/subscriptions');
+    const details = page.getByRole('button', {
+        name: 'View details for Example blog',
+    });
+    await expect(details).toBeVisible();
+
+    const tableBox = await page.locator('table').last().boundingBox();
+    expect(tableBox?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(
+        390,
+    );
+    const detailsBox = await details.boundingBox();
+    expect((detailsBox?.x ?? 0) + (detailsBox?.width ?? 0)).toBeLessThanOrEqual(
+        390,
+    );
+});

@@ -71,6 +71,10 @@ export const refreshAttemptSeries = [
     },
 ];
 
+// Drop date ticks that would collide instead of forcing a minimum chart
+// width, so charts fit a phone screen without sideways scrolling.
+const dateAxisProps = { minTickGap: 24 } as const;
+
 const formatDate = (date: string) =>
     new Date(`${date}T00:00:00.000Z`).toLocaleDateString('en-US', {
         weekday: 'long',
@@ -465,6 +469,7 @@ function ChartsDashboard({
                         <BarChart
                             data={readingFlow}
                             dataKey="date"
+                            xAxisProps={dateAxisProps}
                             h={300}
                             maxBarWidth={18}
                             series={[
@@ -497,6 +502,7 @@ function ChartsDashboard({
                             <LineChart
                                 data={backlog}
                                 dataKey="date"
+                                xAxisProps={dateAxisProps}
                                 h={260}
                                 series={[
                                     {
@@ -520,6 +526,7 @@ function ChartsDashboard({
                                 connectNulls={false}
                                 data={refreshRates}
                                 dataKey="date"
+                                xAxisProps={dateAxisProps}
                                 h={260}
                                 series={[
                                     {
@@ -552,6 +559,7 @@ function ChartsDashboard({
                         <BarChart
                             data={readingFlow}
                             dataKey="date"
+                            xAxisProps={dateAxisProps}
                             h={300}
                             maxBarWidth={18}
                             series={[
@@ -653,6 +661,7 @@ function ChartsDashboard({
                                 <LineChart
                                     data={refreshActivity}
                                     dataKey="date"
+                                    xAxisProps={dateAxisProps}
                                     h={300}
                                     series={refreshAttemptSeries}
                                     valueFormatter={(value) =>
@@ -674,6 +683,7 @@ function ChartsDashboard({
                                         connectNulls={false}
                                         data={refreshRates}
                                         dataKey="date"
+                                        xAxisProps={dateAxisProps}
                                         h={300}
                                         series={[
                                             {
@@ -699,6 +709,7 @@ function ChartsDashboard({
                                     <LineChart
                                         data={refreshActivity}
                                         dataKey="date"
+                                        xAxisProps={dateAxisProps}
                                         h={260}
                                         series={[
                                             {
@@ -739,6 +750,7 @@ function ChartsDashboard({
                         <LineChart
                             data={backlog}
                             dataKey="date"
+                            xAxisProps={dateAxisProps}
                             h={300}
                             series={[
                                 {
@@ -766,6 +778,7 @@ function ChartsDashboard({
                                 connectNulls={false}
                                 data={readThrough}
                                 dataKey="date"
+                                xAxisProps={dateAxisProps}
                                 h={300}
                                 series={[
                                     {

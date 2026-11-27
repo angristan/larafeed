@@ -109,6 +109,63 @@
     overflow-wrap: anywhere;
 }
 
+/* Below the sm breakpoint each feed becomes a stacked card instead of a
+   980px-wide row that needs sideways scrolling. Sorting stays available
+   in the filter bar, so the header row can be hidden. */
+@media (max-width: 48em) {
+    .auditScroll {
+        --table-min-width: 0 !important;
+    }
+
+    .auditTable,
+    .auditTable tbody {
+        display: block;
+    }
+
+    .auditTable thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .auditTable tbody tr {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--ds-space-2) var(--ds-space-4);
+        padding: var(--ds-space-3) var(--ds-space-4);
+        border-bottom: 1px solid var(--ds-line);
+    }
+
+    .auditTable td {
+        display: block;
+        width: auto !important;
+        min-width: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        text-align: start !important;
+    }
+
+    .auditTable td:first-child,
+    .auditTable td:last-child,
+    .auditTable td[colspan] {
+        grid-column: 1 / -1;
+    }
+
+    .auditTable td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        color: var(--ds-muted);
+        font-size: var(--mantine-font-size-xs);
+    }
+
+    .issue {
+        max-width: none;
+    }
+}
+
 .breakAnywhere {
     overflow-wrap: anywhere;
 }
