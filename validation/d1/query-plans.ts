@@ -175,6 +175,30 @@ export const queryPlanSpecs = (
             ],
         },
         {
+            // Stale-lease recovery finds the jobs it just dead-lettered.
+            name: 'recovery.stale_lease_jobs',
+            sql: `SELECT id FROM jobs
+                WHERE state IN ('succeeded', 'dead_lettered', 'canceled')
+                    AND completed_at = ?
+                    AND kind = 'feed_refresh' AND state = 'dead_lettered'
+                    AND last_error_class = 'stale_lease'
+                    AND updated_at = ?`,
+            bindings: [fixture.generatedAt, fixture.generatedAt],
+            required: ['jobs_terminal_completed (completed_at=?)'],
+        },
+        {
+            // OPML recovery finds the outbox messages it just dead-lettered.
+            name: 'recovery.dead_lettered_outbox',
+            sql: `SELECT o.job_id FROM outbox_messages o
+                WHERE o.topic = 'opml_import_feed'
+                    AND o.state = 'dead_lettered' AND o.updated_at = ?
+                    AND o.last_error_class = 'queue_redrive_exhausted'`,
+            bindings: [fixture.generatedAt],
+            required: [
+                'outbox_messages_dead_lettered (topic=? AND updated_at=?)',
+            ],
+        },
+        {
             name: 'history.cleanup',
             sql: `SELECT old.id FROM feed_refreshes old
                 WHERE old.refreshed_at < ?

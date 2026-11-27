@@ -1025,14 +1025,22 @@ export const makeJobRepository = (d1: D1): JobRepository => ({
                             updated_at = ?
                         WHERE topic = ? AND state <> 'dead_lettered'
                           AND job_id IN (
-                            SELECT id FROM jobs WHERE kind = ?
-                              AND state = 'dead_lettered'
+                            -- The statement above sets completed_at = now
+                            -- on the jobs it dead-letters. Repeating the
+                            -- state list of jobs_terminal_completed lets
+                            -- SQLite use that index; otherwise this reads
+                            -- every job on each cron run.
+                            SELECT id FROM jobs
+                            WHERE state IN ('succeeded', 'dead_lettered', 'canceled')
+                              AND completed_at = ?
+                              AND kind = ? AND state = 'dead_lettered'
                               AND last_error_class = 'stale_lease'
                               AND updated_at = ?
                           )`,
                     bindings: [
                         now,
                         FEED_REFRESH_TOPIC,
+                        now,
                         FEED_REFRESH_JOB_KIND,
                         now,
                     ],

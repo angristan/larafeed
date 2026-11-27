@@ -1582,17 +1582,20 @@ export const makeOpmlRepository = (d1: D1): OpmlRepository => ({
                         lease_owner = NULL, lease_expires_at = NULL,
                         last_error_class = 'queue_redrive_exhausted',
                         last_error_message = 'Queue delivery was not completed', updated_at = ?
-                    WHERE kind = ? AND state NOT IN ('succeeded', 'dead_lettered', 'canceled')
-                        AND EXISTS (SELECT 1 FROM outbox_messages o
-                            WHERE o.job_id = jobs.id AND o.topic = ?
-                                AND o.state = 'dead_lettered' AND o.updated_at = ?
-                                AND o.last_error_class = 'queue_redrive_exhausted')`,
+                    WHERE id IN (SELECT o.job_id FROM outbox_messages o
+                            WHERE o.topic = ? AND o.state = 'dead_lettered'
+                                AND o.updated_at = ?
+                                AND o.last_error_class = 'queue_redrive_exhausted')
+                        AND kind = ? AND state NOT IN ('succeeded', 'dead_lettered', 'canceled')`,
+                    // The outbox rows dead-lettered just above drive this
+                    // through outbox_messages_dead_lettered. Starting from
+                    // jobs read every job on each cron run.
                     bindings: [
                         now,
                         now,
-                        OPML_IMPORT_JOB_KIND,
                         OPML_IMPORT_TOPIC,
                         now,
+                        OPML_IMPORT_JOB_KIND,
                     ],
                 },
                 {
