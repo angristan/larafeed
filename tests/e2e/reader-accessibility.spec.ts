@@ -99,6 +99,7 @@ async function mockReaderApi(
                             entryCount: 1,
                             unreadCount: 1,
                             isGone: false,
+                            movedToUrl: null,
                             consecutiveFailures: 0,
                             lastAttemptAt: now,
                             lastSuccessfulRefreshAt: now,
