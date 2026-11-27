@@ -34,7 +34,11 @@ import {
     makeCompatibilityRepository,
 } from './repository';
 
-const MAX_FORM_BYTES = 64 * 1_024;
+// A NetNewsWire edit-tag request carries up to 1,000 long-form item IDs of
+// about 50 bytes each, more when the client percent-encodes them.
+const MAX_FORM_BYTES = 128 * 1_024;
+// NetNewsWire sends article state changes in groups of up to 1,000.
+const MAX_EDIT_TAG_ITEMS = 1_000;
 const MAX_URL_BYTES = 16 * 1_024;
 const GOOGLE_ROOT = '/api/reader/reader/api/0';
 const NO_STORE = 'no-store';
@@ -750,43 +754,45 @@ export const registerCompatibilityRoutes = (
         protectedGoogle(context, (compat, authentication) =>
             Effect.gen(function* () {
                 const form = yield* requestParameters(context.req.raw);
-                const id = parseCompatibilityItemId(form.get('i') ?? '');
-                if (id === null) {
+                // Clients send many items and may add and remove tags in one
+                // request: every `i` gets every `a` and `r` change.
+                const values = form.getAll('i');
+                if (values.length === 0 || values.length > MAX_EDIT_TAG_ITEMS) {
                     return yield* Effect.fail(
                         new CompatibilityValidationError(),
                     );
                 }
-                const add = form.get('a') ?? '';
-                const remove = form.get('r') ?? '';
+                const ids: number[] = [];
+                for (const value of values) {
+                    const id = parseCompatibilityItemId(value);
+                    if (id === null) {
+                        return yield* Effect.fail(
+                            new CompatibilityValidationError(),
+                        );
+                    }
+                    ids.push(id);
+                }
+                const changes = [
+                    ...form.getAll('a').map((tag) => ({ tag, desired: true })),
+                    ...form.getAll('r').map((tag) => ({ tag, desired: false })),
+                ];
                 const now = compat.now();
-                if (add.endsWith('/read')) {
-                    yield* compat.repository.setRead(
-                        authentication.user.id,
-                        id,
-                        true,
-                        now,
-                    );
-                } else if (remove.endsWith('/read')) {
-                    yield* compat.repository.setRead(
-                        authentication.user.id,
-                        id,
-                        false,
-                        now,
-                    );
-                } else if (add.endsWith('/starred')) {
-                    yield* compat.repository.setStarred(
-                        authentication.user.id,
-                        id,
-                        true,
-                        now,
-                    );
-                } else if (remove.endsWith('/starred')) {
-                    yield* compat.repository.setStarred(
-                        authentication.user.id,
-                        id,
-                        false,
-                        now,
-                    );
+                for (const { tag, desired } of changes) {
+                    if (tag.endsWith('/read')) {
+                        yield* compat.repository.setReadMany(
+                            authentication.user.id,
+                            ids,
+                            desired,
+                            now,
+                        );
+                    } else if (tag.endsWith('/starred')) {
+                        yield* compat.repository.setStarredMany(
+                            authentication.user.id,
+                            ids,
+                            desired,
+                            now,
+                        );
+                    }
                 }
                 return text('OK');
             }),

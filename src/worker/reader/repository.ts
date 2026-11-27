@@ -211,6 +211,20 @@ export interface ReaderRepository {
         ReaderInteractionResponse,
         ReaderNotFound | ReaderStorageError | ReaderInvariantError
     >;
+    /** Sets the read state of many entries; returns how many were found. */
+    readonly setReadMany: (
+        userId: number,
+        entryIds: readonly number[],
+        desired: boolean,
+        now: number,
+    ) => Effect.Effect<number, ReaderStorageError | ReaderInvariantError>;
+    /** Stars or unstars many entries; returns how many were found. */
+    readonly setStarredMany: (
+        userId: number,
+        entryIds: readonly number[],
+        desired: boolean,
+        now: number,
+    ) => Effect.Effect<number, ReaderStorageError | ReaderInvariantError>;
     readonly setArchived: (
         userId: number,
         entryId: number,
@@ -524,6 +538,156 @@ const mutationResult = (
         );
     });
 
+/** The statements of one read-state change; the last one reads the result. */
+const readStatements = (
+    userId: number,
+    entryId: number,
+    desired: boolean,
+    now: number,
+): D1Statement[] => {
+    const desiredInt = desired ? 1 : 0;
+    const targetCte = `WITH target AS (
+    SELECT CASE WHEN ? = ${naturalRead} THEN NULL ELSE ? END AS expected_override
+    ${ownedEntry})`;
+    const targetBindings = [desiredInt, desiredInt, userId, entryId];
+    const dayStart = utcDayStart(now);
+    return [
+        {
+            sql: `INSERT INTO chart_daily_activity (
+                user_id, feed_id, day_start, marked_read_count,
+                marked_unread_count, saved_count, unsaved_count,
+                created_at, updated_at
+            )
+            SELECT ?, e.feed_id, ?, ?, ?, 0, 0, ?, ? ${ownedEntry}
+              AND ${effectiveRead} <> ?
+            ON CONFLICT(user_id, feed_id, day_start) DO UPDATE SET
+                marked_read_count = marked_read_count + excluded.marked_read_count,
+                marked_unread_count = marked_unread_count + excluded.marked_unread_count,
+                updated_at = excluded.updated_at`,
+            bindings: [
+                userId,
+                dayStart,
+                desired ? 1 : 0,
+                desired ? 0 : 1,
+                now,
+                now,
+                userId,
+                entryId,
+                desiredInt,
+            ],
+        },
+        {
+            sql: `${targetCte}
+        DELETE FROM entry_interactions
+        WHERE user_id = ? AND entry_id = ? AND read_override IS NOT NULL
+            AND starred_at IS NULL AND archived_at IS NULL AND filtered_at IS NULL
+            AND EXISTS (SELECT 1 FROM target WHERE expected_override IS NULL)`,
+            bindings: [...targetBindings, userId, entryId],
+        },
+        {
+            sql: `${targetCte}
+        UPDATE entry_interactions
+        SET read_override = (SELECT expected_override FROM target),
+            read_changed_at = CASE WHEN (SELECT expected_override FROM target) IS NULL THEN NULL ELSE ? END,
+            updated_at = ?
+        WHERE user_id = ? AND entry_id = ? AND EXISTS (SELECT 1 FROM target)
+            AND read_override IS NOT (SELECT expected_override FROM target)`,
+            bindings: [...targetBindings, now, now, userId, entryId],
+        },
+        {
+            sql: `INSERT INTO entry_interactions (
+            user_id, feed_id, entry_id, read_override, read_changed_at, created_at, updated_at)
+        SELECT ?, e.feed_id, e.id, ?, ?, ?, ?
+        FROM entries e
+        JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id AND fs.user_id = ?
+        LEFT JOIN entry_interactions ei ON ei.user_id = fs.user_id AND ei.entry_id = e.id
+        WHERE e.id = ? AND ei.filtered_at IS NULL AND ? <> ${naturalRead}
+        ON CONFLICT(user_id, entry_id) DO NOTHING`,
+            bindings: [
+                userId,
+                desiredInt,
+                now,
+                now,
+                now,
+                userId,
+                entryId,
+                desiredInt,
+            ],
+        },
+        canonicalInteractionStatement(userId, entryId),
+    ];
+};
+
+const readOutcome = (
+    operation: string,
+    results: D1Result<unknown>[],
+): Effect.Effect<
+    ReaderInteractionResponse,
+    ReaderNotFound | ReaderInvariantError
+> =>
+    Effect.gen(function* () {
+        const activityChanges = yield* changes(operation, results[0]);
+        if (activityChanges > 1)
+            return yield* Effect.fail(invariantError(operation));
+        return yield* mutationResult(operation, results, [1, 2, 3], 4);
+    });
+
+// Entries per D1 batch for bulk changes. One entry is at most five
+// statements; a batch counts as one query against the invocation limit.
+const BULK_ENTRIES_PER_BATCH = 40;
+
+interface EntryChange {
+    readonly statements: D1Statement[];
+    readonly outcome: (
+        operation: string,
+        results: D1Result<unknown>[],
+    ) => Effect.Effect<
+        ReaderInteractionResponse,
+        ReaderNotFound | ReaderInvariantError
+    >;
+}
+
+/**
+ * Applies one change to many entries, several entries per D1 batch.
+ * Entries the user cannot see are skipped. Returns how many were found.
+ */
+const applyToEntries = (
+    d1: D1,
+    operation: string,
+    entryIds: readonly number[],
+    change: (entryId: number) => EntryChange,
+): Effect.Effect<number, ReaderStorageError | ReaderInvariantError> =>
+    Effect.gen(function* () {
+        const unique = [...new Set(entryIds)];
+        let found = 0;
+        for (
+            let start = 0;
+            start < unique.length;
+            start += BULK_ENTRIES_PER_BATCH
+        ) {
+            const changes = unique
+                .slice(start, start + BULK_ENTRIES_PER_BATCH)
+                .map(change);
+            const results = yield* withStorageError(
+                operation,
+                d1.batch(changes.flatMap((entry) => entry.statements)),
+            );
+            let offset = 0;
+            for (const entry of changes) {
+                const slice = results.slice(
+                    offset,
+                    offset + entry.statements.length,
+                );
+                offset += entry.statements.length;
+                found += yield* entry.outcome(operation, slice).pipe(
+                    Effect.as(1),
+                    Effect.catchTag('ReaderNotFound', () => Effect.succeed(0)),
+                );
+            }
+        }
+        return found;
+    });
+
 export const makeReaderRepository = (d1: D1): ReaderRepository => ({
     listCategories: (userId) =>
         Effect.gen(function* () {
@@ -699,91 +863,18 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
     setRead: (userId, entryId, desired, now) =>
         Effect.gen(function* () {
             const operation = 'reader.entry.read.set';
-            const desiredInt = desired ? 1 : 0;
-            const targetCte = `WITH target AS (
-            SELECT CASE WHEN ? = ${naturalRead} THEN NULL ELSE ? END AS expected_override
-            ${ownedEntry})`;
-            const targetBindings = [desiredInt, desiredInt, userId, entryId];
-            const dayStart = utcDayStart(now);
             const results = yield* withStorageError(
                 operation,
-                d1.batch([
-                    {
-                        sql: `INSERT INTO chart_daily_activity (
-                            user_id, feed_id, day_start, marked_read_count,
-                            marked_unread_count, saved_count, unsaved_count,
-                            created_at, updated_at
-                        )
-                        SELECT ?, e.feed_id, ?, ?, ?, 0, 0, ?, ? ${ownedEntry}
-                          AND ${effectiveRead} <> ?
-                        ON CONFLICT(user_id, feed_id, day_start) DO UPDATE SET
-                            marked_read_count = marked_read_count + excluded.marked_read_count,
-                            marked_unread_count = marked_unread_count + excluded.marked_unread_count,
-                            updated_at = excluded.updated_at`,
-                        bindings: [
-                            userId,
-                            dayStart,
-                            desired ? 1 : 0,
-                            desired ? 0 : 1,
-                            now,
-                            now,
-                            userId,
-                            entryId,
-                            desiredInt,
-                        ],
-                    },
-                    {
-                        sql: `${targetCte}
-                    DELETE FROM entry_interactions
-                    WHERE user_id = ? AND entry_id = ? AND read_override IS NOT NULL
-                        AND starred_at IS NULL AND archived_at IS NULL AND filtered_at IS NULL
-                        AND EXISTS (SELECT 1 FROM target WHERE expected_override IS NULL)`,
-                        bindings: [...targetBindings, userId, entryId],
-                    },
-                    {
-                        sql: `${targetCte}
-                    UPDATE entry_interactions
-                    SET read_override = (SELECT expected_override FROM target),
-                        read_changed_at = CASE WHEN (SELECT expected_override FROM target) IS NULL THEN NULL ELSE ? END,
-                        updated_at = ?
-                    WHERE user_id = ? AND entry_id = ? AND EXISTS (SELECT 1 FROM target)
-                        AND read_override IS NOT (SELECT expected_override FROM target)`,
-                        bindings: [
-                            ...targetBindings,
-                            now,
-                            now,
-                            userId,
-                            entryId,
-                        ],
-                    },
-                    {
-                        sql: `INSERT INTO entry_interactions (
-                        user_id, feed_id, entry_id, read_override, read_changed_at, created_at, updated_at)
-                    SELECT ?, e.feed_id, e.id, ?, ?, ?, ?
-                    FROM entries e
-                    JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id AND fs.user_id = ?
-                    LEFT JOIN entry_interactions ei ON ei.user_id = fs.user_id AND ei.entry_id = e.id
-                    WHERE e.id = ? AND ei.filtered_at IS NULL AND ? <> ${naturalRead}
-                    ON CONFLICT(user_id, entry_id) DO NOTHING`,
-                        bindings: [
-                            userId,
-                            desiredInt,
-                            now,
-                            now,
-                            now,
-                            userId,
-                            entryId,
-                            desiredInt,
-                        ],
-                    },
-                    canonicalInteractionStatement(userId, entryId),
-                ]),
+                d1.batch(readStatements(userId, entryId, desired, now)),
             );
-            const activityChanges = yield* changes(operation, results[0]);
-            if (activityChanges > 1)
-                return yield* Effect.fail(invariantError(operation));
-            return yield* mutationResult(operation, results, [1, 2, 3], 4);
+            return yield* readOutcome(operation, results);
         }),
+
+    setReadMany: (userId, entryIds, desired, now) =>
+        applyToEntries(d1, 'reader.entries.read.set', entryIds, (entryId) => ({
+            statements: readStatements(userId, entryId, desired, now),
+            outcome: readOutcome,
+        })),
 
     setStarred: (userId, entryId, desired, now) =>
         setTimestampState(d1, {
@@ -796,6 +887,20 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
             otherColumn: 'archived_at',
             activity: 'saved',
         }),
+
+    setStarredMany: (userId, entryIds, desired, now) =>
+        applyToEntries(d1, 'reader.entries.star.set', entryIds, (entryId) =>
+            timestampChange({
+                operation: 'reader.entries.star.set',
+                userId,
+                entryId,
+                desired,
+                now,
+                column: 'starred_at',
+                otherColumn: 'archived_at',
+                activity: 'saved',
+            }),
+        ),
 
     setArchived: (userId, entryId, desired, now) =>
         setTimestampState(d1, {
@@ -892,6 +997,111 @@ interface TimestampStateInput {
     readonly activity?: 'saved';
 }
 
+/** The statements of one starred or archived change, and how to read them. */
+const timestampChange = (input: TimestampStateInput): EntryChange => {
+    const stateStatements: D1Statement[] = input.desired
+        ? [
+              {
+                  sql: `INSERT INTO entry_interactions (
+                      user_id, feed_id, entry_id, ${input.column}, created_at, updated_at)
+                  SELECT ?, e.feed_id, e.id, ?, ?, ? ${ownedEntry}
+                  ON CONFLICT(user_id, entry_id) DO UPDATE SET
+                      ${input.column} = excluded.${input.column}, updated_at = excluded.updated_at
+                  WHERE entry_interactions.${input.column} IS NULL
+                      AND entry_interactions.filtered_at IS NULL`,
+                  bindings: [
+                      input.userId,
+                      input.now,
+                      input.now,
+                      input.now,
+                      input.userId,
+                      input.entryId,
+                  ],
+              },
+          ]
+        : [
+              {
+                  sql: `DELETE FROM entry_interactions
+                      WHERE user_id = ? AND entry_id = ? AND ${input.column} IS NOT NULL
+                          AND read_override IS NULL AND ${input.otherColumn} IS NULL AND filtered_at IS NULL
+                          AND EXISTS (SELECT 1 ${ownedEntry})`,
+                  bindings: [
+                      input.userId,
+                      input.entryId,
+                      input.userId,
+                      input.entryId,
+                  ],
+              },
+              {
+                  sql: `UPDATE entry_interactions SET ${input.column} = NULL, updated_at = ?
+                      WHERE user_id = ? AND entry_id = ? AND ${input.column} IS NOT NULL
+                          AND EXISTS (SELECT 1 ${ownedEntry})`,
+                  bindings: [
+                      input.now,
+                      input.userId,
+                      input.entryId,
+                      input.userId,
+                      input.entryId,
+                  ],
+              },
+          ];
+    const activityStatements: D1Statement[] =
+        input.activity === 'saved'
+            ? [
+                  {
+                      sql: `INSERT INTO chart_daily_activity (
+                          user_id, feed_id, day_start, marked_read_count,
+                          marked_unread_count, saved_count, unsaved_count,
+                          created_at, updated_at
+                      )
+                      SELECT ?, e.feed_id, ?, 0, 0, ?, ?, ?, ? ${ownedEntry}
+                        AND (ei.starred_at IS NULL) = ?
+                      ON CONFLICT(user_id, feed_id, day_start) DO UPDATE SET
+                          saved_count = saved_count + excluded.saved_count,
+                          unsaved_count = unsaved_count + excluded.unsaved_count,
+                          updated_at = excluded.updated_at`,
+                      bindings: [
+                          input.userId,
+                          utcDayStart(input.now),
+                          input.desired ? 1 : 0,
+                          input.desired ? 0 : 1,
+                          input.now,
+                          input.now,
+                          input.userId,
+                          input.entryId,
+                          input.desired ? 1 : 0,
+                      ],
+                  },
+              ]
+            : [];
+    const statements = [
+        ...activityStatements,
+        ...stateStatements,
+        canonicalInteractionStatement(input.userId, input.entryId),
+    ];
+    const stateOffset = activityStatements.length;
+    return {
+        statements,
+        outcome: (operation, results) =>
+            Effect.gen(function* () {
+                if (activityStatements.length === 1) {
+                    const activityChanges = yield* changes(
+                        operation,
+                        results[0],
+                    );
+                    if (activityChanges > 1)
+                        return yield* Effect.fail(invariantError(operation));
+                }
+                return yield* mutationResult(
+                    operation,
+                    results,
+                    stateStatements.map((_, index) => stateOffset + index),
+                    statements.length - 1,
+                );
+            }),
+    };
+};
+
 const setTimestampState = (
     d1: D1,
     input: TimestampStateInput,
@@ -900,99 +1110,10 @@ const setTimestampState = (
     ReaderNotFound | ReaderStorageError | ReaderInvariantError
 > =>
     Effect.gen(function* () {
-        const stateStatements: D1Statement[] = input.desired
-            ? [
-                  {
-                      sql: `INSERT INTO entry_interactions (
-                          user_id, feed_id, entry_id, ${input.column}, created_at, updated_at)
-                      SELECT ?, e.feed_id, e.id, ?, ?, ? ${ownedEntry}
-                      ON CONFLICT(user_id, entry_id) DO UPDATE SET
-                          ${input.column} = excluded.${input.column}, updated_at = excluded.updated_at
-                      WHERE entry_interactions.${input.column} IS NULL
-                          AND entry_interactions.filtered_at IS NULL`,
-                      bindings: [
-                          input.userId,
-                          input.now,
-                          input.now,
-                          input.now,
-                          input.userId,
-                          input.entryId,
-                      ],
-                  },
-              ]
-            : [
-                  {
-                      sql: `DELETE FROM entry_interactions
-                          WHERE user_id = ? AND entry_id = ? AND ${input.column} IS NOT NULL
-                              AND read_override IS NULL AND ${input.otherColumn} IS NULL AND filtered_at IS NULL
-                              AND EXISTS (SELECT 1 ${ownedEntry})`,
-                      bindings: [
-                          input.userId,
-                          input.entryId,
-                          input.userId,
-                          input.entryId,
-                      ],
-                  },
-                  {
-                      sql: `UPDATE entry_interactions SET ${input.column} = NULL, updated_at = ?
-                          WHERE user_id = ? AND entry_id = ? AND ${input.column} IS NOT NULL
-                              AND EXISTS (SELECT 1 ${ownedEntry})`,
-                      bindings: [
-                          input.now,
-                          input.userId,
-                          input.entryId,
-                          input.userId,
-                          input.entryId,
-                      ],
-                  },
-              ];
-        const activityStatements: D1Statement[] =
-            input.activity === 'saved'
-                ? [
-                      {
-                          sql: `INSERT INTO chart_daily_activity (
-                              user_id, feed_id, day_start, marked_read_count,
-                              marked_unread_count, saved_count, unsaved_count,
-                              created_at, updated_at
-                          )
-                          SELECT ?, e.feed_id, ?, 0, 0, ?, ?, ?, ? ${ownedEntry}
-                            AND (ei.starred_at IS NULL) = ?
-                          ON CONFLICT(user_id, feed_id, day_start) DO UPDATE SET
-                              saved_count = saved_count + excluded.saved_count,
-                              unsaved_count = unsaved_count + excluded.unsaved_count,
-                              updated_at = excluded.updated_at`,
-                          bindings: [
-                              input.userId,
-                              utcDayStart(input.now),
-                              input.desired ? 1 : 0,
-                              input.desired ? 0 : 1,
-                              input.now,
-                              input.now,
-                              input.userId,
-                              input.entryId,
-                              input.desired ? 1 : 0,
-                          ],
-                      },
-                  ]
-                : [];
-        const statements = [...activityStatements, ...stateStatements];
+        const change = timestampChange(input);
         const results = yield* withStorageError(
             input.operation,
-            d1.batch([
-                ...statements,
-                canonicalInteractionStatement(input.userId, input.entryId),
-            ]),
+            d1.batch(change.statements),
         );
-        if (activityStatements.length === 1) {
-            const activityChanges = yield* changes(input.operation, results[0]);
-            if (activityChanges > 1)
-                return yield* Effect.fail(invariantError(input.operation));
-        }
-        const stateOffset = activityStatements.length;
-        return yield* mutationResult(
-            input.operation,
-            results,
-            stateStatements.map((_, index) => stateOffset + index),
-            statements.length,
-        );
+        return yield* change.outcome(input.operation, results);
     });

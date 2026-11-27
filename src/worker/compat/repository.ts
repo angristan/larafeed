@@ -151,6 +151,8 @@ export interface CompatibilityRepository {
     >;
     readonly setRead: ReaderRepository['setRead'];
     readonly setStarred: ReaderRepository['setStarred'];
+    readonly setReadMany: ReaderRepository['setReadMany'];
+    readonly setStarredMany: ReaderRepository['setStarredMany'];
 }
 
 const effectiveRead = `CASE
@@ -417,5 +419,7 @@ export const makeCompatibilityRepository = (
 
         setRead: reader.setRead,
         setStarred: reader.setStarred,
+        setReadMany: reader.setReadMany,
+        setStarredMany: reader.setStarredMany,
     };
 };

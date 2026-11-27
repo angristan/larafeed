@@ -166,6 +166,88 @@ describe('compatibility D1 repository', () => {
         ).toBe(0);
     });
 
+    it('applies bulk read and star changes only to visible entries', async () => {
+        const ownerId = 7_410_001;
+        const otherId = 7_410_002;
+        const ownerFeedId = 7_420_001;
+        const otherFeedId = 7_420_002;
+        const firstId = 7_440_001;
+        const otherEntryId = 7_449_001;
+        // More than one D1 batch of bulk changes.
+        const count = 45;
+        const ownerIds = Array.from(
+            { length: count },
+            (_, index) => firstId + index,
+        );
+        await Effect.runPromise(
+            Effect.gen(function* () {
+                yield* insertUser(ownerId);
+                yield* insertUser(otherId);
+                yield* insertFeed(ownerFeedId);
+                yield* insertFeed(otherFeedId);
+                yield* subscribe(ownerId, ownerFeedId, 7_430_001);
+                yield* subscribe(otherId, otherFeedId, 7_430_002);
+                yield* insertEntries(ownerFeedId, firstId, count);
+                yield* insertEntries(otherFeedId, otherEntryId, 1);
+            }),
+        );
+        const interactions = (userId: number) =>
+            env.DB.prepare(
+                `SELECT entry_id, read_override, starred_at
+                 FROM entry_interactions WHERE user_id = ? ORDER BY entry_id`,
+            )
+                .bind(userId)
+                .all<{
+                    entry_id: number;
+                    read_override: number | null;
+                    starred_at: number | null;
+                }>()
+                .then((result) => result.results);
+
+        await expect(
+            Effect.runPromise(
+                repository.setReadMany(
+                    ownerId,
+                    [...ownerIds, otherEntryId, 7_499_999],
+                    true,
+                    now + 1,
+                ),
+            ),
+        ).resolves.toBe(count);
+        await expect(
+            Effect.runPromise(
+                repository.setStarredMany(
+                    ownerId,
+                    [firstId, firstId + count - 1, otherEntryId],
+                    true,
+                    now + 2,
+                ),
+            ),
+        ).resolves.toBe(2);
+        const afterRead = await interactions(ownerId);
+        expect(afterRead.map((row) => row.entry_id)).toEqual(ownerIds);
+        expect(afterRead.every((row) => row.read_override === 1)).toBe(true);
+        expect(
+            afterRead
+                .filter((row) => row.starred_at !== null)
+                .map((row) => row.entry_id),
+        ).toEqual([firstId, firstId + count - 1]);
+
+        await Effect.runPromise(
+            repository.setReadMany(ownerId, ownerIds, false, now + 3),
+        );
+        // The entries are unread by default again, so only starred rows stay.
+        expect(await interactions(ownerId)).toEqual([
+            { entry_id: firstId, read_override: null, starred_at: now + 2 },
+            {
+                entry_id: firstId + count - 1,
+                read_override: null,
+                starred_at: now + 2,
+            },
+        ]);
+        expect(await interactions(otherId)).toEqual([]);
+    });
+
     it('loads a full Google Reader content batch', async () => {
         const userId = 7_310_001;
         const feedId = 7_320_001;

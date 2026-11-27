@@ -131,6 +131,8 @@ const makeHarness = (overrides: {
                 archived: false,
                 archivedAt: null,
             }),
+        setReadMany: (_userId, entryIds) => Effect.succeed(entryIds.length),
+        setStarredMany: (_userId, entryIds) => Effect.succeed(entryIds.length),
         ...overrides.repository,
     };
     const runtime: CompatibilityRuntime = {
@@ -221,7 +223,7 @@ describe('compatibility protocol routes', () => {
                 headers: {
                     'content-type': 'application/x-www-form-urlencoded',
                 },
-                body: `Email=owner&Passwd=${'x'.repeat(64 * 1_024)}`,
+                body: `Email=owner&Passwd=${'x'.repeat(128 * 1_024)}`,
             },
             {} as Env,
         );
@@ -545,6 +547,69 @@ describe('compatibility protocol routes', () => {
         }
 
         expect(harness.authenticateFeverApiKey).not.toHaveBeenCalled();
+    });
+
+    it('edit-tag applies every add and remove tag to every item', async () => {
+        const setReadMany = vi.fn((_userId: number, ids: readonly number[]) =>
+            Effect.succeed(ids.length),
+        );
+        const setStarredMany = vi.fn(
+            (_userId: number, ids: readonly number[]) =>
+                Effect.succeed(ids.length),
+        );
+        const harness = makeHarness({
+            repository: { setReadMany, setStarredMany },
+        });
+        const edit = (body: URLSearchParams) =>
+            harness.app.request(
+                '/api/reader/reader/api/0/edit-tag',
+                {
+                    ...formRequest(body),
+                    headers: {
+                        Authorization: 'GoogleLogin auth=opaque-token',
+                        'content-type': 'application/x-www-form-urlencoded',
+                    },
+                },
+                {} as Env,
+            );
+        const body = new URLSearchParams([
+            ['i', 'tag:google.com,2005:reader/item/0000000000001234'],
+            ['i', '4661'],
+            ['a', 'user/-/state/com.google/read'],
+            ['r', 'user/-/state/com.google/starred'],
+        ]);
+
+        const response = await edit(body);
+
+        expect(response.status).toBe(200);
+        expect(setReadMany).toHaveBeenCalledExactlyOnceWith(
+            72,
+            [4_660, 4_661],
+            true,
+            1_800_000_000_000,
+        );
+        expect(setStarredMany).toHaveBeenCalledExactlyOnceWith(
+            72,
+            [4_660, 4_661],
+            false,
+            1_800_000_000_000,
+        );
+
+        const tooMany = new URLSearchParams(
+            Array.from({ length: 1_001 }, (_, index) => [
+                'i',
+                String(index + 1),
+            ]),
+        );
+        tooMany.append('a', 'user/-/state/com.google/read');
+        expect((await edit(tooMany)).status).toBe(400);
+        const invalid = new URLSearchParams([
+            ['i', '4660'],
+            ['i', 'not-an-item'],
+            ['a', 'user/-/state/com.google/read'],
+        ]);
+        expect((await edit(invalid)).status).toBe(400);
+        expect(setReadMany).toHaveBeenCalledOnce();
     });
 
     it('supports Fever v3 shapes, cursor conventions, and sparse marks', async () => {
