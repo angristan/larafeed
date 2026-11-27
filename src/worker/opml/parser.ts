@@ -12,6 +12,12 @@ import {
 
 type XmlRecord = Record<string, unknown>;
 
+// DTDs and custom entities are rejected before parsing. Each built-in or
+// numeric reference takes at least four characters, so a bounded document
+// cannot hold more expansions than one quarter of its length. Built-in
+// references never expand, so maxExpandedLength does not limit them.
+const MAX_OPML_ENTITY_EXPANSIONS = Math.floor(MAX_OPML_CHARACTERS / 4);
+
 const parser = new XMLParser({
     allowBooleanAttributes: false,
     ignoreAttributes: false,
@@ -25,7 +31,7 @@ const parser = new XMLParser({
         maxEntityCount: 0,
         maxEntitySize: 0,
         maxExpandedLength: 10_000,
-        maxTotalExpansions: 100,
+        maxTotalExpansions: MAX_OPML_ENTITY_EXPANSIONS,
     },
     transformAttributeName: (name) => name.toLowerCase(),
     transformTagName: (name) => name.toLowerCase(),

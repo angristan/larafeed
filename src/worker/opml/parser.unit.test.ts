@@ -57,6 +57,24 @@ describe('parseOpml', () => {
         expect(() => parseOpml(source)).toThrowError(OpmlValidationError);
     });
 
+    it('accepts 500 feeds with escaped characters in every outline', () => {
+        const outlines = Array.from(
+            { length: 500 },
+            (_, index) =>
+                `<outline text="Tom &amp; Jerry ${index}" xmlUrl="https://example.com/feed?id=${index}&amp;format=rss" />`,
+        ).join('');
+
+        const result = parseOpml(
+            `<opml version="2.0"><body>${outlines}</body></opml>`,
+        );
+
+        expect(result).toHaveLength(500);
+        expect(result[499]).toMatchObject({
+            title: 'Tom & Jerry 499',
+            feedUrl: 'https://example.com/feed?id=499&format=rss',
+        });
+    });
+
     it('rejects more than 500 unique feed URLs', () => {
         const feeds = Array.from(
             { length: 501 },
