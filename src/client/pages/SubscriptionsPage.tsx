@@ -29,7 +29,13 @@ import {
     IconTable,
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type FormEvent, useMemo, useState } from 'react';
+import {
+    type FormEvent,
+    memo,
+    useDeferredValue,
+    useMemo,
+    useState,
+} from 'react';
 import { Link } from 'react-router';
 
 import type {
@@ -104,17 +110,17 @@ function formatRelative(timestamp: number | null): string {
     return relativeTimeFormatter.format(seconds, 'second');
 }
 
+const absoluteTimeFormatter = new Intl.DateTimeFormat('sv-SE', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+});
+
 function formatAbsolute(timestamp: number | null): string {
     if (timestamp === null) return '—';
-    return new Intl.DateTimeFormat('sv-SE', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-    })
-        .format(new Date(timestamp))
-        .replace(' ', ' ');
+    return absoluteTimeFormatter.format(new Date(timestamp)).replace(' ', ' ');
 }
 
 export function getSubscriptionStatus(
@@ -707,6 +713,128 @@ function SubscriptionDrawer({
     );
 }
 
+// A memoized row: typing in the search box or opening the details drawer
+// re-renders only the rows whose own props changed.
+const SubscriptionAuditRow = memo(function SubscriptionAuditRow({
+    subscription,
+    expanded,
+    onSelect,
+}: {
+    readonly subscription: ManagedSubscription;
+    readonly expanded: boolean;
+    readonly onSelect: (feedId: number) => void;
+}) {
+    const name = subscription.customFeedName ?? subscription.feedName;
+    const lastFailure = subscription.lastFailedRefreshAt;
+    const subscriptionStatus = getSubscriptionStatus(subscription);
+    const issue =
+        subscription.movedToUrl !== null
+            ? 'Feed moved. Open details to switch to the new URL.'
+            : subscriptionStatus === 'failing' || subscriptionStatus === 'gone'
+              ? (subscription.lastErrorMessage ??
+                subscription.lastErrorClass ??
+                (subscriptionStatus === 'gone'
+                    ? 'Feed is no longer available.'
+                    : `${subscription.consecutiveFailures.toLocaleString()} consecutive refresh failures`))
+              : null;
+    return (
+        <Table.Tr>
+            <Table.Td
+                style={{
+                    width: '32%',
+                    minWidth: 280,
+                }}
+            >
+                <Group gap="sm" wrap="nowrap">
+                    <FeedFavicon
+                        isDark={subscription.faviconIsDark}
+                        size={32}
+                        src={subscription.faviconUrl}
+                    />
+                    <Stack gap={0}>
+                        <Group gap={6}>
+                            <Text fw={600}>{name}</Text>
+                            {subscription.customFeedName !== null && (
+                                <Text c="dimmed" component="span" size="xs">
+                                    Renamed
+                                </Text>
+                            )}
+                        </Group>
+                        <Group gap={8}>
+                            {subscription.siteUrl !== null && (
+                                <Anchor
+                                    href={subscription.siteUrl}
+                                    rel="noreferrer"
+                                    size="xs"
+                                    target="_blank"
+                                >
+                                    Website
+                                </Anchor>
+                            )}
+                            <Anchor
+                                href={subscription.feedUrl}
+                                rel="noreferrer"
+                                size="xs"
+                                target="_blank"
+                            >
+                                Feed
+                            </Anchor>
+                        </Group>
+                    </Stack>
+                </Group>
+            </Table.Td>
+            <Table.Td>
+                <Text size="sm">{subscription.categoryName}</Text>
+            </Table.Td>
+            <Table.Td ta="right">
+                {subscription.entryCount.toLocaleString()}
+            </Table.Td>
+            <Table.Td>
+                <Stack gap={3}>
+                    <StatusBadge subscription={subscription} />
+                    {issue !== null && (
+                        <Text
+                            className={classes.issue}
+                            c="red"
+                            lineClamp={2}
+                            size="xs"
+                            title={issue}
+                        >
+                            {issue}
+                        </Text>
+                    )}
+                </Stack>
+            </Table.Td>
+            <Table.Td>
+                <Tooltip
+                    label={formatAbsolute(subscription.lastSuccessfulRefreshAt)}
+                    withArrow
+                >
+                    <Text size="sm">
+                        {formatRelative(subscription.lastSuccessfulRefreshAt)}
+                    </Text>
+                </Tooltip>
+            </Table.Td>
+            <Table.Td>
+                <Tooltip label={formatAbsolute(lastFailure)} withArrow>
+                    <Text size="sm">{formatRelative(lastFailure)}</Text>
+                </Tooltip>
+            </Table.Td>
+            <Table.Td>
+                <Button
+                    aria-expanded={expanded}
+                    aria-label={`View details for ${name}`}
+                    onClick={() => onSelect(subscription.feedId)}
+                    size="xs"
+                    variant="default"
+                >
+                    Details
+                </Button>
+            </Table.Td>
+        </Table.Tr>
+    );
+});
+
 function SubscriptionWorkspace({
     view,
 }: {
@@ -715,6 +843,8 @@ function SubscriptionWorkspace({
     const management = useQuery(subscriptionManagementQueryOptions);
     const data = management.data;
     const [search, setSearch] = useState('');
+    // The table filters against a deferred copy so typing stays responsive.
+    const deferredSearch = useDeferredValue(search);
     const [category, setCategory] = useState('all');
     const [status, setStatus] = useState<SubscriptionStatus | 'all'>('all');
     const [sortField, setSortField] = useState<SortField>('name');
@@ -727,7 +857,7 @@ function SubscriptionWorkspace({
         subscriptions.find((item) => item.feedId === selectedFeedId) ?? null;
 
     const filtered = useMemo(() => {
-        const normalized = search.trim().toLocaleLowerCase();
+        const normalized = deferredSearch.trim().toLocaleLowerCase();
         const direction = sortDirection === 'asc' ? 1 : -1;
         return subscriptions
             .filter((subscription) => {
@@ -768,7 +898,14 @@ function SubscriptionWorkspace({
                 const rightName = right.customFeedName ?? right.feedName;
                 return direction * leftName.localeCompare(rightName);
             });
-    }, [category, search, sortDirection, sortField, status, subscriptions]);
+    }, [
+        category,
+        deferredSearch,
+        sortDirection,
+        sortField,
+        status,
+        subscriptions,
+    ]);
 
     const handleSortFieldChange = (value: string | null) => {
         if (value === null) return;
@@ -1124,196 +1261,17 @@ function SubscriptionWorkspace({
                                                     </Table.Td>
                                                 </Table.Tr>
                                             )}
-                                            {filtered.map((subscription) => {
-                                                const name =
-                                                    subscription.customFeedName ??
-                                                    subscription.feedName;
-                                                const lastFailure =
-                                                    subscription.lastFailedRefreshAt;
-                                                const subscriptionStatus =
-                                                    getSubscriptionStatus(
-                                                        subscription,
-                                                    );
-                                                const issue =
-                                                    subscription.movedToUrl !==
-                                                    null
-                                                        ? 'Feed moved. Open details to switch to the new URL.'
-                                                        : subscriptionStatus ===
-                                                                'failing' ||
-                                                            subscriptionStatus ===
-                                                                'gone'
-                                                          ? (subscription.lastErrorMessage ??
-                                                            subscription.lastErrorClass ??
-                                                            (subscriptionStatus ===
-                                                            'gone'
-                                                                ? 'Feed is no longer available.'
-                                                                : `${subscription.consecutiveFailures.toLocaleString()} consecutive refresh failures`))
-                                                          : null;
-                                                return (
-                                                    <Table.Tr
-                                                        key={
-                                                            subscription.feedId
-                                                        }
-                                                    >
-                                                        <Table.Td
-                                                            style={{
-                                                                width: '32%',
-                                                                minWidth: 280,
-                                                            }}
-                                                        >
-                                                            <Group
-                                                                gap="sm"
-                                                                wrap="nowrap"
-                                                            >
-                                                                <FeedFavicon
-                                                                    isDark={
-                                                                        subscription.faviconIsDark
-                                                                    }
-                                                                    size={32}
-                                                                    src={
-                                                                        subscription.faviconUrl
-                                                                    }
-                                                                />
-                                                                <Stack gap={0}>
-                                                                    <Group
-                                                                        gap={6}
-                                                                    >
-                                                                        <Text
-                                                                            fw={
-                                                                                600
-                                                                            }
-                                                                        >
-                                                                            {
-                                                                                name
-                                                                            }
-                                                                        </Text>
-                                                                        {subscription.customFeedName !==
-                                                                            null && (
-                                                                            <Text
-                                                                                c="dimmed"
-                                                                                component="span"
-                                                                                size="xs"
-                                                                            >
-                                                                                Renamed
-                                                                            </Text>
-                                                                        )}
-                                                                    </Group>
-                                                                    <Group
-                                                                        gap={8}
-                                                                    >
-                                                                        {subscription.siteUrl !==
-                                                                            null && (
-                                                                            <Anchor
-                                                                                href={
-                                                                                    subscription.siteUrl
-                                                                                }
-                                                                                rel="noreferrer"
-                                                                                size="xs"
-                                                                                target="_blank"
-                                                                            >
-                                                                                Website
-                                                                            </Anchor>
-                                                                        )}
-                                                                        <Anchor
-                                                                            href={
-                                                                                subscription.feedUrl
-                                                                            }
-                                                                            rel="noreferrer"
-                                                                            size="xs"
-                                                                            target="_blank"
-                                                                        >
-                                                                            Feed
-                                                                        </Anchor>
-                                                                    </Group>
-                                                                </Stack>
-                                                            </Group>
-                                                        </Table.Td>
-                                                        <Table.Td>
-                                                            <Text size="sm">
-                                                                {
-                                                                    subscription.categoryName
-                                                                }
-                                                            </Text>
-                                                        </Table.Td>
-                                                        <Table.Td ta="right">
-                                                            {subscription.entryCount.toLocaleString()}
-                                                        </Table.Td>
-                                                        <Table.Td>
-                                                            <Stack gap={3}>
-                                                                <StatusBadge
-                                                                    subscription={
-                                                                        subscription
-                                                                    }
-                                                                />
-                                                                {issue !==
-                                                                    null && (
-                                                                    <Text
-                                                                        className={
-                                                                            classes.issue
-                                                                        }
-                                                                        c="red"
-                                                                        lineClamp={
-                                                                            2
-                                                                        }
-                                                                        size="xs"
-                                                                        title={
-                                                                            issue
-                                                                        }
-                                                                    >
-                                                                        {issue}
-                                                                    </Text>
-                                                                )}
-                                                            </Stack>
-                                                        </Table.Td>
-                                                        <Table.Td>
-                                                            <Tooltip
-                                                                label={formatAbsolute(
-                                                                    subscription.lastSuccessfulRefreshAt,
-                                                                )}
-                                                                withArrow
-                                                            >
-                                                                <Text size="sm">
-                                                                    {formatRelative(
-                                                                        subscription.lastSuccessfulRefreshAt,
-                                                                    )}
-                                                                </Text>
-                                                            </Tooltip>
-                                                        </Table.Td>
-                                                        <Table.Td>
-                                                            <Tooltip
-                                                                label={formatAbsolute(
-                                                                    lastFailure,
-                                                                )}
-                                                                withArrow
-                                                            >
-                                                                <Text size="sm">
-                                                                    {formatRelative(
-                                                                        lastFailure,
-                                                                    )}
-                                                                </Text>
-                                                            </Tooltip>
-                                                        </Table.Td>
-                                                        <Table.Td>
-                                                            <Button
-                                                                aria-expanded={
-                                                                    selectedFeedId ===
-                                                                    subscription.feedId
-                                                                }
-                                                                aria-label={`View details for ${name}`}
-                                                                onClick={() =>
-                                                                    setSelectedFeedId(
-                                                                        subscription.feedId,
-                                                                    )
-                                                                }
-                                                                size="xs"
-                                                                variant="default"
-                                                            >
-                                                                Details
-                                                            </Button>
-                                                        </Table.Td>
-                                                    </Table.Tr>
-                                                );
-                                            })}
+                                            {filtered.map((subscription) => (
+                                                <SubscriptionAuditRow
+                                                    expanded={
+                                                        selectedFeedId ===
+                                                        subscription.feedId
+                                                    }
+                                                    key={subscription.feedId}
+                                                    onSelect={setSelectedFeedId}
+                                                    subscription={subscription}
+                                                />
+                                            ))}
                                         </Table.Tbody>
                                     </Table>
                                 </Table.ScrollContainer>
