@@ -57,8 +57,11 @@ const renderSidebar = (
                                     read: 34,
                                     starred: 2,
                                 }}
+                                addFeedOpened={false}
                                 error={null}
                                 isPending={false}
+                                onCloseAddFeed={() => undefined}
+                                onOpenAddFeed={() => undefined}
                                 onRetry={() => undefined}
                                 state={{
                                     feedId: null,
@@ -185,8 +188,11 @@ describe('ReaderSidebar', () => {
                                         read: 34,
                                         starred: 2,
                                     }}
+                                    addFeedOpened={false}
                                     error={null}
                                     isPending={false}
+                                    onCloseAddFeed={() => undefined}
+                                    onOpenAddFeed={() => undefined}
                                     onRetry={() => undefined}
                                     state={{
                                         feedId: null,
@@ -251,10 +257,13 @@ describe('ReaderSidebar', () => {
                         <AppShell navbar={{ width: 300, breakpoint: 'sm' }}>
                             <AppShell.Navbar>
                                 <ReaderSidebar
+                                    addFeedOpened={false}
                                     categories={[{ id: 3, name: 'Technology' }]}
                                     counts={undefined}
                                     error={null}
                                     isPending={false}
+                                    onCloseAddFeed={() => undefined}
+                                    onOpenAddFeed={() => undefined}
                                     onRetry={() => undefined}
                                     state={{
                                         feedId: null,

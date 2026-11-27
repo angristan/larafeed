@@ -94,6 +94,7 @@ export function ReaderPage() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [navbarOpened, navbar] = useDisclosure(false);
+    const [addFeedOpened, addFeedModal] = useDisclosure(false);
     const [feedListDensity] = useFeedListDensity();
     const colorScheme = useComputedColorScheme('light');
     const theme = useMantineTheme();
@@ -479,6 +480,7 @@ export function ReaderPage() {
                 onNavbarToggle={navbar.toggle}
                 sidebar={
                     <ReaderSidebar
+                        addFeedOpened={addFeedOpened}
                         categories={categoriesQuery.data?.categories}
                         counts={countsQuery.data}
                         error={sidebarError}
@@ -487,7 +489,9 @@ export function ReaderPage() {
                             subscriptionsQuery.isPending ||
                             countsQuery.isPending
                         }
+                        onCloseAddFeed={addFeedModal.close}
                         onNavigate={navbar.close}
+                        onOpenAddFeed={addFeedModal.open}
                         onRetry={retrySidebar}
                         state={state}
                         subscriptions={subscriptions}
@@ -528,6 +532,11 @@ export function ReaderPage() {
                                 entryListQuery.isFetchingNextPage
                             }
                             isPending={entryListQuery.isPending}
+                            onAddFirstFeed={
+                                subscriptions?.length === 0
+                                    ? addFeedModal.open
+                                    : undefined
+                            }
                             onLoadMore={loadMoreEntries}
                             onShowNewEntries={showNewEntries}
                             onPrefetchEntry={prefetchEntry}

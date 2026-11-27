@@ -18,7 +18,6 @@ import {
     Tooltip,
     VisuallyHidden,
 } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import {
@@ -104,6 +103,11 @@ interface ReaderSidebarProps {
     readonly error: Error | null;
     readonly onRetry: () => void;
     readonly onNavigate?: () => void;
+    // The reader page owns the add-feed modal so the empty entry list can
+    // open it too.
+    readonly addFeedOpened: boolean;
+    readonly onOpenAddFeed: () => void;
+    readonly onCloseAddFeed: () => void;
 }
 
 /** Spoken after a feed or category name; the visible badge is aria-hidden. */
@@ -1252,11 +1256,12 @@ export const ReaderSidebar = memo(function ReaderSidebar({
     error,
     onRetry,
     onNavigate,
+    addFeedOpened,
+    onOpenAddFeed,
+    onCloseAddFeed,
 }: ReaderSidebarProps) {
     const navigate = useNavigate();
     const [search, setSearch] = useState('');
-    const [addOpened, { open: openAddModal, close: closeAddModal }] =
-        useDisclosure(false);
     const [searchParams] = useSearchParams();
     const bookmarkletFeedUrl = searchParams.get('addFeedUrl');
     const [handledBookmarkletUrl, setHandledBookmarkletUrl] = useState<
@@ -1285,10 +1290,10 @@ export const ReaderSidebar = memo(function ReaderSidebar({
             bookmarkletFeedUrl !== null &&
             bookmarkletFeedUrl !== handledBookmarkletUrl
         ) {
-            openAddModal();
+            onOpenAddFeed();
             setHandledBookmarkletUrl(bookmarkletFeedUrl);
         }
-    }, [bookmarkletFeedUrl, handledBookmarkletUrl, openAddModal]);
+    }, [bookmarkletFeedUrl, handledBookmarkletUrl, onOpenAddFeed]);
 
     const subscriptionsByCategory = useMemo(() => {
         const grouped = new Map<
@@ -1421,9 +1426,9 @@ export const ReaderSidebar = memo(function ReaderSidebar({
             <AddFeedModal
                 categories={sortedCategories}
                 categoriesPending={isPending && categories === undefined}
-                close={closeAddModal}
+                close={onCloseAddFeed}
                 initialFeedUrl={bookmarkletFeedUrl ?? undefined}
-                opened={addOpened}
+                opened={addFeedOpened}
             />
             <ApplicationSidebarHeader
                 action={
@@ -1431,7 +1436,7 @@ export const ReaderSidebar = memo(function ReaderSidebar({
                         <ActionIcon
                             aria-label="Create feed or category"
                             className={classes.addFeedAction}
-                            onClick={openAddModal}
+                            onClick={onOpenAddFeed}
                             size="md"
                             variant="subtle"
                         >
@@ -1439,7 +1444,11 @@ export const ReaderSidebar = memo(function ReaderSidebar({
                         </ActionIcon>
                     </Tooltip>
                 }
-                description={`${(subscriptions?.length ?? 0).toLocaleString()} feeds`}
+                description={
+                    subscriptions === undefined || subscriptions.length === 0
+                        ? undefined
+                        : `${subscriptions.length.toLocaleString()} ${subscriptions.length === 1 ? 'feed' : 'feeds'}`
+                }
                 title="Library"
             >
                 <TextInput

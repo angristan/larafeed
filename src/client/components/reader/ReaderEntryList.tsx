@@ -1,5 +1,6 @@
 import {
     Alert,
+    Anchor,
     Button,
     Center,
     Group,
@@ -13,6 +14,7 @@ import {
 import {
     IconArrowUp,
     IconCheck,
+    IconPlus,
     IconRefresh,
     IconStarFilled,
 } from '@tabler/icons-react';
@@ -44,6 +46,8 @@ interface ReaderEntryListProps {
     readonly onShowNewEntries: () => void;
     readonly restoreFocusEntryId: number | null;
     readonly onRestoreFocusHandled: () => void;
+    // Set only when the user has no subscriptions yet.
+    readonly onAddFirstFeed?: () => void;
 }
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, {
@@ -207,6 +211,7 @@ export const ReaderEntryList = memo(function ReaderEntryList({
     onShowNewEntries,
     restoreFocusEntryId,
     onRestoreFocusHandled,
+    onAddFirstFeed,
 }: ReaderEntryListProps) {
     const viewport = useRef<HTMLDivElement>(null);
     const sentinel = useRef<HTMLDivElement>(null);
@@ -495,14 +500,50 @@ export const ReaderEntryList = memo(function ReaderEntryList({
                         <Center
                             className={`${classes.emptyEntries} ${classes.entryScrollState}`}
                         >
-                            <Stack align="center" gap={4} ta="center">
-                                <Text fw={650} size="sm">
-                                    {emptyState.title}
-                                </Text>
-                                <Text c="dimmed" maw={260} size="xs">
-                                    {emptyState.message}
-                                </Text>
-                            </Stack>
+                            {onAddFirstFeed === undefined ? (
+                                <Stack align="center" gap={4} ta="center">
+                                    <Text fw={650} size="sm">
+                                        {emptyState.title}
+                                    </Text>
+                                    <Text c="dimmed" maw={260} size="xs">
+                                        {emptyState.message}
+                                    </Text>
+                                </Stack>
+                            ) : (
+                                <Stack align="center" gap="sm" ta="center">
+                                    <Stack align="center" gap={4}>
+                                        <Text fw={650} size="sm">
+                                            Add your first feed
+                                        </Text>
+                                        <Text c="dimmed" maw={280} size="xs">
+                                            Paste a website or feed URL to start
+                                            reading.
+                                        </Text>
+                                    </Stack>
+                                    <Button
+                                        leftSection={
+                                            <IconPlus
+                                                aria-hidden="true"
+                                                size={15}
+                                            />
+                                        }
+                                        onClick={onAddFirstFeed}
+                                        size="xs"
+                                    >
+                                        Add feed
+                                    </Button>
+                                    <Text c="dimmed" maw={280} size="xs">
+                                        Coming from another reader?{' '}
+                                        <Anchor
+                                            component={Link}
+                                            inherit
+                                            to="/settings/opml"
+                                        >
+                                            Import an OPML file
+                                        </Anchor>
+                                    </Text>
+                                </Stack>
+                            )}
                         </Center>
                     )}
 

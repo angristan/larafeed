@@ -132,4 +132,17 @@ describe('ReaderEntryList infinite list', () => {
         expect(renderedRows.length).toBeLessThan(manyEntries.length);
         expect(markup).toContain('Entry 1');
     });
+
+    it('guides a new user to add a feed or import OPML', () => {
+        const markup = render({
+            entries: [],
+            total: 0,
+            onAddFirstFeed: () => undefined,
+        });
+
+        expect(markup).toContain('Add your first feed');
+        expect(markup).toContain('Add feed');
+        expect(markup).toContain('href="/settings/opml"');
+        expect(markup).not.toContain('No entries yet');
+    });
 });
