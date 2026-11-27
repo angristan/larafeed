@@ -709,10 +709,33 @@ export const registerCompatibilityRoutes = (
                         : search.get('xt') === 'user/-/state/com.google/read'
                           ? 'unread'
                           : 'all';
+                // `ot` and `nt` are Unix seconds bounding when Larafeed
+                // fetched the item. Both seconds are included.
+                const maximumSeconds = Math.floor(
+                    Number.MAX_SAFE_INTEGER / 1_000,
+                );
+                const oldest = yield* parseBoundedInt(
+                    search.get('ot'),
+                    maximumSeconds - 1,
+                    true,
+                );
+                const newest = yield* parseBoundedInt(
+                    search.get('nt'),
+                    maximumSeconds - 1,
+                    true,
+                );
                 const ids = yield* compat.repository.listItemIds(
                     authentication.user.id,
                     filter,
                     requestedLimit,
+                    {
+                        ...(oldest === undefined
+                            ? {}
+                            : { createdFrom: oldest * 1_000 }),
+                        ...(newest === undefined
+                            ? {}
+                            : { createdBefore: (newest + 1) * 1_000 }),
+                    },
                 );
                 return json({
                     itemRefs: ids.map((id) => ({ id: String(id) })),

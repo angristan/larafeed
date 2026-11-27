@@ -25,6 +25,8 @@ For a deployment at `https://reader.example.com`:
 
 Supported routes include user info, token echo, tag list, subscriptions, item IDs, item contents, and read or star tag edits.
 
+`stream/items/ids` returns the newest item IDs first. `s=user/-/state/com.google/starred` lists starred items, `xt=user/-/state/com.google/read` lists unread items, and `n` caps the count. `ot` and `nt` are Unix seconds that bound when Larafeed fetched an item: items fetched before the `ot` second or after the `nt` second are left out.
+
 `tag/list` returns the starred state tag and one `folder` tag per category. Label IDs match the category IDs in `subscription/list`, so clients can map feeds to folders:
 
 ```json

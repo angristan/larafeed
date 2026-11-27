@@ -1,6 +1,7 @@
 import { Effect, Schema } from 'effect';
 
-import type { D1, D1OperationError } from '../infrastructure/d1';
+import type { D1, D1OperationError, D1Statement } from '../infrastructure/d1';
+import { subscriptionCountsSql } from '../reader/counts';
 import {
     makeReaderRepository,
     type ReaderRepository,
@@ -98,6 +99,12 @@ export interface CompatibilityEntry {
 
 export type CompatibilityItemIdFilter = 'all' | 'unread' | 'starred';
 
+/** Bounds on ingestion time in epoch milliseconds: inclusive `from`, exclusive `to`. */
+export interface CompatibilityItemIdBounds {
+    readonly createdFrom?: number;
+    readonly createdBefore?: number;
+}
+
 export interface FeverItemCursor {
     readonly sinceId?: number;
     readonly maxId?: number;
@@ -131,6 +138,7 @@ export interface CompatibilityRepository {
         userId: number,
         filter: CompatibilityItemIdFilter,
         limit?: number,
+        bounds?: CompatibilityItemIdBounds,
     ) => Effect.Effect<
         readonly number[],
         CompatibilityStorageError | CompatibilityInvariantError
@@ -169,6 +177,92 @@ const ownedVisibleEntries = `
     JOIN feeds f ON f.id = e.feed_id
     LEFT JOIN entry_interactions ei
         ON ei.user_id = fs.user_id AND ei.entry_id = e.id`;
+
+const boundsSql = (
+    bounds: CompatibilityItemIdBounds,
+): { readonly clause: string; readonly bindings: readonly number[] } => ({
+    clause: [
+        bounds.createdFrom === undefined ? '' : ' AND e.created_at >= ?',
+        bounds.createdBefore === undefined ? '' : ' AND e.created_at < ?',
+    ].join(''),
+    bindings: [
+        ...(bounds.createdFrom === undefined ? [] : [bounds.createdFrom]),
+        ...(bounds.createdBefore === undefined ? [] : [bounds.createdBefore]),
+    ],
+});
+
+/**
+ * The newest visible entry IDs. Each filter starts from the rows that can
+ * match instead of every entry: the newest entries for `all`, the
+ * starred interactions for `starred`, and for `unread` the entries above
+ * each read-through watermark plus the explicit unread overrides below it.
+ */
+const itemIdsStatement = (
+    userId: number,
+    filter: CompatibilityItemIdFilter,
+    limit: number,
+    bounds: CompatibilityItemIdBounds,
+): D1Statement => {
+    const bounded = boundsSql(bounds);
+    switch (filter) {
+        case 'all':
+            // CROSS JOIN walks entries from the newest ID and stops at
+            // the limit.
+            return {
+                sql: `SELECT e.id
+                    FROM entries e
+                    CROSS JOIN feed_subscriptions fs
+                      ON fs.feed_id = e.feed_id AND fs.user_id = ?
+                    LEFT JOIN entry_interactions ei
+                      ON ei.user_id = fs.user_id AND ei.entry_id = e.id
+                    WHERE ei.filtered_at IS NULL${bounded.clause}
+                    ORDER BY e.id DESC LIMIT ?`,
+                bindings: [userId, ...bounded.bindings, limit],
+            };
+        case 'starred':
+            return {
+                sql: `SELECT e.id
+                    FROM entry_interactions ei
+                    JOIN feed_subscriptions fs
+                      ON fs.user_id = ei.user_id AND fs.feed_id = ei.feed_id
+                    JOIN entries e ON e.id = ei.entry_id
+                    WHERE ei.user_id = ? AND ei.starred_at IS NOT NULL
+                      AND ei.filtered_at IS NULL${bounded.clause}
+                    ORDER BY e.id DESC LIMIT ?`,
+                bindings: [userId, ...bounded.bindings, limit],
+            };
+        case 'unread':
+            return {
+                sql: `SELECT id FROM (
+                        SELECT e.id AS id
+                        FROM feed_subscriptions fs
+                        JOIN entries e ON e.feed_id = fs.feed_id
+                          AND e.id > COALESCE(fs.read_through_entry_id, 0)
+                        LEFT JOIN entry_interactions ei
+                          ON ei.user_id = fs.user_id AND ei.entry_id = e.id
+                        WHERE fs.user_id = ? AND ei.filtered_at IS NULL
+                          AND COALESCE(ei.read_override, 0) = 0${bounded.clause}
+                        UNION ALL
+                        SELECT e.id
+                        FROM entry_interactions ei
+                        JOIN feed_subscriptions fs
+                          ON fs.user_id = ei.user_id AND fs.feed_id = ei.feed_id
+                        JOIN entries e ON e.id = ei.entry_id
+                        WHERE ei.user_id = ? AND ei.read_override = 0
+                          AND ei.filtered_at IS NULL
+                          AND ei.entry_id <= COALESCE(fs.read_through_entry_id, 0)${bounded.clause}
+                    )
+                    ORDER BY id DESC LIMIT ?`,
+                bindings: [
+                    userId,
+                    ...bounded.bindings,
+                    userId,
+                    ...bounded.bindings,
+                    limit,
+                ],
+            };
+    }
+};
 
 const invariant = (operation: string) =>
     new CompatibilityInvariantError({ operation });
@@ -294,32 +388,21 @@ export const makeCompatibilityRepository = (
                 }));
             }),
 
-        listItemIds: (userId, filter, requestedLimit = MAX_COMPAT_ITEM_IDS) =>
+        listItemIds: (
+            userId,
+            filter,
+            requestedLimit = MAX_COMPAT_ITEM_IDS,
+            bounds = {},
+        ) =>
             Effect.gen(function* () {
                 const operation = 'compat.items.ids';
                 const limit = Math.min(
                     Math.max(1, Math.trunc(requestedLimit)),
                     MAX_COMPAT_ITEM_IDS,
                 );
-                const filterSql =
-                    filter === 'unread'
-                        ? `${effectiveRead} = 0`
-                        : filter === 'starred'
-                          ? 'ei.starred_at IS NOT NULL'
-                          : '1 = 1';
                 const result = yield* withStorage(
                     operation,
-                    d1.all({
-                        sql: `SELECT e.id
-                            FROM entries e
-                            JOIN feed_subscriptions fs
-                              ON fs.feed_id = e.feed_id AND fs.user_id = ?
-                            LEFT JOIN entry_interactions ei
-                              ON ei.user_id = fs.user_id AND ei.entry_id = e.id
-                            WHERE ei.filtered_at IS NULL AND ${filterSql}
-                            ORDER BY e.id DESC LIMIT ?`,
-                        bindings: [userId, limit],
-                    }),
+                    d1.all(itemIdsStatement(userId, filter, limit, bounds)),
                 );
                 return (yield* decodeRows(
                     operation,
@@ -380,18 +463,22 @@ export const makeCompatibilityRepository = (
                     operation,
                     d1.batch([
                         {
-                            sql: `SELECT COUNT(*) AS total
-                                FROM entries e
-                                JOIN feed_subscriptions fs
-                                  ON fs.feed_id = e.feed_id AND fs.user_id = ?
-                                LEFT JOIN entry_interactions ei
-                                  ON ei.user_id = fs.user_id AND ei.entry_id = e.id
-                                WHERE ei.filtered_at IS NULL`,
+                            // The stored per-subscription counts, instead
+                            // of counting every entry on each items call.
+                            sql: `SELECT COALESCE(SUM(total_count), 0) AS total
+                                FROM (${subscriptionCountsSql('fs.user_id = ?')})`,
                             bindings: [userId],
                         },
                         {
+                            // CROSS JOIN walks entries in ID order and stops
+                            // after one page.
                             sql: `SELECT ${entryColumns}
-                                ${ownedVisibleEntries}
+                                FROM entries e
+                                CROSS JOIN feed_subscriptions fs
+                                  ON fs.feed_id = e.feed_id AND fs.user_id = ?
+                                JOIN feeds f ON f.id = e.feed_id
+                                LEFT JOIN entry_interactions ei
+                                  ON ei.user_id = fs.user_id AND ei.entry_id = e.id
                                 LEFT JOIN entry_contents ec ON ec.entry_id = e.id
                                 WHERE ei.filtered_at IS NULL ${cursorClause}
                                 ORDER BY e.id ${order} LIMIT ?`,

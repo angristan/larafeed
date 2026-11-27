@@ -394,6 +394,29 @@ describe('compatibility protocol routes', () => {
         },
     );
 
+    it('passes Google item-ID time bounds to the repository', async () => {
+        const listItemIds = vi.fn(() => Effect.succeed([4_661, 4_660]));
+        const harness = makeHarness({ repository: { listItemIds } });
+        const response = await harness.app.request(
+            '/api/reader/reader/api/0/stream/items/ids?xt=user/-/state/com.google/read&n=20&ot=1700000000&nt=1700000100',
+            { headers: { Authorization: 'GoogleLogin auth=opaque-token' } },
+            {} as Env,
+        );
+
+        expect(response.status).toBe(200);
+        expect(listItemIds).toHaveBeenCalledWith(72, 'unread', 20, {
+            createdFrom: 1_700_000_000_000,
+            createdBefore: 1_700_000_101_000,
+        });
+
+        const invalid = await harness.app.request(
+            '/api/reader/reader/api/0/stream/items/ids?ot=yesterday',
+            { headers: { Authorization: 'GoogleLogin auth=opaque-token' } },
+            {} as Env,
+        );
+        expect(invalid.status).toBe(400);
+    });
+
     it('keeps Google subscription favicon URLs empty', async () => {
         const harness = makeHarness({});
         const response = await harness.app.request(

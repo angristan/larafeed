@@ -2,7 +2,8 @@ import { env } from 'cloudflare:workers';
 import { Effect } from 'effect';
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { type D1, makeD1 } from '../infrastructure/d1';
+import { makeD1 } from '../infrastructure/d1';
+import { measuredD1 } from '../test/measured-d1';
 import {
     insertFixtureEntries,
     READER_FIXTURE,
@@ -10,47 +11,6 @@ import {
     seedReaderFixture,
 } from '../test/reader-fixture';
 import { makeReaderRepository, type ReaderEntryQuery } from './repository';
-
-/** A D1 that adds up the rows each statement reads. */
-const measuredD1 = (inner: D1) => {
-    let rowsRead = 0;
-    const add = (result: D1Result<unknown>) => {
-        rowsRead += result.meta.rows_read;
-    };
-    const d1: D1 = {
-        ...inner,
-        all: <T>(statement: Parameters<D1['all']>[0]) =>
-            inner.all<T>(statement).pipe(
-                Effect.map((result) => {
-                    add(result);
-                    return result;
-                }),
-            ),
-        batch: <T>(statements: Parameters<D1['batch']>[0]) =>
-            inner.batch<T>(statements).pipe(
-                Effect.map((results) => {
-                    results.forEach(add);
-                    return results;
-                }),
-            ),
-        first: ((statement: Parameters<D1['all']>[0], column?: string) =>
-            inner.all<Record<string, unknown>>(statement).pipe(
-                Effect.map((result) => {
-                    add(result);
-                    const row = result.results[0] ?? null;
-                    return column === undefined ? row : (row?.[column] ?? null);
-                }),
-            )) as D1['first'],
-    };
-    return {
-        d1,
-        take: () => {
-            const value = rowsRead;
-            rowsRead = 0;
-            return value;
-        },
-    };
-};
 
 const measured = measuredD1(makeD1(env.DB));
 const repository = makeReaderRepository(measured.d1);
