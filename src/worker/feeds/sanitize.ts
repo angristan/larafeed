@@ -227,3 +227,18 @@ export const sanitizeArticleHtml = (
         characterReferences: { useNamedReferences: true },
     }).trim();
 };
+
+const summarySchema: Schema = {
+    allowComments: false,
+    allowDoctypes: false,
+    attributes: {},
+    strip: blockedElements,
+    tagNames: ['p', 'ul', 'ol', 'li', 'strong', 'em'],
+};
+
+// Generated summaries keep only basic text structure and no attributes.
+// Other elements are unwrapped, so their text stays.
+export const sanitizeSummaryHtml = (html: string): string =>
+    toHtml(sanitize(fromHtml(html, { fragment: true }), summarySchema), {
+        characterReferences: { useNamedReferences: true },
+    }).trim();

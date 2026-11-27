@@ -1,4 +1,6 @@
 import { Effect } from 'effect';
+import type { Nodes } from 'hast';
+import { fromHtml } from 'hast-util-from-html';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { SummaryConfig } from './config';
@@ -12,6 +14,7 @@ import type { SummaryProvider } from './provider';
 import type { OwnedSummaryEntry, SummaryRepository } from './repository';
 import {
     makeSummaryService,
+    providerHtml,
     SUMMARY_EMPTY_CONTENT_HTML,
     SUMMARY_MAX_ARTICLE_BYTES,
     SUMMARY_MAX_HTML_BYTES,
@@ -249,5 +252,30 @@ describe('summary service', () => {
         expect(error).toBeInstanceOf(SummaryProviderError);
         expect(error).toMatchObject({ kind: 'output_too_large' });
         expect(repository.saveSummary).not.toHaveBeenCalled();
+    });
+
+    it('keeps markup hidden in attribute values as text', () => {
+        const html = providerHtml(
+            '<p title="a><met<i>a http-equiv=refresh content=0;url=https://evil.test>">Safe</p><h2>Heading</h2><ul><li class="x">Item</li></ul>',
+        );
+        const elements: { tagName: string; attributes: number }[] = [];
+        const walk = (node: Nodes): void => {
+            if (node.type === 'element') {
+                elements.push({
+                    tagName: node.tagName,
+                    attributes: Object.keys(node.properties).length,
+                });
+            }
+            if ('children' in node) node.children.forEach(walk);
+        };
+        walk(fromHtml(html, { fragment: true }));
+
+        // The attribute value must not come back as a live <meta> element.
+        expect(elements).toEqual([
+            { tagName: 'p', attributes: 0 },
+            { tagName: 'ul', attributes: 0 },
+            { tagName: 'li', attributes: 0 },
+        ]);
+        expect(html).toBe('<p>Safe</p>Heading<ul><li>Item</li></ul>');
     });
 });

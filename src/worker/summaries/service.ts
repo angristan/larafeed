@@ -2,7 +2,7 @@ import { EntrySummaryResponse } from '@shared/schemas/summaries';
 import { Effect } from 'effect';
 
 import { generateSafeId } from '../auth/crypto';
-import { sanitizeArticleHtml } from '../feeds/sanitize';
+import { sanitizeArticleHtml, sanitizeSummaryHtml } from '../feeds/sanitize';
 import type { SummaryConfig } from './config';
 import {
     SummaryContentChanged,
@@ -117,26 +117,13 @@ export const articleText = (html: string, baseUrl: URL): string => {
         .trim();
 };
 
-const summaryElements = new Set(['p', 'ul', 'ol', 'li', 'strong', 'em']);
-
-export const providerHtml = (value: string): string => {
-    const withoutFence = value
-        .trim()
-        .replace(/^```(?:html)?\s*/iu, '')
-        .replace(/\s*```$/u, '');
-    const sanitized = sanitizeArticleHtml(
-        withoutFence,
-        'https://larafeed.invalid/',
+export const providerHtml = (value: string): string =>
+    sanitizeSummaryHtml(
+        value
+            .trim()
+            .replace(/^```(?:html)?\s*/iu, '')
+            .replace(/\s*```$/u, ''),
     );
-
-    return sanitized.replace(
-        /<(\/?)((?:[a-z][a-z0-9]*))(?:\s[^>]*)?>/giu,
-        (_match, closing: string, name: string) =>
-            summaryElements.has(name.toLowerCase())
-                ? `<${closing}${name.toLowerCase()}>`
-                : '',
-    );
-};
 
 export const makeSummaryService = (
     dependencies: SummaryServiceDependencies,
