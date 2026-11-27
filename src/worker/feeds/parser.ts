@@ -580,6 +580,11 @@ const JSON_FEED_VERSIONS = new Set([
     'https://jsonfeed.org/version/1',
     'https://jsonfeed.org/version/1.1',
 ]);
+// An HTML document starts with an HTML doctype or root element, possibly
+// after an XML declaration and comments.
+const HTML_DOCUMENT_START =
+    /^(?:<\?xml[^>]*\?>\s*)?(?:<!--[\s\S]*?-->\s*)*<(?:!doctype\s+html|html)[\s>]/iu;
+
 const JSON_FEED_MIME_TYPES = new Set([
     'application/feed+json',
     'application/json',
@@ -951,6 +956,9 @@ export const parseFeedDocument = async (
             options.fetchedAt,
         ));
     } else {
+        if (HTML_DOCUMENT_START.test(source.trimStart())) {
+            throw new FeedParseError({ reason: 'html_page' });
+        }
         const declarationScan = source.replace(
             /<!\[CDATA\[[\s\S]*?\]\]>/gu,
             '',
@@ -959,7 +967,7 @@ export const parseFeedDocument = async (
             const reason =
                 contentType === 'text/html' ||
                 contentType === 'application/xhtml+xml'
-                    ? 'unsupported_feed'
+                    ? 'html_page'
                     : 'forbidden_declaration';
             throw new FeedParseError({ reason });
         }
@@ -971,7 +979,7 @@ export const parseFeedDocument = async (
             const reason =
                 contentType === 'text/html' ||
                 contentType === 'application/xhtml+xml'
-                    ? 'unsupported_feed'
+                    ? 'html_page'
                     : 'malformed_xml';
             throw new FeedParseError({ reason });
         }

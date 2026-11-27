@@ -706,7 +706,8 @@ export const makeFeedRefreshService = (
             onFailure: (error) => {
                 if (
                     error._tag === 'FeedParseError' &&
-                    error.reason === 'unsupported_feed'
+                    (error.reason === 'unsupported_feed' ||
+                        error.reason === 'html_page')
                 ) {
                     return discoverWebsiteResults(
                         url,

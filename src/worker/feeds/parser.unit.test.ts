@@ -545,7 +545,12 @@ describe('feed parser', () => {
     it('classifies malformed and unsupported documents as terminal parse errors', async () => {
         for (const [xml, reason] of [
             ['<rss><channel>', 'malformed_xml'],
-            ['<html><body>not a feed</body></html>', 'unsupported_feed'],
+            ['<html><body>not a feed</body></html>', 'html_page'],
+            ['<!doctype html><title>Just a moment...</title>', 'html_page'],
+            [
+                '<?xml version="1.0"?><catalog><item/></catalog>',
+                'unsupported_feed',
+            ],
         ] as const) {
             try {
                 await parse(xml);

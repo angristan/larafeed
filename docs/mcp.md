@@ -22,7 +22,7 @@ Apps get read-only access unless you tick write access on the consent page. To c
 | `search_entries` | read | Full-text search over titles, authors, and article text, best matches first, with a snippet around each match and the same filters as `list_entries` |
 | `get_entries` | read | Up to 20 entries with their content: 20,000 characters for one entry or 4,000 each for several by default (`maxChars`), as plain text or sanitized HTML |
 | `show_entries` | read | Shows entries to the user as an interactive card (MCP App), by filter or by `entryIds` |
-| `feed_health` | read | Feeds that fail to refresh or are gone, with the last error and last success |
+| `feed_health` | read | Feeds that fail to refresh or are gone, with the last error, last success, and new URL when the feed moved |
 | `update_entries` | write | Marks up to 50 entries read, starred, or archived (or the reverse), or a whole feed read with `feedId` and `read: true` |
 | `subscribe` | write | Adds a feed by feed or website URL. Returns the choices when a site offers several feeds |
 | `unsubscribe` | write | Removes a subscription with its read and starred state |

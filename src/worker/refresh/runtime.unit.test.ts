@@ -233,6 +233,58 @@ describe('refresh runtime adapter', () => {
         expect(requests).toBe(1);
     });
 
+    it('explains a web page served at the feed URL and looks for a move', async () => {
+        const processor = makeRefreshProcessor({
+            now: () => 1_900_000_000_000,
+            fetch: async (request) => {
+                const url = new Request(request).url;
+                if (url === 'https://stored.example.test/feed.xml') {
+                    return new Response(
+                        '<rss><channel><title>Moved</title><item><guid>1</guid><title>One</title></item></channel></rss>',
+                        { headers: { 'content-type': 'application/rss+xml' } },
+                    );
+                }
+                // The old feed URL now serves the site's home page.
+                return new Response(
+                    `<!DOCTYPE html><html><head>
+                    <link rel="alternate" type="application/rss+xml" href="https://stored.example.test/feed.xml">
+                    </head></html>`,
+                    { headers: { 'content-type': 'text/html' } },
+                );
+            },
+        });
+
+        const result = await processor(input);
+
+        expect(result).toMatchObject({
+            type: 'failure',
+            errorClass: 'FeedParseError',
+            errorMessage:
+                'Feed URL returned a web page instead of a feed. The site may block automated readers, or the feed may have moved.',
+            movedToUrl: 'https://stored.example.test/feed.xml',
+        });
+        expect(result).not.toHaveProperty('markGone');
+    });
+
+    it('stores readable messages for parse and network failures', async () => {
+        const failWith = (fetch: () => Promise<Response>) =>
+            makeRefreshProcessor({ now: () => 1_900_000_000_000, fetch })(
+                input,
+            );
+
+        await expect(
+            failWith(async () => new Response('<rss><channel>')),
+        ).resolves.toMatchObject({ errorMessage: 'Feed is not valid XML' });
+        await expect(
+            failWith(async () => {
+                throw new TypeError('connection reset');
+            }),
+        ).resolves.toMatchObject({
+            errorClass: 'FeedNetworkError',
+            errorMessage: 'Could not connect to the feed server',
+        });
+    });
+
     it('parses strict rollout controls', () => {
         const env = {
             REFRESH_SCHEDULER_ENABLED: 'false',

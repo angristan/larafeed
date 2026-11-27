@@ -4,6 +4,7 @@ import { faviconRefreshEnabled } from '../favicons/cron';
 import { makeFaviconRuntime } from '../favicons/runtime';
 import {
     FeedHttpError,
+    type FeedRefreshError,
     isFeedRefreshError,
     makeFeedRefreshService,
     validateFeedUrl,
@@ -86,6 +87,41 @@ export const resolveFeedFaviconUrl = (
     }
 };
 
+const parseErrorMessages = {
+    empty_document: 'Feed URL returned an empty document',
+    forbidden_declaration:
+        'Feed uses XML DOCTYPE or ENTITY declarations, which are not allowed',
+    html_page:
+        'Feed URL returned a web page instead of a feed. The site may block automated readers, or the feed may have moved.',
+    malformed_json: 'Feed is not valid JSON',
+    malformed_xml: 'Feed is not valid XML',
+    too_many_entries: 'Feed has too many entries',
+    unsupported_feed: 'Document is not an RSS, Atom, RDF or JSON feed',
+} as const;
+
+/** A message the subscriber can act on, stored with the failed refresh. */
+const refreshErrorMessage = (cause: FeedRefreshError): string => {
+    switch (cause._tag) {
+        case 'FeedHttpError':
+            return `Feed returned HTTP ${cause.status}`;
+        case 'FeedParseError':
+            return parseErrorMessages[cause.reason];
+        case 'FeedSizeError':
+            return `Feed is larger than ${Math.floor(cause.limitBytes / 1_048_576)} MB`;
+        case 'FeedTimeoutError':
+            return `Feed did not respond within ${Math.round(cause.timeoutMs / 1_000)} seconds`;
+        case 'FeedNetworkError':
+            return 'Could not connect to the feed server';
+        case 'FeedPolicyError':
+            return `Feed URL is not allowed (${cause.reason.replaceAll('_', ' ')})`;
+    }
+};
+
+const isHtmlPage = (cause: unknown): boolean =>
+    isFeedRefreshError(cause) &&
+    cause._tag === 'FeedParseError' &&
+    cause.reason === 'html_page';
+
 const classifiedFailure = (
     cause: unknown,
     durationMs: number,
@@ -110,10 +146,7 @@ const classifiedFailure = (
             ? { retryAfterMs: cause.retryAfterMs }
             : {}),
         errorClass: cause._tag,
-        errorMessage:
-            status === undefined
-                ? `Feed refresh failed: ${cause._tag}`
-                : `Feed returned HTTP ${status}`,
+        errorMessage: refreshErrorMessage(cause),
         ...(status === undefined ? {} : { httpStatus: status }),
         durationMs,
     };
@@ -137,7 +170,7 @@ export const makeRefreshProcessor = (
     });
 
     /**
-     * A feed URL that answers 404 or 410 has often moved. Look for the feeds
+     * A feed URL that answers 404 or 410, or a web page, has often moved. Look for the feeds
      * its site advertises, or serves at common paths, and return the first
      * one that is a different feed.
      */
@@ -226,7 +259,7 @@ export const makeRefreshProcessor = (
                 cause,
                 Math.max(0, now() - startedAt),
             );
-            return failure.markGone === true
+            return failure.markGone === true || isHtmlPage(cause)
                 ? { ...failure, movedToUrl: await findMovedFeed(input) }
                 : failure;
         }

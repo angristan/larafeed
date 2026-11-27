@@ -30,6 +30,9 @@ export class FeedParseError extends Schema.TaggedError<FeedParseError>()(
         reason: Schema.Literals([
             'empty_document',
             'forbidden_declaration',
+            // The URL served a web page, often a bot challenge or the site's
+            // home page after the feed was removed.
+            'html_page',
             'malformed_json',
             'malformed_xml',
             'too_many_entries',
