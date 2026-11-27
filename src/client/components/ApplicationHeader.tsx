@@ -15,7 +15,7 @@ import {
 } from '@mantine/core';
 import { useDisclosure, useHotkeys } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { Spotlight, type SpotlightActionData } from '@mantine/spotlight';
+import { Spotlight } from '@mantine/spotlight';
 import {
     IconBook2,
     IconBrandGithub,
@@ -30,7 +30,7 @@ import {
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Effect } from 'effect';
-import { type ReactNode, useMemo } from 'react';
+import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import { AuthClientError, logout, readCsrfToken } from '../api/auth';
@@ -44,7 +44,7 @@ import {
 import { subscriptionListQueryOptions } from '../queries/reader';
 import classes from './ApplicationHeader.module.css';
 import ApplicationLogo from './ApplicationLogo';
-import { FeedFavicon } from './reader/FeedFavicon';
+import { FeedSpotlight, selectHasFeeds } from './FeedSpotlight';
 import { ReaderShortcutHelp } from './reader/ReaderShortcutHelp';
 
 export type ApplicationPage =
@@ -89,7 +89,10 @@ export function ApplicationHeader({
 }: ApplicationHeaderProps) {
     const session = useQuery(authSessionQueryOptions);
     const profile = useQuery(accountQueryOptions);
-    const subscriptions = useQuery(subscriptionListQueryOptions);
+    const { data: hasFeeds } = useQuery({
+        ...subscriptionListQueryOptions,
+        select: selectHasFeeds,
+    });
     const queryClient = useQueryClient();
     const navigate = useNavigate();
     const [shortcutsOpened, shortcuts] = useDisclosure(false);
@@ -144,34 +147,6 @@ export function ApplicationHeader({
 
     const user =
         session.data?.authenticated === true ? session.data.user : undefined;
-    const spotlightActions = useMemo<SpotlightActionData[]>(
-        () =>
-            (subscriptions.data?.subscriptions ?? []).map((subscription) => {
-                const label =
-                    subscription.customFeedName ?? subscription.feedName;
-                return {
-                    id: `feed-${subscription.feedId}`,
-                    label,
-                    description:
-                        subscription.customFeedName === null
-                            ? undefined
-                            : subscription.feedName,
-                    leftSection: (
-                        <FeedFavicon
-                            isDark={subscription.faviconIsDark}
-                            size={20}
-                            src={subscription.faviconUrl}
-                        />
-                    ),
-                    onClick: () =>
-                        void navigate(
-                            `/feeds?feed=${subscription.feedId}&filter=all&order_by=published_at`,
-                        ),
-                };
-            }),
-        [navigate, subscriptions.data?.subscriptions],
-    );
-
     const accountMenu = (placement: 'rail' | 'header') =>
         user === undefined ? null : (
             <Menu
@@ -214,25 +189,7 @@ export function ApplicationHeader({
 
     return (
         <>
-            {spotlightActions.length > 0 && (
-                <Spotlight
-                    actions={spotlightActions}
-                    highlightQuery
-                    maxHeight="calc(100vh * 0.6)"
-                    nothingFound="No feeds found"
-                    scrollable
-                    searchProps={{
-                        leftSection: (
-                            <IconSearch
-                                style={{ width: rem(20), height: rem(20) }}
-                                stroke={1.5}
-                            />
-                        ),
-                        placeholder: 'Find a feed',
-                    }}
-                    shortcut="mod + K"
-                />
-            )}
+            <FeedSpotlight />
 
             <AppShell.Header className={classes.mobileHeader}>
                 <Group
@@ -260,7 +217,7 @@ export function ApplicationHeader({
                         gap={4}
                         wrap="nowrap"
                     >
-                        {spotlightActions.length > 0 && (
+                        {hasFeeds === true && (
                             <ActionIcon
                                 aria-label="Search feeds"
                                 onClick={Spotlight.open}
@@ -337,7 +294,7 @@ export function ApplicationHeader({
                     </nav>
 
                     <div className={classes.railUtilities}>
-                        {spotlightActions.length > 0 && (
+                        {hasFeeds === true && (
                             <Tooltip label="Find a feed" position="right">
                                 <ActionIcon
                                     aria-label="Search feeds"
