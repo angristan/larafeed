@@ -8,6 +8,7 @@ import type { ManagedSubscription } from '../api/subscriptions';
 import { subscriptionManagementKeys } from '../queries/subscriptions';
 import {
     buildAddFeedBookmarklet,
+    compareSubscriptions,
     getSubscriptionStatus,
     MoveFeedSection,
     nextSubscriptionSortDirection,
@@ -240,6 +241,64 @@ describe('SubscriptionsPage', () => {
         expect(nextSubscriptionSortDirection('name', 'desc', 'name')).toBe(
             'desc',
         );
+        expect(nextSubscriptionSortDirection('entries', 'desc', 'status')).toBe(
+            'asc',
+        );
+    });
+
+    it('sorts feeds that need a fix first, then by name', () => {
+        const feeds: ManagedSubscription[] = [
+            { ...subscription, feedId: 1, customFeedName: 'Beta' },
+            { ...subscription, feedId: 2, customFeedName: 'Alpha' },
+            {
+                ...subscription,
+                feedId: 3,
+                customFeedName: 'Never',
+                lastSuccessfulRefreshAt: null,
+                refreshes: [],
+            },
+            {
+                ...subscription,
+                feedId: 4,
+                customFeedName: 'Gone',
+                isGone: true,
+            },
+            {
+                ...subscription,
+                feedId: 5,
+                customFeedName: 'Zulu failing',
+                consecutiveFailures: 1,
+            },
+            {
+                ...subscription,
+                feedId: 6,
+                customFeedName: 'Able failing',
+                consecutiveFailures: 4,
+            },
+        ];
+        const order = (direction: 'asc' | 'desc') =>
+            feeds
+                .toSorted((left, right) =>
+                    compareSubscriptions(left, right, 'status', direction),
+                )
+                .map((feed) => feed.customFeedName);
+
+        expect(order('asc')).toEqual([
+            'Able failing',
+            'Zulu failing',
+            'Gone',
+            'Never',
+            'Alpha',
+            'Beta',
+        ]);
+        expect(order('desc')).toEqual([
+            'Alpha',
+            'Beta',
+            'Never',
+            'Gone',
+            'Able failing',
+            'Zulu failing',
+        ]);
     });
 
     it('classifies never, failing, and gone subscriptions', () => {

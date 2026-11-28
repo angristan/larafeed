@@ -67,7 +67,7 @@ import classes from './SubscriptionsPage.module.css';
 export { buildAddFeedBookmarklet } from '../bookmarklet';
 
 type SubscriptionStatus = 'healthy' | 'failing' | 'never' | 'gone';
-type SortField = 'name' | 'entries' | 'lastSuccess' | 'lastFailure';
+type SortField = 'status' | 'name' | 'entries' | 'lastSuccess' | 'lastFailure';
 
 export const subscriptionStatusFilterOptions = [
     { label: 'Healthy', value: 'healthy' },
@@ -86,7 +86,46 @@ export function nextSubscriptionSortDirection(
     nextField: SortField,
 ): SortDirection {
     if (nextField === currentField) return currentDirection;
-    return nextField === 'name' ? 'asc' : 'desc';
+    return nextField === 'name' || nextField === 'status' ? 'asc' : 'desc';
+}
+
+// Ascending status order puts the feeds that need a fix first.
+const statusSortRank: Record<SubscriptionStatus, number> = {
+    failing: 0,
+    gone: 1,
+    never: 2,
+    healthy: 3,
+};
+
+const defaultSortField: SortField = 'status';
+const defaultSortDirection: SortDirection = 'asc';
+
+export function compareSubscriptions(
+    left: ManagedSubscription,
+    right: ManagedSubscription,
+    field: SortField,
+    direction: SortDirection,
+): number {
+    const sign = direction === 'asc' ? 1 : -1;
+    const byField =
+        field === 'status'
+            ? statusSortRank[getSubscriptionStatus(left)] -
+              statusSortRank[getSubscriptionStatus(right)]
+            : field === 'entries'
+              ? left.entryCount - right.entryCount
+              : field === 'lastSuccess'
+                ? (left.lastSuccessfulRefreshAt ?? 0) -
+                  (right.lastSuccessfulRefreshAt ?? 0)
+                : field === 'lastFailure'
+                  ? (left.lastFailedRefreshAt ?? 0) -
+                    (right.lastFailedRefreshAt ?? 0)
+                  : 0;
+    if (byField !== 0) return sign * byField;
+    // Names break ties, and sort the name field itself.
+    const byName = (left.customFeedName ?? left.feedName).localeCompare(
+        right.customFeedName ?? right.feedName,
+    );
+    return field === 'name' ? sign * byName : byName;
 }
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, {
@@ -873,8 +912,9 @@ function SubscriptionWorkspace({
     const deferredSearch = useDeferredValue(search);
     const [category, setCategory] = useState('all');
     const [status, setStatus] = useState<SubscriptionStatus | 'all'>('all');
-    const [sortField, setSortField] = useState<SortField>('name');
-    const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+    const [sortField, setSortField] = useState<SortField>(defaultSortField);
+    const [sortDirection, setSortDirection] =
+        useState<SortDirection>(defaultSortDirection);
     const [selectedFeedId, setSelectedFeedId] = useState<number | null>(null);
 
     const subscriptions = data?.subscriptions ?? [];
@@ -884,7 +924,6 @@ function SubscriptionWorkspace({
 
     const filtered = useMemo(() => {
         const normalized = deferredSearch.trim().toLocaleLowerCase();
-        const direction = sortDirection === 'asc' ? 1 : -1;
         return subscriptions
             .filter((subscription) => {
                 const name =
@@ -902,28 +941,9 @@ function SubscriptionWorkspace({
                     getSubscriptionStatus(subscription) === status;
                 return matchesSearch && matchesCategory && matchesStatus;
             })
-            .toSorted((left, right) => {
-                if (sortField === 'entries') {
-                    return direction * (left.entryCount - right.entryCount);
-                }
-                if (sortField === 'lastSuccess') {
-                    return (
-                        direction *
-                        ((left.lastSuccessfulRefreshAt ?? 0) -
-                            (right.lastSuccessfulRefreshAt ?? 0))
-                    );
-                }
-                if (sortField === 'lastFailure') {
-                    return (
-                        direction *
-                        ((left.lastFailedRefreshAt ?? 0) -
-                            (right.lastFailedRefreshAt ?? 0))
-                    );
-                }
-                const leftName = left.customFeedName ?? left.feedName;
-                const rightName = right.customFeedName ?? right.feedName;
-                return direction * leftName.localeCompare(rightName);
-            });
+            .toSorted((left, right) =>
+                compareSubscriptions(left, right, sortField, sortDirection),
+            );
     }, [
         category,
         deferredSearch,
@@ -959,8 +979,8 @@ function SubscriptionWorkspace({
         setSearch('');
         setCategory('all');
         setStatus('all');
-        setSortField('name');
-        setSortDirection('asc');
+        setSortField(defaultSortField);
+        setSortDirection(defaultSortDirection);
     };
 
     const sidebar = (
@@ -1093,6 +1113,10 @@ function SubscriptionWorkspace({
                                 <Group align="flex-end" gap="xs" wrap="nowrap">
                                     <Select
                                         data={[
+                                            {
+                                                label: 'Status',
+                                                value: 'status',
+                                            },
                                             { label: 'Name', value: 'name' },
                                             {
                                                 label: 'Entries count',
@@ -1240,7 +1264,17 @@ function SubscriptionWorkspace({
                                                         )}
                                                     </Group>
                                                 </Table.Th>
-                                                <Table.Th>Status</Table.Th>
+                                                <Table.Th>
+                                                    <Group
+                                                        align="center"
+                                                        gap={4}
+                                                    >
+                                                        Status
+                                                        {renderSortIndicator(
+                                                            'status',
+                                                        )}
+                                                    </Group>
+                                                </Table.Th>
                                                 <Table.Th>
                                                     <Group
                                                         align="center"
