@@ -744,9 +744,20 @@ const assertionMatches = (
 
 // Thompson-NFA simulation visits each compiled state at most once per input
 // position. Ambiguous alternatives never cause recursive backtracking.
-const matchesSafePattern = (pattern: SafePattern, value: string): boolean => {
+interface PatternInput {
+    readonly characters: readonly string[];
+    readonly foldedCharacters: readonly string[];
+}
+
+const patternInput = (value: string): PatternInput => {
     const characters = Array.from(value);
-    const foldedCharacters = characters.map(foldCase);
+    return { characters, foldedCharacters: characters.map(foldCase) };
+};
+
+const matchesSafePattern = (
+    pattern: SafePattern,
+    { characters, foldedCharacters }: PatternInput,
+): boolean => {
     const marks = new Uint32Array(pattern.states.length);
     let generation = 0;
     let carry: number[] = [];
@@ -822,12 +833,20 @@ export const compileFilterRules = (
 const matches = (
     patterns: readonly CompiledPattern[],
     value: string,
-): boolean =>
-    patterns.some((pattern) =>
-        pattern.safePattern === null
-            ? foldCase(value).includes(pattern.literal)
-            : matchesSafePattern(pattern.safePattern, value),
-    );
+): boolean => {
+    // Split and fold the text once for all patterns. Entry content can be
+    // large, and a subscription can have many patterns.
+    let folded: string | undefined;
+    let input: PatternInput | undefined;
+    return patterns.some((pattern) => {
+        if (pattern.safePattern === null) {
+            folded ??= foldCase(value);
+            return folded.includes(pattern.literal);
+        }
+        input ??= patternInput(value);
+        return matchesSafePattern(pattern.safePattern, input);
+    });
+};
 
 export const matchesSubscriptionFilter = (
     candidate: FilterCandidate,
