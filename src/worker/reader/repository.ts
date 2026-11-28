@@ -192,6 +192,17 @@ export interface ReaderRepository {
         ReaderSearchPage,
         ReaderStorageError | ReaderInvariantError
     >;
+    /**
+     * List rows for the given entries, without their content, in the order
+     * of `entryIds`. Missing and filtered entries are left out.
+     */
+    readonly listEntriesByIds: (
+        userId: number,
+        entryIds: readonly number[],
+    ) => Effect.Effect<
+        readonly ReaderEntry[],
+        ReaderStorageError | ReaderInvariantError
+    >;
     readonly findEntry: (
         userId: number,
         entryId: number,
@@ -1212,6 +1223,35 @@ export const makeReaderRepository = (d1: D1): ReaderRepository => ({
                 })),
                 hasMore: rows.length > query.limit,
             };
+        }),
+
+    listEntriesByIds: (userId, entryIds) =>
+        Effect.gen(function* () {
+            const operation = 'reader.entries.byIds';
+            const unique = [...new Set(entryIds)];
+            if (unique.length === 0) return [];
+            const result = yield* withStorageError(
+                operation,
+                d1.all({
+                    sql: `SELECT ${entryColumns}
+                        FROM entries e
+                        JOIN feed_subscriptions fs ON fs.feed_id = e.feed_id AND fs.user_id = ?
+                        JOIN feeds f ON f.id = e.feed_id
+                        LEFT JOIN entry_interactions ei ON ei.user_id = fs.user_id AND ei.entry_id = e.id
+                        WHERE e.id IN (SELECT value FROM json_each(?))
+                          AND ei.filtered_at IS NULL`,
+                    bindings: [userId, JSON.stringify(unique)],
+                }),
+            );
+            const byId = new Map(
+                (yield* decodeRows(operation, EntryRow, result.results)).map(
+                    (row) => [row.id, entryFromRow(row)],
+                ),
+            );
+            return unique.flatMap((id) => {
+                const entry = byId.get(id);
+                return entry === undefined ? [] : [entry];
+            });
         }),
 
     findEntry: (userId, entryId) =>

@@ -92,6 +92,8 @@ export const makeReaderService = (dependencies: ReaderServiceDependencies) => {
                   ),
         searchEntries: (userId: number, query: ReaderSearchQuery) =>
             repository.searchEntries(userId, query),
+        listEntriesByIds: (userId: number, entryIds: readonly number[]) =>
+            repository.listEntriesByIds(userId, entryIds),
         findEntry: (userId: number, entryId: number) =>
             repository.findEntry(userId, entryId).pipe(
                 Effect.flatMap((entry) =>

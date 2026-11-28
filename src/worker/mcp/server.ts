@@ -555,21 +555,11 @@ export const makeMcpServer = (
                     let nextCursor: string | null = null;
                     let found: readonly ReaderEntry[];
                     if (input.entryIds !== undefined) {
-                        const loaded = yield* Effect.forEach(
-                            [...new Set(input.entryIds)],
-                            (entryId) =>
-                                reader.findEntry(userId, entryId).pipe(
-                                    Effect.map(
-                                        (entry): ReaderEntry | null => entry,
-                                    ),
-                                    Effect.catchTag('ReaderNotFound', () =>
-                                        Effect.succeed(null),
-                                    ),
-                                ),
-                            { concurrency: 4 },
-                        );
-                        found = loaded.filter(
-                            (entry): entry is ReaderEntry => entry !== null,
+                        // One query for the list fields; the card never
+                        // shows full content.
+                        found = yield* reader.listEntriesByIds(
+                            userId,
+                            input.entryIds,
                         );
                         total = found.length;
                     } else {
