@@ -1,17 +1,40 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+    afterAll,
+    beforeAll,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    vi,
+} from 'vitest';
+
+import type * as Parser from './parser';
+import type * as Sanitize from './sanitize';
 
 // Pass-through spy: the parser output stays real, the test only counts how
-// many item bodies go through the HTML sanitizer.
-vi.mock('./sanitize', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('./sanitize')>();
-    return {
-        ...actual,
-        sanitizeArticleHtml: vi.fn(actual.sanitizeArticleHtml),
-    };
+// many item bodies go through the HTML sanitizer. Test files share module
+// instances, so the parser is re-imported after the mock and the registry is
+// reset again afterwards.
+let parseFeedDocument: typeof Parser.parseFeedDocument;
+let MAX_FEED_ENTRIES: number;
+let sanitizeArticleHtml: ReturnType<
+    typeof vi.fn<typeof Sanitize.sanitizeArticleHtml>
+>;
+
+beforeAll(async () => {
+    vi.resetModules();
+    vi.doMock('./sanitize', async (importOriginal) => {
+        const actual = await importOriginal<typeof Sanitize>();
+        sanitizeArticleHtml = vi.fn(actual.sanitizeArticleHtml);
+        return { ...actual, sanitizeArticleHtml };
+    });
+    ({ parseFeedDocument, MAX_FEED_ENTRIES } = await import('./parser'));
 });
 
-import { MAX_FEED_ENTRIES, parseFeedDocument } from './parser';
-import { sanitizeArticleHtml } from './sanitize';
+afterAll(() => {
+    vi.doUnmock('./sanitize');
+    vi.resetModules();
+});
 
 const finalUrl = new URL('https://feeds.example.com/feed.xml');
 const fetchedAt = Date.parse('2026-07-18T12:00:00Z');
@@ -26,7 +49,7 @@ const day = (index: number) =>
         .replace('GMT', '+0000');
 
 beforeEach(() => {
-    vi.mocked(sanitizeArticleHtml).mockClear();
+    sanitizeArticleHtml.mockClear();
 });
 
 describe('feed parser content sanitizing', () => {
