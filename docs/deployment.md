@@ -1,6 +1,6 @@
 # Deployment
 
-Larafeed runs as one Cloudflare Worker with Static Assets, D1, two Workers KV namespaces, three Queues, Cron, a rate-limit binding, and an optional Images binding.
+Larafeed runs as one Cloudflare Worker with Static Assets, D1, two Workers KV namespaces, three Queues, Cron, three rate-limit bindings, and an optional Images binding. Image routes use their own `IMAGE_RATE_LIMITER`, which only counts images that miss the transform cache.
 
 ## Deploy button
 

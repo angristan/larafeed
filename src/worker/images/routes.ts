@@ -24,6 +24,8 @@ import {
 } from './repository';
 import {
     type FeedImagePreset,
+    type ImageFetchAdmission,
+    ImageFetchNotAdmitted,
     type ImageService,
     makeImageService,
 } from './service';
@@ -107,7 +109,7 @@ export const defaultImageRuntimeFactory: ImageRuntimeFactory = (env) => {
                             cacheOrigin: auth.config.origin,
                         }),
                         rateLimit: (key: string) =>
-                            env.AUTH_RATE_LIMITER.limit({ key }),
+                            env.IMAGE_RATE_LIMITER.limit({ key }),
                     };
                 },
                 catch: (cause) => cause,
@@ -153,6 +155,25 @@ const runtimeErrorResponse = (error: unknown): Response => {
         return jsonError(401, 'unauthenticated', 'Authentication required');
     }
     if (!isCancellationError(error)) reportUnexpectedHttpError(error);
+    return jsonError(503, 'service_unavailable', 'Service unavailable');
+};
+
+// Routes resolve the source URL from an owned feed or entry before calling the
+// service, so a cache hit never serves an image the user cannot see. The
+// service spends a token only on a cache miss, before it fetches the source.
+const fetchAdmission =
+    (
+        runtime: ImageRuntime,
+        session: AuthenticatedSession,
+    ): ImageFetchAdmission =>
+    async () =>
+        (await runtime.rateLimit(imageRateLimitKey(session.user.id))).success;
+
+const notAdmittedResponse = (error: ImageFetchNotAdmitted): Response => {
+    if (error.reason === 'rate_limited') {
+        return jsonError(429, 'rate_limited', 'Too many requests');
+    }
+    reportUnexpectedHttpError(error.cause);
     return jsonError(503, 'service_unavailable', 'Service unavailable');
 };
 
@@ -232,19 +253,6 @@ export const registerImageRoutes = (
             return runtimeErrorResponse(error);
         }
 
-        let rateLimit: { readonly success: boolean };
-        try {
-            rateLimit = await runtime.rateLimit(
-                imageRateLimitKey(session.user.id),
-            );
-        } catch (error) {
-            reportUnexpectedHttpError(error);
-            return jsonError(503, 'service_unavailable', 'Service unavailable');
-        }
-        if (!rateLimit.success) {
-            return jsonError(429, 'rate_limited', 'Too many requests');
-        }
-
         let source: FeedImageSource | null;
         try {
             source = await Effect.runPromise(
@@ -265,11 +273,14 @@ export const registerImageRoutes = (
                     sourceUrl: source.faviconUrl,
                     preset,
                     accept: context.req.header('Accept') ?? null,
+                    admitFetch: fetchAdmission(runtime, session),
                 }),
                 { unavailable: unavailableFeedImageResponse },
             );
-        } catch {
-            return unavailableFeedImageResponse();
+        } catch (error) {
+            return error instanceof ImageFetchNotAdmitted
+                ? notAdmittedResponse(error)
+                : unavailableFeedImageResponse();
         }
     });
 
@@ -317,23 +328,6 @@ export const registerImageRoutes = (
                 return runtimeErrorResponse(error);
             }
 
-            let rateLimit: { readonly success: boolean };
-            try {
-                rateLimit = await runtime.rateLimit(
-                    imageRateLimitKey(session.user.id),
-                );
-            } catch (error) {
-                reportUnexpectedHttpError(error);
-                return jsonError(
-                    503,
-                    'service_unavailable',
-                    'Service unavailable',
-                );
-            }
-            if (!rateLimit.success) {
-                return jsonError(429, 'rate_limited', 'Too many requests');
-            }
-
             try {
                 await Effect.runPromise(
                     fullContent.repository.findOwnedEntry(
@@ -367,11 +361,14 @@ export const registerImageRoutes = (
                     await runtime.service.transformArticleImage({
                         sourceUrl,
                         accept: context.req.header('Accept') ?? null,
+                        admitFetch: fetchAdmission(runtime, session),
                     }),
                     { cacheControl: ARTICLE_IMAGE_CACHE_CONTROL },
                 );
-            } catch {
-                return placeholderResponse();
+            } catch (error) {
+                return error instanceof ImageFetchNotAdmitted
+                    ? notAdmittedResponse(error)
+                    : placeholderResponse();
             }
         },
     );
@@ -411,19 +408,6 @@ export const registerImageRoutes = (
             return runtimeErrorResponse(error);
         }
 
-        let rateLimit: { readonly success: boolean };
-        try {
-            rateLimit = await runtime.rateLimit(
-                imageRateLimitKey(session.user.id),
-            );
-        } catch (error) {
-            reportUnexpectedHttpError(error);
-            return jsonError(503, 'service_unavailable', 'Service unavailable');
-        }
-        if (!rateLimit.success) {
-            return jsonError(429, 'rate_limited', 'Too many requests');
-        }
-
         let article: ArticleImageSource | null;
         try {
             article = await Effect.runPromise(
@@ -452,11 +436,14 @@ export const registerImageRoutes = (
                 await runtime.service.transformArticleImage({
                     sourceUrl,
                     accept: context.req.header('Accept') ?? null,
+                    admitFetch: fetchAdmission(runtime, session),
                 }),
                 { cacheControl: ARTICLE_IMAGE_CACHE_CONTROL },
             );
-        } catch {
-            return placeholderResponse();
+        } catch (error) {
+            return error instanceof ImageFetchNotAdmitted
+                ? notAdmittedResponse(error)
+                : placeholderResponse();
         }
     });
 

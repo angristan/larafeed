@@ -80,7 +80,7 @@ describe('Deploy-to-Cloudflare configuration', () => {
         });
     });
 
-    it('keeps login limits strict and allows compatibility sync bursts', () => {
+    it('keeps login limits strict and allows compatibility sync and image bursts', () => {
         expect(wrangler.env?.production?.ratelimits).toEqual([
             {
                 name: 'AUTH_RATE_LIMITER',
@@ -91,6 +91,11 @@ describe('Deploy-to-Cloudflare configuration', () => {
                 name: 'COMPAT_RATE_LIMITER',
                 namespace_id: '2001',
                 simple: { limit: 300, period: 60 },
+            },
+            {
+                name: 'IMAGE_RATE_LIMITER',
+                namespace_id: '3001',
+                simple: { limit: 600, period: 60 },
             },
         ]);
     });

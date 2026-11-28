@@ -168,6 +168,64 @@ describe('feed image service', () => {
         );
     });
 
+    it('asks for fetch admission only when the transform cache misses', async () => {
+        const binding = makeImages();
+        const cache = makeCache();
+        const fetch = vi.fn(async () => imageResponse());
+        const service = makeImageService({
+            images: binding.images,
+            fetch: fetch as typeof globalThis.fetch,
+            cache: cache.cache,
+            cacheOrigin: 'https://larafeed.example.test',
+        });
+        const admitFetch = vi.fn(async () => true);
+        const input = {
+            sourceUrl: 'https://images.example.test/icon.png',
+            preset: 'small' as const,
+            accept: 'image/webp,*/*',
+            admitFetch,
+        };
+
+        await service.transformFeedImage(input);
+        await service.transformFeedImage(input);
+        await service.transformFeedImage(input);
+
+        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(admitFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+        ['rate_limited', async (): Promise<boolean> => false],
+        [
+            'admission_failed',
+            async (): Promise<boolean> => {
+                throw new Error('rate limiter unavailable');
+            },
+        ],
+    ] as const)(
+        'rejects an uncached transform as %s before any subrequest',
+        async (reason, admitFetch) => {
+            const binding = makeImages();
+            const fetch = vi.fn(async () => imageResponse());
+            const service = makeImageService({
+                images: binding.images,
+                fetch: fetch as typeof globalThis.fetch,
+                cache: makeCache().cache,
+                cacheOrigin: 'https://larafeed.example.test',
+            });
+
+            await expect(
+                service.transformArticleImage({
+                    sourceUrl: 'https://images.example.test/article.png',
+                    accept: 'image/webp,*/*',
+                    admitFetch,
+                }),
+            ).rejects.toMatchObject({ _tag: 'ImageFetchNotAdmitted', reason });
+            expect(fetch).not.toHaveBeenCalled();
+            expect(binding.images.input).not.toHaveBeenCalled();
+        },
+    );
+
     it.each([
         'http://127.0.0.1/icon.png',
         'https://[::1]/icon.png',

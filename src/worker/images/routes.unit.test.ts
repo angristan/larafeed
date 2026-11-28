@@ -12,7 +12,7 @@ import {
     imagesEnabled,
     registerImageRoutes,
 } from './routes';
-import type { ImageService } from './service';
+import { type ImageService, makeImageService } from './service';
 
 const config: AuthConfig = {
     environment: 'test',
@@ -186,12 +186,14 @@ describe('feed image routes', () => {
         expect(response.status).toBe(200);
         expect(response.headers.get('content-type')).toBe('image/webp');
         expect(response.headers.get('cache-control')).toBe('private, no-store');
-        expect(rateLimit).toHaveBeenCalledWith('image:7');
         expect(transformFeedImage).toHaveBeenCalledWith({
             sourceUrl: 'https://images.example.test/icon.png',
             preset: 'medium',
             accept: 'image/webp,*/*',
+            admitFetch: expect.any(Function),
         });
+        // The service did not need a fetch, so no token was spent.
+        expect(rateLimit).not.toHaveBeenCalled();
     });
 
     it('cannot become an open proxy through query or preset input', async () => {
@@ -259,17 +261,74 @@ describe('feed image routes', () => {
             expect((await response.arrayBuffer()).byteLength).toBe(0);
         }
     });
+});
 
-    it('rate limits all feed images by user before source lookup', async () => {
-        const findOwnedFeedSource = vi.fn(() =>
-            Effect.succeed({ faviconUrl: 'https://images.example.test/a.png' }),
+// A real service without a transform cache, so every request is a cache miss
+// that asks the route for fetch admission.
+const uncachedService = () => {
+    const fetch = vi.fn(
+        async () =>
+            new Response(new Uint8Array([1, 2, 3]).buffer, {
+                headers: { 'content-type': 'image/png' },
+            }),
+    );
+    const transformer: {
+        readonly transform: () => unknown;
+        readonly output: () => Promise<{ readonly response: () => Response }>;
+    } = {
+        transform: () => transformer,
+        output: async () => ({
+            response: () =>
+                new Response(new Uint8Array([4, 5, 6]).buffer, {
+                    headers: { 'content-type': 'image/webp' },
+                }),
+        }),
+    };
+    const service = makeImageService({
+        images: { input: () => transformer } as unknown as ImagesBinding,
+        fetch: fetch as typeof globalThis.fetch,
+    });
+    return { service, fetch };
+};
+
+describe('feed image rate limiting', () => {
+    it('spends a token only when the service must fetch an uncached image', async () => {
+        const { service, fetch } = uncachedService();
+        const rateLimit = vi.fn(async () => ({ success: false }));
+        const runtime = makeRuntime({ service, rateLimit });
+
+        const limited = await makeApp(runtime).request(
+            '/api/images/feeds/21/small',
+            get,
         );
+
+        expect(limited.status).toBe(429);
+        await expect(limited.json()).resolves.toMatchObject({
+            error: { code: 'rate_limited' },
+        });
+        expect(limited.headers.get('cache-control')).toBe('private, no-store');
+        expect(rateLimit).toHaveBeenCalledWith('image:7');
+        expect(fetch).not.toHaveBeenCalled();
+
+        rateLimit.mockResolvedValue({ success: true });
+        const admitted = await makeApp(runtime).request(
+            '/api/images/feeds/21/small',
+            get,
+        );
+
+        expect(admitted.status).toBe(200);
+        expect(admitted.headers.get('content-type')).toBe('image/webp');
+        expect(rateLimit).toHaveBeenCalledTimes(2);
+        expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports an unavailable rate limiter as a service failure', async () => {
+        const { service, fetch } = uncachedService();
         const runtime = makeRuntime({
-            repository: {
-                ...makeRuntime().repository,
-                findOwnedFeedSource,
+            service,
+            rateLimit: async () => {
+                throw new Error('rate limiter unavailable');
             },
-            rateLimit: async () => ({ success: false }),
         });
 
         const response = await makeApp(runtime).request(
@@ -277,8 +336,29 @@ describe('feed image routes', () => {
             get,
         );
 
-        expect(response.status).toBe(429);
-        expect(findOwnedFeedSource).not.toHaveBeenCalled();
+        expect(response.status).toBe(503);
+        expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('checks feed ownership before spending a token', async () => {
+        const { service } = uncachedService();
+        const rateLimit = vi.fn(async () => ({ success: true }));
+        const runtime = makeRuntime({
+            repository: {
+                ...makeRuntime().repository,
+                findOwnedFeedSource: () => Effect.succeed(null),
+            },
+            service,
+            rateLimit,
+        });
+
+        const response = await makeApp(runtime).request(
+            '/api/images/feeds/21/small',
+            get,
+        );
+
+        expect(response.status).toBe(404);
+        expect(rateLimit).not.toHaveBeenCalled();
     });
 });
 

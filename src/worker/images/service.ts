@@ -51,15 +51,24 @@ export interface ImageServiceDependencies {
     readonly cacheOrigin?: string;
 }
 
+/**
+ * Decides whether a transform may fetch its source. The service calls it only
+ * on a transform cache miss, so cached images never spend a rate-limit token.
+ * Resolves `false` to reject the fetch.
+ */
+export type ImageFetchAdmission = () => Promise<boolean>;
+
 export interface TransformFeedImageInput {
     readonly sourceUrl: string;
     readonly preset: FeedImagePreset;
     readonly accept: string | null;
+    readonly admitFetch?: ImageFetchAdmission;
 }
 
 export interface TransformArticleImageInput {
     readonly sourceUrl: string;
     readonly accept: string | null;
+    readonly admitFetch?: ImageFetchAdmission;
 }
 
 export class FeedImageUnavailable extends Error {
@@ -73,6 +82,31 @@ export class FeedImageUnavailable extends Error {
 
 const unavailable = (retryable = false): FeedImageUnavailable =>
     new FeedImageUnavailable(retryable);
+
+export class ImageFetchNotAdmitted extends Error {
+    readonly _tag = 'ImageFetchNotAdmitted';
+
+    constructor(
+        readonly reason: 'rate_limited' | 'admission_failed',
+        options?: { readonly cause?: unknown },
+    ) {
+        super('Image fetch was not admitted', options);
+        this.name = 'ImageFetchNotAdmitted';
+    }
+}
+
+const admitFetch = async (
+    admission: ImageFetchAdmission | undefined,
+): Promise<void> => {
+    if (admission === undefined) return;
+    let admitted: boolean;
+    try {
+        admitted = await admission();
+    } catch (cause) {
+        throw new ImageFetchNotAdmitted('admission_failed', { cause });
+    }
+    if (!admitted) throw new ImageFetchNotAdmitted('rate_limited');
+};
 
 const autoFormat = (accept: string | null): AutoImageFormat => {
     const normalized = accept?.toLowerCase() ?? '';
@@ -344,6 +378,7 @@ const transformImage = async (
             if (cached !== null) return cached;
         }
 
+        await admitFetch(input.admitFetch);
         const source = await fetchImageBytes(
             sourceUrl,
             dependencies.fetch ?? globalThis.fetch.bind(globalThis),
@@ -379,7 +414,10 @@ const transformImage = async (
         }
         return response;
     } catch (cause) {
-        throw cause instanceof FeedImageUnavailable ? cause : unavailable();
+        throw cause instanceof FeedImageUnavailable ||
+            cause instanceof ImageFetchNotAdmitted
+            ? cause
+            : unavailable();
     }
 };
 
