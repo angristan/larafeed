@@ -846,6 +846,21 @@ const SubscriptionAuditRow = memo(function SubscriptionAuditRow({
     );
 });
 
+const subscriptionViews = [
+    {
+        view: 'overview',
+        label: 'Overview',
+        icon: IconListDetails,
+        to: '/settings/subscriptions/overview',
+    },
+    {
+        view: 'audit',
+        label: 'Feed audit',
+        icon: IconTable,
+        to: '/settings/subscriptions',
+    },
+] as const;
+
 function SubscriptionWorkspace({
     view,
 }: {
@@ -952,20 +967,27 @@ function SubscriptionWorkspace({
         <>
             <ApplicationSidebarHeader title="Subscriptions" />
             <ApplicationSidebarNavigation>
-                <NavLink
-                    active={view === 'overview'}
-                    component={Link}
-                    label="Overview"
-                    leftSection={<IconListDetails size={16} stroke={1.5} />}
-                    to="/settings/subscriptions/overview"
-                />
-                <NavLink
-                    active={view === 'audit'}
-                    component={Link}
-                    label="Feed audit"
-                    leftSection={<IconTable size={16} stroke={1.5} />}
-                    to="/settings/subscriptions"
-                />
+                {subscriptionViews.map((item) => {
+                    const Icon = item.icon;
+                    const active = view === item.view;
+                    return (
+                        <NavLink
+                            active={active}
+                            aria-current={active ? 'page' : undefined}
+                            component={Link}
+                            key={item.view}
+                            label={item.label}
+                            leftSection={
+                                <Icon
+                                    aria-hidden="true"
+                                    size={16}
+                                    stroke={1.5}
+                                />
+                            }
+                            to={item.to}
+                        />
+                    );
+                })}
             </ApplicationSidebarNavigation>
         </>
     );

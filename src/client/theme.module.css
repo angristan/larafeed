@@ -328,9 +328,12 @@
     transform: scale(0.985);
 }
 
+/* The ring sits inside the item. Drawn outside, it put a second rounded
+   box around an inactive item, which read as a bordered card next to the
+   filled active one. */
 .navLinkRoot:focus-visible {
     outline: 2px solid var(--ds-focus);
-    outline-offset: 2px;
+    outline-offset: -2px;
 }
 
 .navLinkLabel {

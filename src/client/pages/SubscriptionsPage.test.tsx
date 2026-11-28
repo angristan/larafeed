@@ -106,6 +106,22 @@ describe('SubscriptionsPage', () => {
         expect(markup).not.toContain('href="#subscription-');
     });
 
+    it('marks only the current view in the subscriptions navigation', () => {
+        const currentLinks = (path: string) => [
+            ...renderPage({ categories: [], subscriptions: [] }, path)
+                .matchAll(/<a [^>]*mantine-NavLink-root[^>]*>/gu)
+                .filter(([tag]) => tag.includes('aria-current="page"'))
+                .map(([tag]) => /href="([^"]+)"/u.exec(tag)?.[1]),
+        ];
+
+        expect(currentLinks('/settings/subscriptions')).toEqual([
+            '/settings/subscriptions',
+        ]);
+        expect(currentLinks('/settings/subscriptions/overview')).toEqual([
+            '/settings/subscriptions/overview',
+        ]);
+    });
+
     it('renders filters and an empty table on the feed audit page', () => {
         const markup = renderPage(
             { categories: [], subscriptions: [] },
