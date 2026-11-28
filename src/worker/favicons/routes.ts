@@ -197,6 +197,27 @@ class FaviconRateLimited extends Schema.TaggedError<FaviconRateLimited>()(
     'FaviconRateLimited',
     {},
 ) {}
+
+const assetHeaders = (
+    hash: string,
+    contentType: string,
+): Record<string, string> => ({
+    'cache-control': FAVICON_ASSET_CACHE_CONTROL,
+    'content-type': contentType,
+    etag: `"${hash}"`,
+    'referrer-policy': 'no-referrer',
+    'x-content-type-options': 'nosniff',
+    ...(contentType === 'image/svg+xml'
+        ? {
+              'content-security-policy':
+                  "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+              // MCP App views run in the MCP host's iframe on another origin
+              // and load these public, content-addressed URLs in <img>.
+              'cross-origin-resource-policy': 'cross-origin',
+          }
+        : {}),
+});
+
 const run = (request: Request, program: Effect.Effect<Response, unknown>) =>
     Effect.runPromise(
         program.pipe(
@@ -238,7 +259,17 @@ export const registerFaviconRoutes = (
         const cacheKey = new Request(context.req.url, { method: 'GET' });
         try {
             const cached = await cache.match(cacheKey);
-            if (cached !== undefined) return cached;
+            if (cached !== undefined) {
+                // Cached entries live for up to a year, so apply the current
+                // headers instead of the ones stored with the entry.
+                const contentType = cached.headers.get('content-type');
+                return contentType === null
+                    ? cached
+                    : new Response(cached.body, {
+                          status: cached.status,
+                          headers: assetHeaders(hash, contentType),
+                      });
+            }
         } catch {
             // A cache outage must not hide a durable D1 asset.
         }
@@ -258,23 +289,9 @@ export const registerFaviconRoutes = (
             }
             const body = new ArrayBuffer(asset.bytes.byteLength);
             new Uint8Array(body).set(asset.bytes);
-            const svg = asset.contentType === 'image/svg+xml';
             const response = new Response(body, {
                 status: 200,
-                headers: {
-                    'cache-control': FAVICON_ASSET_CACHE_CONTROL,
-                    'content-type': asset.contentType,
-                    etag: `"${hash}"`,
-                    'referrer-policy': 'no-referrer',
-                    'x-content-type-options': 'nosniff',
-                    ...(svg
-                        ? {
-                              'content-security-policy':
-                                  "default-src 'none'; style-src 'unsafe-inline'; sandbox",
-                              'cross-origin-resource-policy': 'same-origin',
-                          }
-                        : {}),
-                },
+                headers: assetHeaders(hash, asset.contentType),
             });
             try {
                 await cache.put(cacheKey, response.clone());

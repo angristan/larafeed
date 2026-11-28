@@ -191,11 +191,60 @@ describe('favicon routes', () => {
         expect(response.headers.get('content-security-policy')).toBe(
             "default-src 'none'; style-src 'unsafe-inline'; sandbox",
         );
+        // MCP App views load favicons in <img> from the host's origin.
         expect(response.headers.get('cross-origin-resource-policy')).toBe(
-            'same-origin',
+            'cross-origin',
         );
         expect(response.headers.get('referrer-policy')).toBe('no-referrer');
         expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+        expect(new Uint8Array(await response.arrayBuffer())).toEqual(svg);
+    });
+
+    it('serves edge-cached SVGs with the current cross-origin policy', async () => {
+        const hash = 'd'.repeat(64);
+        const svg = new TextEncoder().encode(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"/>',
+        );
+        const find = vi.fn(async () => null);
+        // An entry cached before the policy changed.
+        const stale = new Response(svg, {
+            headers: {
+                'cache-control': 'public, max-age=31536000, immutable',
+                'content-type': 'image/svg+xml',
+                etag: `"${hash}"`,
+                'referrer-policy': 'no-referrer',
+                'x-content-type-options': 'nosniff',
+                'content-security-policy':
+                    "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+                'cross-origin-resource-policy': 'same-origin',
+            },
+        });
+        const current = app(true, true, {
+            repository: {
+                put: vi.fn(async () => undefined),
+                find,
+                deleteOrphans: vi.fn(async () => 0),
+            },
+            cache: {
+                match: vi.fn(async () => stale.clone()),
+                put: vi.fn(async () => undefined),
+            },
+        });
+
+        const response = await current.hono.request(
+            `/api/public/favicons/v1/${hash}.png`,
+        );
+
+        expect(response.status).toBe(200);
+        expect(find).not.toHaveBeenCalled();
+        expect(response.headers.get('cross-origin-resource-policy')).toBe(
+            'cross-origin',
+        );
+        expect(response.headers.get('content-security-policy')).toBe(
+            "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+        );
+        expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+        expect(response.headers.get('etag')).toBe(`"${hash}"`);
         expect(new Uint8Array(await response.arrayBuffer())).toEqual(svg);
     });
 
