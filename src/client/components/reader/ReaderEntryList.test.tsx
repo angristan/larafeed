@@ -145,4 +145,12 @@ describe('ReaderEntryList infinite list', () => {
         expect(markup).toContain('href="/settings/opml"');
         expect(markup).not.toContain('No entries yet');
     });
+
+    it('lets the user change the sort order from the list header', () => {
+        const markup = render({});
+        const text = markup.replace(/<[^>]+>/g, '');
+
+        expect(text).toContain('Sort by Published');
+        expect(markup).toContain('aria-haspopup="menu"');
+    });
 });

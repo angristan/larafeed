@@ -5,6 +5,7 @@ import {
     Center,
     Group,
     Loader,
+    Menu,
     ScrollArea,
     Skeleton,
     Stack,
@@ -14,6 +15,7 @@ import {
 import {
     IconArrowUp,
     IconCheck,
+    IconChevronDown,
     IconPlus,
     IconRefresh,
     IconStarFilled,
@@ -104,6 +106,11 @@ const orderLabels = {
     published_at: 'Published',
     created_at: 'Added',
 } as const;
+
+const orderOptions = [
+    { value: 'published_at', label: 'Date published' },
+    { value: 'created_at', label: 'Date added' },
+] as const;
 
 // The list header overlays the top of the scroll viewport; the virtualizer
 // must reserve that space so scrollToIndex keeps rows clear of it.
@@ -417,9 +424,53 @@ export const ReaderEntryList = memo(function ReaderEntryList({
                             {newEntryCount === 1 ? 'entry' : 'entries'}
                         </Button>
                     )}
-                    <Text c="dimmed" size="xs">
-                        {orderLabels[state.orderBy]}
-                    </Text>
+                    <Menu position="bottom-end" shadow="md" width={180}>
+                        <Menu.Target>
+                            <Button
+                                color="gray"
+                                rightSection={
+                                    <IconChevronDown
+                                        aria-hidden="true"
+                                        size={12}
+                                    />
+                                }
+                                size="compact-xs"
+                                variant="subtle"
+                            >
+                                <VisuallyHidden>Sort by </VisuallyHidden>
+                                {orderLabels[state.orderBy]}
+                            </Button>
+                        </Menu.Target>
+                        <Menu.Dropdown>
+                            <Menu.Label>Sort by</Menu.Label>
+                            {orderOptions.map((option) => (
+                                <Menu.Item
+                                    component={Link}
+                                    key={option.value}
+                                    leftSection={
+                                        state.orderBy === option.value ? (
+                                            <IconCheck
+                                                aria-hidden="true"
+                                                size={14}
+                                            />
+                                        ) : (
+                                            <span
+                                                style={{
+                                                    display: 'inline-block',
+                                                    width: 14,
+                                                }}
+                                            />
+                                        )
+                                    }
+                                    to={readerHref(state, {
+                                        orderBy: option.value,
+                                    })}
+                                >
+                                    {option.label}
+                                </Menu.Item>
+                            ))}
+                        </Menu.Dropdown>
+                    </Menu>
                     {isFetching && !isPending && !isFetchingNextPage && (
                         <Loader aria-label="Refreshing entries" size="xs" />
                     )}

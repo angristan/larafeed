@@ -27,6 +27,7 @@ import {
     IconChevronRight,
     IconDots,
     IconExternalLink,
+    IconInbox,
     IconPencil,
     IconPhoto,
     IconPlus,
@@ -126,24 +127,25 @@ function FilterLink({
     state,
     onNavigate,
 }: {
-    readonly label: 'Unread' | 'Read' | 'Favorites';
+    readonly label: 'All' | 'Unread' | 'Read' | 'Favorites';
     readonly icon: ReactNode;
     readonly count: number | undefined;
     readonly badgeVariant: 'filled' | 'default';
     readonly state: ReaderState;
     readonly onNavigate?: () => void;
 }) {
-    const filter = label.toLowerCase() as 'unread' | 'read' | 'favorites';
+    const filter = label.toLowerCase() as ReaderState['filter'];
     const active = state.filter === filter;
 
     return (
         <Link
-            aria-current={active ? 'page' : undefined}
+            // The filter is the current item of its own set; "page" is kept
+            // for the open feed or category, which can be active at the same
+            // time.
+            aria-current={active ? 'true' : undefined}
             className={`${classes.mainLink} ${active ? classes.activeFeed : ''}`}
             onClick={onNavigate}
-            to={readerHref(state, {
-                filter: active ? 'all' : filter,
-            })}
+            to={readerHref(state, { filter })}
         >
             <div className={classes.mainLinkInner}>
                 {icon}
@@ -1468,6 +1470,20 @@ export const ReaderSidebar = memo(function ReaderSidebar({
 
             <AppShell.Section>
                 <div className={classes.mainLinks}>
+                    <FilterLink
+                        badgeVariant="default"
+                        count={undefined}
+                        icon={
+                            <IconInbox
+                                className={classes.mainLinkIcon}
+                                size={20}
+                                stroke={1.5}
+                            />
+                        }
+                        label="All"
+                        onNavigate={onNavigate}
+                        state={state}
+                    />
                     <FilterLink
                         badgeVariant="filled"
                         count={counts?.unread}

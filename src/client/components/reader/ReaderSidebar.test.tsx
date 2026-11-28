@@ -164,6 +164,26 @@ describe('ReaderSidebar', () => {
         expect(currentLinks[0]).toContain('last refresh failed');
     });
 
+    it('links to every entry and marks the current filter', () => {
+        const markup = renderSidebar();
+        const filterLinks = [...markup.matchAll(/<a([^>]*)>(.*?)<\/a>/gsu)].map(
+            (match) => ({
+                attributes: match[1],
+                text: match[2].replace(/<[^>]+>/gu, ''),
+            }),
+        );
+        const all = filterLinks.find((link) => link.text === 'All');
+        const unread = filterLinks.find((link) =>
+            link.text.startsWith('Unread'),
+        );
+
+        expect(all?.attributes).toContain('filter=all');
+        expect(all?.attributes).not.toContain('aria-current');
+        expect(unread?.attributes).toContain('aria-current="true"');
+        // An active filter links to itself instead of switching to "All".
+        expect(unread?.attributes).toContain('filter=unread');
+    });
+
     it('renders the original filters, categories, and feed hierarchy', () => {
         const queryClient = new QueryClient({
             defaultOptions: { queries: { retry: false } },
