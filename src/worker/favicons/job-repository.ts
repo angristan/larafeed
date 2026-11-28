@@ -322,6 +322,60 @@ export const makeFaviconJobRepository = (d1: D1): FaviconJobRepository => ({
         const results = await run(
             operation,
             d1.batch<OutboxRow>([
+                // A dispatcher can send the message and then fail to record
+                // it. The consumer still claims the pending job, and it can
+                // finish the job before the lease expires. The recovery
+                // statement below only reopens rows of pending or failed
+                // jobs, and terminal job cleanup skips jobs with a leased
+                // row, so close expired leases of finished jobs here: a
+                // succeeded job's message was delivered, and other terminal
+                // jobs end with a dead-lettered message.
+                {
+                    sql: `UPDATE outbox_messages
+                        SET state = 'sent', sent_at = ?, lease_owner = NULL,
+                            lease_expires_at = NULL, updated_at = ?
+                        WHERE id IN (
+                            SELECT o.id FROM outbox_messages o
+                            JOIN jobs j ON j.id = o.job_id
+                            WHERE o.topic = ? AND j.kind = ?${operationScope}
+                              AND j.state = 'succeeded'
+                              AND o.state = 'leased' AND o.lease_expires_at <= ?
+                            ORDER BY o.lease_expires_at, o.id LIMIT ?
+                        )`,
+                    bindings: [
+                        input.now,
+                        input.now,
+                        FAVICON_REFRESH_TOPIC,
+                        FAVICON_REFRESH_JOB_KIND,
+                        ...operationBindings,
+                        input.now,
+                        limit,
+                    ],
+                },
+                {
+                    sql: `UPDATE outbox_messages
+                        SET state = 'dead_lettered', lease_owner = NULL,
+                            lease_expires_at = NULL,
+                            last_error_class = 'stale_lease',
+                            last_error_message = 'Favicon outbox lease expired after the job ended',
+                            updated_at = ?
+                        WHERE id IN (
+                            SELECT o.id FROM outbox_messages o
+                            JOIN jobs j ON j.id = o.job_id
+                            WHERE o.topic = ? AND j.kind = ?${operationScope}
+                              AND j.state IN ('dead_lettered', 'canceled')
+                              AND o.state = 'leased' AND o.lease_expires_at <= ?
+                            ORDER BY o.lease_expires_at, o.id LIMIT ?
+                        )`,
+                    bindings: [
+                        input.now,
+                        FAVICON_REFRESH_TOPIC,
+                        FAVICON_REFRESH_JOB_KIND,
+                        ...operationBindings,
+                        input.now,
+                        limit,
+                    ],
+                },
                 {
                     sql: `UPDATE outbox_messages
                         SET state = 'pending', lease_owner = NULL,
@@ -372,10 +426,14 @@ export const makeFaviconJobRepository = (d1: D1): FaviconJobRepository => ({
                 },
             ]),
         );
-        if (changeCount(operation, results[0]) > limit)
+        if (
+            changeCount(operation, results[0]) > limit ||
+            changeCount(operation, results[1]) > limit ||
+            changeCount(operation, results[2]) > limit
+        )
             throw new JobInvariantError(operation, 'recovered beyond limit');
-        const rows = results[1]?.results ?? [];
-        if (changeCount(operation, results[1]) !== rows.length)
+        const rows = results[3]?.results ?? [];
+        if (changeCount(operation, results[3]) !== rows.length)
             throw new JobInvariantError(
                 operation,
                 'invalid outbox lease result',

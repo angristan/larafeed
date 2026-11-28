@@ -508,6 +508,58 @@ describe('durable feed refresh jobs', () => {
         });
     });
 
+    it('resends and closes an expired outbox lease whose job already succeeded', async () => {
+        const now = 2_100_001_020_000;
+        const feedId = 320_501;
+        const operationId = 'operation-321501';
+        await settlePendingOutbox(now);
+        await insertFeed(feedId, now);
+        await createJob(feedId, 321_501, now);
+        await repository.leaseOutbox({
+            owner: 'lost-dispatcher',
+            now,
+            leaseMs: 1_000,
+            limit: 1,
+            operationId,
+        });
+        // The consumer finished the job, but the dispatcher never recorded
+        // the send.
+        await run(
+            d1.run({
+                sql: `UPDATE jobs SET state = 'succeeded', completed_at = ?,
+                        updated_at = ?
+                      WHERE operation_id = ?`,
+                bindings: [now + 500, now + 500, operationId],
+            }),
+        );
+
+        const [message] = await repository.leaseOutbox({
+            owner: 'recovery',
+            now: now + 1_001,
+            leaseMs: 1_000,
+            limit: 1,
+            operationId,
+        });
+        if (message === undefined) throw new Error('Expected a new lease');
+        await repository.markDispatched(message, now + 1_002);
+        await expect(
+            first<{ job_state: string; outbox_state: string }>(
+                `SELECT j.state AS job_state, o.state AS outbox_state
+                 FROM jobs j JOIN outbox_messages o ON o.job_id = j.id
+                 WHERE j.operation_id = ?`,
+                [operationId],
+            ),
+        ).resolves.toEqual({ job_state: 'succeeded', outbox_state: 'sent' });
+
+        await repository.cleanupTerminalJobs(now + 501, 100);
+        await expect(
+            scalar(
+                'SELECT COUNT(*) AS value FROM jobs WHERE operation_id = ?',
+                [operationId],
+            ),
+        ).resolves.toBe(0);
+    });
+
     it('leases only the requested refresh operation', async () => {
         const now = 2_100_001_050_000;
         await settlePendingOutbox(now);

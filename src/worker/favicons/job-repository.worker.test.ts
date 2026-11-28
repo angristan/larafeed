@@ -3,6 +3,7 @@ import { Effect } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import { makeD1 } from '../infrastructure/d1';
+import { makeJobRepository } from '../jobs/repository';
 import { makeFaviconJobRepository } from './job-repository';
 import { FAVICON_REFRESH_JOB_KIND, FAVICON_REFRESH_TOPIC } from './job-types';
 
@@ -297,4 +298,153 @@ describe('favicon durable job repository', () => {
             payload_json: JSON.stringify({ operationId }),
         });
     });
+
+    it('closes an expired outbox lease whose job already succeeded', async () => {
+        const now = 2_200_003_000_000;
+        const feedId = await insertSubscribedFeed(973_000, now);
+        const operationId = 'favicon-refresh:workerd-lost-dispatch';
+        await repository.createJob({
+            jobId: 973_010,
+            outboxId: 973_011,
+            operationId,
+            feedId,
+            cutoff: now,
+            force: false,
+            maxAttempts: 6,
+            now,
+        });
+        const [message] = await repository.leaseOutbox({
+            owner: 'dispatcher',
+            now: now + 1,
+            leaseMs: 60_000,
+            limit: 1,
+            operationId,
+        });
+        if (message === undefined) throw new Error('Expected favicon outbox');
+
+        // The Queue send succeeded but markDispatched never committed. The
+        // consumer still claims the pending job and completes it.
+        const claimed = await repository.claimJob({
+            operationId,
+            owner: 'consumer',
+            now: now + 2_000,
+            leaseMs: 300_000,
+        });
+        if (claimed.type !== 'claimed') throw new Error('Expected claim');
+        await repository.completeJob(claimed.claim, now + 3_000);
+
+        const outbox = () =>
+            first<{
+                readonly state: string;
+                readonly lease_owner: string | null;
+                readonly sent_at: number | null;
+            }>(
+                `SELECT state, lease_owner, sent_at FROM outbox_messages
+                 WHERE id = ?`,
+                [message.id],
+            );
+        const jobExists = async () =>
+            (await first('SELECT id FROM jobs WHERE id = ?', [
+                message.jobId,
+            ])) !== null;
+
+        // The dispatcher still holds an unexpired lease.
+        await expect(
+            repository.leaseOutbox({
+                owner: 'recovery',
+                now: now + 30_000,
+                leaseMs: 60_000,
+                limit: 1,
+                operationId,
+            }),
+        ).resolves.toEqual([]);
+        await expect(outbox()).resolves.toEqual({
+            state: 'leased',
+            lease_owner: 'dispatcher',
+            sent_at: null,
+        });
+        const jobs = makeJobRepository(d1);
+        await jobs.cleanupTerminalJobs(now + 3_001, 100);
+        await expect(jobExists()).resolves.toBe(true);
+
+        await expect(
+            repository.leaseOutbox({
+                owner: 'recovery',
+                now: now + 61_001,
+                leaseMs: 60_000,
+                limit: 1,
+                operationId,
+            }),
+        ).resolves.toEqual([]);
+        await expect(outbox()).resolves.toEqual({
+            state: 'sent',
+            lease_owner: null,
+            sent_at: now + 61_001,
+        });
+
+        await jobs.cleanupTerminalJobs(now + 3_001, 100);
+        await expect(jobExists()).resolves.toBe(false);
+        await expect(outbox()).resolves.toBeNull();
+    });
+
+    it.each([
+        ['dead_lettered', 974_000],
+        ['canceled', 975_000],
+    ] as const)(
+        'dead-letters an expired outbox lease whose job is %s',
+        async (jobState, seed) => {
+            const now = 2_200_004_000_000 + seed;
+            const feedId = await insertSubscribedFeed(seed, now);
+            const operationId = `favicon-refresh:workerd-${jobState}`;
+            await repository.createJob({
+                jobId: seed + 10,
+                outboxId: seed + 11,
+                operationId,
+                feedId,
+                cutoff: now,
+                force: false,
+                maxAttempts: 6,
+                now,
+            });
+            const [message] = await repository.leaseOutbox({
+                owner: 'dispatcher',
+                now: now + 1,
+                leaseMs: 60_000,
+                limit: 1,
+                operationId,
+            });
+            if (message === undefined)
+                throw new Error('Expected favicon outbox');
+            await Effect.runPromise(
+                d1.run({
+                    sql: `UPDATE jobs SET state = ?, completed_at = ?,
+                            updated_at = ?
+                          WHERE id = ?`,
+                    bindings: [jobState, now + 2, now + 2, message.jobId],
+                }),
+            );
+
+            await expect(
+                repository.leaseOutbox({
+                    owner: 'recovery',
+                    now: now + 61_001,
+                    leaseMs: 60_000,
+                    limit: 1,
+                    operationId,
+                }),
+            ).resolves.toEqual([]);
+            await expect(
+                first(
+                    `SELECT state, lease_owner, lease_expires_at, sent_at
+                     FROM outbox_messages WHERE id = ?`,
+                    [message.id],
+                ),
+            ).resolves.toEqual({
+                state: 'dead_lettered',
+                lease_owner: null,
+                lease_expires_at: null,
+                sent_at: null,
+            });
+        },
+    );
 });
