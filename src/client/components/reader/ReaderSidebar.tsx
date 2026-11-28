@@ -1,6 +1,7 @@
 import {
     ActionIcon,
     Alert,
+    Anchor,
     AppShell,
     Badge,
     Button,
@@ -228,7 +229,6 @@ export function AddFeedModal({
 }) {
     const queryClient = useQueryClient();
     const navigate = useNavigate();
-    const bookmarklet = useRef<HTMLAnchorElement>(null);
     const addFeed = useMutation(createSubscriptionMutationOptions(queryClient));
     const addCategory = useMutation(createCategoryMutationOptions(queryClient));
     const [view, setView] = useState('new_feed');
@@ -259,15 +259,16 @@ export function AddFeedModal({
         }
     }, [initialFeedUrl, opened]);
 
-    useEffect(() => {
-        if (!opened) return;
-        // React sanitizes javascript: href props. Set this trusted,
-        // application-generated bookmarklet directly so it remains draggable.
-        bookmarklet.current?.setAttribute(
+    // React sanitizes javascript: href props. Set this trusted,
+    // application-generated bookmarklet directly so it remains draggable.
+    // A callback ref runs whenever the modal mounts the link, which an
+    // effect keyed on `opened` can miss while the modal is still mounting.
+    const setBookmarkletHref = useCallback((node: HTMLAnchorElement | null) => {
+        node?.setAttribute(
             'href',
             buildAddFeedBookmarklet(window.location.origin),
         );
-    }, [opened]);
+    }, []);
 
     const closeAndReset = () => {
         addFeed.reset();
@@ -394,9 +395,11 @@ export function AddFeedModal({
                             />
                             <Text c="dimmed" mt="md" size="xs">
                                 Drag{' '}
-                                {/* biome-ignore lint/a11y/useValidAnchor: The trusted bookmarklet href is assigned after React's URL sanitizer runs. */}
-                                <a ref={bookmarklet}>Add to Larafeed</a> to your
-                                bookmarks bar to add the site you are on.
+                                <Anchor inherit ref={setBookmarkletHref}>
+                                    Add to Larafeed
+                                </Anchor>{' '}
+                                to your bookmarks bar to add the site you are
+                                on.
                             </Text>
                             <ModalActions
                                 onCancel={closeAndReset}

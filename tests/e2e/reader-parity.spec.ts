@@ -516,6 +516,9 @@ test('asks the user to choose between matching feed candidates', async ({
 
     await page.getByRole('button', { name: 'Create feed or category' }).click();
     await expect(page.getByRole('dialog', { name: 'Add feed' })).toBeVisible();
+    await expect(
+        page.getByRole('link', { name: 'Add to Larafeed' }),
+    ).toHaveAttribute('href', /^javascript:/u);
     await page.setViewportSize({ width: 320, height: 700 });
     await page
         .getByRole('textbox', { name: 'Feed URL' })
