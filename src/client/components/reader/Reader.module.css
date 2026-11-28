@@ -775,11 +775,20 @@
 @container detail-pane (max-width: 34rem) {
     .sourceIdentity :global(.mantine-Button-root) {
         min-height: 36px;
+        flex-shrink: 0;
     }
 
     .accessActions :global(.mantine-ActionIcon-root),
     .entryActions :global(.mantine-ActionIcon-root) {
         --ai-size: 40px !important;
+    }
+}
+
+/* With the read toggle always shown, a phone-width toolbar keeps the
+   favicon and drops the feed name so the Back button stays whole. */
+@container detail-pane (max-width: 26rem) {
+    .sourceName {
+        display: none;
     }
 }
 
