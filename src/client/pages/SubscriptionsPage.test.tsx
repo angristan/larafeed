@@ -9,11 +9,13 @@ import { subscriptionManagementKeys } from '../queries/subscriptions';
 import {
     buildAddFeedBookmarklet,
     compareSubscriptions,
+    feedInitial,
     getSubscriptionStatus,
     MoveFeedSection,
     nextSubscriptionSortDirection,
     SubscriptionOverviewPage,
     SubscriptionsPage,
+    subscriptionIssue,
     subscriptionStatusFilterOptions,
 } from './SubscriptionsPage';
 
@@ -149,13 +151,71 @@ describe('SubscriptionsPage', () => {
         expect(markup).toContain('Daily example');
         expect(markup).toContain('Technology');
         expect(markup).toContain('Healthy');
-        expect(markup).toContain('Website');
-        expect(markup).toContain('Feed');
-        expect(markup).toContain('Last success');
-        expect(markup).toContain('Last failure');
-        expect(markup).toContain('Details');
+        // One time column; the last failure and the links are in the drawer.
+        expect(
+            [...markup.matchAll(/<th[^>]*>(.*?)<\/th>/gu)].map(([, cell]) =>
+                cell.replaceAll(/<[^>]+>/gu, ''),
+            ),
+        ).toEqual(['Feed', 'Category', 'Entries', 'Status', 'Last success']);
+        expect(markup).not.toContain('>Website<');
+        // The name is the row's button; the row itself keeps table semantics.
+        expect(markup).toMatch(
+            /<button[^>]+aria-label="View details for Daily example"[^>]*>Daily example<\/button>/u,
+        );
         expect(markup).not.toMatch(/<tr[^>]+role="button"/u);
+        expect(markup).not.toContain('>Details<');
+        expect(markup).toContain('aria-sort="ascending"');
         expect(markup).toContain('Sorted ascending');
+    });
+
+    it('frames favicons and falls back to the feed initial', () => {
+        const markup = renderPage(
+            {
+                categories: [
+                    { id: 3, name: 'Technology', subscriptionCount: 2 },
+                ],
+                subscriptions: [
+                    subscription,
+                    {
+                        ...subscription,
+                        feedId: 8,
+                        customFeedName: null,
+                        feedName: 'The Verge',
+                        faviconUrl: '/api/images/feeds/8/small',
+                    },
+                ],
+            },
+            '/settings/subscriptions',
+        );
+
+        expect(markup).toMatch(/aria-hidden="true"[^>]*>D<\/span>/u);
+        expect(markup).toContain('src="/api/images/feeds/8/small"');
+        expect(feedInitial('The Verge')).toBe('T');
+        expect(feedInitial('“42” things')).toBe('4');
+        expect(feedInitial('—')).toBe('#');
+    });
+
+    it('shows an error only for feeds that are failing or gone', () => {
+        expect(subscriptionIssue(subscription)).toBeNull();
+        expect(
+            subscriptionIssue({
+                ...subscription,
+                lastSuccessfulRefreshAt: null,
+            }),
+        ).toBeNull();
+        expect(
+            subscriptionIssue({
+                ...subscription,
+                consecutiveFailures: 2,
+                lastErrorMessage: 'Feed returned HTTP 503',
+            }),
+        ).toBe('Feed returned HTTP 503');
+        expect(
+            subscriptionIssue({ ...subscription, consecutiveFailures: 2 }),
+        ).toBe('2 consecutive refresh failures');
+        expect(subscriptionIssue({ ...subscription, isGone: true })).toBe(
+            'Feed is no longer available.',
+        );
     });
 
     it('uses authoritative statuses for badges, filters, and totals', () => {
@@ -197,7 +257,7 @@ describe('SubscriptionsPage', () => {
         expect(text).toContain('Never refreshed1');
         expect(markup).toContain('Failing');
         expect(markup).toContain('Gone');
-        expect(markup).toContain('Details');
+        expect(markup).toContain('View details for Recovering feed');
         expect(markup).not.toMatch(/<tr[^>]+role="button"/u);
         expect(
             subscriptionStatusFilterOptions.map(({ value }) => value),
@@ -332,9 +392,7 @@ describe('SubscriptionsPage', () => {
             },
             '/settings/subscriptions',
         );
-        expect(markup).toContain(
-            'Feed moved. Open details to switch to the new URL.',
-        );
+        expect(markup).toContain('Moved to a new feed URL');
         expect(markup).not.toContain('Feed returned HTTP 404');
 
         const section = (value: ManagedSubscription) =>

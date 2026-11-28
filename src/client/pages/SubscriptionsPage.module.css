@@ -1,12 +1,14 @@
 .auditSurface {
     min-width: 0;
-    overflow: hidden;
+    /* clip, not hidden: it rounds the corners without becoming a scroll
+       container, so the table header can stick to the viewport. */
+    overflow: clip;
     border: 1px solid var(--ds-work-line);
     border-radius: var(--ds-radius-md);
     background: var(--ds-surface-work);
     box-shadow: var(--ds-shadow-work);
+    container-type: inline-size;
 }
-
 
 .overviewHeader {
     display: flex;
@@ -96,27 +98,279 @@
     background: var(--ds-paper);
 }
 
-.table tbody tr:hover {
-    background: var(--ds-paper-muted);
-}
-
 .table td {
     border-bottom-color: var(--ds-line);
 }
 
+/* Feed table: one 45px line per feed. Fixed layout keeps long names and
+   errors from pushing the other columns around; they truncate instead. */
+
+.auditTable {
+    table-layout: fixed;
+}
+
+.auditTable thead th {
+    height: 2.25rem;
+    padding-block: 0;
+}
+
+.auditTable th:first-child,
+.auditTable td:first-child {
+    padding-inline-start: var(--ds-space-4);
+}
+
+.auditTable th:last-child,
+.auditTable td:last-child {
+    padding-inline-end: var(--ds-space-3);
+}
+
+.categoryCell {
+    width: 10rem;
+}
+
+.entriesCell {
+    width: 5.5rem;
+    text-align: end;
+}
+
+.statusCell {
+    width: 27%;
+}
+
+.timeCell {
+    width: 9.5rem;
+}
+
+.sortButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: inherit;
+    font: inherit;
+}
+
+.sortButton:hover {
+    color: var(--ds-ink);
+}
+
+.entriesCell .sortButton {
+    flex-direction: row-reverse;
+}
+
+.row {
+    cursor: pointer;
+}
+
+.row > td {
+    overflow: hidden;
+    padding-block: 12px;
+    line-height: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.table tbody .row[data-selected] {
+    background: var(--ds-sage-surface);
+}
+
+/* The name button is the row's keyboard stop; the ring goes around the
+   whole row it opens. */
+.row:has(.rowButton:focus-visible) {
+    outline: 2px solid var(--ds-focus);
+    outline-offset: -2px;
+}
+
+@supports selector(:has(*)) {
+    .rowButton:focus-visible {
+        outline: none;
+    }
+}
+
+.feed {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+}
+
+.feedText {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.rowButton {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    padding: 0;
+    border: 0;
+    margin: 0;
+    color: var(--ds-ink);
+    background: none;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+    text-align: start;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.phoneMeta {
+    display: none;
+}
+
+.feedIcon {
+    display: grid;
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+    overflow: hidden;
+    border-radius: var(--ds-radius-xs);
+    color: var(--ds-muted);
+    background: var(--ds-paper-muted);
+    box-shadow: inset 0 0 0 1px var(--ds-line);
+    font-size: var(--mantine-font-size-xs);
+    font-weight: 700;
+    line-height: 1;
+    place-items: center;
+    user-select: none;
+}
+
+.feedIcon img {
+    display: block;
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+}
+
+/* A dark favicon gets a light frame in either scheme. */
+.feedIcon[data-dark] {
+    background: var(--ds-panel-text);
+}
+
+.categoryCell,
+.entriesCell,
+.timeCell {
+    color: var(--ds-muted);
+}
+
+.status {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: var(--ds-space-2);
+}
+
+.statusLabel {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 6px;
+    color: var(--ds-muted);
+    white-space: nowrap;
+}
+
+.statusLabel::before {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--ds-line-strong);
+    content: '';
+}
+
+.statusLabel[data-status='healthy']::before {
+    background: var(--ds-sage);
+}
+
+.statusLabel[data-status='failing'] {
+    color: var(--ds-rust);
+    font-weight: 650;
+}
+
+.statusLabel[data-status='failing']::before {
+    background: var(--ds-rust);
+}
+
+.statusLabel[data-status='gone'] {
+    color: var(--ds-ink);
+    font-weight: 650;
+}
+
+.statusLabel[data-status='never']::before {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px var(--ds-line-strong);
+}
+
 .issue {
-    max-width: 14rem;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--ds-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.time {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-space-2);
+}
+
+.chevron {
+    flex: 0 0 auto;
+    color: var(--ds-subtle);
+}
+
+.row:hover .chevron {
+    color: var(--ds-ink);
+}
+
+.emptyRow td {
+    padding-block: var(--ds-space-5);
+}
+
+.drawerTitle {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+}
+
+.facts {
+    display: grid;
+    margin: 0;
+    font-size: var(--mantine-font-size-sm);
+    gap: 6px var(--ds-space-3);
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+}
+
+.facts dt {
+    color: var(--ds-muted);
+}
+
+.facts dd {
+    min-width: 0;
+    margin: 0;
     overflow-wrap: anywhere;
 }
 
-/* Below the sm breakpoint each feed becomes a stacked card instead of a
-   980px-wide row that needs sideways scrolling. Sorting stays available
-   in the filter bar, so the header row can be hidden. */
-@media (max-width: 48em) {
-    .auditScroll {
-        --table-min-width: 0 !important;
+/* Narrower tables drop the columns a feed's status does not need. */
+@container (max-width: 60rem) {
+    .entriesCell {
+        display: none;
     }
+}
 
+@container (max-width: 50rem) {
+    .categoryCell {
+        display: none;
+    }
+}
+
+/* Phone: each feed is two lines. Name and status on the first; category,
+   entries and last success, or the error, on the second. */
+@container (max-width: 40rem) {
     .auditTable,
     .auditTable tbody {
         display: block;
@@ -131,43 +385,73 @@
         white-space: nowrap;
     }
 
-    .auditTable tbody tr {
+    .row {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: var(--ds-space-2) var(--ds-space-4);
-        padding: var(--ds-space-3) var(--ds-space-4);
+        align-items: start;
+        padding: 10px var(--ds-space-3);
         border-bottom: 1px solid var(--ds-line);
+        column-gap: var(--ds-space-3);
+        grid-template-columns: minmax(0, 1fr) auto;
     }
 
-    .auditTable td {
+    .row > td {
+        display: none;
+        width: auto;
+        padding: 0;
+        border: 0;
+    }
+
+    .row > .feedCell,
+    .row > .statusCell {
         display: block;
-        width: auto !important;
-        min-width: 0 !important;
-        padding: 0 !important;
-        border: 0 !important;
-        text-align: start !important;
     }
 
-    .auditTable td:first-child,
-    .auditTable td:last-child,
-    .auditTable td[colspan] {
-        grid-column: 1 / -1;
+    .auditTable td:first-child {
+        padding-inline-start: 0;
     }
 
-    .auditTable td[data-label]::before {
-        content: attr(data-label);
+    .feed {
+        align-items: flex-start;
+    }
+
+    .phoneMeta {
         display: block;
+        overflow: hidden;
+        margin-top: 2px;
         color: var(--ds-muted);
         font-size: var(--mantine-font-size-xs);
+        line-height: 1.4;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .phoneIssue {
+        color: var(--ds-rust);
     }
 
     .issue {
-        max-width: none;
+        display: none;
     }
-}
 
-.breakAnywhere {
-    overflow-wrap: anywhere;
+    .statusLabel {
+        font-size: var(--mantine-font-size-xs);
+        line-height: 1.6;
+    }
+
+    /* Healthy is the common case; a green dot is enough to say it. */
+    .statusLabel[data-status='healthy'] .statusText {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .emptyRow,
+    .emptyRow td {
+        display: block;
+    }
 }
 
 @media (max-width: 74.99em) {
@@ -190,11 +474,5 @@
     .filterGrid,
     .tableSummary {
         padding-inline: var(--ds-space-3);
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .table tbody tr {
-        transition: none;
     }
 }

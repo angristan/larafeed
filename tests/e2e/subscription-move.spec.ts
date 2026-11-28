@@ -106,7 +106,7 @@ test('switches a moved feed to its new URL from the details drawer', async ({
 
     await page.goto('/settings/subscriptions');
     await expect(
-        page.getByText('Feed moved. Open details to switch to the new URL.'),
+        page.getByText('Moved to a new feed URL').filter({ visible: true }),
     ).toBeVisible();
     await page
         .getByRole('button', { name: 'View details for Example blog' })
