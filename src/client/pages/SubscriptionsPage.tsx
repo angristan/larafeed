@@ -21,6 +21,7 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
+    IconAdjustmentsHorizontal,
     IconArrowNarrowDown,
     IconArrowNarrowUp,
     IconArrowsExchange,
@@ -36,6 +37,7 @@ import {
     memo,
     type ReactNode,
     useDeferredValue,
+    useId,
     useMemo,
     useState,
 } from 'react';
@@ -1054,6 +1056,192 @@ function SubscriptionTable({
     );
 }
 
+const sortOptions = [
+    { label: 'Status', value: 'status' },
+    { label: 'Name', value: 'name' },
+    { label: 'Entries', value: 'entries' },
+    { label: 'Last success', value: 'lastSuccess' },
+    { label: 'Last failure', value: 'lastFailure' },
+] as const satisfies readonly {
+    readonly label: string;
+    readonly value: SortField;
+}[];
+
+/**
+ * Search, filters and sort in one row above the table. Below 40rem the
+ * filters fold behind a button so the feeds start on the first screen.
+ */
+function AuditToolbar({
+    categories,
+    category,
+    filteredCount,
+    isFetching,
+    onCategoryChange,
+    onReset,
+    onSearchChange,
+    onSortDirectionToggle,
+    onSortFieldChange,
+    onStatusChange,
+    search,
+    sortDirection,
+    sortField,
+    status,
+    totalCount,
+}: {
+    readonly categories: readonly ManagedCategory[];
+    readonly category: string;
+    readonly filteredCount: number;
+    readonly isFetching: boolean;
+    readonly onCategoryChange: (category: string) => void;
+    readonly onReset: () => void;
+    readonly onSearchChange: (search: string) => void;
+    readonly onSortDirectionToggle: () => void;
+    readonly onSortFieldChange: (field: SortField) => void;
+    readonly onStatusChange: (status: SubscriptionStatus | 'all') => void;
+    readonly search: string;
+    readonly sortDirection: SortDirection;
+    readonly sortField: SortField;
+    readonly status: SubscriptionStatus | 'all';
+    readonly totalCount: number;
+}) {
+    const [filtersOpen, setFiltersOpen] = useState(false);
+    const filtersId = useId();
+    // Search stays visible on a phone, so it does not count here.
+    const hiddenFilterCount =
+        Number(category !== 'all') +
+        Number(status !== 'all') +
+        Number(
+            sortField !== defaultSortField ||
+                sortDirection !== defaultSortDirection,
+        );
+    const filtersActive = search !== '' || hiddenFilterCount > 0;
+    const feeds = (count: number) =>
+        `${count.toLocaleString()} ${count === 1 ? 'feed' : 'feeds'}`;
+
+    return (
+        <section aria-label="Filters" className={classes.toolbar}>
+            <TextInput
+                aria-label="Search feeds"
+                className={classes.search}
+                leftSection={<IconSearch aria-hidden="true" size={16} />}
+                onChange={(event) => onSearchChange(event.currentTarget.value)}
+                placeholder="Search name or URL"
+                value={search}
+            />
+            <Button
+                aria-controls={filtersId}
+                aria-expanded={filtersOpen}
+                className={classes.filtersToggle}
+                leftSection={<IconAdjustmentsHorizontal size={16} />}
+                onClick={() => setFiltersOpen((open) => !open)}
+                variant="default"
+            >
+                {hiddenFilterCount > 0
+                    ? `Filters (${hiddenFilterCount})`
+                    : 'Filters'}
+            </Button>
+            <div
+                className={classes.filterControls}
+                data-open={filtersOpen || undefined}
+                id={filtersId}
+            >
+                <Select
+                    allowDeselect={false}
+                    aria-label="Category"
+                    className={classes.categorySelect}
+                    data={[
+                        { label: 'All categories', value: 'all' },
+                        ...categories.map((item) => ({
+                            label: item.name,
+                            value: String(item.id),
+                        })),
+                    ]}
+                    onChange={(value) => onCategoryChange(value ?? 'all')}
+                    value={category}
+                />
+                <Select
+                    allowDeselect={false}
+                    aria-label="Status"
+                    className={classes.statusSelect}
+                    data={[
+                        { label: 'All statuses', value: 'all' },
+                        ...subscriptionStatusFilterOptions,
+                    ]}
+                    onChange={(value) =>
+                        onStatusChange(
+                            (value ?? 'all') as SubscriptionStatus | 'all',
+                        )
+                    }
+                    value={status}
+                />
+                <div className={classes.sortGroup}>
+                    <Select
+                        allowDeselect={false}
+                        aria-label="Sort by"
+                        className={classes.sortSelect}
+                        data={sortOptions}
+                        leftSection={
+                            <span className={classes.sortPrefix}>Sort</span>
+                        }
+                        leftSectionPointerEvents="none"
+                        leftSectionWidth={42}
+                        onChange={(value) => {
+                            if (value !== null) {
+                                onSortFieldChange(value as SortField);
+                            }
+                        }}
+                        value={sortField}
+                    />
+                    <Tooltip
+                        label={
+                            sortDirection === 'asc'
+                                ? 'Sort ascending'
+                                : 'Sort descending'
+                        }
+                        withArrow
+                    >
+                        <ActionIcon
+                            aria-label="Toggle sort direction"
+                            onClick={onSortDirectionToggle}
+                            size="input-sm"
+                            variant="default"
+                        >
+                            {sortDirection === 'asc' ? (
+                                <IconArrowNarrowUp size={18} />
+                            ) : (
+                                <IconArrowNarrowDown size={18} />
+                            )}
+                        </ActionIcon>
+                    </Tooltip>
+                </div>
+                {filtersActive && (
+                    <Button
+                        className={classes.resetButton}
+                        color="gray"
+                        onClick={onReset}
+                        variant="subtle"
+                    >
+                        Reset
+                    </Button>
+                )}
+            </div>
+            <div className={classes.count}>
+                <span>
+                    {filteredCount === totalCount
+                        ? feeds(totalCount)
+                        : `${filteredCount.toLocaleString()} of ${feeds(totalCount)}`}
+                </span>
+                {isFetching && (
+                    <span className={classes.updating} role="status">
+                        <Loader size={12} />
+                        Updating…
+                    </span>
+                )}
+            </div>
+        </section>
+    );
+}
+
 const subscriptionViews = [
     {
         view: 'overview',
@@ -1122,9 +1310,7 @@ function SubscriptionWorkspace({
         subscriptions,
     ]);
 
-    const handleSortFieldChange = (value: string | null) => {
-        if (value === null) return;
-        const nextField = value as SortField;
+    const handleSortFieldChange = (nextField: SortField) => {
         setSortField(nextField);
         setSortDirection((currentDirection) =>
             nextSubscriptionSortDirection(
@@ -1142,6 +1328,8 @@ function SubscriptionWorkspace({
         }
         handleSortFieldChange(field);
     };
+
+    const isFiltered = search !== '' || category !== 'all' || status !== 'all';
 
     const resetFilters = () => {
         setSearch('');
@@ -1236,107 +1424,29 @@ function SubscriptionWorkspace({
 
                 {view === 'audit' && (
                     <Paper className={classes.auditSurface} p={0}>
-                        <section aria-label="Filters">
-                            <div className={classes.filterGrid}>
-                                <TextInput
-                                    label="Search"
-                                    leftSection={<IconSearch size={16} />}
-                                    onChange={(event) =>
-                                        setSearch(event.currentTarget.value)
-                                    }
-                                    placeholder="Name or URL"
-                                    value={search}
-                                />
-                                <Select
-                                    data={[
-                                        {
-                                            label: 'All categories',
-                                            value: 'all',
-                                        },
-                                        ...categories.map((item) => ({
-                                            label: item.name,
-                                            value: String(item.id),
-                                        })),
-                                    ]}
-                                    label="Category"
-                                    onChange={(value) =>
-                                        setCategory(value ?? 'all')
-                                    }
-                                    value={category}
-                                />
-                                <Select
-                                    data={[
-                                        { label: 'All statuses', value: 'all' },
-                                        ...subscriptionStatusFilterOptions,
-                                    ]}
-                                    label="Status"
-                                    onChange={(value) =>
-                                        setStatus(
-                                            (value ?? 'all') as
-                                                | SubscriptionStatus
-                                                | 'all',
-                                        )
-                                    }
-                                    value={status}
-                                />
-                                <Group align="flex-end" gap="xs" wrap="nowrap">
-                                    <Select
-                                        data={[
-                                            {
-                                                label: 'Status',
-                                                value: 'status',
-                                            },
-                                            { label: 'Name', value: 'name' },
-                                            {
-                                                label: 'Entries count',
-                                                value: 'entries',
-                                            },
-                                            {
-                                                label: 'Last success',
-                                                value: 'lastSuccess',
-                                            },
-                                            {
-                                                label: 'Last failure',
-                                                value: 'lastFailure',
-                                            },
-                                        ]}
-                                        label="Sort by"
-                                        onChange={handleSortFieldChange}
-                                        style={{ flex: 1 }}
-                                        value={sortField}
-                                    />
-                                    <Tooltip
-                                        label={`Sort ${
-                                            sortDirection === 'asc'
-                                                ? 'ascending'
-                                                : 'descending'
-                                        }`}
-                                        withArrow
-                                    >
-                                        <ActionIcon
-                                            aria-label="Toggle sort direction"
-                                            onClick={() =>
-                                                setSortDirection((current) =>
-                                                    current === 'asc'
-                                                        ? 'desc'
-                                                        : 'asc',
-                                                )
-                                            }
-                                            size="lg"
-                                            variant="light"
-                                        >
-                                            {sortDirection === 'asc' ? (
-                                                <IconArrowNarrowUp size={18} />
-                                            ) : (
-                                                <IconArrowNarrowDown
-                                                    size={18}
-                                                />
-                                            )}
-                                        </ActionIcon>
-                                    </Tooltip>
-                                </Group>
-                            </div>
-                        </section>
+                        <AuditToolbar
+                            categories={categories}
+                            category={category}
+                            filteredCount={filtered.length}
+                            isFetching={
+                                data !== undefined && management.isFetching
+                            }
+                            onCategoryChange={setCategory}
+                            onReset={resetFilters}
+                            onSearchChange={setSearch}
+                            onSortDirectionToggle={() =>
+                                setSortDirection((current) =>
+                                    current === 'asc' ? 'desc' : 'asc',
+                                )
+                            }
+                            onSortFieldChange={handleSortFieldChange}
+                            onStatusChange={setStatus}
+                            search={search}
+                            sortDirection={sortDirection}
+                            sortField={sortField}
+                            status={status}
+                            totalCount={subscriptions.length}
+                        />
 
                         {management.isError && data !== undefined && (
                             <Alert
@@ -1368,41 +1478,35 @@ function SubscriptionWorkspace({
                         )}
 
                         {data !== undefined && (
-                            <>
-                                <div className={classes.tableSummary}>
-                                    <Group gap="sm">
-                                        <Text c="dimmed" size="xs">
-                                            {`${filtered.length.toLocaleString()} of ${subscriptions.length.toLocaleString()} feeds`}
+                            <SubscriptionTable
+                                onSelect={setSelectedFeedId}
+                                selectedFeedId={selectedFeedId}
+                                sort={{
+                                    field: sortField,
+                                    direction: sortDirection,
+                                    onSort: handleSort,
+                                }}
+                                emptyState={
+                                    <Stack align="center" gap="xs">
+                                        <Text c="dimmed" size="sm">
+                                            No subscriptions match the current
+                                            filters.
                                         </Text>
-                                        {management.isFetching && (
-                                            <Group gap="xs" role="status">
-                                                <Loader size="xs" />
-                                                <Text c="dimmed" size="xs">
-                                                    Updating…
-                                                </Text>
-                                            </Group>
+                                        {/* On a phone the toolbar's Reset is
+                                            folded away with the filters. */}
+                                        {isFiltered && (
+                                            <Button
+                                                onClick={resetFilters}
+                                                size="xs"
+                                                variant="default"
+                                            >
+                                                Reset filters
+                                            </Button>
                                         )}
-                                    </Group>
-                                    <Button
-                                        color="gray"
-                                        onClick={resetFilters}
-                                        size="compact-xs"
-                                        variant="subtle"
-                                    >
-                                        Reset filters
-                                    </Button>
-                                </div>
-                                <SubscriptionTable
-                                    onSelect={setSelectedFeedId}
-                                    selectedFeedId={selectedFeedId}
-                                    sort={{
-                                        field: sortField,
-                                        direction: sortDirection,
-                                        onSort: handleSort,
-                                    }}
-                                    subscriptions={filtered}
-                                />
-                            </>
+                                    </Stack>
+                                }
+                                subscriptions={filtered}
+                            />
                         )}
                     </Paper>
                 )}

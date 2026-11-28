@@ -50,32 +50,12 @@
     padding: var(--ds-space-5) var(--ds-space-4);
 }
 
-.filterGrid {
-    display: grid;
-    grid-template-columns: minmax(15rem, 1.6fr) repeat(3, minmax(10rem, 1fr));
-    gap: var(--ds-space-3);
-    align-items: end;
-    padding: var(--ds-space-4);
-    border-bottom: 1px solid var(--ds-work-line);
-}
-
 .inlineAlert {
     margin: var(--ds-space-3) var(--ds-space-4);
 }
 
 .stateRegion {
     margin: var(--ds-space-4);
-}
-
-.tableSummary {
-    display: flex;
-    min-height: 2.25rem;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--ds-space-3);
-    padding: var(--ds-space-2) var(--ds-space-4);
-    border-bottom: 1px solid var(--ds-line);
-    background: var(--ds-paper-muted);
 }
 
 .table {
@@ -100,6 +80,69 @@
 
 .table td {
     border-bottom-color: var(--ds-line);
+}
+
+/* One toolbar row: search, filters, sort, and the count at the end. */
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: var(--ds-space-3) var(--ds-space-4);
+    border-bottom: 1px solid var(--ds-work-line);
+    background: var(--ds-surface-work-header);
+    gap: var(--ds-space-2);
+}
+
+.search {
+    min-width: 11rem;
+    max-width: 22rem;
+    flex: 1 1 13rem;
+}
+
+.filtersToggle {
+    display: none;
+}
+
+.filterControls {
+    display: contents;
+}
+
+.categorySelect {
+    width: 11rem;
+}
+
+.statusSelect {
+    width: 10rem;
+}
+
+.sortGroup {
+    display: flex;
+    gap: 6px;
+}
+
+.sortSelect {
+    width: 11.5rem;
+}
+
+.sortPrefix {
+    color: var(--ds-muted);
+    font-size: var(--mantine-font-size-xs);
+}
+
+.count {
+    display: flex;
+    align-items: center;
+    margin-inline-start: auto;
+    color: var(--ds-muted);
+    font-size: var(--mantine-font-size-xs);
+    gap: var(--ds-space-3);
+    white-space: nowrap;
+}
+
+.updating {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
 /* Feed table: one 45px line per feed. Fixed layout keeps long names and
@@ -368,6 +411,53 @@
     }
 }
 
+@container (max-width: 40rem) {
+    .toolbar {
+        padding: var(--ds-space-3);
+    }
+
+    .search {
+        min-width: 0;
+        max-width: none;
+        flex: 1 1 0;
+    }
+
+    .filtersToggle {
+        display: inline-flex;
+    }
+
+    .filterControls {
+        display: none;
+    }
+
+    .filterControls[data-open] {
+        display: grid;
+        width: 100%;
+        gap: var(--ds-space-2);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .categorySelect,
+    .statusSelect,
+    .sortSelect {
+        width: auto;
+    }
+
+    .sortGroup,
+    .resetButton {
+        grid-column: 1 / -1;
+    }
+
+    .sortSelect {
+        flex: 1 1 auto;
+    }
+
+    .count {
+        width: 100%;
+        margin-inline-start: 0;
+    }
+}
+
 /* Phone: each feed is two lines. Name and status on the first; category,
    entries and last success, or the error, on the second. */
 @container (max-width: 40rem) {
@@ -455,7 +545,6 @@
 }
 
 @media (max-width: 74.99em) {
-    .filterGrid,
     .metricGrid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -465,14 +554,5 @@
     .overviewHeader {
         align-items: flex-start;
         flex-direction: column;
-    }
-
-    .filterGrid {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .filterGrid,
-    .tableSummary {
-        padding-inline: var(--ds-space-3);
     }
 }

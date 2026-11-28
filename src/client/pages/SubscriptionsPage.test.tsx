@@ -132,6 +132,12 @@ describe('SubscriptionsPage', () => {
         );
 
         expect(markup).toContain('aria-label="Filters"');
+        // One compact row: controls are named without labels above them,
+        // and Reset only appears once something is filtered.
+        expect(markup).toContain('aria-label="Search feeds"');
+        expect(markup).not.toContain('<label');
+        expect(markup).not.toContain('>Reset<');
+        expect(markup).toContain('0 feeds');
         expect(markup).toContain('No subscriptions match the current filters');
     });
 

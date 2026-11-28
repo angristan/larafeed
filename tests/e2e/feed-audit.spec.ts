@@ -107,3 +107,61 @@ test('lists failing feeds first and opens a feed from anywhere on its row', asyn
     await page.keyboard.press('Enter');
     await expect(page.getByRole('dialog').getByText('Zulu news')).toBeVisible();
 });
+
+test('filters from one toolbar row and offers reset only when filtered', async ({
+    page,
+}) => {
+    await mockApi(page);
+    await page.goto('/settings/subscriptions');
+
+    const filters = page.getByRole('region', { name: 'Filters' });
+    await expect(filters.getByText('2 feeds', { exact: true })).toBeVisible();
+    await expect(filters.getByRole('button', { name: 'Reset' })).toHaveCount(
+        0,
+    );
+    // Phones get the toggle; on a desktop the filters are always shown.
+    await expect(
+        filters.getByRole('button', { name: 'Filters' }),
+    ).toBeHidden();
+
+    await filters.getByLabel('Status', { exact: true }).click();
+    await page.getByRole('option', { name: 'Healthy' }).click();
+    await expect(filters.getByText('1 of 2 feeds')).toBeVisible();
+    await expect(page.locator('tbody tr')).toHaveCount(1);
+
+    await filters.getByRole('button', { name: 'Reset' }).click();
+    await expect(filters.getByText('2 feeds', { exact: true })).toBeVisible();
+    await expect(page.locator('tbody tr')).toHaveCount(2);
+});
+
+test('folds the filters behind a button on a phone', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockApi(page);
+    await page.goto('/settings/subscriptions');
+
+    const filters = page.getByRole('region', { name: 'Filters' });
+    const toggle = filters.getByRole('button', { name: 'Filters' });
+    const status = filters.getByLabel('Status', { exact: true });
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(status).toBeHidden();
+
+    // Both feeds start on the first screen.
+    const last = await page.locator('tbody tr').last().boundingBox();
+    expect((last?.y ?? 0) + (last?.height ?? 0)).toBeLessThan(844);
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await status.click();
+    await page.getByRole('option', { name: 'Failing' }).click();
+    await expect(
+        filters.getByRole('button', { name: 'Filters (1)' }),
+    ).toBeVisible();
+    await expect(page.locator('tbody tr')).toHaveCount(1);
+
+    // With the filters folded away, an empty result still offers a reset.
+    await toggle.click();
+    await filters.getByLabel('Search feeds').fill('no such feed');
+    await page.getByRole('button', { name: 'Reset filters' }).click();
+    await expect(page.locator('tbody tr')).toHaveCount(2);
+    await expect(filters.getByLabel('Search feeds')).toHaveValue('');
+});
